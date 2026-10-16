@@ -5,7 +5,7 @@ supported_games: [
 	"rac"
 ]
 author: ""
-description: "Executive Edition of Ratchet & Clank (PAL): rebuilt executable from OpenRAC rac1/pal"
+description: "Executive Edition of Ratchet & Clank (PAL): rebuilt executable from OpenRAC rac1"
 version: "0.0.1"
 images: []
 builds: []

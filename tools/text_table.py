@@ -18,7 +18,7 @@ the whole file is rebuilt with offsets and the header recomputed.
   python tools/text_table.py [--openrac DIR] [-o build/all_text.bin]
 
 The result is larger than the original and goes in new sectors at the end
-of the disc image: OpenRAC's games/rac1/pal/tools/iso_patch.py
+of the disc image: OpenRAC's games/rac1/tools/iso_patch.py
 `--append FILE@OFFSET` places it and writes {sector, sectors} at OFFSET,
 here the table-of-contents entry at 1500 * 2048 + 0x1528.
 """
@@ -37,7 +37,7 @@ SECTOR = 2048
 def read_table(openrac: Path) -> bytes:
     sys.path.insert(0, str(openrac / "editor"))
     from disc import Disc
-    iso = openrac / "games/rac1/pal/baserom/SCES_509.16.iso"
+    iso = openrac / "games/rac1/baserom/SCES_509.16.iso"
     with Disc(iso) as disc:
         ref = next(r for r in disc.survey()["global_references"] if r["group"] == "all_text")
         return disc.read(ref["lba"] * SECTOR, ref["bytes"])

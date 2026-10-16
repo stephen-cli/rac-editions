@@ -5,7 +5,7 @@ Build the Executive Edition's resident code: the "mod segment".
 C in src/ is compiled with the game's own compiler (SN GCC 2.95.3 from
 OpenRAC's toolchain), linked at MODSEG_BASE against the game's symbols, and
 written out as a flat image the boot executable carries as a second
-loadable segment (OpenRAC games/rac1/pal: tools/boot_elf.py --segment). The
+loadable segment (OpenRAC games/rac1: tools/boot_elf.py --segment). The
 PS2 kernel's ELF loader puts it in RAM at boot, before the game's first
 program runs, and it stays there: level programs replace everything from
 0x15F000 up, never this region.
@@ -68,7 +68,7 @@ def run(cmd, cwd=None):
 
 def catalogue(openrac: Path) -> dict[str, dict[int, int]]:
     places = {}
-    for line in (openrac / "games/rac1/pal/config/overlays/functions.tsv").read_text().splitlines():
+    for line in (openrac / "games/rac1/config/overlays/functions.tsv").read_text().splitlines():
         if not line.strip() or line.startswith("#"):
             continue
         name, _k, _s, _f, _l, pl = line.split("\t")[:6]
@@ -84,7 +84,7 @@ def level_data_addresses(openrac: Path, places: dict, spec: tuple) -> list[int]:
     from formats import unpack, span, overlay_sections
     from level import SECTION_NAMES
     func, hi_off, lo_off = spec
-    iso = openrac / "games/rac1/pal/baserom/SCES_509.16.iso"
+    iso = openrac / "games/rac1/baserom/SCES_509.16.iso"
     out = [None] * 19
     with Disc(iso) as disc, iso.open("rb") as f:
         for info in disc.survey()["levels"]:
@@ -130,7 +130,7 @@ def main() -> int:
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/modseg")
     args = ap.parse_args()
 
-    pal = args.openrac / "games/rac1/pal"
+    pal = args.openrac / "games/rac1"
     sn114 = pal / "toolchain/sn-prodg-24/local/sce/ee/gcc/bin"
     tc301 = pal / "toolchain/sn-prodg-3.01/usr/local/sce/ee/gcc/bin"
     cc, ld, objcopy = sn114 / "ee-gcc2953.exe", tc301 / "ee-ld.exe", tc301 / "ee-objcopy.exe"

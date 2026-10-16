@@ -4,7 +4,7 @@ Level-code patches for the Executive Edition, written as disc sectors.
 
 Gameplay code lives in the 19 level programs (overlays), not in the boot
 executable, and each level has its own copy of the shared functions at its
-own addresses. OpenRAC's catalogue (games/rac1/pal/config/overlays/
+own addresses. OpenRAC's catalogue (games/rac1/config/overlays/
 functions.tsv) gives every function's address in every level, and the level
 code is stored raw on the disc, so a patch is the same words written at 19
 places, with every address resolved per level.
@@ -15,7 +15,7 @@ catalogue lists (config/overlays/linker_remnants.txt), dead words retail's
 linker left of stripped functions, which nothing reaches.
 
 Output is the editor's patch format, which tools/iso_patch.py in OpenRAC's
-games/rac1/pal applies: <out>/patches.tsv listing first sector, sector
+games/rac1 applies: <out>/patches.tsv listing first sector, sector
 count and a file of those sectors with the patch applied.
 
 Usage (from anywhere):
@@ -238,7 +238,7 @@ DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_p
 
 def load_catalogue(openrac: Path) -> dict[str, dict[int, int]]:
     places = {}
-    path = openrac / "games/rac1/pal/config/overlays/functions.tsv"
+    path = openrac / "games/rac1/config/overlays/functions.tsv"
     for line in path.read_text().splitlines():
         if not line.strip() or line.startswith("#"):
             continue
@@ -255,7 +255,7 @@ def level_text_locations(openrac: Path):
     from disc import Disc
     from formats import unpack, span, overlay_sections
     from level import SECTION_NAMES
-    iso = openrac / "games/rac1/pal/baserom/SCES_509.16.iso"
+    iso = openrac / "games/rac1/baserom/SCES_509.16.iso"
     out = {}
     with Disc(iso) as disc:
         for info in disc.survey()["levels"]:

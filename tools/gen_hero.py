@@ -61,14 +61,14 @@ def records(pal: Path, level: int):
 
 
 def catalogue_place(openrac: Path, name: str, level: int) -> int:
-    for line in (openrac / "games/rac1/pal/config/overlays/functions.tsv").read_text().splitlines():
+    for line in (openrac / "games/rac1/config/overlays/functions.tsv").read_text().splitlines():
         if line.startswith(name + "\t"):
             return {int(p.split(":")[0]): int(p.split(":")[1], 16) for p in line.split("\t")[5].split(",")}.get(level)
     raise SystemExit(f"{name} is not in the catalogue")
 
 
 def find_level(openrac: Path, level: int) -> dict:
-    pal = openrac / "games/rac1/pal"
+    pal = openrac / "games/rac1"
     recs = records(pal, level)
     tbase, text = recs["text"]
     n = len(text) // 4

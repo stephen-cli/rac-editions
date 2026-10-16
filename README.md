@@ -27,7 +27,7 @@ docs/       FEATURES.md (what each feature does and how it is patched), HQ_REPOR
 ```
 
 OpenRAC's `assets/wrench/rac1-pal` is the pristine wrench unpack of the disc
-and `games/rac1/pal/baserom/` holds the disc image and boot executable; both
+and `games/rac1/baserom/` holds the disc image and boot executable; both
 are ignored by git there.
 
 ## Pipeline
@@ -38,7 +38,7 @@ bash tools/pack.sh           # same, then a wrench full re-layout pack (needed o
 bash tools/export-patches.sh # refresh patches/ from OpenRAC's executive-edition branch
 ```
 
-Outputs: `OpenRAC/games/rac1/pal/build-sn/executive-edition.iso` (in-place) or
+Outputs: `OpenRAC/games/rac1/build-sn/executive-edition.iso` (in-place) or
 `OpenRAC/build/wrench/executive-edition.iso` (wrench). Boot either in PCSX2 as a
 normal disc.
 

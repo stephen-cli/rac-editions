@@ -5,7 +5,7 @@
 #   bash tools/pack.sh [--quick]
 #
 #   --quick   in-place copy of the owner's image (same-size changes only, ~10 s)
-#             -> OpenRAC/games/rac1/pal/build-sn/executive-edition.iso
+#             -> OpenRAC/games/rac1/build-sn/executive-edition.iso
 #   default   wrench full re-layout: game bank + wrench overlay + mod/ (~3 min)
 #             -> OpenRAC/build/wrench/executive-edition.iso
 #
@@ -15,7 +15,7 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 OPENRAC=${OPENRAC:-$(cd "$HERE/../OpenRAC" && pwd)}
 WRENCH=${WRENCH:-$(cd "$HERE/../wrench" && pwd)}
 GAME_BANK=$OPENRAC/assets/wrench/rac1-pal
-PAL=$OPENRAC/games/rac1/pal
+PAL=$OPENRAC/games/rac1
 
 echo "== OpenRAC branch: $(git -C "$OPENRAC" branch --show-current)"
 cd "$PAL"
