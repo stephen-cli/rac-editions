@@ -164,10 +164,9 @@ variable (0x15F780); the level copies reach it gp-relative with a
 per-level offset, so every game string came back null: the lesson is that
 even gp-relative data is not at one address across levels, and the safe
 pattern for a hook is to re-enter the original function. q3 uses
-"Controls" (0x5402) for the row, "Quick Select Pause" (0x5405) for the
-page title, "Enabled" (0x5403) for the toggle row (the long label did not
-fit the toggle box) and "Adjust controls settings" (0x5404) for the
-description. Accented letters are flattened to ASCII until the font's code
+"Controls" (0x5402) for the row, "Controls Options" (0x5405) for the page
+title, "Quick Select Pause" (0x5403) for the toggle row and "Adjust
+controls settings" (0x5404) for the description. Accented letters are flattened to ASCII until the font's code
 page is mapped.
 
 **HUD slots.** `HudShow(slot | flags, a, init, update, draw, b, c)` queues

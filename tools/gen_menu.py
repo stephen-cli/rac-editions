@@ -62,16 +62,34 @@ def find_menu(pal: Path, level: int) -> dict:
     widget = next(base + off - 0x34 for off in range(0, len(d) - 4, 4) if u32(base + off) == items)
     rows = [struct.unpack_from("<3I", d, items - base + 12 * i) for i in range(8)]
     sub_page = rows[5][1]
-    page = [u32(sub_page + 4 * i) for i in range(0x88 // 4)]
+    options = u32(sub_page + 0x38)
+    # The template is the cut "Controller vibration" page (kind 0x1C, under
+    # Options, never reachable in retail): a toggle page like Subtitles, but its
+    # frame-moby sequences (118, 119, 120, 123, 122) give a panel wide enough for
+    # a twenty-character row label; Subtitles' (73..77) cut "Quick Select Pause".
+    template = None
+    for off in range(0, len(d) - 0x88, 4):
+        a = base + off
+        if u32(a + 0x3C) == 0x1C and u32(a + 0x38) == options:
+            template = a
+            break
+    if template is None:
+        raise SystemExit(f"level {level}: the vibration page (kind 0x1C under Options) not found")
+    page = [u32(template + 4 * i) for i in range(0x88 // 4)]
     toggle, title = page[16], page[17]
     tog = [u32(toggle + 4 * i) for i in range(16)]
     tit = [u32(title + 4 * i) for i in range(22)]
     entry = [u32(tog[13] + 4 * i) for i in range(5)]
-    if entry[0] != LABEL_SUBTITLES or entry[1] != 0x15EF40:
+    sub_tog = u32(sub_page + 0x40)
+    sub_entry = [u32(u32(sub_tog + 0x34) + 4 * i) for i in range(5)]
+    if sub_entry[0] != LABEL_SUBTITLES or sub_entry[1] != 0x15EF40:
         raise SystemExit(f"level {level}: the Subtitles entry is not where expected")
+    if tog[0] != u32(sub_tog) or tog[1] != u32(sub_tog + 4):
+        raise SystemExit(f"level {level}: the vibration page's toggle widget differs from Subtitles'")
+    entry = [entry[0], entry[1], sub_entry[2], sub_entry[3], 0]    # On/Off ids as Subtitles'
+    page[15] = 0x1B                                                # behave as the Subtitles page
     # The Options page's other widgets: the description widget (+0x34 -> the
     # row description ids) and the image widget (+0x30 -> the core image table).
-    options = page[14]
     desc_site = image_site = None
     for i in range(18):
         w = u32(options + 0x40 + 4 * i)

@@ -1,6 +1,6 @@
 # Executive Edition strings added to the game's text table (tools/text_table.py).
 # id (hex)	English	French	German	Spanish	Italian   (missing languages fall back to English)
 5402	Controls	Commandes	Steuerung	Controles	Comandi
-5403	Enabled	Activé	Aktiviert	Activado	Attivato
+5403	Quick Select Pause	Pause de la sélection rapide	Schnellauswahl-Pause	Pausa de selección rápida	Pausa selezione rapida
 5404	Adjust controls settings	Régler les commandes	Steuerung einstellen	Ajustar los controles	Regola i comandi
-5405	Quick Select Pause	Pause de la sélection rapide	Schnellauswahl-Pause	Pausa de selección rápida	Pausa selezione rapida
+5405	Controls Options	Options des commandes	Steuerungsoptionen	Opciones de controles	Opzioni comandi
