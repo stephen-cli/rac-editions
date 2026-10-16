@@ -490,3 +490,79 @@ flip), strafe back and press X (back flip), strafe forward and press X
 (plain jump or run-jump), hold a trigger through a jump (Ratchet keeps
 facing the camera and drifts along the stick); crouch jumps and the hover
 unchanged.
+
+## x5: Strafing — fourth increment: R&C2's flips, the run twist, a backpedal (2026-10-17), awaiting owner test
+
+**Owner's test of the third increment.** Camera and movement good. The
+strafe flips felt stiff and "side-flips tend to trigger forward corkscrew
+flips"; R&C1's non-strafe movement must not change. Go ahead with the
+twist; a backward-stepping cycle is wanted too (R&C2 has one, R&C1 not).
+
+**The flips, compared.** Both Ratchets carry the same four flip sequences
+(slots 0x1C-0x1F, 33 frames each; R&C2's are the same data in its packed
+frame format, read from the R&C2 class in a RAM dump, `0x1202F80`, 157
+sequences). From the pelvis rotation in R&C1's data: 0x1C and 0x1D are the
+two side flips (a 335-degree roll with a twist, the "corkscrew"), 0x1E and
+0x1F the two somersaults. So the look is R&C2's own; what differed was the
+motion and the choice:
+- R&C2's flip air control (`0x2B75AC`) is R&C1's (`FUN_L01_00234b40`, the
+  state 0xB branch) plus one strafe path (`0x2B760C`): the horizontal
+  speed (hero + 0x458) starts at frame_time * 5 instead of 0 and follows
+  the stick, approached at frame_time^2 * 37 toward max(stick * frame_time
+  * 5, frame_time * 2); the ground speed is kept at the current horizontal
+  speed; the "drift back toward the take-off yaw" term is dropped
+  (take-off speed + 0x454 = 0). R&C1's flip only gains speed after the
+  apex, hence the stiffness. Ported: the two `approach_value(&hero +
+  0x458)` calls of the air control go to `ee_flip_approach`, which takes
+  R&C2's path while a strafe flip is in the air; the jump-press hook seeds
+  the speed at take-off when the stick is past 0.3 (R&C2's condition).
+- R&C2 classifies the flip from the stick relative to the camera (its raw
+  stick classes); R&C1's entry classifies against the facing, which lags
+  the camera while strafing, so a sideways stick near a camera turn could
+  read as a different class. The hook now classifies against the camera
+  yaw and sets the flip animation itself (0x1C left, 0x1D right, 0x1F
+  back; the mirror option swaps the sides as the game does) and the class
+  the air control reads (hero + 0x450). Crouch flips outside the strafe
+  are untouched.
+
+**The run twist.** R&C2 has no strafe run cycles. Its run block calls a
+helper (`0x2B8078`) that, while strafing with the stick past 0.15, not in
+a flip and not backpedalling, writes the angle between the stick heading
+and the facing into the hero's per-joint ease table: hips + angle (table
++ 0x68), torso - angle (+ 0x118), spring rates 0.037/0.27 and 0.025/0.27
+(+ 0xA4/+ 0xA8, + 0x154/+ 0x158), skipping the normal lean. R&C1's lean
+helper (`func_L00_00215A90`; NTSC `FUN_L00_00215340`) writes the same
+table (NTSC `D_L00_0017A680`; PAL level 0 `0x17A780`, per level from the
+rate setter `func_L00_0020A858`) from the turn rate: records of 0xB0
+bytes, lean at + 0x60 and + 0x118, rates at record + 0x44/+ 0x48, the same
+layout. The helper's six calls in the movement switch go to `ee_twist`,
+which writes the table R&C2's way while strafing and calls the helper
+otherwise. The legs follow the movement, the torso the camera, over
+R&C1's own walk and run cycles.
+
+**The backpedal.** R&C2 plays a 30-frame backward step (its slot 0x14; in
+R&C1 that slot is the 14-frame stop) when the stick class is "back" past
+0.15 (`0x2C2560`), at speed max(ground speed * 25, 0.7) capped at 2.2, and
+returns to the walk/run cycle with a 7-frame blend. R&C2's cycle is in the
+packed format the game decodes at run time, so carrying it over needs
+that format decoded, a separate job. Until then the edition builds a
+reversed copy of R&C1's run cycle (slot 4, 23 frames) when first needed:
+once loaded a sequence is a 0x1C-byte header and a table of frame
+pointers (`update_moby_animation_state` reads `seqs[seq]->frames[frame]`),
+so the copy is the header with the pointers in reverse order and no
+triggers, installed in the free slot 200 of the hero's class (134 of 256
+used; `set_hero_animation` and the state updater do not check the count).
+The run animation updater's call in the RUN update goes to `ee_run_anim`,
+which plays and paces the backpedal R&C2's way and hands back to the
+updater, with R&C2's blend, when the stick leaves the back sector.
+
+**Verification.** Rebuilt; the ease table's address checked in the
+generated level tables (levels 0, 7: `0x17A780`; 18: `0x17B100`); the
+three trampolines and the hooks checked in disassembly (R&C2's constants,
+the table offsets, slot 200, moby + 0x53, the speeds and blends); the nine
+new patched sites checked against the trampolines in levels 0, 7 and 18
+and found by pattern in all 19 at build time. Owner test: strafe sideways
+and back and watch the hips/torso twist; strafe back (backward step, run
+cycle reversed for now); side and back flips from a strafe should travel
+with the stick and feel like R&C2's; crouch flips, the normal run and the
+hover unchanged.

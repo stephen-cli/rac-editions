@@ -24,6 +24,14 @@ level's own program:
   jump_press     the four calls of the jump-press handler
                  (func_L00_00229348: X pressed in a window -> high jump
                  with crouch, else plain jump), which the strafe flips hook
+  twist          the six calls of the hero lean helper (func_L00_00215A90,
+                 which writes the per-joint ease table), hooked for the
+                 strafe twist
+  runanim        the one call of the run animation updater
+                 (func_L00_002293E8), hooked for the backpedal cycle
+  flip_appr      the flip's two approach_value(target, step, &hero + 0x458)
+                 calls in the air control (func_00214D28's level copy with
+                 the &hero + 0x458 argument), hooked for R&C2's strafe flip
   comet_site     the Comet-Strike (state 0x15) movement block's call to
                  speed_step: of the jump tables indexed by the hero's state
                  (code entries; a bound of 0x83 where one is in reach), the
@@ -58,6 +66,9 @@ TURN_TO = "func_L00_002124E8"
 PIVOT_TURN = "func_L00_002125F0"
 SET_PLANAR_VEL = "func_L00_00212790"
 JUMP_PRESS = "func_L00_00229348"
+TWIST = "func_L00_00215A90"
+RUN_ANIM = "func_L00_002293E8"
+APPROACH = "func_00214D28"
 RUN_ORDER = ["turn", "pivot", "turn", "speed", "planar", "planar"]
 STATE_JUMP = 7
 
@@ -177,6 +188,27 @@ def find_level(openrac: Path, level: int) -> dict:
     press = [tbase + 4 * k for k, x in enumerate(w) if x == jal_jp]
     if len(press) != 4:
         raise SystemExit(f"level {level}: {JUMP_PRESS} is called {len(press)} times, expected 4: {[hex(a) for a in press]}")
+    # The lean helper's calls, the run animation updater's call, the flip's two approach calls.
+    tw = catalogue_place(openrac, TWIST, level)
+    twist = [tbase + 4 * k for k, x in enumerate(w) if x == (0x0C000000 | ((tw >> 2) & 0x3FFFFFF))]
+    if len(twist) != 6:
+        raise SystemExit(f"level {level}: {TWIST} is called {len(twist)} times, expected 6")
+    ra = catalogue_place(openrac, RUN_ANIM, level)
+    runanim = [tbase + 4 * k for k, x in enumerate(w) if x == (0x0C000000 | ((ra >> 2) & 0x3FFFFFF))]
+    if len(runanim) != 1:
+        raise SystemExit(f"level {level}: {RUN_ANIM} is called {len(runanim)} times, expected 1")
+    ap = catalogue_place(openrac, APPROACH, level)
+    jal_ap = 0x0C000000 | ((ap >> 2) & 0x3FFFFFF)
+    appr = []
+    for k, x in enumerate(w):
+        if x == jal_ap:
+            for j in range(k - 10, k):
+                p = w[j]
+                if p >> 26 == 9 and ((p >> 16) & 31) == 4 and (p & 0xFFFF) in (0x458, 0xF8A8):
+                    appr.append(tbase + 4 * k)
+                    break
+    if len(appr) != 2:
+        raise SystemExit(f"level {level}: approach_value(&hero + 0x458) found {len(appr)} times, expected 2: {[hex(a) for a in appr]}")
 
     # hero_set_state: the function most often called as f(const < 0x83, 0 or 1).
     calls = Counter()
@@ -221,7 +253,10 @@ def find_level(openrac: Path, level: int) -> dict:
             "turn_to": inv["turn"], "pivot_turn": inv["pivot"], "set_planar_vel": inv["planar"],
             "jump_turn_site": jump[0], "jump_planar_site": jump[1], "air_turn_site": air[0],
             "jump_press_0": press[0], "jump_press_1": press[1], "jump_press_2": press[2], "jump_press_3": press[3],
-            "jump_press_fn": jp}
+            "jump_press_fn": jp,
+            "twist_0": twist[0], "twist_1": twist[1], "twist_2": twist[2], "twist_3": twist[3], "twist_4": twist[4], "twist_5": twist[5],
+            "twist_fn": tw, "runanim_site": runanim[0], "run_anim_fn": ra,
+            "flip_appr_0": appr[0], "flip_appr_1": appr[1], "approach_fn": ap}
 
 
 def main() -> int:
@@ -240,7 +275,9 @@ def main() -> int:
          "typedef unsigned int u32;"]
     names = ("comet_site", "speed_step", "hero_set_state", "run_turn_a", "run_pivot", "run_turn_b",
              "run_planar_a", "run_planar_b", "turn_to", "pivot_turn", "set_planar_vel",
-             "jump_turn_site", "jump_planar_site", "air_turn_site", "jump_press_0", "jump_press_1", "jump_press_2", "jump_press_3", "jump_press_fn")
+             "jump_turn_site", "jump_planar_site", "air_turn_site", "jump_press_0", "jump_press_1", "jump_press_2", "jump_press_3", "jump_press_fn",
+             "twist_0", "twist_1", "twist_2", "twist_3", "twist_4", "twist_5", "twist_fn", "runanim_site", "run_anim_fn",
+             "flip_appr_0", "flip_appr_1", "approach_fn")
     for name in names:
         c.append(f"const u32 ee_{name}[19] = {{ {', '.join(f'0x{found[L][name]:08X}' for L in range(19))} }};")
     (args.out / "gen_hero.c").write_text("\n".join(c) + "\n")

@@ -80,6 +80,48 @@
  * strafing straight ahead at speed (not changed: the call is not found by
  * pattern in the level programs).
  *
+ *
+ * The flips, R&C2's way (owner's second test: the strafe flips felt stiff
+ * and sometimes came out as the twisting flip). Both games keep the same
+ * four flip sequences (0x1C-0x1F, 33 frames each; R&C2's are the same
+ * data packed) and the same flip air control, except for one path R&C2
+ * adds for a strafe flip (0x2B760C): the horizontal speed (hero + 0x458)
+ * starts at frame_time * 5 instead of 0 and follows the stick, approached
+ * at frame_time^2 * 37 toward max(stick * frame_time * 5, frame_time * 2),
+ * the ground speed is kept at the current horizontal speed, and the
+ * "drift back toward the take-off yaw" term is dropped (take-off speed +
+ * 0x454 = 0). R&C1's flip only gains speed after the apex, so it stands
+ * still in the air. R&C2 also classifies the flip from the stick relative
+ * to the camera (its raw stick classes), where R&C1's entry uses the
+ * facing, which lags the camera while strafing: the edition reclassifies
+ * against the camera yaw after the entry and sets the flip animation
+ * itself (0x1C left, 0x1D right, 0x1F back; the mirror option swaps the
+ * sides as the game does).
+ *
+ * The run twist. R&C2 has no strafe run cycles: its run block calls a
+ * helper (0x2B8078) that, while strafing with the stick past 0.15 and not
+ * backpedalling, writes the angle between the stick heading and the
+ * facing into the hero's per-joint ease table (hips + angle at + 0x68,
+ * torso - angle at + 0x118, spring rates 0.037/0.27 and 0.025/0.27 at
+ * + 0xA4/+ 0xA8 and + 0x154/+ 0x158) instead of the run lean. R&C1's lean
+ * helper (func_L00_00215A90) writes the same table (NTSC D_L00_0017A680,
+ * records of 0xB0 bytes: lean at + 0x60 and + 0x118, rates at record +
+ * 0x44/+ 0x48) from the turn rate, so the twist is the same table written
+ * the R&C2 way; the helper's six calls in the movement switch are hooked.
+ *
+ * The backpedal. R&C2 plays a 30-frame backward step cycle (its slot 0x14)
+ * when the stick class is "back" past 0.15, at speed max(ground speed *
+ * 25, 0.7) capped at 2.2, and goes back to the walk/run cycle with a
+ * 7-frame blend. R&C1 has no such cycle (its slot 0x14 is the 14-frame
+ * stop), and R&C2's is in the packed format, so the edition builds a
+ * reversed copy of R&C1's run cycle (slot 4, 23 frames) at run time: a
+ * sequence is a 0x1C-byte header and a table of frame pointers once
+ * loaded (update_moby_animation_state reads seqs[seq]->frames[frame]), so
+ * the copy is the header with the pointers in reverse order, installed in
+ * a free slot (200) of the hero's class and played by the run animation
+ * updater's hook. Carrying R&C2's own cycle over needs its frame format
+ * decoded; this stands in until then.
+ *
  * Hero fields are core data (0x13F450): state + 0x2084, facing yaw +
  * 0x98, move heading + 0x180, stick magnitude + 0x229C. The per-level
  * call sites and the helpers come from tools/gen_hero.py. */
@@ -89,6 +131,10 @@ DECLARE_LVL(func_00217F68);            /* pad begin-frame; its parse call is hoo
 DECLARE_LVL(func_002181F0);            /* pad parse(pad, report, length): derives held/pressed/released */
 DECLARE_LVL(func_L00_00267BA8);        /* pad_pressed_within(button, window, out): a pure query of the press history */
 DECLARE_LVL(func_L00_00222580);        /* stick_direction_vs_facing(): 2 forward, 3 back, 0 and 1 the sides */
+DECLARE_LVL(func_L00_00232C10);        /* set_hero_animation(id, start_frame, blend_frames) */
+DECLARE_LVL_DATA(ease_table);          /* the hero's per-joint ease table, per level */
+extern const u32 ee_twist_0[19], ee_twist_1[19], ee_twist_2[19], ee_twist_3[19], ee_twist_4[19], ee_twist_5[19], ee_twist_fn[19];
+extern const u32 ee_runanim_site[19], ee_run_anim_fn[19], ee_flip_appr_0[19], ee_flip_appr_1[19], ee_approach_fn[19];
 extern const u32 ee_run_turn_a[19], ee_run_turn_b[19], ee_run_pivot[19], ee_run_planar_a[19], ee_run_planar_b[19];
 extern const u32 ee_turn_to[19], ee_pivot_turn[19], ee_set_planar_vel[19], ee_hero_set_state[19];
 extern const u32 ee_jump_turn_site[19], ee_jump_planar_site[19], ee_air_turn_site[19], ee_jump_press_fn[19];
@@ -100,6 +146,23 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define hero_state      (*(volatile s32 *)(HERO + 0x2084))
 #define hero_move_yaw   (*(volatile f32 *)(HERO + 0x180))
 #define hero_stick      (*(volatile f32 *)(HERO + 0x229C))   /* left stick magnitude, 0..1 */
+#define hero_facing     (*(volatile f32 *)(HERO + 0x98))
+#define hero_speed_xy   (*(volatile f32 *)(HERO + 0x160))
+#define hero_ground_speed (*(volatile f32 *)(HERO + 0x194))
+#define hero_state_step (*(volatile s32 *)(HERO + 0x2088))
+#define hero_moby       (*(volatile u8 **)(HERO + 0x2080))
+#define hero_anim_speed (*(volatile f32 *)(HERO + 0xA90))
+#define hero_flip_class (*(volatile s32 *)(HERO + 0x450))
+#define hero_flip_speed0 (*(volatile f32 *)(HERO + 0x454))   /* take-off speed: the drift term */
+#define hero_flip_speed (*(volatile f32 *)(HERO + 0x458))    /* horizontal speed along the take-off heading */
+#define FRAME_TIME_SQ   (*(volatile f32 *)0x0015EE70)
+#define OPT_MIRROR_ANIM (*(volatile u8 *)0x0015EEB5)
+#define EASE(L)         ((volatile f32 *)LVL_DATA(L, ease_table, u32))
+#define PI              3.14159265f
+#define HALF_PI         1.5707964f
+#define QUARTER_PI      0.7853982f
+#define BACKPEDAL_SLOT  200           /* a free slot of the hero's 256 (134 used) */
+#define RUN_SLOT        4
 #define CAMERA_YAW(L)   (*(volatile f32 *)LVL_DATA(L, camera_yaw, u32))
 #define PAD_HISTORY     0x1E0         /* 30 words of pressed edges, a ring */
 #define PAD_HISTORY_LEN 30
@@ -123,10 +186,21 @@ typedef s32 (*JumpPress)(s32 window, s32 crouch_jumps_only);
 typedef s32 (*PadPressedWithin)(u32 button, s32 window, s32 *out);
 typedef s32 (*StickClass)(void);
 typedef s32 (*SetState)(s32 state, s32 with_animation);
+typedef f32 (*Rot2)(f32 a, f32 b);
+typedef s32 (*ScaleFrames)(s32 frames);
+typedef void (*SetAnim)(s32 id, s32 start_frame, f32 blend);
+typedef void (*Void)(void);
+typedef f32 (*Approach)(f32 target, f32 step, f32 *var);
+#define sub_rot         ((Rot2)0x001FA790)       /* fast_subtract_rotations */
+#define diff_rot        ((Rot2)0x001FA850)       /* fast_difference_between_rotations */
+#define scale_frames    ((ScaleFrames)0x001FEED0) /* frames at 60 Hz -> this build's frames */
 
 u32 ee_strafe_held;           /* L2 or R2 held this frame (pad 0); the camera patch reads it */
 static s32 strafe_active;     /* this frame's RUN turn was the strafe one */
 static f32 strafe_heading;    /* the stick heading the velocity follows */
+static s32 strafe_flip;       /* the current flip (state 0xB) is a strafe flip with the stick pushed */
+static u32 backpedal_seq[8 + 64] __attribute__((aligned(16)));   /* header + reversed frame pointers */
+static u32 backpedal_from;    /* the run sequence it was built from */
 
 /* After the game's pad parse (pad.c: func_002181F0(pad, report, length)):
  * remember L2/R2 and hide them from the game, except while hovering. */
@@ -142,6 +216,9 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         return;
     }
     ee_strafe_held = p[0x1A0 / 4] & PAD_STRAFE;
+    if (hero_state != STATE_HIGH_JUMP) {
+        strafe_flip = 0;
+    }
     if (hero_state == STATE_HOVER) {
         return;
     }
@@ -252,6 +329,36 @@ void ee_air_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
     }
 }
 
+/* The stick heading this frame: the saved one while the run's strafe turn
+ * holds the camera yaw in the move heading, else the move heading. */
+static f32 stick_heading(void)
+{
+    return (strafe_active && hero_state == STATE_RUN) ? strafe_heading : hero_move_yaw;
+}
+
+/* R&C2's stick classes, relative to the camera (its raw stick classes;
+ * R&C1's stick_direction_vs_facing has the same numbering against the
+ * facing): 2 forward, 3 back, 0 left, 1 right. */
+static s32 strafe_class(s32 L)
+{
+    f32 a = sub_rot(stick_heading(), CAMERA_YAW(L));
+    if (diff_rot(a, PI) < QUARTER_PI) {
+        return 3;
+    }
+    if (diff_rot(a, -HALF_PI) < QUARTER_PI) {
+        return 1;
+    }
+    if (diff_rot(a, HALF_PI) < QUARTER_PI) {
+        return 0;
+    }
+    return 2;
+}
+
+static s32 backpedalling(s32 L)
+{
+    return ee_strafe_held && hero_stick > 0.15f && strafe_class(L) == 3;
+}
+
 /* The jump-press handler with R&C2's strafe rule (0x2C2498): after the
  * crouch high jump has had its chance, a strafe jump with the stick past
  * 0.9 in any class but forward is a flip (state 0xB); forward, or a
@@ -277,8 +384,23 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
         return 0;
     }
     if (ee_strafe_held && hero_stick > FLIP_STICK) {
-        if (LVL(L, func_L00_00222580, StickClass)() != CLASS_FORWARD) {
+        s32 cls = strafe_class(L);
+        if (cls != CLASS_FORWARD) {
+            s32 id = 0x1C + cls;
             ((SetState)ee_hero_set_state[L])(STATE_HIGH_JUMP, 1);
+            /* R&C2's flip: classified against the camera, moving along the stick from the start */
+            hero_flip_class = cls;
+            if (OPT_MIRROR_ANIM && (id == 0x1C || id == 0x1D)) {
+                id ^= 1;
+            }
+            LVL(L, func_L00_00232C10, SetAnim)(id, 0, (f32)scale_frames(5));
+            if (hero_stick > 0.3f) {
+                strafe_flip = 1;
+                hero_flip_speed = FRAME_TIME * 5.0f;
+                hero_flip_speed0 = 0.0f;
+            } else {
+                strafe_flip = 0;
+            }
             return 1;
         }
     }
@@ -287,4 +409,107 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
     }
     ((SetState)ee_hero_set_state[L])(STATE_JUMP, 1);
     return 1;
+}
+
+/* The flip's speed approach (two calls in the air control, states 0xB and
+ * 0xC): R&C2's strafe path (0x2B760C) while a strafe flip is in the air,
+ * else the game's. */
+void ee_flip_approach_c(f32 target, f32 step, f32 *var, u32 ra)
+{
+    s32 L = level_of_two(ra, ee_flip_appr_0, ee_flip_appr_1);
+    if (strafe_flip && hero_state == STATE_HIGH_JUMP) {
+        f32 t = hero_stick * FRAME_TIME * 5.0f;
+        if (t < FRAME_TIME * 2.0f) {
+            t = FRAME_TIME * 2.0f;
+        }
+        ((Approach)ee_approach_fn[L])(t, FRAME_TIME_SQ * 37.0f, var);
+        hero_ground_speed = hero_speed_xy;
+    } else {
+        ((Approach)ee_approach_fn[L])(target, step, var);
+    }
+}
+
+/* The lean helper's six calls: R&C2's strafe twist (0x2B80B4) instead of
+ * the lean while strafing on the stick, not flipping, not backpedalling. */
+void ee_twist_c(u32 ra)
+{
+    static const u32 *const sites[6] = { ee_twist_0, ee_twist_1, ee_twist_2, ee_twist_3, ee_twist_4, ee_twist_5 };
+    s32 L, k;
+    for (L = 0; L < 19; L++) {
+        for (k = 0; k < 6; k++) {
+            if (sites[k][L] + 8 == ra) {
+                goto found;
+            }
+        }
+    }
+    L = ee_level_of_call(ra, ee_twist_0, 0);
+found:
+    if (ee_strafe_held && hero_stick > 0.15f && hero_state != STATE_HIGH_JUMP && !backpedalling(L)) {
+        volatile f32 *t = EASE(L);
+        f32 a = sub_rot(stick_heading(), hero_facing);
+        t[0x158 / 4] = 0.27f;
+        t[0xA4 / 4] = 0.037f;
+        t[0x154 / 4] = 0.025f;
+        t[0xA8 / 4] = 0.27f;
+        t[0x68 / 4] = a;
+        t[0x118 / 4] = -a;
+        return;
+    }
+    ((Void)ee_twist_fn[L])();
+}
+
+/* The backward step: a reversed copy of the run cycle in slot 200 of the
+ * hero's class, rebuilt when the run sequence changes (a new level). */
+static void install_backpedal(void)
+{
+    u8 *cls = *(u8 **)(hero_moby + 0x24);
+    volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
+    const u32 *run = (const u32 *)seqs[RUN_SLOT];
+    s32 count, i;
+    if (seqs[BACKPEDAL_SLOT] == (u32)backpedal_seq && backpedal_from == (u32)run) {
+        return;
+    }
+    count = ((const u8 *)run)[0x10];
+    if (count > 64) {
+        count = 64;
+    }
+    for (i = 0; i < 7; i++) {
+        backpedal_seq[i] = run[i];
+    }
+    ((u8 *)backpedal_seq)[0x10] = (u8)count;
+    ((u8 *)backpedal_seq)[0x12] = 0;      /* no triggers */
+    backpedal_seq[0x14 / 4] = 0;
+    for (i = 0; i < count; i++) {
+        backpedal_seq[7 + i] = run[7 + count - 1 - i];
+    }
+    backpedal_from = (u32)run;
+    seqs[BACKPEDAL_SLOT] = (u32)backpedal_seq;
+}
+
+/* The run animation updater's call (state RUN): R&C2's backpedal
+ * (0x2C2560) while strafing back, else the game's walk/run cycles. */
+void ee_run_anim_c(u32 ra)
+{
+    s32 L = ee_level_of_call(ra, ee_runanim_site, 0);
+    u8 *moby = hero_moby;
+    if (backpedalling(L)) {
+        f32 speed;
+        install_backpedal();
+        if (moby[0x53] != BACKPEDAL_SLOT) {
+            LVL(L, func_L00_00232C10, SetAnim)(BACKPEDAL_SLOT, 0, 11.0f);
+        }
+        speed = hero_ground_speed * 25.0f;
+        if (speed < 0.7f) {
+            speed = 0.7f;
+        }
+        if (speed > 2.2f) {
+            speed = 2.2f;
+        }
+        hero_anim_speed = speed;
+        return;
+    }
+    if (moby[0x53] == BACKPEDAL_SLOT) {
+        LVL(L, func_L00_00232C10, SetAnim)(hero_state_step + 3, 0, 7.0f);
+    }
+    ((Void)ee_run_anim_fn[L])();
 }

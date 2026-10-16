@@ -47,6 +47,8 @@ LEVEL_DATA = {
     "hud_slots": ("func_001FFCB0", 0x4, 0xC),
     # the camera yaw the stick is relative to (camera record + 0x158), from stick_target's lui/lwc1
     "camera_yaw": ("func_L00_00211F80", 0x280, 0x294),
+    # the hero's per-joint ease table (lean and, in the edition, the strafe twist), from a rate setter's lui/addiu
+    "ease_table": ("func_L00_0020A858", 0x0, 0x4),
 }
 # Only the resident core is at one address: below 0x15F000 (core text, data,
 # bss, lit). Everything above, the executable's own game text and data

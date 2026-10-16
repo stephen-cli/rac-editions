@@ -82,6 +82,28 @@ ee_jump_press:
     j     ee_jump_press_c
     addu  $6, $31, $0
 
+/* lean helper() and run animation updater(): no arguments, the return
+ * address goes in $4. */
+.globl ee_twist
+.extern ee_twist_c
+ee_twist:
+    j     ee_twist_c
+    addu  $4, $31, $0
+
+.globl ee_run_anim
+.extern ee_run_anim_c
+ee_run_anim:
+    j     ee_run_anim_c
+    addu  $4, $31, $0
+
+/* approach_value(target, step, &var): two floats in $f12/$f13 and the
+ * pointer in $4; the return address goes in $5. */
+.globl ee_flip_approach
+.extern ee_flip_approach_c
+ee_flip_approach:
+    j     ee_flip_approach_c
+    addu  $5, $31, $0
+
 /* bolt spawner(spot, pos, dir, kind, value, flag): six arguments, $4-$9;
  * the return address goes in $10. */
 .globl ee_metal_detector_spawn

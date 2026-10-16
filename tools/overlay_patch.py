@@ -209,7 +209,13 @@ def strafe(at):
             (h["jump_turn_site"], jal(h["turn_to"]), jal(modseg_symbol("ee_jump_turn"))),
             (h["jump_planar_site"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_jump_planar"))),
             (h["air_turn_site"], jal(h["turn_to"]), jal(modseg_symbol("ee_air_turn")))] + [
-            (h[f"jump_press_{k}"], jal(h["jump_press_fn"]), jal(modseg_symbol("ee_jump_press"))) for k in range(4)]
+            (h[f"jump_press_{k}"], jal(h["jump_press_fn"]), jal(modseg_symbol("ee_jump_press"))) for k in range(4)] + [
+            # the twist (six lean helper calls), the backpedal (the run animation updater's call),
+            # the strafe flip (the flip's two approach calls)
+            (h[f"twist_{k}"], jal(h["twist_fn"]), jal(modseg_symbol("ee_twist"))) for k in range(6)] + [
+            (h["runanim_site"], jal(h["run_anim_fn"]), jal(modseg_symbol("ee_run_anim"))),
+            (h["flip_appr_0"], jal(h["approach_fn"]), jal(modseg_symbol("ee_flip_approach"))),
+            (h["flip_appr_1"], jal(h["approach_fn"]), jal(modseg_symbol("ee_flip_approach")))]
 
 
 def strafe_camera(at):

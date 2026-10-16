@@ -4,6 +4,19 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (x5, fourth increment: flips, twist, backpedal)
+
+### 🎯 Strafing on L2/R2 (x5) — R&C2's flip motion, the run twist and a stand-in backpedal; awaiting owner test
+
+**What changed.** Three things the owner's test asked for. Strafe flips now move as in Going Commando: they travel with the stick from take-off instead of hanging in the air, and left/right/back are read against the camera, so a sideways flip is a side flip. Strafing on foot now twists Ratchet the R&C2 way: legs toward the movement, torso toward the camera, over R&C1's own walk and run cycles. Strafing backward plays a backward step.
+
+**Decisions taken.**
+- Both games have the very same four flip animations (checked against the R&C2 data), so nothing was imported for the flips; the difference was motion and classification, both ported. Crouch flips outside the strafe keep R&C1's behaviour.
+- R&C2 has no separate strafe run cycles, only this twist; porting it reuses R&C1's own joint-ease table, no animation data involved.
+- The backward step is a stand-in: R&C1's run cycle played in reverse, built at run time. R&C2's real 30-frame cycle is stored in a packed frame format the engine decodes on the fly; bringing it over means decoding that format, a separate piece of work I can take on next if the stand-in is not good enough.
+
+**Verification.** Rebuilt; table addresses, hooks and all patched sites checked (details in FEATURES.md). Owner test: twist while strafing sideways, the backward step, side/back flips travelling with the stick; crouch flips, normal run and hover unchanged.
+
 ## 2026-10-17 (x5, third increment: jumps and flips)
 
 ### 🎯 Strafing on L2/R2 (x5) — Strafe jumps and flips implemented, awaiting owner test
