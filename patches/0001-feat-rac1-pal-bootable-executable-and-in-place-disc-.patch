@@ -1,0 +1,263 @@
+From 467a835b73b1215fb7980fe0ba0b7b9151d90c90 Mon Sep 17 00:00:00 2001
+From: Stephen Clinton <stephen_l43@hotmail.co.nz>
+Date: Sat, 17 Oct 2026 01:33:14 +1300
+Subject: [PATCH] feat(rac1/pal): bootable executable and in-place disc image
+ tools
+
+Add two tools for running the build:
+
+- tools/boot_elf.py writes build-sn/SCES_509.16, a bootable executable,
+  by laying the linked image's allocated PROGBITS sections over retail's
+  container. build-sn/rac1.elf alone is not bootable: its entry point is
+  the first .text symbol rather than crt0's _start, it has two PT_LOAD
+  segments, and the VU0 microcode at the front of retail's image is not
+  linked. The output differs from retail only inside the decompiled
+  near-misses, which the tool prints (40 bytes on a clean tree).
+- tools/iso_patch.py writes build-sn/SCES_509.16.iso: the owner's image
+  with that executable (and optionally the sectors of an
+  `editor/extract.py pack` patches.tsv) written in place. The PAL disc
+  addresses everything by absolute sector, so same-size replacement is a
+  complete repack; a larger executable is refused.
+
+Verified: both the executable (pcsx2-qt -elf) and the image boot in
+PCSX2 to the title screen and attract intro, and the image's executable
+sectors differ from retail by the same 40 bytes.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+---
+ games/rac1/pal/tools/boot_elf.py  |  86 ++++++++++++++++++++
+ games/rac1/pal/tools/iso_patch.py | 129 ++++++++++++++++++++++++++++++
+ 2 files changed, 215 insertions(+)
+ create mode 100644 games/rac1/pal/tools/boot_elf.py
+ create mode 100644 games/rac1/pal/tools/iso_patch.py
+
+diff --git a/games/rac1/pal/tools/boot_elf.py b/games/rac1/pal/tools/boot_elf.py
+new file mode 100644
+index 00000000..f725b2c8
+--- /dev/null
++++ b/games/rac1/pal/tools/boot_elf.py
+@@ -0,0 +1,86 @@
++#!/usr/bin/env python3
++"""
++Write a bootable executable from the build: retail's container with the
++rebuilt bytes laid over it.
++
++build-sn/rac1.elf is the linked image the audits read (tools/check_image.py,
++tools/check_layout.py). It is not what the console boots: its entry point is
++the first .text symbol rather than crt0's _start, it is laid out as two
++PT_LOAD segments, and the VU0 microcode at the front of retail's image
++(0x100080-0x112380) is not linked (rac1.ld.sh). So the boot file is made the
++other way round from check_image.py: start from baserom/SCES_509.16, and
++copy every allocated PROGBITS section of rac1.elf that lies inside retail's
++single loaded segment over the same addresses. Sections parked outside it
++(.reginfo/.mdebug at 0x2400000) are left out.
++
++With an unmodified tree the result differs from retail only inside the
++decompiled near-misses, which is printed, so the output doubles as a check.
++
++Usage: python tools/boot_elf.py [-o build-sn/SCES_509.16]
++"""
++import argparse
++import hashlib
++import sys
++from pathlib import Path
++
++from elftools.elf.elffile import ELFFile
++
++RETAIL = Path("baserom/SCES_509.16")
++LINKED = Path("build-sn/rac1.elf")
++SHF_ALLOC = 0x2
++
++
++def main() -> int:
++    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
++    ap.add_argument("-o", "--output", type=Path, default=Path("build-sn/SCES_509.16"))
++    args = ap.parse_args()
++
++    if not RETAIL.is_file():
++        print(f"missing {RETAIL} (python3 tools/openrac.py setup rac1/pal)", file=sys.stderr)
++        return 1
++    if not LINKED.is_file():
++        print(f"missing {LINKED} (bash tools/build_sn.sh)", file=sys.stderr)
++        return 1
++
++    retail = bytearray(RETAIL.read_bytes())
++    with RETAIL.open("rb") as f:
++        elf = ELFFile(f)
++        loads = [s for s in elf.iter_segments() if s["p_type"] == "PT_LOAD"]
++        if len(loads) != 1:
++            print(f"{RETAIL}: expected one PT_LOAD, found {len(loads)}", file=sys.stderr)
++            return 1
++        seg = loads[0]
++        seg_vaddr, seg_off, seg_size = seg["p_vaddr"], seg["p_offset"], seg["p_filesz"]
++
++    written = 0
++    changed = 0
++    skipped = []
++    with LINKED.open("rb") as f:
++        elf = ELFFile(f)
++        for sec in elf.iter_sections():
++            if not sec["sh_flags"] & SHF_ALLOC or sec["sh_type"] != "SHT_PROGBITS" or sec["sh_size"] == 0:
++                continue
++            addr, size = sec["sh_addr"], sec["sh_size"]
++            if addr < seg_vaddr or addr + size > seg_vaddr + seg_size:
++                skipped.append(f"{sec.name} 0x{addr:X}+0x{size:X}")
++                continue
++            data = sec.data()
++            off = seg_off + (addr - seg_vaddr)
++            old = retail[off:off + size]
++            changed += sum(1 for a, b in zip(old, data) if a != b)
++            retail[off:off + size] = data
++            written += size
++
++    args.output.parent.mkdir(parents=True, exist_ok=True)
++    args.output.write_bytes(retail)
++    print(f"wrote {args.output}: {len(retail)} bytes, {written} bytes from {LINKED}, "
++          f"{changed} byte(s) changed against retail")
++    if skipped:
++        print("left out (outside retail's loaded segment): " + ", ".join(skipped))
++    print(f"sha1 {hashlib.sha1(retail).hexdigest()}"
++          + (" (identical to retail)" if changed == 0 else ""))
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/games/rac1/pal/tools/iso_patch.py b/games/rac1/pal/tools/iso_patch.py
+new file mode 100644
+index 00000000..45ffe3cf
+--- /dev/null
++++ b/games/rac1/pal/tools/iso_patch.py
+@@ -0,0 +1,129 @@
++#!/usr/bin/env python3
++"""
++Write a bootable disc image: your own image with the rebuilt executable
++(and optionally the editor's packed level sectors) written in place.
++
++The PAL disc names only three files in its ISO 9660 directory; everything
++else is addressed by absolute sector through the table the game reads at
++startup (editor/disc.py). So a repack that keeps every size is a copy of the
++image with sectors overwritten:
++
++  - the boot executable, `SCES_509.16;1` in the root directory, replaced by
++    tools/boot_elf.py's output (same size, by construction);
++  - optionally the sectors listed in a `patches.tsv` written by
++    `editor/extract.py pack` (first sector, sector count, file), the
++    editor's edited levels, which it sizes to fit where the originals are.
++
++Nothing in the directory or the sector table changes, so the result boots
++wherever the original does. A larger executable or level needs a real
++re-layout (wrench) and is refused here.
++
++Usage:
++  python tools/iso_patch.py [--elf build-sn/SCES_509.16]
++                            [--patches ../../../assets/packed/rac1/patches.tsv]
++                            [-o build-sn/SCES_509.16.iso]
++"""
++import argparse
++import shutil
++import struct
++import sys
++from pathlib import Path
++
++SECTOR = 2048
++IMAGE = Path("baserom/SCES_509.16.iso")
++EXE_NAME = "SCES_509.16;1"
++
++
++def root_directory(f) -> tuple[int, int]:
++    """Extent and size of the root directory, from the primary volume descriptor."""
++    f.seek(16 * SECTOR)
++    pvd = f.read(SECTOR)
++    if pvd[0] != 1 or pvd[1:6] != b"CD001":
++        raise SystemExit("not an ISO 9660 image (no primary volume descriptor)")
++    record = pvd[156:156 + 34]
++    extent, = struct.unpack_from("<I", record, 2)
++    size, = struct.unpack_from("<I", record, 10)
++    return extent, size
++
++
++def find_file(f, name: str) -> tuple[int, int]:
++    """Extent (LBA) and data length of NAME in the root directory."""
++    extent, size = root_directory(f)
++    f.seek(extent * SECTOR)
++    data = f.read(size)
++    pos = 0
++    while pos < len(data):
++        length = data[pos]
++        if length == 0:                      # padding to the next sector
++            pos = (pos // SECTOR + 1) * SECTOR
++            continue
++        rec = data[pos:pos + length]
++        name_len = rec[32]
++        ident = rec[33:33 + name_len].decode("ascii", "replace")
++        if ident == name:
++            return struct.unpack_from("<I", rec, 2)[0], struct.unpack_from("<I", rec, 10)[0]
++        pos += length
++    raise SystemExit(f"{name} not found in the root directory")
++
++
++def main() -> int:
++    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
++    ap.add_argument("--elf", type=Path, default=Path("build-sn/SCES_509.16"),
++                    help="bootable executable from tools/boot_elf.py")
++    ap.add_argument("--patches", type=Path, help="patches.tsv from `editor/extract.py pack`")
++    ap.add_argument("-o", "--output", type=Path, default=Path("build-sn/SCES_509.16.iso"))
++    args = ap.parse_args()
++
++    if not IMAGE.is_file():
++        print(f"missing {IMAGE} (python3 tools/openrac.py setup rac1/pal)", file=sys.stderr)
++        return 1
++    if not args.elf.is_file():
++        print(f"missing {args.elf} (python tools/boot_elf.py)", file=sys.stderr)
++        return 1
++    if args.output.resolve() == IMAGE.resolve():
++        print("refusing to overwrite the original image", file=sys.stderr)
++        return 1
++
++    writes: list[tuple[int, bytes, str]] = []
++    with IMAGE.open("rb") as f:
++        lba, size = find_file(f, EXE_NAME)
++    elf = args.elf.read_bytes()
++    if len(elf) != size:
++        print(f"{args.elf} is {len(elf)} bytes, the disc's executable is {size}: a larger "
++              f"executable needs a re-layout, not an in-place patch", file=sys.stderr)
++        return 1
++    writes.append((lba * SECTOR, elf, f"{EXE_NAME} (sector {lba}, {size} bytes)"))
++
++    if args.patches:
++        base = args.patches.parent
++        for line in args.patches.read_text().splitlines():
++            if not line.strip() or line.startswith("#"):
++                continue
++            first, count, name = line.split("\t")[:3]
++            first, count = int(first), int(count)
++            blob = (base / name).read_bytes()
++            if len(blob) > count * SECTOR:
++                print(f"{name}: {len(blob)} bytes do not fit in {count} sectors", file=sys.stderr)
++                return 1
++            blob = blob.ljust(count * SECTOR, b"\0")
++            writes.append((first * SECTOR, blob, f"{name} (sectors {first}-{first + count - 1})"))
++
++    args.output.parent.mkdir(parents=True, exist_ok=True)
++    print(f"copying {IMAGE} -> {args.output} ({IMAGE.stat().st_size} bytes)")
++    shutil.copyfile(IMAGE, args.output)
++    changed_total = 0
++    with args.output.open("r+b") as out:
++        for offset, blob, what in writes:
++            out.seek(offset)
++            old = out.read(len(blob))
++            changed = sum(1 for a, b in zip(old, blob) if a != b)
++            changed_total += changed
++            out.seek(offset)
++            out.write(blob)
++            print(f"  wrote {what}: {changed} byte(s) changed")
++    print(f"done: {changed_total} byte(s) differ from the original image")
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+-- 
+2.30.0.windows.2
+

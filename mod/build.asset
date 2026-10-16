@@ -1,0 +1,6 @@
+Build rac {
+	ElfFile boot_elf {
+		name: "sces_509.16"
+		src: "SCES_509.16"
+	}
+}

@@ -1,0 +1,11 @@
+format_version: 30
+name: "Executive Edition"
+type: "mod"
+supported_games: [
+	"rac"
+]
+author: ""
+description: "Executive Edition of Ratchet & Clank (PAL): rebuilt executable from OpenRAC rac1/pal"
+version: "0.0.1"
+images: []
+builds: []
