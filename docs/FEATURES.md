@@ -197,3 +197,41 @@ French, German, Spanish and Italian strings are first drafts.
 open the ring (hold triangle): enemies, camera and particles frozen, ring
 animates, selection works; release: play resumes, timer did not advance.
 Set Off: original behaviour. Save and reload: setting persists.
+
+## Goodies: Commercials — implemented (2026-10-17), awaiting owner test
+
+**What the NTSC release has.** Under Goodies, after "'Making Of' Video", a
+row "Commercials" (string 0x4FCC, description 0x4FD8 "Watch the hilarious
+television commercials...") opening a page with three rows: "Decoy Glove
+ad", "Devastator ad", "Morpharay ad" (0x508D-0x508F, button hint 0x5091
+"Play Ad"), each a movie action (list action 10) with movie numbers 1, 2
+and 0; 'Making Of' is the same action with number 3. The row is locked
+(action 2, description 0x4FDB "You have to buy all Gold Weapons...") until
+all ten Gold Weapons are bought, exactly like 'Making Of'.
+
+**What the PAL disc has.** Everything: the row in the Goodies item table
+(`0x1B6C80` in level 0, row 8), the page (`0x1B7C70`, kind 0x2C, list,
+title, preview and button-hint widgets), the strings in every level's text
+block (checked in a Veldin savestate), the four preview images (table of
+contents group `commercials`, 0xE98) and the movies: the table of contents
+`mpeg` group holds the Goodies movies at slots 70-74 with their PAL encodes
+at 75-79, chosen by the region flag like the intro movies, so no data had to
+come from the NTSC disc. The NTSC image was used only to compare.
+
+**Why PAL hides it.** The Goodies unlock routine (`func_00228160`, an
+executable function copied into every level; level 0's copy at `0x285F68`)
+sets rows 5-8's actions and description ids from the skill-point and
+Gold-Weapon counts in both releases; PAL's copy alone ends with
+`if (D_0015EF90) rows[8].label = 0` (`sh $zero, 0x60($v0)` at +0xE8).
+`D_0015EF90` is the region flag the boot code derives from SYSTEM.CNF
+(`VMODE` not starting with N), 1 on every PAL console, so the list ends at
+'Making Of'.
+
+**The patch.** `tools/overlay_patch.py` feature `commercials`: that one
+store becomes a no-op in all 19 levels (19 words). Nothing else changes; the
+unlock, description switch and movie playback are retail code.
+
+**Owner test to run.** With all ten Gold Weapons on the save: Goodies shows
+"Commercials" after "'Making Of' Video"; the page lists the three ads with
+previews; each plays (PAL encodes, 50 Hz) and returns to the game. On a save
+without the Gold Weapons the row shows locked with the Gold Weapons message.

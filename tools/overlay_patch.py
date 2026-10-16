@@ -153,13 +153,34 @@ def edition_text(at):
     return [(f, 0x27BDFFF0, j(target)), (f + 4, 0x7FBF0000, NOP)]
 
 
+
+def commercials(at):
+    """The Goodies menu's Commercials row, as the NTSC release shows it.
+
+    Both discs carry the row (label 0x4FCC, after 'Making Of'), its page
+    (three rows that play the Decoy Glove, Devastator and Morph-o-ray ads
+    through the same movie action as 'Making Of'), its preview images and
+    the three commercial movies (the PAL table of contents even has the PAL
+    encodes, picked by the region flag like 'Making Of'). PAL's Goodies
+    unlock routine (func_00228160, every level) only differs from NTSC's in
+    its last step: when the region flag D_0015EF90 is set it clears the
+    row's label halfword, which ends the list before the row. The patch
+    makes that store a no-op, so the row appears, locked until all ten Gold
+    Weapons are bought and unlocked with 'Making Of' as the routine already
+    arranges."""
+    f = at("func_00228160")
+    site = f + (0x286050 - 0x285F68)          # sh $zero, 0x60($v0): rows[8].label = 0
+    return [(site, 0xA4400060, NOP)]
+
+
 FEATURES = {
     "edition_text": edition_text,
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
     "quick_select_pause": quick_select_pause,
+    "commercials": commercials,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

@@ -4,6 +4,20 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (Commercials)
+
+### 📺 Goodies: Commercials (new item, owner's request) — Implemented, awaiting owner test
+
+**What changed.** The Goodies menu gets the NTSC release's "Commercials" row after "'Making Of' Video": a page with the three television ads (Decoy Glove, Devastator, Morph-o-ray), each playable, with previews. It unlocks with all ten Gold Weapons, together with 'Making Of', and shows locked with the Gold Weapons message before that. Applied to all 19 levels.
+
+**Decisions taken.**
+- No data was imported from the NTSC disc. The PAL disc already carries the row, the page, the strings, the preview images and the three movies in PAL encodes (the game keeps a PAL alternate next to every Goodies movie). The PAL build hides the row with one extra instruction in the Goodies unlock routine, run when the console's region flag is set; the edition turns that instruction into a no-op (one word per level). The NTSC image served only to confirm that the two routines differ in nothing else.
+- Left the row's unlock, wording and movie playback entirely to the retail code, so the behaviour is exactly the NTSC one.
+
+**Findings affecting other items.**
+- The PAL program has a region flag (`D_0015EF90`, from SYSTEM.CNF's VMODE line) that gates PAL-only differences in several places. Other NTSC-only content may be a single check away; worth a sweep when x6 (USA boss music) is looked at.
+- The table of contents keeps NTSC/PAL pairs for movies and some other groups; a feature that adds or swaps a movie must set both halves.
+
 ## 2026-10-17 (q3)
 
 ### ⏯️ Quick select pause setting (q3) — Working (owner confirmed the pause, 2026-10-17); polish round built, awaiting re-check
