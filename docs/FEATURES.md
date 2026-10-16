@@ -288,3 +288,42 @@ unlock, description switch and movie playback are retail code.
 "Commercials" after "'Making Of' Video"; the page lists the three ads with
 previews; each plays (PAL encodes, 50 Hz) and returns to the game. On a save
 without the Gold Weapons the row shows locked with the Gold Weapons message.
+
+## x3b: Free movement after the wrench throw — implemented (2026-10-17), awaiting owner test
+
+**What R&C1 does.** The Comet-Strike (crouch + Square; the game's Moves
+help names it so) is hero state 0x15 (the NTSC decomp calls it
+`HERO_STATE_CROUCH_SWING`). Its movement block, case 0x15 of the per-state
+movement switch (`func_L00_002180F8`, level 0 at `0x21B588`; NTSC
+`00233de0.c`), sets the target speed to 0 every frame and eases the ground
+speed to it with `speed_step(37, 28)`; its state update (NTSC `00242930.c`,
+case 21) leaves the state only past the attack record's end frame, to IDLE.
+The wrench is released at animation frame 33 (`FUN_L00_00211870(33.0f)`).
+Ratchet stands through the whole throw and catch.
+
+**What R&C2 does.** Read from SCUS_972.68's Oozla program: the crouch throw
+is state 0x15 there too, and the Circle throw with the wrench equipped is
+state 0x83; both share one movement block (`0x2BAE08`) that is R&C1's to the
+constant, including `speed_step(37, 28)` and the release at 33, and one
+entry (`0x2C0A48`, control mode 6). The difference is the state update
+(`0x2C45B0`): from animation frame 34, with the left stick past 0.9, it
+leaves the throw for RUN (`set_state(2)` with a 13-frame blend), and at the
+record's end frame it picks RUN over IDLE when the stick is past 0.8. So
+the throw is cancelled into a run as soon as the wrench has left the hand;
+the wrench returns to wherever he is.
+
+**The port.** `src/comet_strike.c`: the throw block's `speed_step` call
+(level 0: `0x21B900`) goes to `ee_comet_speed_step`, which calls the game's
+`speed_step` and then, in state 0x15 with no lock-on target (hero + 0xA9C),
+animation frame > 34 and stick > 0.9, calls `hero_set_state(RUN, 1)` (level
+0: `func_L00_00222B80`), whose entry picks the run animation and blend. The
+hero's movement switch and hero_set_state are built differently in groups
+of levels (the catalogue's level-0 names cover six), so `tools/gen_hero.py`
+finds the call site, `speed_step` and `hero_set_state` in each level's own
+program: the state table with 0x83 code entries whose state 0x15 block
+calls `speed_step` (`func_L00_00212740`, shared by all 19), and the function
+most often called as `f(state, 0|1)` that stores to hero + 0x2084. It writes
+the three 19-entry tables the hook indexes by its own call site. The hero is core data at `0x13F450`
+(state + 0x2084, animation frame + 0xAA8, stick magnitude + 0x229C). Not
+ported: R&C2's Circle-with-wrench throw (state 0x83), which R&C1 has no
+input for; and R&C2's auto-aim on the moving throw.

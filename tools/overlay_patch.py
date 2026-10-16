@@ -168,6 +168,21 @@ def edition_text(at):
 
 
 
+def comet_strike_run(at):
+    """x3b: the Comet-Strike can be cancelled into a run once the wrench has
+    left the hand, as in Going Commando (src/comet_strike.c). The throw state's
+    movement block calls speed_step every frame; that call goes to the hook
+    (src/hooks.s), which calls speed_step and then applies R&C2's rule. The
+    hero's code is built differently in groups of levels, so the site comes
+    from tools/gen_hero.py's search of each level's program."""
+    import json
+    hero = HERE.parent / "build/modseg/hero_sites.json"
+    if not hero.is_file():
+        raise SystemExit(f"missing {hero}: run tools/gen_hero.py first")
+    h = json.loads(hero.read_text())[str(at.level)]
+    return [(h["comet_site"], jal(h["speed_step"]), jal(modseg_symbol("ee_comet_speed_step")))]
+
+
 def commercials(at):
     """The Goodies menu's Commercials row, as the NTSC release shows it.
 
@@ -193,8 +208,9 @@ FEATURES = {
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
     "quick_select_pause": quick_select_pause,
     "commercials": commercials,
+    "comet_strike_run": comet_strike_run,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials", "comet_strike_run"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

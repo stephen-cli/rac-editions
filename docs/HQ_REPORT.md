@@ -4,6 +4,20 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (x3b)
+
+### 🔧 Free movement during the wrench throw (x3b) — Implemented, awaiting owner test
+
+**What changed.** After a Comet-Strike (crouch + Square), Ratchet can run again as soon as the wrench has left his hand, instead of standing through the whole throw and catch. Pushing the stick past 0.9 from animation frame 34 cancels the throw into a run; the wrench returns to him wherever he is. Applied to all 19 levels.
+
+**Decisions taken.**
+- Ported the rule exactly as Going Commando has it. Both games share the same throw movement code to the constant (same deceleration, same release frame 33); R&C2 only adds the cancel-into-run in its state update, so that is all the edition adds.
+- Not ported: R&C2's second way to throw, Circle with the wrench equipped (its state 0x83), and the auto-aim that goes with it. R&C1 has no input for it; it can be added later as its own item if wanted.
+
+**Verification.** Rebuilt; hook disassembly and all patched words checked. Owner test: crouch + Square, push the stick during the throw, Ratchet should break into a run right after the wrench leaves; without the stick he finishes the throw as before; the wrench still comes back and still picks up bolts.
+
+**Findings affecting other items.** The hero's per-state movement switch, state update and state setter are now mapped in both games (R&C1 PAL level 0: movement `func_L00_002180F8`, setter `func_L00_00222B80`, state at hero + 0x2084; R&C2 Oozla: 0x2BA208, 0x2BEB90, hero + 0x2294) with the NTSC decomp's C for R&C1. x3a (turning) and x5 (strafing) start from the same places.
+
 ## 2026-10-17 (q3 round 3: Going Commando's timings)
 
 ### ⏯️ Quick select pause setting (q3) — R&C2's timings adopted, awaiting owner re-test

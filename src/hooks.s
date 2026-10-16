@@ -14,6 +14,15 @@ ee_hud_update_hook:
     j     ee_hud_update_hook_c
     addu  $5, $31, $0
 
+/* speed_step(accel, decel): two float arguments in $f12/$f13 and no
+ * integer ones, so the return address goes in $4 (the compiler assigns
+ * integer and float argument registers independently; checked). */
+.globl ee_comet_speed_step
+.extern ee_comet_speed_step_c
+ee_comet_speed_step:
+    j     ee_comet_speed_step_c
+    addu  $4, $31, $0
+
 /* bolt spawner(spot, pos, dir, kind, value, flag): six arguments, $4-$9;
  * the return address goes in $10. */
 .globl ee_metal_detector_spawn
