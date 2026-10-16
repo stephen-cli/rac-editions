@@ -45,10 +45,15 @@ moves the directory record (verified booting in PCSX2 from sector 2058000).
   catalogue, indexed by the current level (`D_0015EE84`).
 - Exported functions (`modseg.sym`) are hook targets for
   `tools/overlay_patch.py`: redirect a call site in level code with `jal`.
-- Region status: 0x80000-0xFFFFF is where PS2 cheat engines live and the
-  disassembly references nothing in it; confirmation against a live RAM map
-  (tools/ramscan.py on a PCSX2 savestate taken in a level) is pending, so
-  the cave version of x4 stays the default until then.
+- Region, confirmed 2026-10-17 on a PCSX2 savestate taken in Batalia
+  (tools/ramscan.py): 0x84000-0x95560 holds the PS2 kernel's ELF loader
+  (left over from boot, never touched by the game), 0x95561-0x10007F is all
+  zero, and the disassembly references nothing in 0x80000-0xFFFFF. So the
+  segment has 0xA0000-0xFFFFF (384 KB). The game's level-load staging buffer
+  is at 0xFE0000 (whole level data range), the frontend's near 0x1FF7FF0;
+  both in the upper half of RAM.
+- The mod segment is the default route; the cave shim of x4 remains as
+  feature `metal_detector_10x` for reference.
 
 ## x4: Metal Detector gives 10x bolts in challenge mode — implemented, awaiting owner test
 

@@ -6,19 +6,19 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-17 (mod segment)
 
-### 🧩 Mod segment (engineering task, unblocks q2, q3, x1, x3a, x3b, x5) — Built, awaiting RAM confirmation
+### 🧩 Mod segment (engineering task, unblocks q2, q3, x1, x3a, x3b, x5) — Done (RAM region confirmed; default route)
 
 **What changed.** New code for the edition is now written in C, compiled with the game's own compiler, and carried by the boot executable as a second loadable segment at 0xA0000, below the executable, resident across all levels. Level-only functions are reached through a generated per-level address table. The executable grows past retail's size, so the disc tool now writes it in new sectors at the end of the image and moves the directory entry; PCSX2 boots it from there. The Metal Detector rule exists in both forms (code-cave shim and C in the mod segment) and the C form is wired as an alternative feature.
 
 **Decisions taken.**
 - Resident segment in the executable rather than per-level code appended to the level programs: the whole level data range is loaded into RAM as one block at level load, so growing it means relocating about 17 MB per level on disc; the resident route costs 679 appended sectors once.
-- Base address 0xA0000 (the region PS2 cheat engines use; the disassembly references nothing in 0x80000-0xFFFFF). To be confirmed against a live in-level RAM map before it becomes the default.
+- Base address 0xA0000, confirmed free on the owner's in-level savestate (Batalia): 0x84000-0x95560 is the PS2 kernel's ELF loader left from boot, 0x95561-0x10007F is all zero (437 KB), the game stages level loads at 0xFE0000. The mod segment is now the default route; x4's C version replaces the cave shim in the shipped image (owner re-test requested).
 
 **Findings.** OpenRAC's headers (moby, hero, pad) are usable from edition C. Exe-level functions keep their addresses in every level; only `func_LNN_*` differ.
 
 ## 2026-10-17 (later)
 
-### 💰 Metal Detector gives 10x bolts (x4) — Implemented, awaiting owner test
+### 💰 Metal Detector gives 10x bolts (x4) — Done (owner confirmed 2026-10-17: a spot that paid 50 pays 500 in challenge mode; circlenut bolts)
 
 **What changed.** First real game change. In challenge mode the detector's hidden bolt spots pay out 10x: the detector spawns 50-bolt circlenut pieces instead of 5-bolt hexnuts, same number of pieces. Normal playthroughs are unchanged. Applied to all 19 level programs; the image boots.
 
@@ -27,12 +27,12 @@ changed, decisions taken, findings that affect other items.
 - Implemented as a redirected call plus a six-instruction shim in a dead code area present in every level (a linker remnant OpenRAC catalogues), not a rewrite of the function. The spawner only supports bolt values 1-5, 20 and 50, so 10x is realised as 5 -> 50.
 - Ships through the in-place disc image only. The wrench route does not carry level-code patches yet (and is deprioritised, see below).
 
-**Owner test.** Challenge-mode save with the Metal Detector: expect circlenut bolts and 10x the gain at a hidden spot. Normal save: unchanged. Image: `OpenRAC/games/rac1/pal/build-sn/SCES_509.16.iso` (also produced by `bash tools/pack.sh --quick` in the edition repository).
+**Owner test (done).** Challenge-mode save with the Metal Detector: circlenut bolts, 500 instead of 50 at a hidden spot. Re-test of the mod-segment build requested. Image: `OpenRAC/games/rac1/pal/build-sn/executive-edition.iso` (also produced by `bash tools/pack.sh --quick` in the edition repository).
 
 ### 🏭 Build and repack pipeline — update
 
 - **Wrench texture errors confirmed as chaoticgd/wrench#286** (its texture packer regenerates mipmaps wrongly; also visible in menus). Decision: wrench-built images are not used for releases until the packer is fixed in our fork; the in-place image is the release route for everything that keeps sizes. Wrench remains the tool for asset work and is built and ready.
-- **Edition repository created (private, local): `rac1-executive-edition`** next to OpenRAC, with the mod bank, pipeline scripts, the level-code patch tool, docs and the OpenRAC patches. OpenRAC has a local `executive-edition` branch carrying the two disc tools. Hosting on GitHub as a private repository is one command away; owner decides.
+- **Edition repository created (private, local): `rac1-executive-edition`** next to OpenRAC, with the mod bank, pipeline scripts, the level-code patch tool, docs and the OpenRAC patches. OpenRAC has a local `executive-edition` branch carrying the two disc tools. Owner decision 2026-10-17: no GitHub hosting for now.
 
 **Findings affecting other items.**
 - Nearly all gameplay code lives in the level programs, not the executable, and each level has its own copy at its own address; the patch tool resolves per level from OpenRAC's catalogue. Any feature needing more than about 24 bytes of new code needs a "mod segment" (a code area loaded with every level, or an overlay rebuild pipeline). This is the next engineering task and gates q2, q3, x1, x3a, x3b and x5.
@@ -57,7 +57,7 @@ changed, decisions taken, findings that affect other items.
 bash assets/wrench/mods/executive-edition/pack.sh          # build → bootable ELF → wrench ISO
 bash assets/wrench/mods/executive-edition/pack.sh --quick  # build → bootable ELF → in-place ISO
 ```
-Outputs: `build/wrench/executive-edition.iso` or `games/rac1/pal/build-sn/SCES_509.16.iso`. Boot with PCSX2 as a normal disc.
+Outputs: `build/wrench/executive-edition.iso` or `games/rac1/pal/build-sn/executive-edition.iso`. Boot with PCSX2 as a normal disc.
 
 **What changed (2026-10-16 → 17)**
 - OpenRAC set up: disc verified, toolchain mirrors cloned, disassembly and all 19 level overlays regenerated, executable built with the SN ProDG toolchain.

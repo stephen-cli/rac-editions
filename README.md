@@ -38,7 +38,7 @@ bash tools/pack.sh           # same, then a wrench full re-layout pack (needed o
 bash tools/export-patches.sh # refresh patches/ from OpenRAC's executive-edition branch
 ```
 
-Outputs: `OpenRAC/games/rac1/pal/build-sn/SCES_509.16.iso` (in-place) or
+Outputs: `OpenRAC/games/rac1/pal/build-sn/executive-edition.iso` (in-place) or
 `OpenRAC/build/wrench/executive-edition.iso` (wrench). Boot either in PCSX2 as a
 normal disc.
 

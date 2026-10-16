@@ -131,7 +131,7 @@ FEATURES = {
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
 }
-DEFAULT_FEATURES = ["metal_detector_10x"]
+DEFAULT_FEATURES = ["metal_detector_10x_modseg"]
 
 
 # --- Disc plumbing ------------------------------------------------------------
