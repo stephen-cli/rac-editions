@@ -4,6 +4,18 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (q3 round 3: Going Commando's timings)
+
+### ⏯️ Quick select pause setting (q3) — R&C2's timings adopted, awaiting owner re-test
+
+**What changed.** The owner asked for Going Commando's quick select and hot-swap timings instead of the edition's guesses. Read from the R&C2 program and the two savestates the owner made: R&C2 opens its quick select, and stops the world, only once Triangle has been held for 4 frames; a shorter tap never shows the ring. Its hot swap counts a release within 20 frames of the press as a tap and swaps on a second tap within 20 frames of the first. R&C1's own hot swap already uses those two 20-frame timers, so the edition adopted the one number that differed: the world now stops after 4 held frames instead of 10. The missed-release problem that made the double tap unreliable with a short grace is handled directly: when a hold of up to 20 frames ends while the world is stopped, the release is fed back to the pad state so the hero sees it one frame later, exactly as it would have.
+
+**Decisions taken.** The ring still appears on the press as in retail R&C1; R&C2 also delays the ring's appearance to the 4th frame, which would need a patch to R&C1's hero code and was not requested. Long holds are not replayed, so releasing after browsing the ring never arms a swap window.
+
+**Verification.** Rebuilt; hook disassembly and all patched words checked. Owner re-test: double tap at normal speed and slowly (taps up to a third of a second), hold and release, the feel of the pause starting about a twelfth of a second into a hold.
+
+**Findings affecting other items.** R&C2's quick select is an overlay game state, not a HUD item; its world pause is the state change itself. The R&C2 level programs carry the hero and gameplay code, as R&C1's do; OpenRAC's `tools/levels.py dump` and `config/levels/functions.tsv` map them, which x1 (Challenge Mode Plus) and x5 (strafing) may need when cross-referencing the sequels.
+
 ## 2026-10-17 (q3 round 2)
 
 ### ⏯️ Quick select pause setting (q3) — Fixed three owner findings, awaiting re-test

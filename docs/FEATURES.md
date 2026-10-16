@@ -137,15 +137,39 @@ sound and rendering run regardless. The frame's `HudUpdate` call
 then, with the setting on, HUD slot 3's update callback equal to
 `QuickSelectUpdate` (`func_L00_00238530`) and Triangle held (pad
 `D_0013CA40 + 0x1C0`, bit 0x10 in the game's button layout) for more than
-10 consecutive frames, clears the four bits; the frame Triangle is released
+4 consecutive frames, clears the four bits; the frame Triangle is released
 it restores them. Music keeps playing, play time stops, the ring animates
-and takes input as before. The grace period exists for the double tap: the
-hero's update owns it (Triangle's release arms a 20-frame window at hero +
-0x22D6, a second release inside it swaps to the previous weapon), release is
-a one-frame edge, and a hero frozen on that frame misses it; a tap is
-shorter than the grace, so it never pauses. Releasing ends the pause at
-once rather than after the ring's 8-frame fade-out (owner's second-round
-feedback, 2026-10-17). The gate struct is level-local
+and takes input as before. Releasing ends the pause at once rather than
+after the ring's 8-frame fade-out (owner's second-round feedback,
+2026-10-17).
+
+**Timings, from Going Commando (owner's request, 2026-10-17).** Read from
+SCUS_972.68's program and two owner savestates (ring open; just after a hot
+swap). R&C2 does not open its quick select on the press: a trigger state
+machine in its level programs (`func_L00_002FC058`; state at gp-0x5C40,
+countdown at gp+0x3278) counts frames while Triangle is held and opens the
+ring, an overlay game state in which the world does not run, once the hold
+reaches **4 frames** (gp-0x5C3C = 4, static); a shorter tap never shows it.
+Its hero (level code at 0x2C367C in Oozla's program) does the hot swap: a
+press loads a **20-frame** tap timer (hero + 0x24F8), a release inside it is
+a tap, the first tap arms a **20-frame** window (hero + 0x24FA) and a second
+tap inside it swaps to the previous weapon (hero + 0x2538 = 1) and cancels
+the trigger. R&C1's hero already has the same two 20-frame timers (hero +
+0x22D4 and + 0x22D6, `func_1FEED0(0x14)` for the PAL frame conversion), so
+only the hold threshold was adopted: `GRACE_FRAMES = 4`. The ring itself
+still appears on the press as in retail R&C1; delaying it to the 4th frame
+as R&C2 does would be a patch to the hero's opener and was not asked for.
+
+**The missed release.** The hero reads Triangle's release as the latched
+edge at pad + 0x1B8, rebuilt every frame by the pad update as ~held & the
+previous frame's raw buttons (+ 0x1BC, copied from + 0x1B0 by
+`func_00217F68` at the start of each frame; `src/game/pad.c` in OpenRAC).
+A hero frozen on the release frame never sees it, so for holds of 5 to 20
+frames the double tap would die. On that frame the hook now puts Triangle
+back into + 0x1B0, and the next frame's pad update derives the edge again:
+the hero sees the release one frame late with its tap timer frozen where
+the pause left it. Holds longer than `TAP_FRAMES` (20) are not replayed, so a
+long hold never arms the window, as in retail. The gate struct is level-local
 (`0x16C158` in level 0, elsewhere in others): `tools/modseg.py`'s
 `LEVEL_DATA` table reads its address from each level's copy of the frame
 function (the lui/addiu pair at +0x4/+0x69C).
