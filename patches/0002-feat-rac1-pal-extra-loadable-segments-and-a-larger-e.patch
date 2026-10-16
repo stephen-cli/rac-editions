@@ -1,7 +1,7 @@
 From 95224297f1e7fad32fdadb7cf8410db073b7f72d Mon Sep 17 00:00:00 2001
 From: Stephen Clinton <stephen_l43@hotmail.co.nz>
 Date: Sat, 17 Oct 2026 02:08:33 +1300
-Subject: [PATCH 2/2] feat(rac1/pal): extra loadable segments and a larger
+Subject: [PATCH 2/3] feat(rac1/pal): extra loadable segments and a larger
  executable on the disc
 
 tools/boot_elf.py --segment ADDR:FILE appends FILE as one more PT_LOAD at

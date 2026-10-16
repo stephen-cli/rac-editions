@@ -21,7 +21,8 @@ echo "== OpenRAC branch: $(git -C "$OPENRAC" branch --show-current)"
 cd "$PAL"
 echo "== 1/3 build"
 bash tools/build_sn.sh
-echo "== 2/5 mod segment (tools/gen_menu.py, then tools/modseg.py: src/*.c with the game's compiler)"
+echo "== 2/5 text table (tools/text_table.py), menu data (tools/gen_menu.py), mod segment (tools/modseg.py)"
+python "$HERE/tools/text_table.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_menu.py" --openrac "$OPENRAC"
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"
 echo "== 3/5 bootable executable with the mod segment"
@@ -30,12 +31,15 @@ echo "== 4/5 level-code patches (tools/overlay_patch.py)"
 python "$HERE/tools/overlay_patch.py" -o "$HERE/build/patches"
 if [ "${1:-}" = "--quick" ]; then
   echo "== 5/5 image (executable in new sectors at the end, level patches in place)"
-  python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv" -o build-sn/executive-edition.iso
-  echo "-> $PAL/build-sn/executive-edition.iso"
+  # An image an emulator has open cannot be overwritten: fall back to a numbered name.
+  out=build-sn/executive-edition.iso; n=1
+  while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=build-sn/executive-edition-$n.iso; done
+  python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv"     --append "$HERE/build/all_text.bin@2EF528" -o "$out"
+  echo "-> $PAL/$out"
   exit 0
 fi
 cp build-sn/SCES_509.16 "$HERE/mod/SCES_509.16"
-echo "== 5/5 wrench pack (NOTE: level-code patches are not applied on this route yet)"
+echo "== 5/5 wrench pack (NOTE: level-code patches and the text table are not applied on this route yet)"
 mkdir -p "$OPENRAC/build/wrench"
 "$WRENCH/bin/wrenchbuild.exe" pack "$GAME_BANK" "$WRENCH/data/overlay" "$HERE/mod" \
   -a rac -o "$OPENRAC/build/wrench/executive-edition.iso" -h release \

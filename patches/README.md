@@ -9,3 +9,4 @@ Apply onto a fresh OpenRAC checkout at the base commit with:
 
 - 0001-feat-rac1-pal-bootable-executable-and-in-place-disc-.patch
 - 0002-feat-rac1-pal-extra-loadable-segments-and-a-larger-e.patch
+- 0003-feat-rac1-pal-iso_patch.py-append-FILE-OFFSET.patch

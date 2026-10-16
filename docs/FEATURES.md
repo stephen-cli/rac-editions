@@ -100,7 +100,7 @@ encoding was checked against the SN assembler's output.
 hidden spot, observe circlenut bolts and 10x the bolt gain. Then a normal
 save: unchanged hexnut bolts worth 5. Levels to cover: any two.
 
-## q3: Quick select pause setting — implemented, awaiting owner test
+## q3: Quick select pause setting — working (owner, 2026-10-17); labels, row position and preview fixed, awaiting re-check
 
 **Setting.** Saved global flag 120 (`0x13D508`; the save's chunk 5 holds 128
 flag bytes from `0x13D490`, indices 118-126 unused by retail). Off by
@@ -133,10 +133,26 @@ pointer (`widget + 0x34`) at its copy. Two more tables are indexed by the
 row cursor and had to grow with the rows (the first build crashed on Quit
 Game, which read past them): the Options page's description widget
 (`+0x34` -> description string ids 20273..20281, one per row, sentinel 0)
-and its image widget (`+0x30` -> a core table at 0x138140 of
-`{first frame, frame count}` pairs, the animated preview per row). The
-generator emits per-level description arrays and one extended image table
-(our row reuses Subtitles' preview) and patches both widget pointers.
+and its image widget (`+0x30` -> a table of `{first sector, sectors}` per
+row). The image widget (`func_00220DF0`) streams each preview straight
+from the disc with `start_audio_stream_read(buffer, sector, sectors)` and,
+with its flag 0x20, WAD-decompresses it in place; the core table at
+0x138140 is filled at boot from the table of contents' `options_ss` group
+(the one before it, 0x138108, from `help_ss`, is the Help page's), so the
+executable file holds zeros there, which is why a copy taken from the file
+showed no previews at all. The generator now takes the pairs from the
+disc's table of contents, with the Help page's "Controls" preview
+(`help_ss[0]`) at our row, emits per-level description arrays, and patches
+both widget pointers. The row sits after Load (index 3).
+
+**Text.** `tools/text_table.py` rebuilds the game's text table with the
+edition's strings from `text/strings.tsv` (ids 0x5402.., five languages,
+English fallback) and the pipeline appends the larger file to the image
+with the table-of-contents entry (byte 0x1528 of the table of contents at
+sector 1500) pointed at it. q3 uses "Controls" (0x5402) for the row,
+"Control Options" (0x5405) for the page title, "Quick Select Pause"
+(0x5403) for the toggle and "Adjust controls settings" (0x5404) for the
+description.
 
 **HUD slots.** `HudShow(slot | flags, a, init, update, draw, b, c)` queues
 a slot record (13 records of 0x90 at a level-local table: 0x17DD50 in
@@ -150,17 +166,17 @@ title widget 0x58 with style at +0x30 and label id at +0x34; list item 12
 bytes `{s16 label, s16 action, u32 arg, s16 sublabel, s16 hl_timer}`, action
 3 = go to page `arg`, sentinel label 0; toggle entry 0x14 bytes.
 
-**Open points.** Labels reuse string 20196 "Quick Select" for the row, the
-page title and the entry (reads "Quick Select  On/Off"), and the row's
-description reuses Subtitles' (20279 "Toggle subtitles on and off"). Proper
-text needs a text-table writer. The table (`all_text`, table-of-contents
-group at LBA 18200, 630,784 bytes, uncompressed) is: a header whose words
-at +0x4.. are the per-language block offsets, a count (0x6E7 = 1767) at
-+0x20, then 16-byte index entries `{offset, id, -1, 0}` from +0x28 with
-offsets relative to +0x20, then the string blocks per language. The hidden
+**Text table format** (`all_text`, table-of-contents group at sector
+18200, 630,784 bytes, uncompressed): eight u32 offsets to sub-tables
+(0 English, 1 unused, 2 French, 3 German, 4 Spanish, 5 Italian, 6 shared,
+7 unused); each sub-table `{u32 count, u32 size, entry[count]}` then its
+strings, an entry being `{u32 offset from the sub-table start, u32 id,
+-1, 0}`, entries not sorted by id, ids up to 0x5401 in retail. The hidden
 Options rows are 20257 "Video" (description 20276 "Adjust video settings",
-of interest to q4) and 20261 "Vibration". The page reuses the Subtitles
-page's kind 0x1B.
+of interest to q4) and 20261 "Vibration".
+
+**Open points.** The page reuses the Subtitles page's kind 0x1B. The
+French, German, Spanish and Italian strings are first drafts.
 
 **Test plan (owner).** In a level: Start, Options, "Quick Select", set On;
 open the ring (hold triangle): enemies, camera and particles frozen, ring
