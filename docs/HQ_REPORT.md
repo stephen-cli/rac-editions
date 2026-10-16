@@ -4,6 +4,20 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (x5, third increment: jumps and flips)
+
+### 🎯 Strafing on L2/R2 (x5) — Strafe jumps and flips implemented, awaiting owner test
+
+**What changed.** Jumping while strafing now behaves as in Going Commando: sideways gives a side flip, backward a back flip, forward a normal jump, and through any jump Ratchet keeps facing the camera and drifts along the stick. The flips are R&C1's own crouch flips (its state 0xB and animations), which is exactly what R&C2 reuses; no new animation was needed for them.
+
+**Decisions taken.**
+- Two items from the earlier plan were dropped after reading R&C2's code: there is no "turn to face the camera while standing still" and no slower backpedal in Going Commando. Noted in FEATURES.md so they are not chased again.
+- One small divergence kept: a forward strafe jump at full run speed still gives R&C1's run-jump animation; R&C2 forces a plain jump there. Not worth a fragile patch.
+
+**Verification.** Rebuilt; hooks and patched sites checked by disassembly in three levels and found by pattern in all 19 at build time. Owner test: side and back flips from a strafe, forward strafe jump, facing held through a jump, crouch jumps and the thruster hover unchanged.
+
+**Next.** The strafe animations (R&C2's cycles carried into each level's Ratchet), the last open piece of x5.
+
 ## 2026-10-17 (x5, second increment: the camera)
 
 ### 🎯 Strafing on L2/R2 (x5) — Camera hold implemented, hover protected; awaiting owner test

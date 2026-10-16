@@ -188,7 +188,10 @@ def strafe(at):
     parse call goes to a hook that records the triggers and hides them from
     the game; the RUN movement block's two turn_to calls, its pivot turn and
     its two set_planar_vel calls go to hooks that, while strafing, face the
-    camera and move along the stick. Run-block sites from tools/gen_hero.py."""
+    camera and move along the stick; the jump block's turn and planar calls
+    and the air control's turn do the same in the air, and the jump-press
+    handler's four calls go to a hook that turns a strafe jump into R&C1's
+    own flips (state 0xB) as R&C2 does. Sites from tools/gen_hero.py."""
     import json
     hero = HERE.parent / "build/modseg/hero_sites.json"
     if not hero.is_file():
@@ -200,7 +203,13 @@ def strafe(at):
             (h["run_turn_b"], jal(h["turn_to"]), jal(modseg_symbol("ee_strafe_turn"))),
             (h["run_pivot"], jal(h["pivot_turn"]), jal(modseg_symbol("ee_strafe_pivot"))),
             (h["run_planar_a"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_strafe_planar"))),
-            (h["run_planar_b"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_strafe_planar")))]
+            (h["run_planar_b"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_strafe_planar"))),
+            # jumps and flips: the jump block's first turn and planar call, the air control's turn,
+            # and the four calls of the jump-press handler
+            (h["jump_turn_site"], jal(h["turn_to"]), jal(modseg_symbol("ee_jump_turn"))),
+            (h["jump_planar_site"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_jump_planar"))),
+            (h["air_turn_site"], jal(h["turn_to"]), jal(modseg_symbol("ee_air_turn")))] + [
+            (h[f"jump_press_{k}"], jal(h["jump_press_fn"]), jal(modseg_symbol("ee_jump_press"))) for k in range(4)]
 
 
 def strafe_camera(at):

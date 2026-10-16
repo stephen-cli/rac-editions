@@ -54,6 +54,34 @@ ee_strafe_planar:
     j     ee_strafe_planar_c
     addu  $4, $31, $0
 
+/* The jump family's turn_to and set_planar_vel (same signatures as above). */
+.globl ee_jump_turn
+.extern ee_jump_turn_c
+ee_jump_turn:
+    j     ee_jump_turn_c
+    addu  $5, $31, $0
+
+.globl ee_jump_planar
+.extern ee_jump_planar_c
+ee_jump_planar:
+    j     ee_jump_planar_c
+    addu  $4, $31, $0
+
+/* The air control's turn_to(mode, accel, max_speed, rate). */
+.globl ee_air_turn
+.extern ee_air_turn_c
+ee_air_turn:
+    j     ee_air_turn_c
+    addu  $5, $31, $0
+
+/* jump press handler(window, no_plain_jump): two integer arguments, the
+ * return address goes in $6; the C hook's result goes back in $2. */
+.globl ee_jump_press
+.extern ee_jump_press_c
+ee_jump_press:
+    j     ee_jump_press_c
+    addu  $6, $31, $0
+
 /* bolt spawner(spot, pos, dir, kind, value, flag): six arguments, $4-$9;
  * the return address goes in $10. */
 .globl ee_metal_detector_spawn

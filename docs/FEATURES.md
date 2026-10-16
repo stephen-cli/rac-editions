@@ -434,3 +434,59 @@ the thruster pack and hold L2/R2, which should behave as in retail.
 
 **Not yet.** Strafe animations, the standing strafe stance, the slower
 backpedal, strafe jumps and flips (next increments).
+
+## x5: Strafing — third increment: jumps and flips (2026-10-17), awaiting owner test
+
+**What R&C2 does.** Read from SCUS_972.68. Its jump-press handler
+(`0x2C2420`, called from the idle, run and landing updates) is R&C1's
+`func_L00_00229348` line for line (X pressed within a window; with crouch
+held and a fresh press, the high jump; otherwise a plain jump unless the
+caller wants only the crouch jumps) plus one rule: strafing with the stick
+past 0.9, when the stick's direction class (`0x2BEA58`) is not forward, it
+enters state 0xB. State 0xB is the flip family in both games: R&C1's entry
+(NTSC `hero_set_state.c`, case 0xB) classifies the stick against the
+facing (`func_L00_00222580`: 2 forward, 3 back, 0 and 1 the sides) and
+plays animation 0x1C + class, which are the side flips (0x1C, 0x1D, with
+the mirror option swapping them) and the back flip (0x1F), and the flip
+travels along the move heading at the take-off speed. In R&C2 the same
+ids are 0x1C + class with 0x1E added for the forward class, which the
+strafe never uses. In the air, R&C2's jump block (`0x2BD34C`) turns toward
+the heading (the camera yaw while strafing) and sets the planar velocity
+along the stick heading (`0x2BD4C4`), and its air control (`0x2B7360`, at
+`0x2B7920`) turns toward the camera yaw every frame while strafing. R&C2
+also makes a jump from the run a plain jump rather than a run-jump while
+strafing (`0x2C4A08`).
+
+**The port.** Hooks found per level by `tools/gen_hero.py`:
+- The four calls of `func_L00_00229348` go to `ee_jump_press`
+  (`src/strafe.c`): the game's handler is called for the crouch jumps
+  only; then, if X was pressed (re-read with `pad_pressed_within`, a pure
+  query), strafing with the stick past 0.9 and a class other than forward
+  enters state 0xB, R&C1's own flips; otherwise the plain jump as before.
+  So a sideways strafe jump is a side flip and a backward one the back
+  flip, with R&C1's animations.
+- The jump block's first `turn_to` and `set_planar_vel` (the first five
+  frames of a jump) and the air control's plain-jump `turn_to` (the one
+  whose rate is hero + 0x414) go to hooks that, while strafing, turn
+  toward the camera yaw and move along the stick heading, as the run.
+- Not ported: the plain-jump-instead-of-run-jump rule. R&C1 picks the
+  run-jump only with the heading within 60 degrees of the facing at speed,
+  so it still appears when strafing straight ahead at a run; its call is
+  not found by pattern in the level programs. Harmless.
+
+**Standing stance and backpedal, dropped.** Reading R&C2's code found
+neither: its `stick_target` keeps the facing as the heading with the stick
+centred in both games (no turn to the camera while idle), and no speed
+scaling by direction exists; the only strafe speed rule is a five-frame
+penalty on a quick left-right reversal (`0x2B3F30`). The strafe animations
+remain the open item.
+
+**Verification.** Rebuilt; the four trampolines and the two C hooks
+checked in disassembly (register moves; stick at hero + 0x229C, 0.9, Cross,
+states 0xB and 7, class 2, the crouch-only flag); the seven patched sites
+checked against the trampolines in levels 0, 7 and 18 and found by pattern
+in all 19 at build time. Owner test: strafe sideways and press X (side
+flip), strafe back and press X (back flip), strafe forward and press X
+(plain jump or run-jump), hold a trigger through a jump (Ratchet keeps
+facing the camera and drifts along the stick); crouch jumps and the hover
+unchanged.
