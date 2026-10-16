@@ -566,3 +566,26 @@ and back and watch the hips/torso twist; strafe back (backward step, run
 cycle reversed for now); side and back flips from a strafe should travel
 with the stick and feel like R&C2's; crouch flips, the normal run and the
 hover unchanged.
+
+## x5: fourth increment, fix (2026-10-17): the backpedal slot and the flip blend helper
+
+**Owner's test.** Loaded and ran fine; holding R2 and moving crashed with
+"Jump to unmapped recLUT page (PC 0x70030c00)".
+
+**Cause 1.** The backpedal sequence was installed in slot 200 of the hero's
+class, but the class keeps only 162 slot entries: its mesh packet table
+starts at + 0x2D0 (header word 0), right after slot 161. Writing slot 200
+put a pointer into the packet table and the renderer followed it. Now
+slot 140 (134 used; 134..161 are zero padding in every level checked:
+0, 5, 18), with a guard: the install is skipped when the slot would reach
+the packet table or is not empty, and the hook then leaves the game's
+cycles alone.
+
+**Cause 2 (latent).** The flip's animation blend called
+`scale_game_frames` at `0x1FEED0`, a mid-function address copied from a
+level call site; the PAL function is `func_001F98C0` (NTSC
+`FUN_001f96f8`). Fixed; it would have crashed the first strafe flip.
+
+**Verification.** Rebuilt; hooks checked in disassembly (slot 0x8C, the
+packet-table guard, the helper's address) and the nine sites in levels 0,
+7, 18.

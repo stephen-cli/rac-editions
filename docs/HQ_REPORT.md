@@ -6,7 +6,10 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-17 (x5, fourth increment: flips, twist, backpedal)
 
-### 🎯 Strafing on L2/R2 (x5) — R&C2's flip motion, the run twist and a stand-in backpedal; awaiting owner test
+### 🎯 Strafing on L2/R2 (x5) — R&C2's flip motion, the run twist and a stand-in backpedal; crash fixed, awaiting owner re-test
+
+**Fix (same day).** The owner's first run of this build crashed as soon as a trigger was held while moving. The stand-in backpedal was placed in an animation slot beyond the space the hero's class actually reserves and overwrote the start of its mesh data; it now uses a slot inside that space, with a guard that skips the install if there is no room. A second, not yet triggered, wrong helper address in the flip's animation blend was fixed at the same time.
+
 
 **What changed.** Three things the owner's test asked for. Strafe flips now move as in Going Commando: they travel with the stick from take-off instead of hanging in the air, and left/right/back are read against the camera, so a sideways flip is a side flip. Strafing on foot now twists Ratchet the R&C2 way: legs toward the movement, torso toward the camera, over R&C1's own walk and run cycles. Strafing backward plays a backward step.
 

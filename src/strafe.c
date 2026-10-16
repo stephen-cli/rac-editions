@@ -118,8 +118,11 @@
  * sequence is a 0x1C-byte header and a table of frame pointers once
  * loaded (update_moby_animation_state reads seqs[seq]->frames[frame]), so
  * the copy is the header with the pointers in reverse order, installed in
- * a free slot (200) of the hero's class and played by the run animation
- * updater's hook. Carrying R&C2's own cycle over needs its frame format
+ * a free slot (140) of the hero's class and played by the run animation
+ * updater's hook. The class's table has room for 162 slots only (its mesh
+ * packet table starts at + 0x2D0, header word 0); a first build used slot
+ * 200, wrote into the packet table and crashed the renderer. Carrying
+ * R&C2's own cycle over needs its frame format
  * decoded; this stands in until then.
  *
  * Hero fields are core data (0x13F450): state + 0x2084, facing yaw +
@@ -161,7 +164,7 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define PI              3.14159265f
 #define HALF_PI         1.5707964f
 #define QUARTER_PI      0.7853982f
-#define BACKPEDAL_SLOT  200           /* a free slot of the hero's 256 (134 used) */
+#define BACKPEDAL_SLOT  140           /* a free slot: the class keeps 162 (its packet table follows at + 0x2D0), 134 used */
 #define RUN_SLOT        4
 #define CAMERA_YAW(L)   (*(volatile f32 *)LVL_DATA(L, camera_yaw, u32))
 #define PAD_HISTORY     0x1E0         /* 30 words of pressed edges, a ring */
@@ -193,7 +196,7 @@ typedef void (*Void)(void);
 typedef f32 (*Approach)(f32 target, f32 step, f32 *var);
 #define sub_rot         ((Rot2)0x001FA790)       /* fast_subtract_rotations */
 #define diff_rot        ((Rot2)0x001FA850)       /* fast_difference_between_rotations */
-#define scale_frames    ((ScaleFrames)0x001FEED0) /* frames at 60 Hz -> this build's frames */
+#define scale_frames    ((ScaleFrames)0x001F98C0) /* frames at 60 Hz -> this build's frames (NTSC FUN_001f96f8) */
 
 u32 ee_strafe_held;           /* L2 or R2 held this frame (pad 0); the camera patch reads it */
 static s32 strafe_active;     /* this frame's RUN turn was the strafe one */
@@ -469,6 +472,9 @@ static void install_backpedal(void)
     if (seqs[BACKPEDAL_SLOT] == (u32)backpedal_seq && backpedal_from == (u32)run) {
         return;
     }
+    if (0x48 + 4 * BACKPEDAL_SLOT >= *(u32 *)cls || seqs[BACKPEDAL_SLOT] != 0) {
+        return;     /* no room before the packet table, or the slot is in use: keep the run cycle */
+    }
     count = ((const u8 *)run)[0x10];
     if (count > 64) {
         count = 64;
@@ -495,6 +501,10 @@ void ee_run_anim_c(u32 ra)
     if (backpedalling(L)) {
         f32 speed;
         install_backpedal();
+        if (*(volatile u32 *)(*(u8 **)(moby + 0x24) + 0x48 + 4 * BACKPEDAL_SLOT) != (u32)backpedal_seq) {
+            ((Void)ee_run_anim_fn[L])();      /* not installed: the game's cycles */
+            return;
+        }
         if (moby[0x53] != BACKPEDAL_SLOT) {
             LVL(L, func_L00_00232C10, SetAnim)(BACKPEDAL_SLOT, 0, 11.0f);
         }
