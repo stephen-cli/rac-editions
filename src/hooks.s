@@ -23,12 +23,14 @@ ee_comet_speed_step:
     j     ee_comet_speed_step_c
     addu  $4, $31, $0
 
-/* pad parse(pad): one integer argument, the return address goes in $5. */
+/* pad parse(pad, report, length): three integer arguments, $4-$6; the
+ * return address goes in $7. (A first build passed it in $5 and so fed
+ * the parser the return address as its report buffer: every input dead.) */
 .globl ee_pad_parse
 .extern ee_pad_parse_c
 ee_pad_parse:
     j     ee_pad_parse_c
-    addu  $5, $31, $0
+    addu  $7, $31, $0
 
 /* turn_to(mode, accel, max_speed, rate): mode in $4, the floats in
  * $f12-$f14; the return address goes in $5 (second integer argument). */

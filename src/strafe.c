@@ -33,7 +33,7 @@
 #include "modseg.h"
 
 DECLARE_LVL(func_00217F68);            /* pad begin-frame; its parse call is hooked */
-DECLARE_LVL(func_002181F0);            /* pad parse(pad): derives held/pressed/released */
+DECLARE_LVL(func_002181F0);            /* pad parse(pad, report, length): derives held/pressed/released */
 extern const u32 ee_run_turn_a[19], ee_run_turn_b[19], ee_run_pivot[19], ee_run_planar_a[19], ee_run_planar_b[19];
 extern const u32 ee_turn_to[19], ee_pivot_turn[19], ee_set_planar_vel[19];
 
@@ -48,7 +48,7 @@ extern const u32 ee_turn_to[19], ee_pivot_turn[19], ee_set_planar_vel[19];
 #define PAD_STRAFE      0x3u          /* L2 | R2 in the game's button layout */
 #define EE_SITE_PAD_PARSE 0x1C4       /* func_00217F68 + 0x1C4: jal func_002181F0 */
 
-typedef void (*PadParse)(void *pad);
+typedef void (*PadParse)(void *pad, u8 *report, s32 length);
 typedef void (*TurnTo)(s32 mode, f32 accel, f32 max_speed, f32 rate);
 typedef void (*Pivot)(void);
 typedef void (*SetPlanarVel)(f32 yaw);
@@ -57,15 +57,16 @@ static u32 strafe_held;       /* L2 or R2 held this frame (pad 0) */
 static s32 strafe_active;     /* this frame's RUN turn was the strafe one */
 static f32 strafe_heading;    /* the stick heading the velocity follows */
 
-/* After the game's pad parse: remember L2/R2 and hide them from the game. */
-void ee_pad_parse_c(void *pad, u32 ra)
+/* After the game's pad parse (pad.c: func_002181F0(pad, report, length)):
+ * remember L2/R2 and hide them from the game. */
+void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_00217F68, EE_SITE_PAD_PARSE);
     volatile u32 *p = (volatile u32 *)pad;
     static const u16 fields[] = { 0x1A0, 0x1A4, 0x1A8, 0x1B0, 0x1B4, 0x1B8, 0x1C0, 0x1C4, 0x1C8, 0x348 };
     s32 i;
 
-    LVL(L, func_002181F0, PadParse)(pad);
+    LVL(L, func_002181F0, PadParse)(pad, report, length);
     if ((u32)pad != PAD0) {
         return;
     }

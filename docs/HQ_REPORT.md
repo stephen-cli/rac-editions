@@ -15,6 +15,8 @@ changed, decisions taken, findings that affect other items.
 - Holding both triggers strafes like one; R&C2's lock-on strafe is not ported, as asked.
 - Delivered as an increment: movement first. Strafe animations (R&C1's Ratchet has no side-step or backpedal cycles; the run cycle plays for now), the standing strafe stance, the slower backpedal and the camera hold come next; the animation step needs R&C2's cycles carried over, which hinges on the two Ratchet skeletons matching.
 
+**First owner test (2026-10-17): every input dead after loading a save, Ratchet running on his own.** Cause: the pad parse routine takes three arguments (pad, raw report, length) and the hook's trampoline put the return address into the second, so the game parsed its buttons and stick from garbage every frame. Fixed the same day (return address in the fourth register, all three arguments passed through); the hook's prologue checked in disassembly. Re-test pending.
+
 **Verification.** Rebuilt; the hooks' disassembly checked (pad fields cleared, camera yaw, frame globals and rates); all 12 patched sites per level checked against retail. Owner test: hold L2 or R2 and push the stick sideways and back; Ratchet should keep facing the camera direction and slide; release to run normally; L1 look and R1 crouch unchanged; watch how the camera behaves while strafing sideways, which decides the next step.
 
 ## 2026-10-17 (x3b)
