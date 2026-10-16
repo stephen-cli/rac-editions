@@ -21,8 +21,8 @@ echo "== OpenRAC branch: $(git -C "$OPENRAC" branch --show-current)"
 cd "$PAL"
 echo "== 1/3 build"
 bash tools/build_sn.sh
-echo "== 2/5 text table (tools/text_table.py), menu data (tools/gen_menu.py), mod segment (tools/modseg.py)"
-python "$HERE/tools/text_table.py" --openrac "$OPENRAC"
+echo "== 2/5 strings (tools/gen_text.py), menu data (tools/gen_menu.py), mod segment (tools/modseg.py)"
+python "$HERE/tools/gen_text.py"
 python "$HERE/tools/gen_menu.py" --openrac "$OPENRAC"
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"
 echo "== 3/5 bootable executable with the mod segment"
@@ -34,7 +34,7 @@ if [ "${1:-}" = "--quick" ]; then
   # An image an emulator has open cannot be overwritten: fall back to a numbered name.
   out=build-sn/executive-edition.iso; n=1
   while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=build-sn/executive-edition-$n.iso; done
-  python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv"     --append "$HERE/build/all_text.bin@2EF528" -o "$out"
+  python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv" -o "$out"
   echo "-> $PAL/$out"
   exit 0
 fi

@@ -143,12 +143,22 @@ def quick_select_pause(at):
         (m[k]["site"], m[k]["expect"], modseg_symbol(m[k]["symbol"])) for k in ("items", "desc", "image")]
 
 
+def edition_text(at):
+    """The edition's strings (src/text.c): every level's msg_string
+    (func_001FE540) jumps to ee_msg_string from its first instruction. The
+    two replaced words are its prologue, never returned to."""
+    f = at("func_001FE540")
+    target = modseg_symbol("ee_msg_string")
+    return [(f, 0x27BDFFF0, j(target)), (f + 4, 0x7FBF0000, NOP)]
+
+
 FEATURES = {
+    "edition_text": edition_text,
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
     "quick_select_pause": quick_select_pause,
 }
-DEFAULT_FEATURES = ["metal_detector_10x_modseg", "quick_select_pause"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

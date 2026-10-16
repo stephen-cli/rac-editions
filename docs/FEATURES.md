@@ -141,18 +141,28 @@ with its flag 0x20, WAD-decompresses it in place; the core table at
 (the one before it, 0x138108, from `help_ss`, is the Help page's), so the
 executable file holds zeros there, which is why a copy taken from the file
 showed no previews at all. The generator now takes the pairs from the
-disc's table of contents, with the Help page's "Controls" preview
-(`help_ss[0]`) at our row, emits per-level description arrays, and patches
-both widget pointers. The row sits after Load (index 3).
+disc's table of contents, with the Help page's "Controls" preview at our
+row (`help_ss[1]`: the Help rows are Help Log, Controls, Moves, Weapons,
+Gadgets), emits per-level description arrays, and patches both widget
+pointers. The row sits after Load (index 3).
 
-**Text.** `tools/text_table.py` rebuilds the game's text table with the
-edition's strings from `text/strings.tsv` (ids 0x5402.., five languages,
-English fallback) and the pipeline appends the larger file to the image
-with the table-of-contents entry (byte 0x1528 of the table of contents at
-sector 1500) pointed at it. q3 uses "Controls" (0x5402) for the row,
+**Text.** The edition's strings (`text/strings.tsv`, ids 0x5402.., five
+languages with English fallback) are served from the resident segment:
+`tools/gen_text.py` emits them as tables and `src/text.c`'s
+`ee_msg_string` replaces the game's `msg_string` (`func_001FE540`) in every
+level (its first two words become a jump; the prologue is never returned
+to). Ids in the edition's range come from the tables, everything else goes
+through the game's own index lookup (`func_001FE4D0`, a linear scan over
+the loaded block's entries at gp-relative `D_0015F780`). This is needed
+because a level does not keep the global text table: in a gameplay
+savestate the text system is empty (count 0), the pause menu loads text on
+demand, and an enlarged global table (`tools/text_table.py`, kept for the
+frontend) left the new ids unresolved in level menus ("Paradox: This
+message does not exist"). q3 uses "Controls" (0x5402) for the row,
 "Control Options" (0x5405) for the page title, "Quick Select Pause"
 (0x5403) for the toggle and "Adjust controls settings" (0x5404) for the
-description.
+description. Accented letters are flattened to ASCII until the font's code
+page is mapped.
 
 **HUD slots.** `HudShow(slot | flags, a, init, update, draw, b, c)` queues
 a slot record (13 records of 0x90 at a level-local table: 0x17DD50 in

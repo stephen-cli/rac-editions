@@ -103,7 +103,8 @@ def main() -> int:
     # the disc by the image widget (func_00220DF0). The core copy at 0x138140 is
     # filled at boot from the table of contents' options_ss group, so the values
     # come from the disc's table of contents here; our row shows the Help page's
-    # "Controls" preview, help_ss[0] (the table right before, at 0x138108).
+    # "Controls" preview, help_ss[1] (the table right before, at 0x138108; its
+    # rows are Help Log, Controls, Moves, Weapons, Gadgets).
     sys.path.insert(0, str(args.openrac / "editor"))
     from disc import Disc
     with Disc(pal / "baserom/SCES_509.16.iso") as disc:
@@ -114,7 +115,7 @@ def main() -> int:
     options_ss, help_ss = group("options_ss"), group("help_ss")
     if len(options_ss) != 7 or len(help_ss) < 1:
         raise SystemExit(f"unexpected preview groups: options_ss {len(options_ss)}, help_ss {len(help_ss)}")
-    pairs = options_ss[:ROW_INDEX] + [help_ss[0]] + options_ss[ROW_INDEX:]
+    pairs = options_ss[:ROW_INDEX] + [help_ss[1]] + options_ss[ROW_INDEX:]   # help_ss: Help Log, Controls, Moves, ...
     c.append(f"u32 ee_options_images[{len(pairs) * 2}] = {{ {', '.join(f'0x{a:X}, 0x{b:X}' for a, b in pairs)} }};")
     c.append("")
     sites = {}
