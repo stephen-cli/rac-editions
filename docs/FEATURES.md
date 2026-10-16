@@ -44,12 +44,25 @@ moves the directory record (verified booting in PCSX2 from sector 2058000).
   level program at level-specific addresses (the catalogue's "exe" kind
   lists 19 places too: `func_001FFCB0` is at 0x236298 in Veldin, 0x24B8A8
   in Novalis). So any function above the core is reached through
-  `DECLARE_LVL(name)` / `LVL(name, type)`, a 19-entry table the build emits
-  from the catalogue, indexed by the current level (`D_0015EE84`); and
-  level-local data through `LVL_DATA(name, type)`, a table the build reads
-  from the disc (`tools/modseg.py` `LEVEL_DATA`: a function and the offsets
-  of a lui/addiu pair that addresses it). The build refuses a direct
+  `DECLARE_LVL(name)` / `LVL(level, name, type)`, a 19-entry table the build
+  emits from the catalogue, indexed by the **running level**; and
+  level-local data through `LVL_DATA(level, name, type)`, a table the build
+  reads from the disc (`tools/modseg.py` `LEVEL_DATA`: a function and the
+  offsets of a lui/addiu pair that addresses it). The build refuses a direct
   reference above 0x15F000.
+- **The running level is not the game's current-level variable**
+  (`D_0015EE84`). Loading a save from the pause menu writes the save's
+  globals, that variable included, while the old level program still runs
+  its last frames; hooks that indexed the tables with it then called the new
+  level's addresses inside the old program (R5900 "jump to unaligned
+  address" on every second load, owner 2026-10-17; the first load, from the
+  frontend, has no hooks running). Since then a hook learns its level from
+  its own call site: `src/hooks.s` trampolines (the `jal` targets) pass the
+  return address to the C hook, and `ee_level_of_call` (src/level.c)
+  matches it against the hooked function's 19 addresses plus the site's
+  offset (`EE_SITE_*` in src/modseg.h, which `tools/overlay_patch.py` reads
+  too). msg_string's entry patch, a plain `j`, gets `addiu $at, $zero,
+  LEVEL` in its delay slot instead, read by `src/text_hook.s`.
 - Exported functions (`modseg.sym`) are hook targets for
   `tools/overlay_patch.py`: redirect a call site in level code with `jal`.
 - Region, confirmed 2026-10-17 on a PCSX2 savestate taken in Batalia

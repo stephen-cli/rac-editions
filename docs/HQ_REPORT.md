@@ -4,6 +4,16 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (load crash)
+
+### 🛠️ Crash loading a second save from the pause menu — Fixed, awaiting owner re-test
+
+**What changed.** Owner report: load a save from the main menu, then a different save from the pause menu, and the game stops with an R5900 "jump to unaligned address" (not with every pair of saves). Cause found in the edition's resident code, present since the first mod-segment build (x4, q3): the hooks found out which level program is running from the game's current-level variable, and loading a save from the pause menu overwrites the save's globals, that variable included, while the old level's program still runs its last frames; a hook then jumped into the old program at the new level's addresses. Pairs of saves on the same level did not crash, which matches the report. The hooks now identify the level from their own call site (the return address, which differs per level program), never from game state; the string hook gets the level id from its patch. Every hook changed; nothing visible changes in play.
+
+**Decisions taken.** Removed the current-level variable from the edition's shared header altogether so no future hook can repeat this; the call-site offsets are defined once (src/modseg.h) and the patch tool reads them from there.
+
+**Verification.** Rebuilt; all 152 patched words checked against retail and against the new hook addresses in every level; the generated code reviewed in disassembly. Not run in-game here (owner's emulator was in use); owner re-test: main-menu load, then pause-menu load of a save on another level, several times, plus Metal Detector 10x, quick select pause, Controls page text and Commercials as regression checks.
+
 ## 2026-10-17 (Commercials)
 
 ### 📺 Goodies: Commercials (new item, owner's request) — Implemented, awaiting owner test

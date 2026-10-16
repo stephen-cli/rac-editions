@@ -9,7 +9,8 @@
  * open and the setting is on, those four bits are cleared, and restored
  * when it closes: the world freezes, the ring keeps animating and taking
  * input, music keeps playing, play time does not advance. The frame's
- * HudUpdate call is redirected here (tools/overlay_patch.py), so the state
+ * HudUpdate call is redirected here (tools/overlay_patch.py, through the
+ * trampoline in src/hooks.s that passes the return address), so the state
  * is checked once per frame right after the HUD has processed the ring's
  * open and close. The ring is HUD slot 3; a slot is in use while its
  * update callback (slot record + 0x14, the one HudUpdate calls) is set,
@@ -29,6 +30,7 @@
  * 20196 "Quick Select" until the text table can take new strings. */
 #include "modseg.h"
 
+DECLARE_LVL(func_L00_00299250);        /* the mode-0 frame: the hooked call site is in it */
 DECLARE_LVL(func_L00_0023B610);        /* HudUpdate(int) */
 DECLARE_LVL(func_L00_00238530);        /* QuickSelectUpdate: the ring's slot callback */
 DECLARE_LVL_DATA(update_flags);        /* the gate struct; bits at +8 */
@@ -37,7 +39,7 @@ DECLARE_LVL_DATA(hud_slots);           /* HUD slot table, 13 records of 0x90 (le
 #define QS_PAUSE_SETTING   (*(volatile u8 *)0x0013D508)
 /* A slot's current update callback: HudUpdate calls record + 0x14 (set from HudShow's
  * fourth argument by apply_pending), zero when the slot is free. */
-#define HUD_SLOT_UPDATE(n) (*(volatile u32 *)(LVL_DATA(hud_slots, u32) + (n) * 0x90 + 0x14))
+#define HUD_SLOT_UPDATE(L, n) (*(volatile u32 *)(LVL_DATA(L, hud_slots, u32) + (n) * 0x90 + 0x14))
 #define GATE_BITS          0xFu
 
 typedef void (*HudUpdateFn)(s32);
@@ -45,15 +47,16 @@ typedef void (*HudUpdateFn)(s32);
 static u32 saved_bits;
 static s32 paused;
 
-void ee_hud_update_hook(s32 arg)
+void ee_hud_update_hook_c(s32 arg, u32 ra)
 {
+    s32 L = ee_level_of_call(ra, lvl_func_L00_00299250, EE_SITE_HUD_UPDATE);
     volatile u32 *gate;
     s32 open;
 
-    LVL(func_L00_0023B610, HudUpdateFn)(arg);
+    LVL(L, func_L00_0023B610, HudUpdateFn)(arg);
 
-    gate = (volatile u32 *)(LVL_DATA(update_flags, u32) + 8);
-    open = HUD_SLOT_UPDATE(3) == lvl_func_L00_00238530[g_level];
+    gate = (volatile u32 *)(LVL_DATA(L, update_flags, u32) + 8);
+    open = HUD_SLOT_UPDATE(L, 3) == lvl_func_L00_00238530[L];
     if (open && QS_PAUSE_SETTING && !paused) {
         saved_bits = *gate & GATE_BITS;
         *gate &= ~GATE_BITS;

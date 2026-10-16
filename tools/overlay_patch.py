@@ -22,6 +22,7 @@ Usage (from anywhere):
   python tools/overlay_patch.py [--openrac DIR] [-o build/patches] [--dry-run] [FEATURE ...]
 """
 import argparse
+import re
 import struct
 import sys
 from pathlib import Path
@@ -105,6 +106,16 @@ def metal_detector_10x(at):
     ]
 
 
+def site_offset(name: str) -> int:
+    """A hooked call site's offset in its function, from src/modseg.h (EE_SITE_*),
+    the one definition the C hooks and this tool share."""
+    text = (HERE.parent / "src/modseg.h").read_text()
+    m = re.search(rf"#define\s+{name}\s+(0x[0-9A-Fa-f]+)", text)
+    if not m:
+        raise SystemExit(f"{name} is not defined in src/modseg.h")
+    return int(m.group(1), 16)
+
+
 def modseg_symbol(name: str) -> int:
     """Address of an exported mod-segment function (tools/modseg.py's modseg.sym)."""
     path = HERE.parent / "build/modseg/modseg.sym"
@@ -120,21 +131,22 @@ def modseg_symbol(name: str) -> int:
 def metal_detector_10x_modseg(at):
     """The same feature with its logic in C in the resident mod segment
     (src/metal_detector.c): the detector's spawn call goes to
-    ee_metal_detector_spawn, which calls the level's spawner through the
-    generated level table. No cave needed."""
+    ee_metal_detector_spawn (src/hooks.s), which calls the level's spawner
+    through the generated level table. No cave needed."""
     spawn = at("func_L00_002A86D8")
-    site = at("func_L00_002D4398") + (0x2D49D0 - 0x2D4398)
+    site = at("func_L00_002D4398") + site_offset("EE_SITE_DETECTOR_SPAWN")
     return [(site, jal(spawn), jal(modseg_symbol("ee_metal_detector_spawn")))]
 
 
 def quick_select_pause(at):
     """q3: pause while quick select is open, with a toggle under Options
-    (src/quick_select_pause.c). The frame's HudUpdate call goes to the hook,
-    and the Options list widget's item pointer (executable data, the same
-    in every level's data record) points at the rows in the mod segment."""
+    (src/quick_select_pause.c). The frame's HudUpdate call goes to the hook
+    (src/hooks.s), and the Options list widget's item pointer (executable
+    data, the same in every level's data record) points at the rows in the
+    mod segment."""
     import json
     hud = at("func_L00_0023B610")
-    site = at("func_L00_00299250") + (0x299A88 - 0x299250)
+    site = at("func_L00_00299250") + site_offset("EE_SITE_HUD_UPDATE")
     menu = HERE.parent / "build/modseg/menu_sites.json"
     if not menu.is_file():
         raise SystemExit(f"missing {menu}: run tools/gen_menu.py first")
@@ -146,11 +158,13 @@ def quick_select_pause(at):
 def edition_text(at):
     """The edition's strings (src/text_hook.s, src/text.c): every level's
     msg_string (func_001FE540) jumps to ee_msg_string_hook from its first
-    instruction; the hook re-executes the two replaced prologue words for
-    ids that are not the edition's and continues at msg_string + 8."""
+    instruction, with the level's id in $at from the delay slot (the hook
+    must not read the game's current-level variable: see src/modseg.h);
+    the hook re-executes the two replaced prologue words for ids that are
+    not the edition's and continues at that level's msg_string + 8."""
     f = at("func_001FE540")
     target = modseg_symbol("ee_msg_string_hook")
-    return [(f, 0x27BDFFF0, j(target)), (f + 4, 0x7FBF0000, NOP)]
+    return [(f, 0x27BDFFF0, j(target)), (f + 4, 0x7FBF0000, addiu(AT, ZERO, at.level))]
 
 
 

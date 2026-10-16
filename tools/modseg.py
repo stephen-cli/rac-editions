@@ -16,7 +16,9 @@ Symbols:
   lvl_func_LNN_XXXXXXXX          a level-only function: the tool emits a
                                  19-entry address table from OpenRAC's
                                  overlay catalogue; src/modseg.h's LVL()
-                                 indexes it by the current level
+                                 indexes it by the running level, which a
+                                 hook learns from its call site (src/level.c),
+                                 never from the game's current-level variable
 Outputs in build/modseg/: modseg.elf, modseg.bin (the segment image),
 modseg.sym (exported function -> address, for tools/overlay_patch.py).
 
