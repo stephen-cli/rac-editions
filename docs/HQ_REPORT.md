@@ -4,6 +4,20 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (x5, second increment: the camera)
+
+### 🎯 Strafing on L2/R2 (x5) — Camera hold implemented, hover protected; awaiting owner test
+
+**What changed.** While a trigger is held, the follow camera no longer swings behind the direction Ratchet moves: it keeps its direction and only the right stick turns it, as in Going Commando. Released, the normal camera is back the same frame. R&C1's camera code turned out to carry R&C2's strafe camera already, used by the thruster pack's hover (its own primitive strafe); the edition reuses that very block for strafing on foot, so no camera behaviour is new code.
+
+**Decisions taken.**
+- The owner flagged the thruster pack's hover: it must keep its retail logic and controls. It does, and this build also repairs it: the first increment's trigger remap had hidden L2/R2 from the hover too, so hovering had lost its retail strafe; the triggers now stay visible to the game while hovering.
+- Only the condition of the existing camera block changes (three words per level); the camera's stiffness logic and right-stick turning stay retail.
+
+**Verification.** Rebuilt; patched words checked by disassembly in four levels and the pattern found once in every level at build time; the pad hook checked for the hover exception. Owner test: strafe sideways and back on foot (camera should hold); release (camera should follow again at once); hover with L2/R2 held (as in retail).
+
+**Next.** Strafe jumps and flips, the standing stance and the slower backpedal, then the animations (R&C2's cycles carried over into each level's Ratchet).
+
 ## 2026-10-17 (x5, first increment)
 
 ### 🎯 Strafing on L2/R2 (x5) — Movement implemented, awaiting owner test; animations and camera to follow

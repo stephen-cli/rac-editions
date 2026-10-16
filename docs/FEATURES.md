@@ -373,3 +373,64 @@ the standing strafe stance (R&C2 turns to face the camera on L2 even with
 the stick centred), R&C2's speed ramp and slower backpedal, and the camera
 (R&C1's follow camera may try to swing behind the movement; R&C2's strafe
 camera holds). These are the next increments.
+
+## x5: Strafing — second increment: the camera, and the hover kept as it was (2026-10-17), awaiting owner test
+
+**Owner's test of the first increment.** Facing and movement right; the
+camera "follows Ratchet in the direction he's moving" and makes the
+strafe hard to control. Asked for Going Commando's strafe camera.
+
+**What R&C2 does.** Its hero camera pass (Oozla program, `0x4224D0`; the
+strafe branch at `0x425F70`), when the hero is strafing with a trigger
+held and not in states 0x7E, 0x81 or 0x82, sets four things on the active
+follow camera through the camera's own setters: auto-turn off (camera
+state + 0x10 = 0, `0x427D58`), a slide started (+ 0x136 = 1, `0x427E38`),
+the lateral spring to stiffness 0.04 and damping 0.2 (`0x427D80`), and the
+three stiffness timers (+ 0x12, + 0x14, + 0x16) cleared; then it skips the
+normal stiffness logic for the frame. The follow camera's auto-turn is what
+swings the eye behind the direction of travel; with it off the camera
+keeps its yaw and only the right stick turns it, which is the R&C2 strafe
+feel.
+
+**What R&C1 has.** The very same block, with the same setters and the
+same numbers, in the follow camera's per-frame overrides
+(`func_L00_002E74B0`; NTSC decomp `follow_camera_apply_overrides`):
+`FUN_L00_002e8568(0)` (auto-turn off, state + 0x10), `follow_camera_start_slide()`
+(+ 0x116 = 1), `FUN_L00_002e8590(0.04f, 0.2f)` (lateral spring), `h12 = h14 =
+h16 = 0`, `return`. R&C1's camera state is R&C2's minus 0x20 from + 0x20 on;
+the setters refuse while the record's + 0x86 is set in both games. R&C1
+gates the block on `hero state == 0x81 && pad raw held & 3`: state 0x81 is
+the **thruster pack's hover**, whose movement block (NTSC `00233de0.c`
+case 0x81) reads L2/R2 itself to turn toward the camera yaw, R&C1's own
+primitive strafe. The auto-turn is switched back on by the camera's
+approach pass (`func_L00_002E72E8`) at the end of every frame, so the hold
+lasts exactly as long as the condition does.
+
+**The port.** `tools/overlay_patch.py` feature `strafe_camera`: in each
+level's own build of `func_L00_002E74B0` it finds the test sequence
+(`addiu $a0, $zero, 0x81; lw $v1, 0x2084(hero); bne; lw; lui/lw pad + 0x1A0;
+andi 3; beqz`), turns the `bne` into a `nop` and points the `lui`/`lw` at
+the mod segment's `ee_strafe_held` (the pad hook's L2 | R2 of pad 0). The
+block then runs whenever a trigger is held: in the hover exactly as in
+retail, and now while strafing on foot. No other word of the camera code
+changes; the stiffness logic and the right-stick turn are retail's.
+
+**The hover, kept as it was (owner's request).** The first increment's pad
+hook hid L2/R2 from the whole game, which also took them from the hover's
+own `held & 3` test and from this camera branch, so hovering had lost its
+retail strafe. The hook now records the triggers and returns without
+clearing them while the hero's state is 0x81; the hover sees retail input
+and runs retail code. (Entering the hover is R1 as before; R2's mirror of
+R1 was given up with the first increment, by design.)
+
+**Verification.** Rebuilt; the three patched words checked by disassembly
+in levels 0, 7, 13 and 18 (nop; `lui $v1, 0xA; lw $v0, 0x35F4($v1)` =
+`ee_strafe_held`), the pattern found exactly once in all 19 levels at
+build time; the pad hook's disassembly shows the flag stored and the
+scrub skipped when hero + 0x2084 == 0x81. Owner test: strafe sideways and
+back on foot, the camera should hold its direction and only turn with the
+right stick; release, the follow camera should resume at once; hover with
+the thruster pack and hold L2/R2, which should behave as in retail.
+
+**Not yet.** Strafe animations, the standing strafe stance, the slower
+backpedal, strafe jumps and flips (next increments).

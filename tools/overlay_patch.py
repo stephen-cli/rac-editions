@@ -203,6 +203,41 @@ def strafe(at):
             (h["run_planar_b"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_strafe_planar")))]
 
 
+def strafe_camera(at):
+    """x5 (camera): the follow camera holds its yaw while strafing, as in
+    Going Commando (src/strafe.c). R&C1's per-frame follow camera overrides
+    (func_L00_002E74B0) already carry R&C2's strafe camera block for the
+    thruster pack's hover, gated on `hero state == 0x81 && pad raw held & 3`
+    (L2 | R2):
+
+        addiu $a0, $zero, 0x81
+        lw    $v1, 0x2084(hero)
+        bne   $v1, $a0, skip          -> nop
+        lw    $v0, D_1D94($gp)
+        lui   $v1, %hi(pad + 0x1A0)   -> lui $v1, %hi(ee_strafe_held)
+        lw    $v0, %lo(pad + 0x1A0)($v1) -> lw $v0, %lo(ee_strafe_held)($v1)
+        andi  $v0, $v0, 3
+        beqz  $v0, skip
+
+    so the block (auto-turn off, slide, lateral spring 0.04/0.2, timers
+    cleared, return) runs whenever a trigger is held: in the hover as in
+    retail, and while strafing on foot. The sequence is found in each
+    level's own build of the function."""
+    fn = at("func_L00_002E74B0")
+    w = at.words(fn, at.size("func_L00_002E74B0") // 4)
+    hits = [i for i in range(len(w) - 7)
+            if w[i] == 0x24040081 and (w[i + 1] & 0xFC1FFFFF) == 0x8C032084 and (w[i + 2] >> 16) == 0x1464
+            and w[i + 4] == 0x3C030014 and w[i + 5] == 0x8C62CBE0 and w[i + 6] == 0x30420003
+            and (w[i + 7] >> 16) == 0x1040]
+    if len(hits) != 1:
+        raise SystemExit(f"level {at.level}: the hover strafe-camera test in func_L00_002E74B0 found {len(hits)} times")
+    i = hits[0]
+    hi, lo = hi_lo(modseg_symbol("ee_strafe_held"))
+    return [(fn + 4 * (i + 2), w[i + 2], NOP),
+            (fn + 4 * (i + 4), 0x3C030014, lui(3, hi)),
+            (fn + 4 * (i + 5), 0x8C62CBE0, lw(2, 3, lo))]
+
+
 def commercials(at):
     """The Goodies menu's Commercials row, as the NTSC release shows it.
 
@@ -230,20 +265,26 @@ FEATURES = {
     "commercials": commercials,
     "comet_strike_run": comet_strike_run,
     "strafe": strafe,
+    "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials", "comet_strike_run", "strafe"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials", "comet_strike_run", "strafe", "strafe_camera"]
 
 
 # --- Disc plumbing ------------------------------------------------------------
 
+SIZES: dict[str, int] = {}
+
+
 def load_catalogue(openrac: Path) -> dict[str, dict[int, int]]:
+    """name -> level -> address; the sizes go to SIZES."""
     places = {}
     path = openrac / "games/rac1/config/overlays/functions.tsv"
     for line in path.read_text().splitlines():
         if not line.strip() or line.startswith("#"):
             continue
-        name, _kind, _size, _fp, _levels, pl = line.split("\t")[:6]
+        name, _kind, size, _fp, _levels, pl = line.split("\t")[:6]
         places[name] = {int(p.split(":")[0]): int(p.split(":")[1], 16) for p in pl.split(",")}
+        SIZES[name] = int(size)
     return places
 
 
@@ -301,12 +342,22 @@ def main() -> int:
                 except KeyError:
                     raise SystemExit(f"{name} has no place in level {level}")
             at.level = level
+            at.size = SIZES.__getitem__
 
             def file_offset(addr):
                 for file_base, rec_addr, rec_size in records:
                     if rec_addr <= addr < rec_addr + rec_size:
                         return file_base + (addr - rec_addr)
                 raise SystemExit(f"level {level}: 0x{addr:X} is in neither the text nor the data record")
+
+            def words(addr, n):
+                """N words of this level's program at ADDR, as patched so far (for features that find their sites)."""
+                out = []
+                for k in range(n):
+                    s, i = divmod(file_offset(addr + 4 * k), SECTOR)
+                    out.append(struct.unpack_from("<I", sector(s), i)[0])
+                return out
+            at.words = words
 
             for feature in args.features:
                 for addr, expect, word in FEATURES[feature](at):
