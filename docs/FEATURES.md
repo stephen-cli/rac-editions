@@ -147,20 +147,26 @@ Gadgets), emits per-level description arrays, and patches both widget
 pointers. The row sits after Load (index 3).
 
 **Text.** The edition's strings (`text/strings.tsv`, ids 0x5402.., five
-languages with English fallback) are served from the resident segment:
-`tools/gen_text.py` emits them as tables and `src/text.c`'s
-`ee_msg_string` replaces the game's `msg_string` (`func_001FE540`) in every
-level (its first two words become a jump; the prologue is never returned
-to). Ids in the edition's range come from the tables, everything else goes
-through the game's own index lookup (`func_001FE4D0`, a linear scan over
-the loaded block's entries at gp-relative `D_0015F780`). This is needed
-because a level does not keep the global text table: in a gameplay
-savestate the text system is empty (count 0), the pause menu loads text on
-demand, and an enlarged global table (`tools/text_table.py`, kept for the
-frontend) left the new ids unresolved in level menus ("Paradox: This
-message does not exist"). q3 uses "Controls" (0x5402) for the row,
-"Control Options" (0x5405) for the page title, "Quick Select Pause"
-(0x5403) for the toggle and "Adjust controls settings" (0x5404) for the
+languages with English fallback) are served from the resident segment.
+`tools/gen_text.py` emits them as tables; every level's copy of the game's
+`msg_string` (`func_001FE540`) has its first two words replaced by a jump
+to `ee_msg_string_hook` (`src/text_hook.s`), which answers ids in the
+edition's range from the tables (`src/text.c`) and for any other id
+re-executes the two replaced prologue instructions and continues at the
+level's msg_string + 8, so the game's own lookup and data are untouched.
+This is needed because a level does not keep the global text table: in a
+gameplay savestate the text system is empty (count 0), the pause menu
+loads text on demand, and an enlarged global table (`tools/text_table.py`,
+kept for the frontend) left the new ids unresolved in level menus
+("Paradox: This message does not exist"). A first hook that re-implemented
+msg_string in C read the entries base at the executable's address of that
+variable (0x15F780); the level copies reach it gp-relative with a
+per-level offset, so every game string came back null: the lesson is that
+even gp-relative data is not at one address across levels, and the safe
+pattern for a hook is to re-enter the original function. q3 uses
+"Controls" (0x5402) for the row, "Quick Select Pause" (0x5405) for the
+page title, "Enabled" (0x5403) for the toggle row (the long label did not
+fit the toggle box) and "Adjust controls settings" (0x5404) for the
 description. Accented letters are flattened to ASCII until the font's code
 page is mapped.
 

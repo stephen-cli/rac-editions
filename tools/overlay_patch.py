@@ -144,11 +144,12 @@ def quick_select_pause(at):
 
 
 def edition_text(at):
-    """The edition's strings (src/text.c): every level's msg_string
-    (func_001FE540) jumps to ee_msg_string from its first instruction. The
-    two replaced words are its prologue, never returned to."""
+    """The edition's strings (src/text_hook.s, src/text.c): every level's
+    msg_string (func_001FE540) jumps to ee_msg_string_hook from its first
+    instruction; the hook re-executes the two replaced prologue words for
+    ids that are not the edition's and continues at msg_string + 8."""
     f = at("func_001FE540")
-    target = modseg_symbol("ee_msg_string")
+    target = modseg_symbol("ee_msg_string_hook")
     return [(f, 0x27BDFFF0, j(target)), (f + 4, 0x7FBF0000, NOP)]
 
 

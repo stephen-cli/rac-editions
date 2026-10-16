@@ -4,39 +4,30 @@
  * func_001FE4D0 for the id's index in the loaded text block (a linear scan
  * over the block's entries, 16 bytes each, pointer first) and returns that
  * entry's pointer, or the "Paradox: This message does not exist" string.
- * In a level the block is the level program's own per-language text, which
- * has no room for new entries, so tools/overlay_patch.py makes every
- * level's copy of msg_string jump here instead. Ids in the edition's range
- * come from the tables tools/gen_text.py generates from text/strings.tsv;
- * everything else goes through the game's own lookup. The entries base
- * D_0015F780 is gp-relative data, at one address in every level. */
+ * A level does not keep the global text table loaded, and its block cannot
+ * grow, so tools/overlay_patch.py makes every level's copy of msg_string
+ * start with a jump to ee_msg_string_hook (src/text_hook.s): ids in the
+ * edition's range are answered here from the tables tools/gen_text.py
+ * generates from text/strings.tsv; any other id runs msg_string's two
+ * replaced prologue instructions and continues inside the game's own
+ * function. (A first version re-implemented msg_string in C and read the
+ * entries base at the executable's address of that variable; the level
+ * copies reach it gp-relative with a per-level offset, so every game string
+ * came back null.) */
 #include "modseg.h"
-
-DECLARE_LVL(func_001FE4D0);              /* id -> entry index, or -1 */
 
 extern const int ee_text_first;
 extern const int ee_text_count;
 extern const char *const ee_text[][8];
 
-#define g_language       (*(volatile s32 *)0x0015EE88)   /* 0 English, 2 French, 3 German, 4 Spanish, 5 Italian */
-#define g_text_entries   (*(volatile u32 *)0x0015F780)
+#define g_language   (*(volatile s32 *)0x0015EE88)   /* 0 English, 2 French, 3 German, 4 Spanish, 5 Italian */
 
-typedef s32 (*TextIndexFn)(s32);
-
-static const char missing[] = "Paradox: This message does not exist";
-
-const char *ee_msg_string(s32 id)
+/* Only ids in the edition's range reach this (src/text_hook.s checks the
+ * range first and sends every other id on into the game's own msg_string,
+ * whose data this code never touches). */
+const char *ee_msg_string_edition(s32 id)
 {
-    s32 index;
-
-    if (id >= ee_text_first && id < ee_text_first + ee_text_count) {
-        s32 lang = g_language;
-        const char *s = (lang >= 0 && lang < 8) ? ee_text[id - ee_text_first][lang] : 0;
-        return s ? s : ee_text[id - ee_text_first][0];
-    }
-    index = LVL(func_001FE4D0, TextIndexFn)(id);
-    if (index >= 0) {
-        return *(const char **)(g_text_entries + index * 16);
-    }
-    return missing;
+    s32 lang = g_language;
+    const char *s = (lang >= 0 && lang < 8) ? ee_text[id - ee_text_first][lang] : 0;
+    return s ? s : ee_text[id - ee_text_first][0];
 }

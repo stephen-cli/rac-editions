@@ -133,9 +133,9 @@ def main() -> int:
     for t in (cc, ld, objcopy):
         if not t.is_file():
             raise SystemExit(f"missing {t} (toolchains/README.md in OpenRAC)")
-    sources = sorted((ROOT / "src").glob("*.c"))
+    sources = sorted((ROOT / "src").glob("*.c")) + sorted((ROOT / "src").glob("*.s"))
     if not sources:
-        raise SystemExit("no C sources in src/")
+        raise SystemExit("no sources in src/")
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
 
