@@ -327,3 +327,49 @@ the three 19-entry tables the hook indexes by its own call site. The hero is cor
 (state + 0x2084, animation frame + 0xAA8, stick magnitude + 0x229C). Not
 ported: R&C2's Circle-with-wrench throw (state 0x83), which R&C1 has no
 input for; and R&C2's auto-aim on the moving throw.
+
+## x5: Strafing on L2 and R2 — first increment (movement) implemented (2026-10-17), awaiting owner test
+
+**What R&C2 does.** Read from SCUS_972.68's Oozla program. Its hero input
+pass (`0x2B40A0`) reads L2 or R2 held (pad + 0x1A0 & 3) and marks the hero
+strafing (hero + 0x1454 = 1; a locked target replaces the 1). Its RUN
+movement (`0x2BBCDC`) then, instead of turning toward the stick, calls its
+strafe facing routine (`0x2B3F30`): the stick heading is saved (hero +
+0x1458), the move heading (hero + 0x1A0) is set to the camera yaw (camera
++ 0x158), the hero turns toward it (`turn(0, 0.037, 0.25, 0.20)`), and the
+planar velocity is later set along the saved heading
+(`set_planar_vel(hero + 0x1458)`, `0x2BC274`). Ratchet faces where the camera
+looks and slides where the stick points. Both triggers together is the
+lock-on strafe, which the edition does not take over.
+
+**What R&C1 has.** The RUN movement block (state 2; NTSC `00233de0.c` case
+2; PAL level 0 `0x21C6D8`) already has every piece: `stick_target`
+(`func_L00_00211F80`) turns the stick into the move heading (hero + 0x180)
+relative to the camera yaw (`0x166ED8`, lit data, the same address in all 19
+levels); `turn_to` (`func_L00_002124E8`) or, with the stick hard over, the
+pivot turn (`func_L00_002125F0`) turns the facing toward it; and
+`set_planar_vel` (`func_L00_00212790`) sets the velocity along the facing
+(99999) or, in the drift case, along the heading.
+
+**The port (this increment).** `src/strafe.c`, sites from `tools/gen_hero.py`
+(the RUN block's calls in order: turn_to, pivot, turn_to, speed_step,
+set_planar_vel twice):
+- The pad begin-frame's parse call (`func_00217F68 + 0x1C4`) goes to a hook
+  that, for pad 0, records L2/R2 held and clears bits 0x3 from held,
+  pressed, released, raw and their copies (+0x1A0 .. +0x1C8, +0x348). L2
+  and R2 only mirror L1 (look) and R1 (crouch) in R&C1, so this frees the
+  triggers without touching any button test in the hero.
+- The two `turn_to` calls and the pivot call of the RUN block go to hooks
+  that, with a trigger held in state RUN, save the stick heading, set the
+  heading to the camera yaw and turn toward it with R&C2's rates
+  (`turn_to(0, fss*0.037, fss*0.25, ft*12.2)`); otherwise they call the
+  original.
+- Both `set_planar_vel` calls go to a hook that, after a strafe turn, puts
+  the stick heading back and sets the velocity along it.
+
+**Not yet.** Strafe animations (R&C1's Ratchet has 134 sequences and no
+side-step or backpedal cycles; the run cycle plays whatever the direction),
+the standing strafe stance (R&C2 turns to face the camera on L2 even with
+the stick centred), R&C2's speed ramp and slower backpedal, and the camera
+(R&C1's follow camera may try to swing behind the movement; R&C2's strafe
+camera holds). These are the next increments.

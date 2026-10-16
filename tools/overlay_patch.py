@@ -183,6 +183,26 @@ def comet_strike_run(at):
     return [(h["comet_site"], jal(h["speed_step"]), jal(modseg_symbol("ee_comet_speed_step")))]
 
 
+def strafe(at):
+    """x5 (first increment): L2/R2 strafe (src/strafe.c). The pad begin-frame's
+    parse call goes to a hook that records the triggers and hides them from
+    the game; the RUN movement block's two turn_to calls, its pivot turn and
+    its two set_planar_vel calls go to hooks that, while strafing, face the
+    camera and move along the stick. Run-block sites from tools/gen_hero.py."""
+    import json
+    hero = HERE.parent / "build/modseg/hero_sites.json"
+    if not hero.is_file():
+        raise SystemExit(f"missing {hero}: run tools/gen_hero.py first")
+    h = json.loads(hero.read_text())[str(at.level)]
+    pad_site = at("func_00217F68") + 0x1C4
+    return [(pad_site, jal(at("func_002181F0")), jal(modseg_symbol("ee_pad_parse"))),
+            (h["run_turn_a"], jal(h["turn_to"]), jal(modseg_symbol("ee_strafe_turn"))),
+            (h["run_turn_b"], jal(h["turn_to"]), jal(modseg_symbol("ee_strafe_turn"))),
+            (h["run_pivot"], jal(h["pivot_turn"]), jal(modseg_symbol("ee_strafe_pivot"))),
+            (h["run_planar_a"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_strafe_planar"))),
+            (h["run_planar_b"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_strafe_planar")))]
+
+
 def commercials(at):
     """The Goodies menu's Commercials row, as the NTSC release shows it.
 
@@ -209,8 +229,9 @@ FEATURES = {
     "quick_select_pause": quick_select_pause,
     "commercials": commercials,
     "comet_strike_run": comet_strike_run,
+    "strafe": strafe,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials", "comet_strike_run"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials", "comet_strike_run", "strafe"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

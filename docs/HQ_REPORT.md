@@ -4,6 +4,19 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (x5, first increment)
+
+### 🎯 Strafing on L2/R2 (x5) — Movement implemented, awaiting owner test; animations and camera to follow
+
+**What changed.** Holding L2 or R2 now strafes: Ratchet faces where the camera looks and moves in the direction of the stick, as in Going Commando, which this copies rule for rule from its hero code (camera yaw as the facing, the stick heading as the velocity, R&C2's turn rates). L2 and R2 no longer act as look and crouch; L1 and R1 keep those. Applied to all 19 levels.
+
+**Decisions taken.**
+- The triggers are freed at the pad layer: the game never sees L2/R2 any more, which avoids touching the dozens of button tests in the hero code where they mirrored L1/R1.
+- Holding both triggers strafes like one; R&C2's lock-on strafe is not ported, as asked.
+- Delivered as an increment: movement first. Strafe animations (R&C1's Ratchet has no side-step or backpedal cycles; the run cycle plays for now), the standing strafe stance, the slower backpedal and the camera hold come next; the animation step needs R&C2's cycles carried over, which hinges on the two Ratchet skeletons matching.
+
+**Verification.** Rebuilt; the hooks' disassembly checked (pad fields cleared, camera yaw, frame globals and rates); all 12 patched sites per level checked against retail. Owner test: hold L2 or R2 and push the stick sideways and back; Ratchet should keep facing the camera direction and slide; release to run normally; L1 look and R1 crouch unchanged; watch how the camera behaves while strafing sideways, which decides the next step.
+
 ## 2026-10-17 (x3b)
 
 ### 🔧 Free movement during the wrench throw (x3b) — Implemented, awaiting owner test
