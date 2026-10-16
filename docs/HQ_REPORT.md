@@ -4,6 +4,18 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (mod segment)
+
+### 🧩 Mod segment (engineering task, unblocks q2, q3, x1, x3a, x3b, x5) — Built, awaiting RAM confirmation
+
+**What changed.** New code for the edition is now written in C, compiled with the game's own compiler, and carried by the boot executable as a second loadable segment at 0xA0000, below the executable, resident across all levels. Level-only functions are reached through a generated per-level address table. The executable grows past retail's size, so the disc tool now writes it in new sectors at the end of the image and moves the directory entry; PCSX2 boots it from there. The Metal Detector rule exists in both forms (code-cave shim and C in the mod segment) and the C form is wired as an alternative feature.
+
+**Decisions taken.**
+- Resident segment in the executable rather than per-level code appended to the level programs: the whole level data range is loaded into RAM as one block at level load, so growing it means relocating about 17 MB per level on disc; the resident route costs 679 appended sectors once.
+- Base address 0xA0000 (the region PS2 cheat engines use; the disassembly references nothing in 0x80000-0xFFFFF). To be confirmed against a live in-level RAM map before it becomes the default.
+
+**Findings.** OpenRAC's headers (moby, hero, pad) are usable from edition C. Exe-level functions keep their addresses in every level; only `func_LNN_*` differ.
+
 ## 2026-10-17 (later)
 
 ### 💰 Metal Detector gives 10x bolts (x4) — Implemented, awaiting owner test
