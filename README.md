@@ -11,7 +11,9 @@ pipeline, the design notes and the game code changes as patches.
 ```
 mod/        wrench mod asset bank (gameinfo.txt, build.asset); the rebuilt executable is generated into it
 tools/      pipeline scripts: pack.sh (build -> bootable executable -> level-code patches -> disc image),
-            overlay_patch.py (the features, as per-level word patches and code-cave shims), export-patches.sh
+            overlay_patch.py (per-level word patches and call redirects), modseg.py (builds src/ into the
+            resident mod segment), ramscan.py (reads a PCSX2 savestate's RAM), export-patches.sh
+src/        the edition's C, compiled with the game's compiler into the mod segment
 patches/    the game code changes, as `git format-patch` output of OpenRAC's `executive-edition` branch
 docs/       FEATURES.md (what each feature does and how it is patched), HQ_REPORT.md
 ```

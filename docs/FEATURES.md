@@ -20,12 +20,35 @@ Resident game state the shims read is in the executable's core and never
 moves: the save's global chunks live at 0x13D388.. and 0x15ED84.. (ReRAC's
 `docs/plan/game_state.md`, US addresses; this block is +0x100 on PAL).
 
-Limits of this mechanism: a patched function cannot grow; shim space is the
-remnants (next largest in all levels: none over 24 bytes besides the one in
-use, so the next feature that needs more code needs a proper "mod segment",
-see docs/HQ_REPORT.md). The wrench repack route does not carry these patches
-yet (they would have to be applied to the unpacked overlay ELFs in the mod
-bank); use the in-place image.
+Limits of word patches: a patched function cannot grow and the remnants
+hold only a few words. Code of any size goes in the **mod segment**
+(below). The wrench repack route does not carry these patches yet (they
+would have to be applied to the unpacked overlay ELFs in the mod bank); use
+the in-place image.
+
+## The mod segment (resident code in C)
+
+`tools/modseg.py` compiles `src/*.c` with the game's own compiler (SN GCC
+2.95.3, `-O2 -G0`), links it at **0x000A0000** against the game's symbols,
+and writes a flat image that OpenRAC's `tools/boot_elf.py --segment` carries
+in the boot executable as a second loadable segment. The console's ELF
+loader places it in RAM at boot; level programs replace memory from 0x15F000
+up and never touch it. The executable grows past its retail size, so
+`tools/iso_patch.py` writes it in new sectors at the end of the image and
+moves the directory record (verified booting in PCSX2 from sector 2058000).
+
+- `func_XXXXXXXX` and `D_XXXXXXXX` are the executable's functions and data,
+  at the same address in every level: call them directly.
+- A level-only function (`func_LNN_*`) is at a different address in every
+  level: declare it with `DECLARE_LVL(name)` and call through
+  `LVL(name, type)`; the build emits a 19-entry table from OpenRAC's
+  catalogue, indexed by the current level (`D_0015EE84`).
+- Exported functions (`modseg.sym`) are hook targets for
+  `tools/overlay_patch.py`: redirect a call site in level code with `jal`.
+- Region status: 0x80000-0xFFFFF is where PS2 cheat engines live and the
+  disassembly references nothing in it; confirmation against a live RAM map
+  (tools/ramscan.py on a PCSX2 savestate taken in a level) is pending, so
+  the cave version of x4 stays the default until then.
 
 ## x4: Metal Detector gives 10x bolts in challenge mode — implemented, awaiting owner test
 
