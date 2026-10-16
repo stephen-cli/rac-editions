@@ -1,9 +1,12 @@
 /* Executive Edition resident code: shared declarations.
  * Built by tools/modseg.py with the game's compiler (SN GCC 2.95.3, -O2 -G0).
- * Game symbols are addresses by name: func_XXXXXXXX / D_XXXXXXXX are the
- * executable's and are the same in every level; a level-only function is
- * reached through LVL(), a 19-entry table the build generates from
- * OpenRAC's overlay catalogue, indexed by the current level. */
+ * Game symbols are addresses by name. Only the resident core (below
+ * 0x15F000: core text, data, bss, lit) is at one address; the executable's
+ * own game text and data are re-linked into every level program at
+ * level-specific addresses, as is level code. So any function above the
+ * core, exe-kind or level-only, is reached through LVL(), a 19-entry table
+ * the build generates from OpenRAC's overlay catalogue, indexed by the
+ * current level; level-local data through LVL_DATA(). */
 #ifndef MODSEG_H
 #define MODSEG_H
 

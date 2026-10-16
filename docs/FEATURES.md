@@ -37,12 +37,19 @@ up and never touch it. The executable grows past its retail size, so
 `tools/iso_patch.py` writes it in new sectors at the end of the image and
 moves the directory record (verified booting in PCSX2 from sector 2058000).
 
-- `func_XXXXXXXX` and `D_XXXXXXXX` are the executable's functions and data,
-  at the same address in every level: call them directly.
-- A level-only function (`func_LNN_*`) is at a different address in every
-  level: declare it with `DECLARE_LVL(name)` and call through
-  `LVL(name, type)`; the build emits a 19-entry table from OpenRAC's
-  catalogue, indexed by the current level (`D_0015EE84`).
+- Only the resident core, below 0x15F000 (core text, data, bss, lit), is at
+  one address: `D_XXXXXXXX` there can be used directly (bolts, current
+  level, completes, the save's flags...). Everything above it, the
+  executable's own game text and data included, is re-linked into every
+  level program at level-specific addresses (the catalogue's "exe" kind
+  lists 19 places too: `func_001FFCB0` is at 0x236298 in Veldin, 0x24B8A8
+  in Novalis). So any function above the core is reached through
+  `DECLARE_LVL(name)` / `LVL(name, type)`, a 19-entry table the build emits
+  from the catalogue, indexed by the current level (`D_0015EE84`); and
+  level-local data through `LVL_DATA(name, type)`, a table the build reads
+  from the disc (`tools/modseg.py` `LEVEL_DATA`: a function and the offsets
+  of a lui/addiu pair that addresses it). The build refuses a direct
+  reference above 0x15F000.
 - Exported functions (`modseg.sym`) are hook targets for
   `tools/overlay_patch.py`: redirect a call site in level code with `jal`.
 - Region, confirmed 2026-10-17 on a PCSX2 savestate taken in Batalia
@@ -122,7 +129,20 @@ rows are level-local records with pointers between them, so
 by their label ids 0x4F1E..0x4F26, the list widget by its item pointer, the
 Subtitles page from the Subtitles row) and generates one copy per level
 into the mod segment; the patch points each level's list widget item
-pointer (`widget + 0x34`) at its copy. Record layouts (from ReRAC's
+pointer (`widget + 0x34`) at its copy. Two more tables are indexed by the
+row cursor and had to grow with the rows (the first build crashed on Quit
+Game, which read past them): the Options page's description widget
+(`+0x34` -> description string ids 20273..20281, one per row, sentinel 0)
+and its image widget (`+0x30` -> a core table at 0x138140 of
+`{first frame, frame count}` pairs, the animated preview per row). The
+generator emits per-level description arrays and one extended image table
+(our row reuses Subtitles' preview) and patches both widget pointers.
+
+**HUD slots.** `HudShow(slot | flags, a, init, update, draw, b, c)` queues
+a slot record (13 records of 0x90 at a level-local table: 0x17DD50 in
+Veldin); `apply_pending` copies init/update/draw to record +0x10/+0x14/+0x18
+and `HudUpdate` calls +0x14. The first build compared +0x8 at the
+executable's table address and never saw the ring. Record layouts (from ReRAC's
 menus.md, checked against the PAL data): page 0x88 = `s32 seq[14]`, parent,
 kind, widget pointers from +0x40; widget 0x40 with update/draw/enter/leave
 first and type data at +0x30 (toggle list: +0x34 entries, +0x38 cursor);
@@ -131,9 +151,16 @@ bytes `{s16 label, s16 action, u32 arg, s16 sublabel, s16 hl_timer}`, action
 3 = go to page `arg`, sentinel label 0; toggle entry 0x14 bytes.
 
 **Open points.** Labels reuse string 20196 "Quick Select" for the row, the
-page title and the entry (reads "Quick Select  On/Off"); a proper
-"Quick Select Pause" string needs new text in the text table, which no tool
-writes yet. The page reuses the Subtitles page's kind 0x1B.
+page title and the entry (reads "Quick Select  On/Off"), and the row's
+description reuses Subtitles' (20279 "Toggle subtitles on and off"). Proper
+text needs a text-table writer. The table (`all_text`, table-of-contents
+group at LBA 18200, 630,784 bytes, uncompressed) is: a header whose words
+at +0x4.. are the per-language block offsets, a count (0x6E7 = 1767) at
++0x20, then 16-byte index entries `{offset, id, -1, 0}` from +0x28 with
+offsets relative to +0x20, then the string blocks per language. The hidden
+Options rows are 20257 "Video" (description 20276 "Adjust video settings",
+of interest to q4) and 20261 "Vibration". The page reuses the Subtitles
+page's kind 0x1B.
 
 **Test plan (owner).** In a level: Start, Options, "Quick Select", set On;
 open the ring (hold triangle): enemies, camera and particles frozen, ring

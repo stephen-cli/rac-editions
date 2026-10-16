@@ -31,7 +31,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 GAME_SYM = re.compile(r"^(func|D)_([0-9A-F]{8})$")
-LEVEL_SYM = re.compile(r"^lvl_(func_L\d\d_[0-9A-F]{8})$")
+LEVEL_SYM = re.compile(r"^lvl_(func_(?:L\d\d_)?[0-9A-F]{8})$")
 LEVEL_DATA_SYM = re.compile(r"^lvl_data_([A-Za-z0-9_]+)$")
 
 # Level-local data has a different address in every level, like level code.
@@ -41,7 +41,15 @@ LEVEL_DATA_SYM = re.compile(r"^lvl_data_([A-Za-z0-9_]+)$")
 LEVEL_DATA = {
     # the gameplay update gate: *(struct+8) bits 1 hero, 2 mobys+tick, 4 particles, 8 camera, 0x10 step
     "update_flags": ("func_L00_00299250", 0x4, 0x69C),
+    # the HUD slot table (13 records of 0x90), from remove_hud_item's lui/addiu
+    "hud_slots": ("func_001FFCB0", 0x4, 0xC),
 }
+# Only the resident core is at one address: below 0x15F000 (core text, data,
+# bss, lit). Everything above, the executable's own game text and data
+# included, is re-linked into each level program at level-specific
+# addresses, so a func_XXXXXXXX or D_XXXXXXXX above that is a different
+# address in every level and must go through a per-level table.
+CORE_END = 0x15F000
 DEFAULT_BASE = 0x000A0000
 
 
@@ -172,7 +180,11 @@ def main() -> int:
     for s in sorted(undefined):
         m = GAME_SYM.match(s)
         if m:
-            provides.append(f"  PROVIDE({s} = 0x{int(m.group(2), 16):08X});")
+            addr = int(m.group(2), 16)
+            if addr >= CORE_END:
+                raise SystemExit(f"{s} is not resident (above 0x{CORE_END:X}): a function goes through "
+                                 f"DECLARE_LVL(func_...)/LVL(), data through a LEVEL_DATA table")
+            provides.append(f"  PROVIDE({s} = 0x{addr:08X});")
     script = out / "modseg.ld"
     script.write_text(f"""OUTPUT_FORMAT("elf32-littlemips")
 OUTPUT_ARCH(mips)

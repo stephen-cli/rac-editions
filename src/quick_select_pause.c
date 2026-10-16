@@ -12,8 +12,9 @@
  * HudUpdate call is redirected here (tools/overlay_patch.py), so the state
  * is checked once per frame right after the HUD has processed the ring's
  * open and close. The ring is HUD slot 3; a slot is in use while its
- * update callback (slot record + 8) is set, and the ring's is
- * QuickSelectUpdate (func_L00_00238530).
+ * update callback (slot record + 0x14, the one HudUpdate calls) is set,
+ * and the ring's is QuickSelectUpdate (func_L00_00238530). The slot table
+ * is level-local data, like the gate struct.
  *
  * Setting. Saved global flag 120 (0x13D508: chunk 5 of the save, 128
  * bytes from 0x13D490; indices 118-126 are unused by retail), so it is kept
@@ -31,9 +32,12 @@
 DECLARE_LVL(func_L00_0023B610);        /* HudUpdate(int) */
 DECLARE_LVL(func_L00_00238530);        /* QuickSelectUpdate: the ring's slot callback */
 DECLARE_LVL_DATA(update_flags);        /* the gate struct; bits at +8 */
+DECLARE_LVL_DATA(hud_slots);           /* HUD slot table, 13 records of 0x90 (level-local) */
 
 #define QS_PAUSE_SETTING   (*(volatile u8 *)0x0013D508)
-#define HUD_SLOT_UPDATE(n) (*(volatile u32 *)(0x00199C60 + (n) * 0x90 + 0x8))
+/* A slot's current update callback: HudUpdate calls record + 0x14 (set from HudShow's
+ * fourth argument by apply_pending), zero when the slot is free. */
+#define HUD_SLOT_UPDATE(n) (*(volatile u32 *)(LVL_DATA(hud_slots, u32) + (n) * 0x90 + 0x14))
 #define GATE_BITS          0xFu
 
 typedef void (*HudUpdateFn)(s32);

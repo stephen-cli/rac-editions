@@ -15,7 +15,11 @@ changed, decisions taken, findings that affect other items.
 - The menu row reuses the game's own page and widget records (a copy of the Subtitles page with our flag), generated per level because menu data is level-local. Label text reuses the existing "Quick Select" string; a proper "Quick Select Pause" label waits on text-table tooling (shared need with q2).
 - Setting stored per save file (save flag 120), default Off.
 
+**First owner test (2026-10-17): row works and persists, but no pause, and selecting Quit Game crashed.** Fixed the same day: the pause hook compared the wrong HUD slot field at the executable's table address (the table is level-local), and the Options page keeps two more per-row tables (description text ids, preview-image frames) that had to grow with the new row. Rebuilt; second owner test pending. The row's description still shows Subtitles' text until new strings can be written.
+
 **Findings affecting other items.**
+- Only the resident core below 0x15F000 keeps one address; the executable's own game code and data are re-linked per level like level code. Edition code must reach everything above the core through per-level tables (now enforced by the build). This was silently right for x4 and wrong for the first q3 build.
+- The text table format is understood (header, 16-byte index entries, per-language blocks); a writer is the next tooling item and unblocks proper labels for q3, q2 and x5. The hidden Options row "Video" (string 20257, "Adjust video settings") suggests a cut video-settings page: relevant to q4.
 - Menu pages, widgets and rows are data records in each level program with pointers between them; adding rows or pages is now a generator step, reusable for q2 (quick select pages) and x5 (strafing cheat toggle).
 - New strings need a text-table (all_text WAD) writer; needed by q2, q3's label and any new menu text.
 - Mod segment builder now also resolves level-local data addresses from the disc (per-level tables), which the movement items (x3a, x3b) will need for hero state.

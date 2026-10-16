@@ -139,10 +139,8 @@ def quick_select_pause(at):
     if not menu.is_file():
         raise SystemExit(f"missing {menu}: run tools/gen_menu.py first")
     m = json.loads(menu.read_text())[str(at.level)]
-    return [
-        (site, jal(hud), jal(modseg_symbol("ee_hud_update_hook"))),
-        (m["site"], m["expect"], modseg_symbol(m["symbol"])),
-    ]
+    return [(site, jal(hud), jal(modseg_symbol("ee_hud_update_hook")))] + [
+        (m[k]["site"], m[k]["expect"], modseg_symbol(m[k]["symbol"])) for k in ("items", "desc", "image")]
 
 
 FEATURES = {
