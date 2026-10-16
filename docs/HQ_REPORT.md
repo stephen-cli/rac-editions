@@ -4,6 +4,28 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (later)
+
+### 💰 Metal Detector gives 10x bolts (x4) — Implemented, awaiting owner test
+
+**What changed.** First real game change. In challenge mode the detector's hidden bolt spots pay out 10x: the detector spawns 50-bolt circlenut pieces instead of 5-bolt hexnuts, same number of pieces. Normal playthroughs are unchanged. Applied to all 19 level programs; the image boots.
+
+**Decisions taken.**
+- Challenge mode is detected by the save's "times completed" counter (PAL 0x15EF20; the "R n" in the Load Game list), which the challenge-mode reset increments. No new save field needed.
+- Implemented as a redirected call plus a six-instruction shim in a dead code area present in every level (a linker remnant OpenRAC catalogues), not a rewrite of the function. The spawner only supports bolt values 1-5, 20 and 50, so 10x is realised as 5 -> 50.
+- Ships through the in-place disc image only. The wrench route does not carry level-code patches yet (and is deprioritised, see below).
+
+**Owner test.** Challenge-mode save with the Metal Detector: expect circlenut bolts and 10x the gain at a hidden spot. Normal save: unchanged. Image: `OpenRAC/games/rac1/pal/build-sn/SCES_509.16.iso` (also produced by `bash tools/pack.sh --quick` in the edition repository).
+
+### 🏭 Build and repack pipeline — update
+
+- **Wrench texture errors confirmed as chaoticgd/wrench#286** (its texture packer regenerates mipmaps wrongly; also visible in menus). Decision: wrench-built images are not used for releases until the packer is fixed in our fork; the in-place image is the release route for everything that keeps sizes. Wrench remains the tool for asset work and is built and ready.
+- **Edition repository created (private, local): `rac1-executive-edition`** next to OpenRAC, with the mod bank, pipeline scripts, the level-code patch tool, docs and the OpenRAC patches. OpenRAC has a local `executive-edition` branch carrying the two disc tools. Hosting on GitHub as a private repository is one command away; owner decides.
+
+**Findings affecting other items.**
+- Nearly all gameplay code lives in the level programs, not the executable, and each level has its own copy at its own address; the patch tool resolves per level from OpenRAC's catalogue. Any feature needing more than about 24 bytes of new code needs a "mod segment" (a code area loaded with every level, or an overlay rebuild pipeline). This is the next engineering task and gates q2, q3, x1, x3a, x3b and x5.
+- Save layout and game-state addresses: ReRAC's `docs/plan/game_state.md` (US; PAL is +0x100 for the 0x15EDxx block). Useful for q3's setting bit and x2's unlock flag.
+
 ## 2026-10-17
 
 ### 🏭 Build and repack pipeline (OpenRAC) — Done (pipeline proven end to end)
