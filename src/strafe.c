@@ -20,13 +20,20 @@
  * and set_planar_vel() sets the velocity along the facing (99999) or, in
  * the drift case, along the heading. So the strafe is: hook the turns to
  * turn toward the camera yaw instead, and hook set_planar_vel to use the
- * stick heading. R&C1 reads the camera yaw from 0x166ED8 (lit data; the
- * same address in all 19 levels, lit starts at 0x15F000 everywhere).
+ * stick heading. The camera yaw is the camera record's + 0x158 (0x166ED8
+ * in level 0): executable data re-linked per level, so it comes from the
+ * level tables (tools/modseg.py LEVEL_DATA "camera_yaw", read from
+ * stick_target's own lui/lwc1 in every level; a first build used level 0's
+ * address everywhere and faced a fixed world direction on other planets).
  *
  * L2 and R2 only mirror L1 (look) and R1 (crouch) in R&C1, so the pad
  * parse hook reads them for the strafe and clears them from every field
- * gameplay reads (held, pressed, released, raw and their copies), which
- * frees the triggers without touching the hero's own button tests.
+ * gameplay reads (held, pressed, released, raw and their copies) and from
+ * the 30-entry ring of pressed edges at + 0x1E0 that pad_pressed_within
+ * (func_L00_00267BA8) scans: the pack jumps test crouch through that
+ * history (pad_pressed_within(0xA, 2)), which is how R2 still gave long
+ * jumps in the first build. This frees the triggers without touching the
+ * hero's own button tests.
  * Hero fields are core data (0x13F450): state + 0x2084, facing yaw +
  * 0x98, move heading + 0x180. The per-level call sites and the helpers
  * come from tools/gen_hero.py. */
@@ -36,12 +43,15 @@ DECLARE_LVL(func_00217F68);            /* pad begin-frame; its parse call is hoo
 DECLARE_LVL(func_002181F0);            /* pad parse(pad, report, length): derives held/pressed/released */
 extern const u32 ee_run_turn_a[19], ee_run_turn_b[19], ee_run_pivot[19], ee_run_planar_a[19], ee_run_planar_b[19];
 extern const u32 ee_turn_to[19], ee_pivot_turn[19], ee_set_planar_vel[19];
+DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 
 #define PAD0            0x0013CA40
 #define HERO            0x0013F450
 #define hero_state      (*(volatile s32 *)(HERO + 0x2084))
 #define hero_move_yaw   (*(volatile f32 *)(HERO + 0x180))
-#define CAMERA_YAW      (*(volatile f32 *)0x00166ED8)
+#define CAMERA_YAW(L)   (*(volatile f32 *)LVL_DATA(L, camera_yaw, u32))
+#define PAD_HISTORY     0x1E0         /* 30 words of pressed edges, a ring */
+#define PAD_HISTORY_LEN 30
 #define FRAME_SCALE_SQ  (*(volatile f32 *)0x0015EE64)
 #define FRAME_TIME      (*(volatile f32 *)0x0015EE6C)
 #define STATE_RUN       2
@@ -74,6 +84,9 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     for (i = 0; i < 10; i++) {
         p[fields[i] / 4] &= ~PAD_STRAFE;
     }
+    for (i = 0; i < PAD_HISTORY_LEN; i++) {
+        p[PAD_HISTORY / 4 + i] &= ~PAD_STRAFE;
+    }
 }
 
 static s32 level_of_two(u32 ra, const u32 *a, const u32 *b)
@@ -92,7 +105,7 @@ static s32 level_of_two(u32 ra, const u32 *a, const u32 *b)
 static void strafe_turn(s32 L)
 {
     strafe_heading = hero_move_yaw;
-    hero_move_yaw = CAMERA_YAW;
+    hero_move_yaw = CAMERA_YAW(L);
     ((TurnTo)ee_turn_to[L])(0, FRAME_SCALE_SQ * 0.037f, FRAME_SCALE_SQ * 0.25f, FRAME_TIME * 12.2f);
     strafe_active = 1;
 }

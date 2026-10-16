@@ -45,6 +45,8 @@ LEVEL_DATA = {
     "update_flags": ("func_L00_00299250", 0x4, 0x69C),
     # the HUD slot table (13 records of 0x90), from remove_hud_item's lui/addiu
     "hud_slots": ("func_001FFCB0", 0x4, 0xC),
+    # the camera yaw the stick is relative to (camera record + 0x158), from stick_target's lui/lwc1
+    "camera_yaw": ("func_L00_00211F80", 0x280, 0x294),
 }
 # Only the resident core is at one address: below 0x15F000 (core text, data,
 # bss, lit). Everything above, the executable's own game text and data
