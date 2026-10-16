@@ -105,9 +105,33 @@ def metal_detector_10x(at):
     ]
 
 
+def modseg_symbol(name: str) -> int:
+    """Address of an exported mod-segment function (tools/modseg.py's modseg.sym)."""
+    path = HERE.parent / "build/modseg/modseg.sym"
+    if not path.is_file():
+        raise SystemExit(f"missing {path}: run tools/modseg.py first")
+    for line in path.read_text().splitlines():
+        n, a = line.split("	")
+        if n == name:
+            return int(a, 16)
+    raise SystemExit(f"{name} is not exported by the mod segment")
+
+
+def metal_detector_10x_modseg(at):
+    """The same feature with its logic in C in the resident mod segment
+    (src/metal_detector.c): the detector's spawn call goes to
+    ee_metal_detector_spawn, which calls the level's spawner through the
+    generated level table. No cave needed."""
+    spawn = at("func_L00_002A86D8")
+    site = at("func_L00_002D4398") + (0x2D49D0 - 0x2D4398)
+    return [(site, jal(spawn), jal(modseg_symbol("ee_metal_detector_spawn")))]
+
+
 FEATURES = {
     "metal_detector_10x": metal_detector_10x,
+    "metal_detector_10x_modseg": metal_detector_10x_modseg,
 }
+DEFAULT_FEATURES = ["metal_detector_10x"]
 
 
 # --- Disc plumbing ------------------------------------------------------------
@@ -143,7 +167,7 @@ def level_text_locations(openrac: Path):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("features", nargs="*", default=list(FEATURES))
+    ap.add_argument("features", nargs="*", default=DEFAULT_FEATURES)
     ap.add_argument("--openrac", type=Path, default=HERE.parent.parent / "OpenRAC")
     ap.add_argument("-o", "--output", type=Path, default=HERE.parent / "build/patches")
     ap.add_argument("--dry-run", action="store_true")

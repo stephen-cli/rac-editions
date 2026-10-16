@@ -8,3 +8,4 @@ Apply onto a fresh OpenRAC checkout at the base commit with:
     git -C OpenRAC switch -c executive-edition && git -C OpenRAC am ../rac1-executive-edition/patches/*.patch
 
 - 0001-feat-rac1-pal-bootable-executable-and-in-place-disc-.patch
+- 0002-feat-rac1-pal-extra-loadable-segments-and-a-larger-e.patch
