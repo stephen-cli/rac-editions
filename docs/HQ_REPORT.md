@@ -4,6 +4,21 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (q3 round 2)
+
+### ⏯️ Quick select pause setting (q3) — Fixed three owner findings, awaiting re-test
+
+**What changed.**
+- Double tap (swap to the previous weapon) works again with the setting On: the world now keeps running for the first 10 frames of a hold, so a tap never pauses. The double tap is handled by the hero's own update, which the pause freezes, and it reads Triangle's release as a one-frame edge; frozen on that frame it never saw the release.
+- Releasing Triangle resumes the game immediately; the ring's short fade-out plays over a running world instead of a paused one.
+- The setting moved to a byte retail never writes (the unused tail of the cheat flags block, saved with the game), so old saves read Off. The previous byte was a level pickup flag in the special-items array, which is why very old saves (Mc003) showed On.
+
+**Decisions taken.** Grace period of 10 frames (200 ms at 50 Hz) rather than a fixed fraction of the ring's own 8-frame fade-in, so it stays above a tap's length; one constant in the source. The byte's address is defined once (src/modseg.h) and the menu generator reads it from there.
+
+**Note for the owner.** Saves where the setting was switched On with builds before this one carry a 1 in special item 120 (the old byte). What pickup that id denotes is not identified; it is harmless for the setting (now elsewhere) and only matters if that item's flag means something in those saves. Mc001's blocks 4, and any other save switched On earlier, are the ones affected.
+
+**Verification.** Rebuilt and the hook disassembly reviewed; all patched words checked. Owner re-test: double tap with the setting On and Off; hold, release, feel of the fade; load each old save and confirm the setting reads Off; Controls Options toggle still persists after a save and reload.
+
 ## 2026-10-17 (load crash)
 
 ### 🛠️ Crash loading a second save from the pause menu — Fixed, awaiting owner re-test

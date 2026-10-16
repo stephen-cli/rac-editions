@@ -36,7 +36,16 @@ LABEL_QS_PAUSE = 0x5403          # "Quick Select Pause"
 DESC_CONTROLS = 0x5404           # "Adjust controls settings"
 TITLE_CONTROLS = 0x5405          # "Control Options"
 ROW_INDEX = 3                    # the new row's place: after Load, before Sound
-SETTING_FLAG = 0x0013D508        # saved global flag 120
+def setting_address() -> int:
+    """EE_SETTING_QS_PAUSE from src/modseg.h, the one definition shared with the C."""
+    import re
+    m = re.search(r"#define\s+EE_SETTING_QS_PAUSE\s+(0x[0-9A-Fa-f]+)", (ROOT / "src/modseg.h").read_text())
+    if not m:
+        raise SystemExit("EE_SETTING_QS_PAUSE is not defined in src/modseg.h")
+    return int(m.group(1), 16)
+
+
+SETTING_FLAG = setting_address()  # the saved byte the toggle writes (gCheats[11])
 DESC_IDS = [0x4F31, 0x4F32, 0x4F33, 0x4F35, 0x4F36, 0x4F37, 0x4F39]   # the Options rows' descriptions
 IMAGE_TABLE = 0x00138140         # core data: {first frame, frames} per Options row, 8 bytes each
 

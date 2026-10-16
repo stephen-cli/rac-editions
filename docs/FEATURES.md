@@ -115,9 +115,17 @@ save: unchanged hexnut bolts worth 5. Levels to cover: any two.
 
 ## q3: Quick select pause setting — working (owner, 2026-10-17); labels, row position and preview fixed, awaiting re-check
 
-**Setting.** Saved global flag 120 (`0x13D508`; the save's chunk 5 holds 128
-flag bytes from `0x13D490`, indices 118-126 unused by retail). Off by
-default, kept per save file.
+**Setting.** `EE_SETTING_QS_PAUSE` in src/modseg.h = `0x15EEBB`, `gCheats[11]`:
+the last byte of the twelve cheat flags at `D_0015EEB0`, saved whole as the
+save's chunk 7 (the save block table at `0x1A05C0` in level 0 lists every
+saved range as `{address, size, chunk id}`). Retail addresses cheats 0-7
+only, by constant or through the cheat list ids {1, 3, 0, 7, 4, 6, 2};
+bytes 8-11 are touched by nothing but the whole-block copies, in all 19
+levels, so the byte is 0 in every retail save. Off by default, kept per save
+file. The first choice, `gSpecialItems[120]` (`0x13D508`), was wrong: that
+array is indexed by the item ids of level pickups and the owner's oldest
+saves had the byte set; builds before 2026-10-17 wrote the setting there,
+so a save where it was switched On with those builds carries item 120 set.
 
 **Pausing.** The mode-0 frame (`func_L00_00299250`) runs each world-update
 group only if its bit is set in the gate word at `*(update_flags + 8)`:
@@ -126,10 +134,18 @@ single-step mode, 0x200 on the pad struct steps). HUD update, help update,
 sound and rendering run regardless. The frame's `HudUpdate` call
 (`func_L00_0023B610`, at `func_L00_00299250 + 0x838`) is redirected to
 `ee_hud_update_hook` (src/quick_select_pause.c), which calls HudUpdate and
-then, with the setting on and HUD slot 3's update callback equal to
-`QuickSelectUpdate` (`func_L00_00238530`), clears the four bits; when the
-ring closes it restores them. Music keeps playing, play time stops, the
-ring animates and takes input as before. The gate struct is level-local
+then, with the setting on, HUD slot 3's update callback equal to
+`QuickSelectUpdate` (`func_L00_00238530`) and Triangle held (pad
+`D_0013CA40 + 0x1C0`, bit 0x10 in the game's button layout) for more than
+10 consecutive frames, clears the four bits; the frame Triangle is released
+it restores them. Music keeps playing, play time stops, the ring animates
+and takes input as before. The grace period exists for the double tap: the
+hero's update owns it (Triangle's release arms a 20-frame window at hero +
+0x22D6, a second release inside it swaps to the previous weapon), release is
+a one-frame edge, and a hero frozen on that frame misses it; a tap is
+shorter than the grace, so it never pauses. Releasing ends the pause at
+once rather than after the ring's 8-frame fade-out (owner's second-round
+feedback, 2026-10-17). The gate struct is level-local
 (`0x16C158` in level 0, elsewhere in others): `tools/modseg.py`'s
 `LEVEL_DATA` table reads its address from each level's copy of the frame
 function (the lui/addiu pair at +0x4/+0x69C).

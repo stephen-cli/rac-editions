@@ -45,6 +45,16 @@ typedef float f32;
 #define EE_SITE_HUD_UPDATE      0x838   /* func_L00_00299250 + 0x838: jal HudUpdate */
 #define EE_SITE_DETECTOR_SPAWN  0x638   /* func_L00_002D4398 + 0x638: jal the bolt spawner */
 
+/* Where the quick select pause setting lives (q3): gCheats[11], the last
+ * byte of the cheat flags D_0015EEB0 (12 bytes, saved whole as the save's
+ * chunk 7). Retail addresses cheats 0-7 only, by constant or through the
+ * cheat list ids {1, 3, 0, 7, 4, 6, 2}; bytes 8-11 are never read or
+ * written other than by the whole-block copies, so the byte is 0 in every
+ * retail save. (The first choice, gSpecialItems[120] at 0x13D508, turned
+ * out to be a level pickup flag: set in old saves, counted by nothing we
+ * control.) tools/gen_menu.py reads this name from here. */
+#define EE_SETTING_QS_PAUSE     0x0015EEBB
+
 /* The level whose program made the call that returns to RA, given the hooked
  * function's 19 addresses and the call site's offset in it (src/level.c). */
 s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);
