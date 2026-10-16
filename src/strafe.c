@@ -113,17 +113,20 @@
  * when the stick class is "back" past 0.15, at speed max(ground speed *
  * 25, 0.7) capped at 2.2, and goes back to the walk/run cycle with a
  * 7-frame blend. R&C1 has no such cycle (its slot 0x14 is the 14-frame
- * stop), and R&C2's is in the packed format, so the edition builds a
- * reversed copy of R&C1's run cycle (slot 4, 23 frames) at run time: a
- * sequence is a 0x1C-byte header and a table of frame pointers once
- * loaded (update_moby_animation_state reads seqs[seq]->frames[frame]), so
- * the copy is the header with the pointers in reverse order, installed in
- * a free slot (140) of the hero's class and played by the run animation
- * updater's hook. The class's table has room for 162 slots only (its mesh
- * packet table starts at + 0x2D0, header word 0); a first build used slot
- * 200, wrote into the packet table and crashed the renderer. Carrying
- * R&C2's own cycle over needs its frame format
- * decoded; this stands in until then.
+ * stop). R&C2's is carried over: tools/rac2_anim.py reads it from the
+ * owner's R&C2 disc (the level core, as R&C1 keeps Ratchet's sequences)
+ * and expands its packed frames into R&C1's frame layout exactly as the
+ * R&C2 engine does at animation time (checked against R&C1's own run,
+ * walk and jump cycles, which both discs carry: identical to the packed
+ * format's 2-bit quantization), emitting build/modseg/gen_anim.c: the
+ * frames and a sequence header with their addresses (ee_backpedal_seq).
+ * A loaded sequence is a 0x1C-byte header and a table of frame pointers
+ * (update_moby_animation_state reads seqs[seq]->frames[frame]), so the
+ * hook installs that header in a free slot (140) of the hero's class and
+ * the run animation updater's hook plays it. The class's table has room
+ * for 162 slots only (its mesh packet table starts at + 0x2D0, header
+ * word 0); a first build used slot 200, wrote into the packet table and
+ * crashed the renderer.
  *
  * Hero fields are core data (0x13F450): state + 0x2084, facing yaw +
  * 0x98, move heading + 0x180, stick magnitude + 0x229C. The per-level
@@ -165,7 +168,6 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define HALF_PI         1.5707964f
 #define QUARTER_PI      0.7853982f
 #define BACKPEDAL_SLOT  140           /* a free slot: the class keeps 162 (its packet table follows at + 0x2D0), 134 used */
-#define RUN_SLOT        4
 #define CAMERA_YAW(L)   (*(volatile f32 *)LVL_DATA(L, camera_yaw, u32))
 #define PAD_HISTORY     0x1E0         /* 30 words of pressed edges, a ring */
 #define PAD_HISTORY_LEN 30
@@ -202,8 +204,7 @@ u32 ee_strafe_held;           /* L2 or R2 held this frame (pad 0); the camera pa
 static s32 strafe_active;     /* this frame's RUN turn was the strafe one */
 static f32 strafe_heading;    /* the stick heading the velocity follows */
 static s32 strafe_flip;       /* the current flip (state 0xB) is a strafe flip with the stick pushed */
-static u32 backpedal_seq[8 + 64] __attribute__((aligned(16)));   /* header + reversed frame pointers */
-static u32 backpedal_from;    /* the run sequence it was built from */
+extern const u32 ee_backpedal_seq[];   /* R&C2's backward step in R&C1's layout (build/modseg/gen_anim.c) */
 
 /* After the game's pad parse (pad.c: func_002181F0(pad, report, length)):
  * remember L2/R2 and hide them from the game, except while hovering. */
@@ -461,35 +462,19 @@ found:
     ((Void)ee_twist_fn[L])();
 }
 
-/* The backward step: a reversed copy of the run cycle in slot 200 of the
- * hero's class, rebuilt when the run sequence changes (a new level). */
+/* The backward step, R&C2's cycle in R&C1's layout, in slot 140 of the
+ * hero's class: installed once per class (a new level loads a new class). */
 static void install_backpedal(void)
 {
     u8 *cls = *(u8 **)(hero_moby + 0x24);
     volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
-    const u32 *run = (const u32 *)seqs[RUN_SLOT];
-    s32 count, i;
-    if (seqs[BACKPEDAL_SLOT] == (u32)backpedal_seq && backpedal_from == (u32)run) {
+    if (seqs[BACKPEDAL_SLOT] == (u32)ee_backpedal_seq) {
         return;
     }
     if (0x48 + 4 * BACKPEDAL_SLOT >= *(u32 *)cls || seqs[BACKPEDAL_SLOT] != 0) {
         return;     /* no room before the packet table, or the slot is in use: keep the run cycle */
     }
-    count = ((const u8 *)run)[0x10];
-    if (count > 64) {
-        count = 64;
-    }
-    for (i = 0; i < 7; i++) {
-        backpedal_seq[i] = run[i];
-    }
-    ((u8 *)backpedal_seq)[0x10] = (u8)count;
-    ((u8 *)backpedal_seq)[0x12] = 0;      /* no triggers */
-    backpedal_seq[0x14 / 4] = 0;
-    for (i = 0; i < count; i++) {
-        backpedal_seq[7 + i] = run[7 + count - 1 - i];
-    }
-    backpedal_from = (u32)run;
-    seqs[BACKPEDAL_SLOT] = (u32)backpedal_seq;
+    seqs[BACKPEDAL_SLOT] = (u32)ee_backpedal_seq;
 }
 
 /* The run animation updater's call (state RUN): R&C2's backpedal
@@ -501,7 +486,7 @@ void ee_run_anim_c(u32 ra)
     if (backpedalling(L)) {
         f32 speed;
         install_backpedal();
-        if (*(volatile u32 *)(*(u8 **)(moby + 0x24) + 0x48 + 4 * BACKPEDAL_SLOT) != (u32)backpedal_seq) {
+        if (*(volatile u32 *)(*(u8 **)(moby + 0x24) + 0x48 + 4 * BACKPEDAL_SLOT) != (u32)ee_backpedal_seq) {
             ((Void)ee_run_anim_fn[L])();      /* not installed: the game's cycles */
             return;
         }

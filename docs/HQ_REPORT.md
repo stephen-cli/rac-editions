@@ -6,6 +6,14 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-17 (x5, fourth increment: flips, twist, backpedal)
 
+### 🎯 Strafing on L2/R2 (x5) — Going Commando's backward step converted and in; awaiting owner test
+
+**What changed (same day, after the crash fix).** The stand-in is gone: strafing backward now plays Going Commando's own 30-frame backward step. R&C2 stores Ratchet's animations in a packed per-frame format its engine unpacks on the fly; the edition now carries a transcription of that unpacker (`tools/rac2_anim.py`), proven by decoding R&C2's run, walk and jump cycles and matching them against R&C1's copies of the same animations to within the format's own quantization. The build reads the cycle from the owner's R&C2 disc and converts it into R&C1's frame layout; nothing is hand-authored.
+
+**Decisions taken.** The converter is general (any R&C2 Ratchet sequence can now be brought over the same way, 37 KB per 30 frames in the resident segment), which also opens R&C2's other hero animations should later items want them.
+
+**Verification.** Rebuilt; converted frames compared byte for byte in the built segment; install checked in disassembly. Owner test: the backward step while strafing back; the rest as before.
+
 ### 🎯 Strafing on L2/R2 (x5) — R&C2's flip motion, the run twist and a stand-in backpedal; crash fixed, awaiting owner re-test
 
 **Fix (same day).** The owner's first run of this build crashed as soon as a trigger was held while moving. The stand-in backpedal was placed in an animation slot beyond the space the hero's class actually reserves and overwrote the start of its mesh data; it now uses a slot inside that space, with a guard that skips the install if there is no room. A second, not yet triggered, wrong helper address in the flip's animation blend was fixed at the same time.

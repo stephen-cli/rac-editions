@@ -589,3 +589,48 @@ level call site; the PAL function is `func_001F98C0` (NTSC
 **Verification.** Rebuilt; hooks checked in disassembly (slot 0x8C, the
 packet-table guard, the helper's address) and the nine sites in levels 0,
 7, 18.
+
+## x5: Going Commando's backward step, converted (2026-10-17), awaiting owner test
+
+**Owner's request.** The real R&C2 cycle, not a stand-in.
+
+**Where R&C2 keeps it.** Like R&C1, each level archive's core index points
+(+ 0x78) at a 256-slot table of core offsets for Ratchet's sequences, with
+157 slots used; the armor WAD holds only his mesh. A sequence is the same
+0x1C-byte header and frame-offset table as R&C1's, but every frame offset
+carries 0xF in its top nibble and the frames are packed; the engine
+expands a frame at animation time into the layout R&C1 stores on disc.
+The expander is a hand-written routine at `0x308B20` in SCUS_972.68,
+transcribed in `tools/rac2_anim.py`:
+- after the triggers, the sequence's packed data: a u32 of three
+  bit-fields giving the frame parts' offsets, a base pose of three s16 per
+  joint, the scale and translation record counts and their base records;
+- a frame: u16 1/rate, u16 (header word + 4), a bitstream of 10-bit deltas
+  (three per 32-bit word, low bits first), s16 replacements, s8 deltas, one
+  w sign bit per joint, then the record flags and values;
+- per joint, x/y/z start from the base pose and the base's low two bits
+  choose: keep, add s8 * 4, add 10-bit * 4, or replace; w is rebuilt as
+  sqrt(1 - |xyz|^2) in 1/32768 with the sign bit, clamped to 0x7FFF;
+- each record component starts from its base record and two flag bits
+  choose keep, add s8 * 4, or replace with 16 bits.
+
+**Proof.** `python tools/rac2_anim.py validate` decodes R&C2's run, walk
+and jump sequences (slots 4, 3, 6) and compares them with R&C1's own, which
+both discs carry: rates and header fields identical; quaternion components
+within 6/32768, the packed format's 2-bit quantization (deltas are
+multiples of 4); every R&C1 scale and translation record present with the
+same values, R&C2 adding rest-pose records R&C1 leaves implicit.
+
+**In the edition.** `tools/pack.sh` runs `rac2_anim.py emit 0x14`, which
+reads the owner's R&C2 disc (`games/rac2/ntsc/baserom/SCUS_972.68.iso`)
+and writes `build/modseg/gen_anim.c`: the 30 frames (1264 bytes each) and
+the sequence header with their addresses, 37 KB in the mod segment (now 56
+KB at 0xA0000). The run animation hook installs the header in slot 140 of
+the hero's class and plays it as before (R&C2's pacing and blends). The
+reversed run cycle is gone.
+
+**Verification.** Rebuilt; the segment's 30 frames compared byte for byte
+with the converter's output; the header's counts and the 16-byte-aligned
+frame addresses checked; the install's store (slot 140) checked in
+disassembly; the nine strafe sites unchanged. Owner test: strafe back and
+watch the backward step; forward and sideways unchanged.
