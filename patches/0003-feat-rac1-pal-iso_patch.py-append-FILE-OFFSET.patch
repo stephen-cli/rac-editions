@@ -1,7 +1,7 @@
 From 700ff478933deca75be9e7ccbcf80a756aece163 Mon Sep 17 00:00:00 2001
 From: Stephen Clinton <stephen_l43@hotmail.co.nz>
 Date: Sat, 17 Oct 2026 03:21:54 +1300
-Subject: [PATCH 3/3] feat(rac1/pal): iso_patch.py --append FILE@OFFSET
+Subject: [PATCH 3/4] feat(rac1/pal): iso_patch.py --append FILE@OFFSET
 
 Place a file in new sectors at the end of the image and write its first
 sector and sector count (two u32) at a byte offset: the way to replace a
