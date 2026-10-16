@@ -92,3 +92,50 @@ encoding was checked against the SN assembler's output.
 **Test plan (owner).** Challenge-mode save with the Metal Detector: find a
 hidden spot, observe circlenut bolts and 10x the bolt gain. Then a normal
 save: unchanged hexnut bolts worth 5. Levels to cover: any two.
+
+## q3: Quick select pause setting — implemented, awaiting owner test
+
+**Setting.** Saved global flag 120 (`0x13D508`; the save's chunk 5 holds 128
+flag bytes from `0x13D490`, indices 118-126 unused by retail). Off by
+default, kept per save file.
+
+**Pausing.** The mode-0 frame (`func_L00_00299250`) runs each world-update
+group only if its bit is set in the gate word at `*(update_flags + 8)`:
+1 hero, 2 mobys and tick counter, 4 particles, 8 camera (0x10 is the debug
+single-step mode, 0x200 on the pad struct steps). HUD update, help update,
+sound and rendering run regardless. The frame's `HudUpdate` call
+(`func_L00_0023B610`, at `func_L00_00299250 + 0x838`) is redirected to
+`ee_hud_update_hook` (src/quick_select_pause.c), which calls HudUpdate and
+then, with the setting on and HUD slot 3's update callback equal to
+`QuickSelectUpdate` (`func_L00_00238530`), clears the four bits; when the
+ring closes it restores them. Music keeps playing, play time stops, the
+ring animates and takes input as before. The gate struct is level-local
+(`0x16C158` in level 0, elsewhere in others): `tools/modseg.py`'s
+`LEVEL_DATA` table reads its address from each level's copy of the frame
+function (the lui/addiu pair at +0x4/+0x69C).
+
+**Menu.** The Options list gains a row "Quick Select" before Quit Game,
+opening a copy of the Subtitles page (kind 0x1B) whose single toggle entry
+is `{label, &flag, on 20314, off 20315}` with our flag. Pages, widgets and
+rows are level-local records with pointers between them, so
+`tools/gen_menu.py` finds them in each level's data record (the Options rows
+by their label ids 0x4F1E..0x4F26, the list widget by its item pointer, the
+Subtitles page from the Subtitles row) and generates one copy per level
+into the mod segment; the patch points each level's list widget item
+pointer (`widget + 0x34`) at its copy. Record layouts (from ReRAC's
+menus.md, checked against the PAL data): page 0x88 = `s32 seq[14]`, parent,
+kind, widget pointers from +0x40; widget 0x40 with update/draw/enter/leave
+first and type data at +0x30 (toggle list: +0x34 entries, +0x38 cursor);
+title widget 0x58 with style at +0x30 and label id at +0x34; list item 12
+bytes `{s16 label, s16 action, u32 arg, s16 sublabel, s16 hl_timer}`, action
+3 = go to page `arg`, sentinel label 0; toggle entry 0x14 bytes.
+
+**Open points.** Labels reuse string 20196 "Quick Select" for the row, the
+page title and the entry (reads "Quick Select  On/Off"); a proper
+"Quick Select Pause" string needs new text in the text table, which no tool
+writes yet. The page reuses the Subtitles page's kind 0x1B.
+
+**Test plan (owner).** In a level: Start, Options, "Quick Select", set On;
+open the ring (hold triangle): enemies, camera and particles frozen, ring
+animates, selection works; release: play resumes, timer did not advance.
+Set Off: original behaviour. Save and reload: setting persists.

@@ -4,6 +4,22 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-17 (q3)
+
+### ⏯️ Quick select pause setting (q3) — Implemented, awaiting owner test
+
+**What changed.** A new row "Quick Select" under Options opens an On/Off page; with it On, the world (hero, enemies, camera, particles, play-time counter) freezes while the quick-select ring is open, as in R&C2 and R&C3; music keeps playing. Off restores the original behaviour. The setting is saved with the game (an unused save flag). Applied to all 19 levels; first owner test pending.
+
+**Decisions taken.**
+- The pause uses the engine's own per-group update gate (the debug freeze facility in the frame loop) rather than a new mode, so the ring, HUD, sound and rendering behave exactly as retail while the world stops.
+- The menu row reuses the game's own page and widget records (a copy of the Subtitles page with our flag), generated per level because menu data is level-local. Label text reuses the existing "Quick Select" string; a proper "Quick Select Pause" label waits on text-table tooling (shared need with q2).
+- Setting stored per save file (save flag 120), default Off.
+
+**Findings affecting other items.**
+- Menu pages, widgets and rows are data records in each level program with pointers between them; adding rows or pages is now a generator step, reusable for q2 (quick select pages) and x5 (strafing cheat toggle).
+- New strings need a text-table (all_text WAD) writer; needed by q2, q3's label and any new menu text.
+- Mod segment builder now also resolves level-local data addresses from the disc (per-level tables), which the movement items (x3a, x3b) will need for hero state.
+
 ## 2026-10-17 (mod segment)
 
 ### 🧩 Mod segment (engineering task, unblocks q2, q3, x1, x3a, x3b, x5) — Done (RAM region confirmed; default route)

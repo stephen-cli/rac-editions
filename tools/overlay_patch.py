@@ -127,11 +127,30 @@ def metal_detector_10x_modseg(at):
     return [(site, jal(spawn), jal(modseg_symbol("ee_metal_detector_spawn")))]
 
 
+def quick_select_pause(at):
+    """q3: pause while quick select is open, with a toggle under Options
+    (src/quick_select_pause.c). The frame's HudUpdate call goes to the hook,
+    and the Options list widget's item pointer (executable data, the same
+    in every level's data record) points at the rows in the mod segment."""
+    import json
+    hud = at("func_L00_0023B610")
+    site = at("func_L00_00299250") + (0x299A88 - 0x299250)
+    menu = HERE.parent / "build/modseg/menu_sites.json"
+    if not menu.is_file():
+        raise SystemExit(f"missing {menu}: run tools/gen_menu.py first")
+    m = json.loads(menu.read_text())[str(at.level)]
+    return [
+        (site, jal(hud), jal(modseg_symbol("ee_hud_update_hook"))),
+        (m["site"], m["expect"], modseg_symbol(m["symbol"])),
+    ]
+
+
 FEATURES = {
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
+    "quick_select_pause": quick_select_pause,
 }
-DEFAULT_FEATURES = ["metal_detector_10x_modseg"]
+DEFAULT_FEATURES = ["metal_detector_10x_modseg", "quick_select_pause"]
 
 
 # --- Disc plumbing ------------------------------------------------------------
@@ -148,7 +167,9 @@ def load_catalogue(openrac: Path) -> dict[str, dict[int, int]]:
 
 
 def level_text_locations(openrac: Path):
-    """level id -> (first byte of the level's text record in the image, its load address, its size)."""
+    """level id -> list of (first byte of a record in the image, its load address, its size),
+    text record first, then the level's data record (the executable's data, menus included,
+    is part of every level's data record at the same addresses)."""
     sys.path.insert(0, str(openrac / "editor"))
     from disc import Disc
     from formats import unpack, span, overlay_sections
@@ -160,8 +181,9 @@ def level_text_locations(openrac: Path):
             r = info["ranges"]["data"]
             data = disc.sectors(r["lba"], r["sectors"])
             off, size = unpack("<ii", data, SECTION_NAMES.index("overlay") * 8)
-            text = overlay_sections(span(data, off, size))["sections"][-1]
-            out[info["id"]] = (r["lba"] * SECTOR + off + text["offset"], text["address"], text["bytes"])
+            secs = overlay_sections(span(data, off, size))["sections"]
+            out[info["id"]] = [(r["lba"] * SECTOR + off + rec["offset"], rec["address"], rec["bytes"])
+                               for rec in (secs[-1], secs[2])]
     return iso, out
 
 
@@ -190,18 +212,20 @@ def main() -> int:
 
         total = 0
         for level in range(19):
-            file_base, text_addr, text_size = texts[level]
+            records = texts[level]
 
             def at(name, level=level):
                 try:
                     return places[name][level]
                 except KeyError:
                     raise SystemExit(f"{name} has no place in level {level}")
+            at.level = level
 
             def file_offset(addr):
-                if not text_addr <= addr < text_addr + text_size:
-                    raise SystemExit(f"level {level}: 0x{addr:X} is outside the text record")
-                return file_base + (addr - text_addr)
+                for file_base, rec_addr, rec_size in records:
+                    if rec_addr <= addr < rec_addr + rec_size:
+                        return file_base + (addr - rec_addr)
+                raise SystemExit(f"level {level}: 0x{addr:X} is in neither the text nor the data record")
 
             for feature in args.features:
                 for addr, expect, word in FEATURES[feature](at):

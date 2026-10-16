@@ -22,5 +22,8 @@ typedef float f32;
 
 #define LVL(name, type) ((type)(lvl_##name[g_level]))
 #define DECLARE_LVL(name) extern const u32 lvl_##name[19]
+/* Level-local data (tools/modseg.py LEVEL_DATA): its address in the current level. */
+#define LVL_DATA(name, type) ((type)(lvl_data_##name[g_level]))
+#define DECLARE_LVL_DATA(name) extern const u32 lvl_data_##name[19]
 
 #endif
