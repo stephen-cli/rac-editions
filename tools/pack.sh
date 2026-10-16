@@ -23,14 +23,16 @@ echo "== 1/3 build"
 bash tools/build_sn.sh
 echo "== 2/3 bootable executable"
 python tools/boot_elf.py
+echo "== 3/4 level-code patches (tools/overlay_patch.py)"
+python "$HERE/tools/overlay_patch.py" -o "$HERE/build/patches"
 if [ "${1:-}" = "--quick" ]; then
-  echo "== 3/3 in-place image"
-  python tools/iso_patch.py
+  echo "== 4/4 in-place image"
+  python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv"
   echo "-> $PAL/build-sn/SCES_509.16.iso"
   exit 0
 fi
 cp build-sn/SCES_509.16 "$HERE/mod/SCES_509.16"
-echo "== 3/3 wrench pack"
+echo "== 4/4 wrench pack (NOTE: level-code patches are not applied on this route yet)"
 mkdir -p "$OPENRAC/build/wrench"
 "$WRENCH/bin/wrenchbuild.exe" pack "$GAME_BANK" "$WRENCH/data/overlay" "$HERE/mod" \
   -a rac -o "$OPENRAC/build/wrench/executive-edition.iso" -h release \

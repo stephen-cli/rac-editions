@@ -10,9 +10,10 @@ pipeline, the design notes and the game code changes as patches.
 
 ```
 mod/        wrench mod asset bank (gameinfo.txt, build.asset); the rebuilt executable is generated into it
-tools/      pipeline scripts: pack.sh (build -> bootable executable -> disc image), export-patches.sh
+tools/      pipeline scripts: pack.sh (build -> bootable executable -> level-code patches -> disc image),
+            overlay_patch.py (the features, as per-level word patches and code-cave shims), export-patches.sh
 patches/    the game code changes, as `git format-patch` output of OpenRAC's `executive-edition` branch
-docs/       design notes, HQ report
+docs/       FEATURES.md (what each feature does and how it is patched), HQ_REPORT.md
 ```
 
 ## Working copy layout this repository expects
@@ -30,7 +31,7 @@ are ignored by git there.
 ## Pipeline
 
 ```sh
-bash tools/pack.sh --quick   # OpenRAC build + audits -> bootable SCES_509.16 -> in-place disc image (same-size changes)
+bash tools/pack.sh --quick   # OpenRAC build + audits -> bootable SCES_509.16 -> level-code patches -> in-place disc image
 bash tools/pack.sh           # same, then a wrench full re-layout pack (needed once sizes or assets change)
 bash tools/export-patches.sh # refresh patches/ from OpenRAC's executive-edition branch
 ```
