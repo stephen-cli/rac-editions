@@ -938,3 +938,35 @@ builds (the "texture errors in menus" of #286). Measured and ruled out:
 Still unknown: how the engine keeps those items' textures (the per-frame
 moby texture streaming is not decompiled to C yet). The quick route is
 unaffected and still wears the Grindboots model.
+
+## x2: the R&C2 Charge Boots model in game, without wrench (2026-10-18) — working, verified in PCSX2
+
+`tools/pack.sh --quick` now builds the image the edition ships: the owner's
+disc copied, the level code patched in place, and the Charge Boots class
+spliced into every level's data archive by `tools/splice_boots.py`, which
+appends the 19 new archives to the image and points each level header at its
+copy. Nothing else on the disc moves, so the wrench route's carried-item
+texture corruption does not arise. Verified in PCSX2: on the owner's Hoven
+and Aridia saves the level loads, Clank, the Heli-pack and every menu icon
+draw correctly, the Charge Boots cell previews R&C2's model with its own
+texture, and once equipped (boots slot 36) Ratchet wears R&C2's Charge Boots.
+
+What the game requires, found by changing one thing at a time on Hoven
+(every failure hung the load at stage 7, waiting for the level's sound bank):
+
+| Change | Result |
+|---|---|
+| retail archive moved to the end of the image, header repointed | loads |
+| sections re-laid out at 0x100 alignment | loads |
+| core data recompressed with wrench (3.5% smaller than retail) | loads |
+| class blob and texture inserted below +0x7C, offsets shifted | loads |
+| palette and GS RAM list entry added, texture entry added (tables moved) | loads |
+| moby class table moved to the end of the index, even unchanged | hangs |
+| class blob placed after the gadget blobs (past +0x7C) | hangs |
+| moby class table grown in place, later tables moved down | loads, boots work |
+
+So: the moby class table must stay right after the core index header; the
+class blobs must sit in the resident part of the core, below +0x7C (wrench's
+scene_view_size); the texture and upload tables may move. Retail packs its
+core data about 3.5% looser than wrench's compressor, which leaves room for
+the additions with every archive still smaller than retail's.

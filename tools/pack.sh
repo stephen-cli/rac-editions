@@ -4,8 +4,9 @@
 #
 #   bash tools/pack.sh [--quick]
 #
-#   --quick   in-place copy of the owner's image (same-size changes only, ~10 s);
-#             the Charge Boots wear the Grindboots model
+#   --quick   copy of the owner's image with the level code patched in place, and
+#             the Charge Boots class (R&C2's model) spliced into every level's data
+#             archive, appended at the end of the image (tools/splice_boots.py)
 #             -> OpenRAC/games/rac1/build-sn/executive-edition.iso
 #   default   wrench full re-layout (the edition's wrench fork): game bank + wrench
 #             overlay + mod/ + the Charge Boots bank (R&C2's model, tools/gen_boots.py),
@@ -31,12 +32,8 @@ python "$HERE/tools/gen_text.py"
 python "$HERE/tools/rac2_anim.py" emit 0x14 -o "$HERE/build/modseg/gen_anim.c"
 python "$HERE/tools/gen_menu.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_hero.py" --openrac "$OPENRAC"
-if [ "$QUICK" = 1 ]; then
-  python "$HERE/tools/gen_items.py" --openrac "$OPENRAC"                        # the Grindboots model
-else
-  python "$HERE/tools/gen_boots.py" --openrac "$OPENRAC" --wrench "$WRENCH"    # R&C2's Charge Boots as class 2000
-  python "$HERE/tools/gen_items.py" --openrac "$OPENRAC" --boots-class 2000
-fi
+python "$HERE/tools/gen_boots.py" --openrac "$OPENRAC" --wrench "$WRENCH"    # R&C2's Charge Boots as class 2000
+python "$HERE/tools/gen_items.py" --openrac "$OPENRAC" --boots-class 2000
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"
 echo "== 3/5 bootable executable with the mod segment"
@@ -50,6 +47,8 @@ if [ "$QUICK" = 1 ]; then
   out=build-sn/executive-edition.iso; n=1
   while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=build-sn/executive-edition-$n.iso; done
   python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv" -o "$out"
+  echo "== 5b/5 the Charge Boots class spliced into every level's data (tools/splice_boots.py)"
+  python "$HERE/tools/splice_boots.py" "$out" --openrac "$OPENRAC"
   echo "-> $PAL/$out"
   exit 0
 fi

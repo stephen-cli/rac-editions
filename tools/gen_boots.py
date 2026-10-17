@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 Build the Charge Boots asset bank: Going Commando's Charge Boots model as an
-R&C1 moby class, added to every level, for the wrench route of tools/pack.sh.
+R&C1 moby class, added to every level. The quick route of tools/pack.sh
+takes the converted class core from here and splices it into the retail
+levels (tools/splice_boots.py); the wrench route packs the whole bank.
 
 R&C2 names the Charge Boots in its weapon table (record 54 of g_weaponTable:
 text 0xA9F "Charge Boots", foot slot, moby class 0xE70 = 3696 on both feet),
