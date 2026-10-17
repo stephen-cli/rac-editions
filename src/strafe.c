@@ -149,6 +149,9 @@ extern const u32 ee_stop_site[19], ee_stop_site_low[19];
 #define hero_speed_164  (*(volatile f32 *)(HERO + 0x164))
 #define hero_vel_x      (*(volatile f32 *)(HERO + 0xE0))
 #define hero_vel_y      (*(volatile f32 *)(HERO + 0xE4))
+#define hero_slide_x    (*(volatile f32 *)(HERO + 0x150))   /* motion.unk150: the momentum STOP and IDLE add to the velocity each frame, decaying */
+#define hero_slide_y    (*(volatile f32 *)(HERO + 0x154))
+#define hero_slide_z    (*(volatile f32 *)(HERO + 0x158))
 extern const u32 ee_run_turn_a[19], ee_run_turn_b[19], ee_run_pivot[19], ee_run_planar_a[19], ee_run_planar_b[19];
 extern const u32 ee_turn_to[19], ee_pivot_turn[19], ee_set_planar_vel[19], ee_hero_set_state[19];
 extern const u32 ee_jump_turn_site[19], ee_jump_planar_site[19], ee_air_turn_site[19], ee_jump_press_fn[19];
@@ -227,6 +230,8 @@ volatile u32 ee_debug_last;
 static s32 strafe_active;     /* this frame's RUN turn was the strafe one */
 static f32 strafe_heading;    /* the stick heading the velocity follows */
 static s32 strafe_flip;       /* the current flip (state 0xB) is a strafe flip with the stick pushed */
+static s32 strafe_grace;      /* frames since a trigger was released, counting down from STRAFE_GRACE */
+#define STRAFE_GRACE 6        /* letting go of the trigger and the stick together still ends as a strafe */
 extern const u32 ee_backpedal_seq[];   /* R&C2's backward step in R&C1's layout (build/modseg/gen_anim.c) */
 
 /* After the game's pad parse (pad.c: func_002181F0(pad, report, length)):
@@ -263,6 +268,11 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         return;
     }
     ee_strafe_held = p[0x1A0 / 4] & PAD_STRAFE;
+    if (ee_strafe_held) {
+        strafe_grace = STRAFE_GRACE;
+    } else if (strafe_grace) {
+        strafe_grace--;
+    }
     if (hero_state != STATE_HIGH_JUMP) {
         strafe_flip = 0;
     }
@@ -586,11 +596,20 @@ void ee_run_anim_c(u32 ra)
  * animation at high speed (the entry picks 6 or 5 from frame 4), or without
  * it and animation 0x14 from frame 7 otherwise; either way STOP decelerates
  * the hero until the ground speed reaches 0 and only then hands to IDLE
- * (NTSC 00242930.c case 3). While a trigger is held the hook enters STOP
- * without the entry animation, zeroes the speeds and the planar velocity
- * so the next STOP update goes to IDLE at once, and shows the short stop
- * pose over the game's 9-frame blend: Ratchet stops where he is, as in
- * Going Commando's strafe. Outside the strafe both stops are the game's.
+ * (NTSC 00242930.c case 3); the slide itself is the momentum vector at
+ * hero + 0x150, which set_state copies from the last displacement on entry
+ * and which the shared idle/stop movement block adds to the velocity
+ * every frame while shrinking it by the state's deceleration
+ * (FUN_L00_00216710). While a trigger is held the hook enters STOP without
+ * the entry animation, zeroes that momentum, the speeds and the planar
+ * velocity so the next STOP update goes to IDLE at once, and shows the
+ * short stop pose over the game's 9-frame blend: Ratchet stops where he
+ * is, as in Going Commando's strafe. (A first build zeroed the speeds
+ * only; the momentum vector kept sliding him.) Letting go of the trigger
+ * and the stick in the same motion counts too: the trigger is seen
+ * released a frame or two before the game decides the stop, so the hook
+ * keeps a six-frame grace after the release (measured: with the trigger
+ * held the stop was already dead; released together it skidded). Outside the strafe both stops are the game's.
  * The high-speed call is a shared tail other paths branch into with other
  * states; those pass through. */
 s32 ee_stop_c(s32 state, s32 with_animation, u32 ra)
@@ -598,7 +617,7 @@ s32 ee_stop_c(s32 state, s32 with_animation, u32 ra)
     s32 trace_ = (TRACE(12), 0);
     s32 L = level_of_two(ra, ee_stop_site, ee_stop_site_low);
     s32 r;
-    if (state == STATE_STOP && ee_strafe_held) {
+    if (state == STATE_STOP && (ee_strafe_held || strafe_grace)) {
         r = ((SetState)ee_hero_set_state[L])(STATE_STOP, 0);
         if (r) {
             hero_ground_speed = 0.0f;
@@ -607,6 +626,9 @@ s32 ee_stop_c(s32 state, s32 with_animation, u32 ra)
             hero_speed_164 = 0.0f;
             hero_vel_x = 0.0f;
             hero_vel_y = 0.0f;
+            hero_slide_x = 0.0f;
+            hero_slide_y = 0.0f;
+            hero_slide_z = 0.0f;
             LVL(L, func_L00_00232C10, SetAnim)(ANIM_STOP_SHORT, 7, (f32)scale_frames(L, 9));
         }
         TRACE_END();

@@ -6,6 +6,14 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-17 (x5, fourth increment: flips, twist, backpedal)
 
+### 🎯 Strafing on L2/R2 (x5) — Strafe stop measured and finished
+
+**What was wrong.** The previous build did stop Ratchet dead, but only while the trigger was still held; letting go of trigger and stick together (the natural motion) still skidded, because the trigger reads as released a frame or two before the game decides the stop. Found by measuring the stop frame by frame in the emulator rather than by inspection.
+
+**Fix.** A six-frame grace after the trigger is released, and the stop also clears the momentum vector that actually carries the slide. Verified in the emulator: released together or trigger kept, Ratchet freezes at the release point; a plain run stop keeps its skid.
+
+**Note.** The working tree also holds another session's in-progress Charge Boots work; this commit touches only the strafe files, and the image built from the tree includes that work as it stands.
+
 ### 🎯 Strafing on L2/R2 (x5) — Working; stop-on-the-spot while strafing added, awaiting owner test
 
 **Owner's verdict.** "It works wonderfully." One request: no high-speed foot slide when a strafe ends.

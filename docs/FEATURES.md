@@ -758,3 +758,30 @@ black; equip it: the icon turns white, Ratchet wears the Grindboots model;
 the name and description read "Charge Boots". Grind rails need not work
 with it. Check Magneboots and Grindboots still equip, and that a save made
 with it equipped loads.
+
+## x5: the strafe stop, measured and finished (2026-10-17)
+
+**Owner's report.** Still a skid when stopping while strafing.
+
+**Measured in the emulator** (the PINE harness, sampling state, animation,
+speed, the momentum vector at hero + 0x150 and the moby position every
+frame or two):
+- Trigger kept while the stick is released: the previous build already
+  stopped dead (STOP, animation 0x14 from frame 7, speeds 0, position
+  frozen at the release point).
+- Trigger and stick released together, which is how one stops in play:
+  the retail skid (STOP, animation 6, momentum decaying over half a
+  second, about 1.3 units of slide), because the trigger reads as released
+  a frame or two before the game decides the stop.
+
+**Fix.** The pad hook keeps a six-frame grace after the trigger is
+released and the stop hook honours it. Two further details from the
+measurements: the slide is carried by the momentum vector at hero +
+0x150 that set_state copies from the last displacement and the idle/stop
+movement block adds to the velocity each frame (FUN_L00_00216710), so
+the hook zeroes it too; and both STOP entries of the run update are
+hooked (the high-speed skid and the low-speed stop).
+
+**Verified in the emulator after the fix.** Both released together: STOP
+with the short pose, speed and momentum 0, position frozen. Trigger kept:
+the same. Plain run stop without a trigger: the retail skid, unchanged.
