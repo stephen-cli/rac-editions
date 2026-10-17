@@ -18,15 +18,13 @@ This converts art/charge_boots.png (32x32) to the two frames the way the
 Grindboots icon is drawn (its black frame's palette entries, and the white
 frame by the same black-to-white entry mapping), and:
 
-  emit    writes build/modseg/gen_icons.c, the 2 KB of pixels, 16-aligned,
-          for the resident segment (tools/modseg.py picks gen_*.c up);
-  header  writes build/hud_header.bin: the retail header plus icon 0xEA84
-          with two frames whose image pages sit past the last bank's range
-          and point at the pixels' resident address (build/modseg/modseg.sym),
-          so no bank is recompressed; tools/overlay_patch.py writes the file
-          over the header's sectors.
+writes build/modseg/gen_icons.c, the 2 KB of pixels, 16-aligned, for the
+resident segment (tools/modseg.py picks gen_*.c up). src/hud_icons.c adds
+the icon (0xEA84, two frames, palette pages 5 and 6) to the HUD header's
+tables as each level loads: every level's data archive carries its own
+copy of the header, which is why the disc copies are not patched.
 
-  python tools/gen_hud.py emit|header [--openrac DIR]
+  python tools/gen_hud.py [--openrac DIR]
 """
 import argparse
 import struct
@@ -190,54 +188,13 @@ def emit(args) -> int:
     return 0
 
 
-def header(args) -> int:
-    sys.path.insert(0, str(HERE))
-    from overlay_patch import modseg_symbol
-    address = modseg_symbol(SYMBOL)
-    if address & 0xF or address >= 0x80000000:
-        raise SystemExit(f"{SYMBOL} at 0x{address:X}: the pixels must be 16-byte aligned, below 0x80000000")
-    hdr = HudHeader(args.openrac)
-    if any(i[0] == ICON_ID for i in hdr.icons):
-        raise SystemExit(f"icon 0x{ICON_ID:X} already exists in the header")
-    n_frames, n_img = len(hdr.frames), len(hdr.img_pages)
-    icons = hdr.icons + [[ICON_ID, 2, n_frames, 0, 0]]
-    frames = hdr.frames + [[PALETTE_BLACK, n_img], [PALETTE_WHITE, n_img + 1]]
-    img_pages = hdr.img_pages + [[address, 0, 5, 5], [address + SIZE * SIZE, 0, 5, 5]]   # past every bank's range
-    o_icons = hdr.o_icons
-    o_frames = o_icons + 8 * (len(icons) + 1)
-    o_pal = o_frames + 4 * len(frames)
-    o_img = o_pal + 8 * len(hdr.pal_pages)
-    end = o_img + 8 * len(img_pages)
-    if end > len(hdr.raw):
-        raise SystemExit("the HUD header's tables do not fit its sectors")
-    out = bytearray(hdr.raw)
-    struct.pack_into("<2H", out, 0, len(icons) + 1, len(frames))
-    struct.pack_into("<4I", out, 4, o_icons, o_frames, o_pal, o_img)
-    out[o_icons:] = bytes(len(out) - o_icons)
-    for i, row in enumerate(icons):
-        struct.pack_into("<HHHBB", out, o_icons + 8 * i, *row)
-    struct.pack_into("<H", out, o_icons + 8 * len(icons), 0xFFFF)
-    for i, f in enumerate(frames):
-        struct.pack_into("<hh", out, o_frames + 4 * i, *f)
-    for i, p in enumerate(hdr.pal_pages):
-        struct.pack_into("<IHBB", out, o_pal + 8 * i, *p)
-    for i, p in enumerate(img_pages):
-        struct.pack_into("<IHBB", out, o_img + 8 * i, *p)
-    (ROOT / "build").mkdir(exist_ok=True)
-    (ROOT / "build/hud_header.bin").write_bytes(bytes(out))
-    print(f"wrote build/hud_header.bin: icon 0x{ICON_ID:X}, frames {n_frames}-{n_frames + 1}, "
-          f"image pages {n_img}-{n_img + 1} at 0x{address:X}")
-    return 0
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("step", choices=["emit", "header"])
     ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
     ap.add_argument("--png", type=Path, default=ROOT / "art/charge_boots.png")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/modseg")
     args = ap.parse_args()
-    return emit(args) if args.step == "emit" else header(args)
+    return emit(args)
 
 
 if __name__ == "__main__":

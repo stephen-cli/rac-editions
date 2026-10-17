@@ -785,3 +785,58 @@ hooked (the high-speed skid and the low-speed stop).
 **Verified in the emulator after the fix.** Both released together: STOP
 with the short pose, speed and momentum 0, position frozen. Trigger kept:
 the same. Plain run stop without a trigger: the retail skid, unchanged.
+
+## x2: Charge Boots — second round (2026-10-17): the icon, the preview, the equip and the box, awaiting owner test
+
+Owner's first test of the build above: a narrow Foot Items box, a broken
+preview, a missing-icon placeholder, and the boots never equipping. Found
+and fixed:
+
+- **The icon came from the wrong file.** Every level's data archive carries
+  its own copy of the HUD header and banks (`wrench`'s level_data_wad.cpp;
+  the archive's header at +0x20 lists them), and the level loader builds the
+  HUD arena from that copy, not from the global file at table of contents
+  0x14F8 (that one serves the frontend). The copies differ (some levels carry
+  extra icons) and most have no room to grow, so the disc copies are left
+  alone: the loader's header copy (`func_002032D0` + 0xB8, `jal` FastMemCopy)
+  is redirected to `ee_hud_header_copy` (src/hud_icons.c), which copies the
+  retail header and rebuilds the four tables in a resident buffer with the
+  icon added, then points the header's offsets at them.
+- **Then the icon showed other textures.** GetFrameTex's GS allocations are
+  transient: `SetupGifPaging(0)` (func_001F4630) clears the GS block of every
+  image page below the last bank range's end before each menu draw. Pages
+  past the ranges (the first attempt) kept a stale block and drew whatever
+  had been uploaded there since: other icons, font glyphs. The two pages now
+  sit at the end of bank 1's range (the later banks' pages, frame references
+  and range ends shift by two), and since `LinkHudBank(1, bank)` adds the
+  bank's address to every page in that range, the loader's call to it
+  (+0x190) is redirected to `ee_hud_link_bank`, which links as retail does
+  and then points the two pages at the pixels in the segment.
+- **The preview spawned inside the camera.** The item preview's placement
+  table (`D_001E0708`, `ItemPreviewPlacement[36]`, 8 floats each) ends at
+  item 35; item 36 read the words of the next table as its position. A
+  37-entry copy (`ee_preview_placements`, item 36 = the Grindboots entry)
+  lives in the segment and the lui/addiu pairs in `func_0021F238` (+552,
+  +560, +576, +584, +604) and `func_0021F6A0` (+80, +88, +108, +116, +140)
+  are pointed at it in every level.
+- **The boots never equipped.** Item id 36 is the hero's "temporary item"
+  sentinel: `hero_switch_item` (NTSC decomp) moves a pending id into
+  `hero.selected_item` but writes the persistent equipped array
+  (`D_00141760`, per slot, saved) only when the id is not 0x24, and the item
+  mobys are created from that array. Every other use of the sentinel is about
+  slot 0, so `ee_charge_boots_frame` sets the boots slot's equipped id
+  whenever the hero has the Charge Boots pending or selected; retail's
+  switch overwrites it for any other choice.
+- **The box.** The Gadgets page record (kind 4) pairs its 14 widgets with 14
+  sequences of the menu panel class 0x472, one panel moby per widget
+  (`moby_anims[i]` / `screens[i]`, NTSC menu_system.h); the box's size comes
+  from the sequence (the grid draws its columns from the panel's width,
+  pvars +0x40). The boots grid is widget 10 with sequence 0x26 (1.43 wide);
+  the Head Items grid's sequence 0x25 is 2.04 wide. The page word is patched
+  per level to 0x25 (gen_items.py `panel`). Whether the sequence also fixes
+  the box's position is what the owner's test will show; if the box moves
+  onto the Head Items box, a copy of sequence 0x25 moved down has to be
+  installed in the class at level load, the way the backpedal was.
+
+Also found on the way: `tools/pine_pad.py` could never load its symbol file
+(a `/` bound tighter than `.read_text()`); fixed.

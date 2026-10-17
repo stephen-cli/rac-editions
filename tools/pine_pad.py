@@ -9,7 +9,7 @@ and ee_debug_last (the id of the hook running / last entered). See docs/DEBUGGIN
 import socket, struct, sys, time
 from pathlib import Path
 
-SYM = dict(l.split("\t") for l in Path(__file__).resolve().parent.parent / "build/modseg/modseg.sym".read_text().splitlines())
+SYM = dict(l.split("	") for l in (Path(__file__).resolve().parent.parent / "build/modseg/modseg.sym").read_text().splitlines())
 S = {k: int(v, 16) for k, v in SYM.items()}
 DEBUG_PAD = S["ee_debug_pad"]
 TRACE = S["ee_debug_trace"]

@@ -22,8 +22,24 @@
 
 #define ITEM_OWNED(id)     (*(volatile u8 *)(0x0013D5C8 + (id)))   /* D_0013D5C8: owned items, by id */
 #define ITEM_CHARGE_BOOTS  36
+#define SLOT_BOOTS         1
+#define EQUIPPED(slot)       (*(volatile s32 *)(0x00141760 + 4 * (slot)))   /* D_00141760: the hero's equipped item per slot, saved */
+#define HERO_PENDING(slot)   (*(volatile s32 *)(0x0013F450 + 0x20B8 + 4 * (slot)))   /* hero.pending_item */
+#define HERO_SELECTED(slot)  (*(volatile s32 *)(0x0013F450 + 0x20D4 + 4 * (slot)))   /* hero.selected_item */
 
+/* Item id 36 is also the hero's "temporary item" sentinel (0x24): the item
+ * switch (hero_switch_item in the NTSC decomp) moves a pending id into
+ * selected_item but writes the persistent equipped array only when the id
+ * is not 0x24, so the Charge Boots were selected for a frame and the hero
+ * recreated the previous boots from the equipped array. The sentinel's
+ * other uses are all about slot 0 (the hand), so for the boots slot the
+ * equipped id is set here whenever the hero has the Charge Boots pending
+ * or selected; equipping anything else or nothing overwrites it as retail
+ * does. */
 void ee_charge_boots_frame(void)
 {
     ITEM_OWNED(ITEM_CHARGE_BOOTS) = 1;
+    if (HERO_PENDING(SLOT_BOOTS) == ITEM_CHARGE_BOOTS || HERO_SELECTED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
+        EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+    }
 }
