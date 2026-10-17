@@ -144,6 +144,11 @@ DECLARE_LVL(func_001F9850);            /* scale_game_frames(n): the level's copy
 DECLARE_LVL_DATA(ease_table);          /* the hero's per-joint ease table, per level */
 extern const u32 ee_twist_0[19], ee_twist_1[19], ee_twist_2[19], ee_twist_3[19], ee_twist_4[19], ee_twist_5[19], ee_twist_fn[19];
 extern const u32 ee_runanim_site[19], ee_run_anim_fn[19], ee_flip_appr_0[19], ee_flip_appr_1[19], ee_approach_fn[19];
+extern const u32 ee_stop_site[19], ee_stop_site_low[19];
+#define hero_target_speed (*(volatile f32 *)(HERO + 0x190))
+#define hero_speed_164  (*(volatile f32 *)(HERO + 0x164))
+#define hero_vel_x      (*(volatile f32 *)(HERO + 0xE0))
+#define hero_vel_y      (*(volatile f32 *)(HERO + 0xE4))
 extern const u32 ee_run_turn_a[19], ee_run_turn_b[19], ee_run_pivot[19], ee_run_planar_a[19], ee_run_planar_b[19];
 extern const u32 ee_turn_to[19], ee_pivot_turn[19], ee_set_planar_vel[19], ee_hero_set_state[19];
 extern const u32 ee_jump_turn_site[19], ee_jump_planar_site[19], ee_air_turn_site[19], ee_jump_press_fn[19];
@@ -179,6 +184,8 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define STATE_RUN       2
 #define STATE_HOVER     0x81          /* thruster pack hover: reads L2/R2 itself */
 #define STATE_JUMP      7
+#define STATE_STOP      3
+#define ANIM_STOP_SHORT 0x14          /* the stop from frame 7: the game's own low-speed stop */
 #define STATE_HIGH_JUMP 0xB           /* the flips: animation 0x1C + stick class */
 #define FLIP_STICK      0.9f          /* R&C2: a strafe jump flips from this stick magnitude (0x2C24B8) */
 #define CLASS_FORWARD   2
@@ -572,4 +579,40 @@ void ee_run_anim_c(u32 ra)
     }
     ((Void)ee_run_anim_fn[L])();
     TRACE_END();
+}
+
+/* The run update's two stops (owner's request: no foot slide while
+ * strafing). Letting the stick go at speed enters STOP: with its skid
+ * animation at high speed (the entry picks 6 or 5 from frame 4), or without
+ * it and animation 0x14 from frame 7 otherwise; either way STOP decelerates
+ * the hero until the ground speed reaches 0 and only then hands to IDLE
+ * (NTSC 00242930.c case 3). While a trigger is held the hook enters STOP
+ * without the entry animation, zeroes the speeds and the planar velocity
+ * so the next STOP update goes to IDLE at once, and shows the short stop
+ * pose over the game's 9-frame blend: Ratchet stops where he is, as in
+ * Going Commando's strafe. Outside the strafe both stops are the game's.
+ * The high-speed call is a shared tail other paths branch into with other
+ * states; those pass through. */
+s32 ee_stop_c(s32 state, s32 with_animation, u32 ra)
+{
+    s32 trace_ = (TRACE(12), 0);
+    s32 L = level_of_two(ra, ee_stop_site, ee_stop_site_low);
+    s32 r;
+    if (state == STATE_STOP && ee_strafe_held) {
+        r = ((SetState)ee_hero_set_state[L])(STATE_STOP, 0);
+        if (r) {
+            hero_ground_speed = 0.0f;
+            hero_target_speed = 0.0f;
+            hero_speed_xy = 0.0f;
+            hero_speed_164 = 0.0f;
+            hero_vel_x = 0.0f;
+            hero_vel_y = 0.0f;
+            LVL(L, func_L00_00232C10, SetAnim)(ANIM_STOP_SHORT, 7, (f32)scale_frames(L, 9));
+        }
+        TRACE_END();
+        return r;
+    }
+    r = ((SetState)ee_hero_set_state[L])(state, with_animation);
+    TRACE_END();
+    return r;
 }

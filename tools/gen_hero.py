@@ -32,6 +32,12 @@ level's own program:
   flip_appr      the flip's two approach_value(target, step, &hero + 0x458)
                  calls in the air control (func_00214D28's level copy with
                  the &hero + 0x458 argument), hooked for R&C2's strafe flip
+  stop_site      the run update's stops: after the speed test against
+                 frame_time * 4.4 and the stick history test against 0.8 (the
+                 constants 0x408CCCCD and 0x3F4CCCCD), the bc1f to the shared
+                 tail calling hero_set_state(STOP, 1) (the skid) and the
+                 fall-through hero_set_state(STOP, 0) (the short stop); the
+                 strafe hook stops the hero dead at both while a trigger is held
   comet_site     the Comet-Strike (state 0x15) movement block's call to
                  speed_step: of the jump tables indexed by the hero's state
                  (code entries; a bound of 0x83 where one is in reach), the
@@ -247,6 +253,22 @@ def find_level(openrac: Path, level: int) -> dict:
     known = catalogue_place(openrac, "func_L00_00222B80", level)
     if known is not None and known != set_state:
         raise SystemExit(f"level {level}: hero_set_state {set_state:#x} disagrees with the catalogue's {known:#x}")
+    # The run update's high-speed stop: speed constants, then the bc1f whose target calls set_state.
+    jal_set_state = 0x0C000000 | ((set_state >> 2) & 0x3FFFFFF)
+    stops = []
+    for k in range(n - 40):
+        if w[k] == 0x3C01408C and w[k + 1] == 0x3421CCCD and any(w[j] == 0x3C013F4C for j in range(k, k + 20)):
+            j0 = next(j for j in range(k, k + 20) if w[j] == 0x3C013F4C)
+            for j in range(j0, j0 + 12):
+                if (w[j] >> 16) == 0x4500:          # bc1f
+                    off = w[j] & 0xFFFF
+                    off = off - 0x10000 if off & 0x8000 else off
+                    target = tbase + 4 * j + 4 + (off << 2)
+                    if tbase <= target < tbase + len(text) and w[(target - tbase) // 4] == jal_set_state                             and w[j + 1] == 0x24040003 and w[(target - tbase) // 4 + 1] == 0x24050001                             and w[j + 2] == jal_set_state and w[j + 3] == 0x0000282D:
+                        stops.append((target, tbase + 4 * (j + 2)))   # (STOP, 1) tail; (STOP, 0) fall-through
+                    break
+    if len(stops) != 1:
+        raise SystemExit(f"level {level}: the run update's high-speed stop found {len(stops)} times: {[hex(a) for a in stops]}")
     inv = {v: k for k, v in helpers.items()}
     return {"comet_site": site, "speed_step": speed_step, "hero_set_state": set_state, "set_state_calls": votes,
             "run_turn_a": run[0], "run_pivot": run[1], "run_turn_b": run[2], "run_planar_a": run[4], "run_planar_b": run[5],
@@ -256,7 +278,7 @@ def find_level(openrac: Path, level: int) -> dict:
             "jump_press_fn": jp,
             "twist_0": twist[0], "twist_1": twist[1], "twist_2": twist[2], "twist_3": twist[3], "twist_4": twist[4], "twist_5": twist[5],
             "twist_fn": tw, "runanim_site": runanim[0], "run_anim_fn": ra,
-            "flip_appr_0": appr[0], "flip_appr_1": appr[1], "approach_fn": ap}
+            "flip_appr_0": appr[0], "flip_appr_1": appr[1], "approach_fn": ap, "stop_site": stops[0][0], "stop_site_low": stops[0][1]}
 
 
 def main() -> int:
@@ -277,7 +299,7 @@ def main() -> int:
              "run_planar_a", "run_planar_b", "turn_to", "pivot_turn", "set_planar_vel",
              "jump_turn_site", "jump_planar_site", "air_turn_site", "jump_press_0", "jump_press_1", "jump_press_2", "jump_press_3", "jump_press_fn",
              "twist_0", "twist_1", "twist_2", "twist_3", "twist_4", "twist_5", "twist_fn", "runanim_site", "run_anim_fn",
-             "flip_appr_0", "flip_appr_1", "approach_fn")
+             "flip_appr_0", "flip_appr_1", "approach_fn", "stop_site", "stop_site_low")
     for name in names:
         c.append(f"const u32 ee_{name}[19] = {{ {', '.join(f'0x{found[L][name]:08X}' for L in range(19))} }};")
     (args.out / "gen_hero.c").write_text("\n".join(c) + "\n")

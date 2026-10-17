@@ -6,6 +6,12 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-17 (x5, fourth increment: flips, twist, backpedal)
 
+### 🎯 Strafing on L2/R2 (x5) — Working; stop-on-the-spot while strafing added, awaiting owner test
+
+**Owner's verdict.** "It works wonderfully." One request: no high-speed foot slide when a strafe ends.
+
+**What changed.** Letting the stick go while a trigger is held now stops Ratchet where he stands instead of sliding to a halt; the normal run keeps its skid. A first cut only swapped the skid animation and still let him slide, which the owner spotted in play; the stop now also kills the speed, so the game's own stop state hands straight to idle.
+
 ### 🎯 Strafing on L2/R2 (x5) — Crash found by reproduction and fixed; awaiting owner test
 
 **What happened.** The strafe crash survived the first fix, so I reproduced it myself: PCSX2's scripting interface plus a debug pad in the edition let a script load a save and hold R2 with the stick, and the edition's new hook trace named the hook that died. The cause was three engine helpers the strafe called at the addresses they have in the boot executable; in R&C1 only memory below a fixed line stays put inside a level, and each level keeps its own copy of those helpers elsewhere, so the calls landed in level data. They now go through the same per-level tables as everything else.

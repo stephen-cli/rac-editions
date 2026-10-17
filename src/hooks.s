@@ -104,6 +104,14 @@ ee_flip_approach:
     j     ee_flip_approach_c
     addu  $5, $31, $0
 
+/* hero_set_state(state, with_animation): two integer arguments, the
+ * return address goes in $6; the result goes back in $2. */
+.globl ee_stop
+.extern ee_stop_c
+ee_stop:
+    j     ee_stop_c
+    addu  $6, $31, $0
+
 /* bolt spawner(spot, pos, dir, kind, value, flag): six arguments, $4-$9;
  * the return address goes in $10. */
 .globl ee_metal_detector_spawn

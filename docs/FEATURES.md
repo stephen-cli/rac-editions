@@ -668,3 +668,34 @@ the run cycle on release.
 **Kept.** `tools/pine_pad.py`, `tools/pine_scenarios.py` and the debug pad
 and trace in the mod segment (inert unless written), with
 `docs/DEBUGGING.md`.
+
+## x5: no foot slide when a strafe ends (2026-10-17), awaiting owner test
+
+**Owner's request.** Everything works; the stopping foot slide Ratchet does
+at high speed should not happen while strafing.
+
+**What R&C1 does.** The run update, when the stick is released past
+frame_time * 2.7 of speed (NTSC `00242930.c`, the RUN case), enters STOP
+one of two ways: `hero_set_state(STOP, 1)` at high speed with a steady
+stick history (the entry plays the skid, animation 6 or 5 from frame 4),
+else `hero_set_state(STOP, 0)` followed by animation 0x14 from frame 7.
+Both then decelerate in STOP until the ground speed reaches 0 and only
+then hand to IDLE, which is the slide itself.
+
+**The port.** Both calls are found per level by `tools/gen_hero.py` (the
+speed constants 4.4 and 0.8, the `bc1f` to the shared tail and the
+fall-through call) and go to `ee_stop`. While a trigger is held the hook
+enters STOP without the entry animation, zeroes the ground, target and
+current speeds and the planar velocity, so the next STOP update goes to
+IDLE at once, and shows the short stop pose over the game's 9-frame
+blend. Without a trigger both stops are the game's. The high-speed call
+is a shared tail that other paths reach with other states; the hook
+passes those through unchanged. A first cut hooked only the high-speed
+entry and kept the deceleration; the owner saw the slide continue.
+
+**Verification.** Rebuilt; the hook's stores (the five speed fields, the
+animation, frame and blend) checked in disassembly; both sites checked in
+levels 0, 7 and 18 against the trampoline and found once per level at
+build time. Owner test: strafe at speed and release the stick with the
+trigger held: Ratchet should stop on the spot; release both and he should
+skid as before.

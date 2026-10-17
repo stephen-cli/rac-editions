@@ -215,7 +215,10 @@ def strafe(at):
             (h[f"twist_{k}"], jal(h["twist_fn"]), jal(modseg_symbol("ee_twist"))) for k in range(6)] + [
             (h["runanim_site"], jal(h["run_anim_fn"]), jal(modseg_symbol("ee_run_anim"))),
             (h["flip_appr_0"], jal(h["approach_fn"]), jal(modseg_symbol("ee_flip_approach"))),
-            (h["flip_appr_1"], jal(h["approach_fn"]), jal(modseg_symbol("ee_flip_approach")))]
+            (h["flip_appr_1"], jal(h["approach_fn"]), jal(modseg_symbol("ee_flip_approach"))),
+            # the run update's high-speed stop: the short stop while strafing
+            (h["stop_site"], jal(h["hero_set_state"]), jal(modseg_symbol("ee_stop"))),
+            (h["stop_site_low"], jal(h["hero_set_state"]), jal(modseg_symbol("ee_stop")))]
 
 
 def strafe_camera(at):
