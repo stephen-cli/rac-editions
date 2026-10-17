@@ -6,6 +6,14 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
 
+### 🥾 Charge Boots (x2) — Going Commando's charge camera ported (owner's report), verified in PCSX2; awaiting owner test
+
+**What was wrong.** When Ratchet charged back toward the camera, R&C1's camera stayed where it was, so he often bonked into it. In Going Commando the camera swings round behind him at once.
+
+**What changed.** The charge now uses Going Commando's camera: every frame of a charge it turns toward Ratchet's facing, pulls in to Going Commando's closer distance, and uses its sideways settling. R&C1's camera has the same building blocks as R&C2's, so these are Going Commando's exact settings. Measured with a U-turn mid-charge: R&C2's camera is behind Ratchet after 0.6 s, and the edition's after about 0.7 s, following the same curve. The unchanged R&C1 camera had not moved at all after 0.3 s, and Ratchet bonked.
+
+**Findings.** The owner felt Going Commando's jets were more "flowy", like a tail. Measured in R&C2 itself (the owner's Oozla state, the charge forced), its jet sprites ride on Ratchet exactly as the edition's do: the same distances behind the ankles, the same height, and they swing with him in a turn. No jet code was missed. The likely difference was the camera: with Going Commando's camera behind him, the plume streams back toward the viewer instead of swinging sideways.
+
 ### 🥾 Charge Boots (x2) — Jets redone with Going Commando's own effect (owner's reports), verified in PCSX2; awaiting owner test
 
 **What was wrong.** The first jets used an R&C1 "glow" that turns out to be a small 3D sphere rather than a particle, so they read as blue bubbles. The owner asked whether R&C1 had something closer to Going Commando's blue jets. An intermediate build then drew the plume straight down; the owner pointed out it should trail back toward the camera. That came from misreading one value in R&C2's code.

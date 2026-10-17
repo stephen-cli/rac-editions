@@ -1049,12 +1049,18 @@ looping sound in hero sound slot 4, the same entry fields.
   (Ratchet's joint lists 22 and 23, his ankle chains; both games' Ratchet
   carry the same 111-joint skeleton and lists), blue `20 80 FF 40` and cyan
   `00 FF FF 20`: the boots' jets.
-- The camera pass special-cases the state (distance 3, the lateral spring
-  0.04/0.2, a slide); not ported.
+- **Camera** (the hero camera pass, `0x4256E0`, the block at `0x425ED0`):
+  every frame of the dash, lateral spring 0.04/0.2 (`0x427D80`), turn
+  toward Ratchet's facing (his moby's matrix row 0) with strength pi/4 and
+  no limit (`0x428110`), distance 3 at rate 0.003 (`0x427C18(0, ..)`) and
+  the flag at camera + 0x246 (`0x427E10`). Measured in R&C2 (the owner's
+  Oozla state, the dash forced and held, Ratchet turned 180 degrees
+  mid-dash): the camera is 168 degrees off his facing, then 97 after 0.2 s,
+  29 after 0.4 s and behind him after 0.6 s.
 
 **The port** (`src/charge_dash.c`, `src/charge_hooks.s`). R&C1 has no
 state 0x7B: none of its switches has the case, and `hero_set_state` takes
-it without complaint (bookkeeping only). Two calls per level are hooked,
+it without complaint (bookkeeping only). Three calls per level are hooked,
 found by `tools/gen_charge.py` in each level's own program:
 
 - the input handler's `slot_item(3)` (the one whose block enters 0x81 and
@@ -1066,7 +1072,18 @@ found by `tools/gen_charge.py` in each level's own program:
 - the one call of the per-state movement function (the function holding
   the 0x83-entry movement table) goes to `ee_charge_move_hook`, which, in
   state 0x7B, runs R&C2's update and movement in R&C1's terms and then the
-  game's function (a no-op for 0x7B but for its bookkeeping).
+  game's function (a no-op for 0x7B but for its bookkeeping);
+- the follow camera overrides' (`func_L00_002E74B0`) one call of
+  `collect_mobies_in_sphere`, made every frame just before the overrides'
+  Thruster-Pack block (R&C2's charge block sits next to its own), goes to
+  `ee_charge_camera_hook`: the game's call, then, in state 0x7B, R&C2's
+  camera block. R&C1's follow camera has R&C2's helpers, the same code
+  with the camera's fields 0x20 to 0x30 lower: `func_L00_002E9A40`
+  (lateral spring), `func_L00_002E9DC8` (turn toward a direction; its
+  inner routine `func_L00_002E9B60` is R&C2's `0x427EA0`),
+  `func_L00_002E9900` (distance) and `func_L00_002E9AD0` (+ 0x226). The
+  trampoline passes the return address in `$8`, the fifth integer
+  argument, so the call's four arguments and its float pass through.
 
 R&C1 has every primitive under its own name: `stick_target`, `speed_step`,
 `set_planar_vel` (the full velocity, slope included, as R&C2's),
@@ -1111,7 +1128,13 @@ spawner's own load); `jets_age` does the rest of R&C2's update every frame
 on the sprites the dash spawned (128 tracked, each checked to be the same
 record still: type 27, alive, its lifetime and last colour). R&C2 places
 the sprites after the hero has moved; the dash runs before, so each
-record's step is Ratchet's last one and type 27's update adds it. A first
+record's step is Ratchet's last one and type 27's update adds it. R&C2's
+update rides only while the game-mode word `0x1A8F40` is 0 (otherwise it
+moves the sprite in the world); it reads 4 in the owner's Oozla state at
+rest and 0 during a dash, and measured live mid-dash R&C2's sprites sit
+0.60 to 1.6 behind the ankles at + 0.46 height, + 0.10 / - 0.08 aside,
+and keep those offsets through a 90-degree turn: rigid, as the port's
+(0.63 to 2.0, the same height and sides). A first
 port drew the jets with `spawn_glow_particle` (`func_L00_002ADBB0`), which
 spawns a 3D moby (class 112, random orientation), not a sprite: it read as
 blue bubbles. The animation is R&C2's own: sequence 0x8B

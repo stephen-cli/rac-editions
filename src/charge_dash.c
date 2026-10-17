@@ -65,6 +65,17 @@
  *        takes a hit of 1 (flags 0x10000) pushed along 7 frames of travel;
  *        and the lean: whole-body roll and upper-body twist from the turn
  *        (clamp(turn * 27, 1.7)) in the hero's ease table.
+ *  camera (the hero camera pass, 0x4256E0, at 0x425ED0)  every frame of
+ *        the dash: lateral spring 0.04 / 0.2 (0x427D80), turn toward
+ *        Ratchet's facing, his moby's matrix row 0, with strength pi/4 and
+ *        no limit (0x428110), distance 3 at rate 0.003 (0x427C18(0, ..)),
+ *        and the flag at camera + 0x246 (0x427E10). Measured in R&C2, the
+ *        camera is back behind Ratchet 0.6 s after a U-turn mid-dash. R&C1's
+ *        follow camera has the same helpers, the same code with the camera
+ *        fields 0x20 to 0x30 lower (func_L00_002E9A40, func_L00_002E9DC8,
+ *        func_L00_002E9900, func_L00_002E9AD0), and its per-frame overrides
+ *        (func_L00_002E74B0) end with the Thruster-Pack block R&C2's sits
+ *        next to; the dash hooks the call just before it.
  *
  * Sites: tools/gen_charge.py. The sequence: R&C2's 0x8B expanded by
  * tools/rac2_anim.py (build/modseg/gen_anim_charge.c), installed in a free
@@ -81,10 +92,15 @@ DECLARE_LVL(func_L00_00211F80);   /* stick_target(scale, mode) */
 DECLARE_LVL(func_L00_00212740);   /* speed_step(accel, decel): ground speed toward target speed */
 DECLARE_LVL(func_L00_00212790);   /* set_planar_vel(yaw): velocity from ground speed (99999: the facing) */
 DECLARE_LVL(func_L00_00232C10);   /* set_hero_animation(id, start_frame, blend_frames) */
+DECLARE_LVL(func_L00_002E9A40);   /* camera_lateral_spring(k, damping); 0 keeps one */
+DECLARE_LVL(func_L00_002E9DC8);   /* camera_turn_toward(direction, strength, limit) */
+DECLARE_LVL(func_L00_002E9900);   /* camera_set_distance(both, distance, rate) */
+DECLARE_LVL(func_L00_002E9AD0);   /* camera + 0x226 = 1 (R&C2's + 0x246) */
 DECLARE_LVL_DATA(ease_table);     /* the hero's per-joint ease table */
 extern const u32 ee_charge_trigger[19], ee_charge_slot_item[19], ee_charge_scale[19];
 extern const u32 ee_charge_set_state[19], ee_charge_move_site[19], ee_charge_move_fn[19];
 extern const u32 ee_charge_part_frames[19];   /* the particle engine's per-type frame lists */
+extern const u32 ee_charge_camera_site[19], ee_charge_collect[19];
 extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (build/modseg/gen_anim_charge.c) */
 
 #define HERO            0x0013F450
@@ -143,6 +159,9 @@ typedef s32 (*SlotItem)(s32 slot);
 typedef s32 (*ScaleFrames)(s32 frames);
 typedef s32 (*SetState)(s32 state, s32 with_animation);
 typedef void (*Void)(void);
+typedef void (*CamSpring)(f32 k, f32 damping);
+typedef void (*CamTurn)(void *direction, f32 strength, f32 limit);
+typedef void (*CamDistance)(s32 both, f32 distance, f32 rate);
 typedef void (*SetAnim)(s32 id, s32 start_frame, f32 blend);
 typedef void (*StickTarget)(f32 scale, s32 mode);
 typedef void (*SpeedStep)(f32 accel, f32 decel);
@@ -487,4 +506,20 @@ void ee_charge_move_c(u32 ra)
     }
     jets_age();
     ((Void)ee_charge_move_fn[L])();
+}
+
+/* The follow camera overrides' collect_mobies_in_sphere call, then R&C2's
+ * charge camera block (0x425ED0) while Ratchet dashes. */
+s32 ee_charge_camera_c(f32 radius, void *pos, s32 mask, void *self, void *hit, u32 ra)
+{
+    s32 L = ee_level_of_call(ra, ee_charge_camera_site, 0);
+    s32 found = ((CollectInSphere)ee_charge_collect[L])(radius, pos, mask, self, hit);
+    if (S32(HERO_STATE) == STATE_CHARGE) {
+        u8 *moby = *(u8 **)(HERO + HERO_MOBY);
+        LVL(L, func_L00_002E9A40, CamSpring)(0.04f, 0.2f);
+        LVL(L, func_L00_002E9DC8, CamTurn)(moby + 0xC0, PI / 4.0f, 0.0f);
+        LVL(L, func_L00_002E9900, CamDistance)(0, 3.0f, 0.003f);
+        LVL(L, func_L00_002E9AD0, Void)();
+    }
+    return found;
 }

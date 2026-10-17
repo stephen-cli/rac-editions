@@ -325,8 +325,10 @@ def charge_dash(at):
     state 0x7B (src/charge_dash.c), part of the charge_boots feature. The
     input handler's Thruster-Pack test (its slot_item(3) call) goes to
     ee_charge_trigger_hook, which takes the double tap for the boots when
-    they are worn, and the call of the per-state movement function goes to
-    ee_charge_move_hook, which moves the hero while it dashes. Sites from
+    they are worn, the call of the per-state movement function goes to
+    ee_charge_move_hook, which moves the hero while it dashes, and the
+    follow camera overrides' collect_mobies_in_sphere call goes to
+    ee_charge_camera_hook, which adds R&C2's charge camera. Sites from
     tools/gen_charge.py."""
     import json
     sites = HERE.parent / "build/modseg/charge_sites.json"
@@ -334,7 +336,8 @@ def charge_dash(at):
         raise SystemExit(f"missing {sites}: run tools/gen_charge.py first")
     c = json.loads(sites.read_text())[str(at.level)]
     return [(c["trigger"], jal(c["slot_item"]), jal(modseg_symbol("ee_charge_trigger_hook"))),
-            (c["move_site"], jal(c["move_fn"]), jal(modseg_symbol("ee_charge_move_hook")))]
+            (c["move_site"], jal(c["move_fn"]), jal(modseg_symbol("ee_charge_move_hook"))),
+            (c["camera_site"], jal(c["collect"]), jal(modseg_symbol("ee_charge_camera_hook")))]
 
 
 FEATURES = {

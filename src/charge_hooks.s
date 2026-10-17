@@ -22,6 +22,16 @@ ee_charge_move_hook:
     j     ee_charge_move_c
     addu  $4, $31, $0
 
+/* collect_mobies_in_sphere(pos, mask, self, hit, radius) in the follow
+ * camera overrides: four integer arguments and a float, so the return
+ * address goes in $8, the fifth integer argument; the result goes back in
+ * $2. */
+.globl ee_charge_camera_hook
+.extern ee_charge_camera_c
+ee_charge_camera_hook:
+    j     ee_charge_camera_c
+    addu  $8, $31, $0
+
 /* slot_item(slot) in the boots predicate (func_L00_0020DBD8 + 8): one
  * integer argument, the return address goes in $5 (src/charge_boots.c). */
 .globl ee_boots_pose_item_hook

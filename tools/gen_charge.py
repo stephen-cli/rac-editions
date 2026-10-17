@@ -23,6 +23,11 @@ levels, so the catalogue does not name these.
              27's spawner (func_L00_0026EBC0: lui a1 / lw v0 of its own
              entry, the table + 27 * 4); the dash's jets take their texture
              from type 4's list, R&C2's jet texture
+  camera_site the follow camera overrides' (func_L00_002E74B0) one call of
+             collect_mobies_in_sphere (func_L00_001F2BE8), made every frame
+             just before the overrides' Thruster-Pack block, where R&C2's
+             hero camera pass has its charge block; the dash hooks it
+  collect    that call's target, the level's collect_mobies_in_sphere
 
 Writes build/modseg/gen_charge.c (19-entry tables) and
 build/modseg/charge_sites.json (for tools/overlay_patch.py).
@@ -41,12 +46,16 @@ SLOT_ITEM = "func_L00_0020DB30"
 SPEED_STEP = "func_L00_00212740"
 TURN_TO = "func_L00_002124E8"
 SPAWN_FADE = "func_L00_0026EBC0"
+CAMERA_FN = "func_L00_002E74B0"
+CAMERA_FN_SIZE = 1716
+COLLECT = "func_L00_001F2BE8"
 FADE_TYPE = 27
 STATE_COUNT = 0x83
 STATE_COMET = 0x15
 STATE_RUN = 2
 STATE_THRUSTER = 0x81
-NAMES = ("trigger", "slot_item", "scale", "set_state", "move_site", "move_fn", "part_frames")
+NAMES = ("trigger", "slot_item", "scale", "set_state", "move_site", "move_fn", "part_frames", "camera_site",
+         "collect")
 
 
 def jal(target: int) -> int:
@@ -59,7 +68,7 @@ def catalogue(openrac: Path) -> dict:
         if line.startswith("#"):
             continue
         p = line.split("\t")
-        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE):
+        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE, CAMERA_FN, COLLECT):
             lv = {}
             for pl in p[5].split(","):
                 L, a = pl.split(":")
@@ -166,8 +175,16 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
     if len(hi) != 1 or len(lo) != 1:
         raise SystemExit(f"level {level}: type {FADE_TYPE}'s frame list not found in its spawner")
     part_frames = (hi[0] << 16) + (lo[0] - 0x10000 if lo[0] & 0x8000 else lo[0]) - 4 * FADE_TYPE
+
+    # The camera overrides' one call of collect_mobies_in_sphere.
+    camera, collect = one(CAMERA_FN), one(COLLECT)
+    k = (camera - tbase) // 4
+    cams = [tbase + 4 * j for j in range(k, k + CAMERA_FN_SIZE // 4) if w[j] == jal(collect)]
+    if len(cams) != 1:
+        raise SystemExit(f"level {level}: {COLLECT} called {len(cams)} times in {CAMERA_FN}")
     return {"trigger": tbase + 4 * k0, "slot_item": slot_item, "scale": scale, "set_state": set_state,
-            "move_site": calls[0], "move_fn": move_fn, "part_frames": part_frames}
+            "move_site": calls[0], "move_fn": move_fn, "part_frames": part_frames,
+            "camera_site": cams[0], "collect": collect}
 
 
 def main() -> int:
