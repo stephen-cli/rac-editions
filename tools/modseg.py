@@ -49,6 +49,12 @@ LEVEL_DATA = {
     "camera_yaw": ("func_L00_00211F80", 0x280, 0x294),
     # the hero's per-joint ease table (lean and, in the edition, the strafe twist), from a rate setter's lui/addiu
     "ease_table": ("func_L00_0020A858", 0x0, 0x4),
+    # the pause menu state (NTSC menu_system; D_001D5F70 in the executable), from PageMenuClose's lui/addiu
+    "menu_state": ("func_L00_002777C0", 0x4, 0x14),
+    # moby class id -> resident class slot (bytes; D_001B3E40), from create_menu_preview_moby's lui/addiu
+    "class_slot_by_id": ("func_00226720", 0x4, 0xC),
+    # resident class slot -> class data (D_001B3580), from the class loader's lui/addiu
+    "class_resources": ("func_00205270", 0x70, 0x13C),
 }
 # Only the resident core is at one address: below 0x15F000 (core text, data,
 # bss, lit). Everything above, the executable's own game text and data

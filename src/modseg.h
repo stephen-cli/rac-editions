@@ -60,7 +60,7 @@ typedef float f32;
 s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);
 
 /* x2: grants the Charge Boots item each frame (src/charge_boots.c). */
-void ee_charge_boots_frame(void);
+void ee_charge_boots_frame(s32 level);
 /* x2: the level loader's HUD header copy, with the edition's icon appended (src/hud_icons.c). */
 void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size);
 #define EE_SITE_HUD_HEADER_COPY 0xB8    /* func_002032D0 + 0xB8: jal FastMemCopy(header, archive, size) */

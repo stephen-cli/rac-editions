@@ -34,6 +34,8 @@ TEXT_NAME, TEXT_DESC, TEXT_SURFACE = 0x5406, 0x5407, 0x5408   # text/strings.tsv
 RECORD_WORDS = 0x4C // 4
 RECORD_COUNT = 37
 PANEL_BOOTS, PANEL_HEADS = 0x26, 0x25     # menu panel class 0x472 sequences: the boots box, the Head Items box
+PANEL_CLASS = 0x472
+PANEL_SLOT = 219                          # the edition's sequence: the Head Items box moved down (src/charge_boots.c installs it)
 PLACEMENT_WORDS = 8                   # ItemPreviewPlacement: 8 floats per item
 PLACEMENT_COUNT = 36                  # retail's table; item 36 would read the words after it
 PLACEMENT_SIGNATURE = struct.pack("<8f", 2, 3, 0, 0.2, 0, 0.5, 0, 0) * 2   # entries 28 and 29, the boots
@@ -97,6 +99,60 @@ def find_items(pal: Path, level: int) -> dict:
             "panel": page + 4 * 10}
 
 
+def panel_sequence(openrac: Path) -> tuple[bytes, list[int], list[bytes]]:
+    """The Foot Items box sequence: the Head Items box's (0x25), its root
+    translation moved down to the boots box's (0x26) final height, frame by
+    frame. Returns the 0x1C-byte sequence header, the frame offsets within
+    the frames blob, and the frames (16-byte header, quaternions, scale and
+    translation records; OpenRAC's editor/moby_anim.py has the layout)."""
+    sys.path.insert(0, str(openrac / "editor"))
+    from disc import Disc
+    from level import load_level
+    with Disc(openrac / "games/rac1/baserom/SCES_509.16.iso") as disc:
+        level = load_level(disc, disc.survey()["levels"][0])
+    blob = None
+    for entry in level.table(0x18, 32):
+        start, class_id = struct.unpack("<ii", entry[:8])
+        if class_id == PANEL_CLASS:
+            blob = level.block(start)
+    if blob is None:
+        raise SystemExit(f"class {PANEL_CLASS:#x} not in level 0's core")
+    count = blob[0xC]
+    offsets = struct.unpack_from(f"<{count}i", blob, 0x48)
+
+    def frames(n):
+        at = offsets[n]
+        fc = blob[at + 0x10]
+        out = []
+        for f in struct.unpack_from(f"<{fc}I", blob, at + 0x1C):
+            rate, _, qwc, quat_bytes, scales, trans_at, trans = struct.unpack_from("<fh5H", blob, f)
+            out.append((bytearray(blob[f:f + 16 + 16 * qwc]), 16 + trans_at, trans))
+        return blob[at:at + 0x1C], out
+
+    header, heads = frames(PANEL_HEADS)
+    _, boots = frames(PANEL_BOOTS)
+
+    def root_z(frame):
+        data, trans_at, trans = frame
+        for i in range(trans):
+            x, y, z, joint, pad = struct.unpack_from("<3h2B", data, trans_at + 8 * i)
+            if joint == 0:
+                return z
+        raise SystemExit("a panel frame has no root translation")
+    delta = root_z(boots[-1]) - root_z(heads[-1])
+    out, starts, blob_out = [], [], bytearray()
+    for data, trans_at, trans in heads:
+        for i in range(trans):
+            x, y, z, joint, pad = struct.unpack_from("<3h2B", data, trans_at + 8 * i)
+            if joint == 0:
+                struct.pack_into("<3h2B", data, trans_at + 8 * i, x, y, z + delta, joint, pad)
+        starts.append(len(blob_out))
+        blob_out += data
+        if len(blob_out) & 15:
+            blob_out += bytes(16 - (len(blob_out) & 15))
+    return header, starts, bytes(blob_out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
@@ -121,7 +177,7 @@ def main() -> int:
         c.append(f"unsigned short ee_boots_cells_{s}[{5 * len(cells)}] = {{ {words} }};")
         sites[L] = {"cells": {"site": m["widget"] + 0x48, "expect": m["cells"], "symbol": f"ee_boots_cells_{s}"},
                     "cols": {"site": m["widget"] + 0x44, "expect": 2, "value": len(cells)},
-                    "panel": {"site": m["panel"], "expect": PANEL_BOOTS, "value": PANEL_HEADS},
+                    "panel": {"site": m["panel"], "expect": PANEL_BOOTS, "value": PANEL_SLOT},
                     "record": m["record"]}
     # The placement table with a 37th entry for the Charge Boots: the Grindboots' (29).
     words = list(struct.unpack(f"<{PLACEMENT_COUNT * PLACEMENT_WORDS}I", placements))
@@ -131,6 +187,17 @@ def main() -> int:
     for k in range(0, len(words), PLACEMENT_WORDS):
         c.append("  " + ", ".join(f"0x{w:08X}" for w in words[k:k + PLACEMENT_WORDS]) + f",  /* item {k // PLACEMENT_WORDS} */")
     c.append("};")
+    # The Foot Items box: a sequence of the menu panel class, installed at runtime in PANEL_SLOT.
+    header, starts, frames_blob = panel_sequence(args.openrac)
+    c.append("")
+    c.append("/* The Foot Items box: the Head Items box sequence (0x25) of the menu panel class 0x472 with its root moved")
+    c.append("   down to the boots box's height; header words, then the frames' addresses. Installed by src/charge_boots.c. */")
+    c.append(f"static const unsigned char ee_panel_frames[{len(frames_blob)}] __attribute__((aligned(16))) = {{")
+    for k in range(0, len(frames_blob), 16):
+        c.append("  " + ", ".join(f"0x{b:02X}" for b in frames_blob[k:k + 16]) + ",")
+    c.append("};")
+    words = [f"0x{w:08X}" for w in struct.unpack("<7I", header)] + [f"(unsigned int)(ee_panel_frames + 0x{o:X})" for o in starts]
+    c.append(f"const unsigned int ee_panel_seq[{len(words)}] __attribute__((aligned(16))) = {{ {', '.join(words)} }};")
     (args.out / "gen_items.c").write_text("\n".join(c) + "\n")
     (args.out / "items_sites.json").write_text(json.dumps(sites, indent=1))
     print(f"wrote {args.out / 'gen_items.c'} (19 levels) and items_sites.json")

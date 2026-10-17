@@ -55,7 +55,8 @@ struct HudArena {
 };
 #define ARENA (*(volatile struct HudArena *)0x0019A4E8)
 #define HEADER_PAL_ENDS(h)   ((s32 *)((h) + 0x14))   /* palette page range ends per bank */
-#define HEADER_IMG_ENDS(h)   ((s32 *)((h) + 0x34))   /* image page range ends per bank */
+#define HEADER_IMG_ENDS(h)   ((s32 *)((h) + 0x34))   /* image page range ends per bank: 8 words, then the bank sizes and flags at +0x54 */
+#define IMG_ENDS             8
 #define HEADER_BANKS(h)      ((u32 *)((h) + 0x74))   /* linked bank addresses */
 
 #define TABLES_BYTES 0x1800
@@ -147,7 +148,7 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
     for (i = at; i < n_img; i++) {
         page[i + 2] = pages[i];
     }
-    for (i = ICON_BANK; i < 16; i++) {
+    for (i = ICON_BANK; i < IMG_ENDS; i++) {      /* only the range ends: the bank sizes and flags follow them */
         if (img_ends[i] >= at) {
             img_ends[i] += 2;
         }

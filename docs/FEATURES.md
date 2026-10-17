@@ -840,3 +840,30 @@ and fixed:
 
 Also found on the way: `tools/pine_pad.py` could never load its symbol file
 (a `/` bound tighter than `.read_text()`); fixed.
+
+## x2: third round (2026-10-17): the menu texture regression, and the box in its place, awaiting owner test
+
+- **Every pause-menu texture broke** in the second-round build. The HUD
+  header's image page range ends are 8 words at +0x34; the loop shifting
+  them ran over 16 and so incremented the words after them: the bank sizes
+  and the "bank present" flags at +0x54.. (unk54..unk64 in OpenRAC's
+  loaders.c), which made the loader treat the two empty banks as present.
+  Fixed to the 8 real entries.
+- **The Foot Items box** with the Head Items sequence sat on the Head Items
+  box: the sequence carries the place as well as the size (the 5-joint panel
+  class 0x472: a root and four corners; each sequence slides the box in over
+  7 frames, the last frame being the resting box). `tools/gen_items.py`
+  now builds `ee_panel_seq`, the Head Items sequence with every frame's
+  root translation moved down by the difference between the two boxes'
+  final heights (-3442 packed units, 3.36), as a sequence header plus
+  frame addresses in the mod segment, and `src/charge_boots.c` installs it
+  in slot 219 of the class (219 retail sequences; the table has room before
+  the packet table at +0x28AD0) once per level, through the class tables
+  (id -> slot byte at `D_001B3E40`, slot -> data at `D_001B3580`; both
+  level-local, `LEVEL_DATA` entries from `func_00226720` and
+  `func_00205270`) or through a panel moby while the menu is open. The
+  Gadgets page word is patched to 219.
+
+Pipeline note: `pack.sh --quick` numbers its output when the previous
+image is open in an emulator, so the newest `executive-edition*.iso` by
+time is the current build.
