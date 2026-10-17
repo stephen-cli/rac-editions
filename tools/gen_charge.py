@@ -28,6 +28,9 @@ levels, so the catalogue does not name these.
              just before the overrides' Thruster-Pack block, where R&C2's
              hero camera pass has its charge block; the dash hooks it
   collect    that call's target, the level's collect_mobies_in_sphere
+  collect_list where it leaves the mobies it found (a null-terminated list
+             of moby pointers; lui $s6 / addiu $s6 near its start): the
+             dash looks at what it runs into before any hit
 
 Writes build/modseg/gen_charge.c (19-entry tables) and
 build/modseg/charge_sites.json (for tools/overlay_patch.py).
@@ -55,7 +58,7 @@ STATE_COMET = 0x15
 STATE_RUN = 2
 STATE_THRUSTER = 0x81
 NAMES = ("trigger", "slot_item", "scale", "set_state", "move_site", "move_fn", "part_frames", "camera_site",
-         "collect")
+         "collect", "collect_list")
 
 
 def jal(target: int) -> int:
@@ -182,9 +185,14 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
     cams = [tbase + 4 * j for j in range(k, k + CAMERA_FN_SIZE // 4) if w[j] == jal(collect)]
     if len(cams) != 1:
         raise SystemExit(f"level {level}: {COLLECT} called {len(cams)} times in {CAMERA_FN}")
+    c = (collect - tbase) // 4
+    lists = [((w[j] & 0xFFFF) << 16) + ((w[j + 1] & 0xFFFF) - 0x10000 if w[j + 1] & 0x8000 else w[j + 1] & 0xFFFF)
+             for j in range(c, c + 0x40) if w[j] >> 16 == 0x3C16 and w[j + 1] >> 16 == 0x26D6]
+    if len(lists) != 1:
+        raise SystemExit(f"level {level}: {COLLECT}'s result list found {len(lists)} times")
     return {"trigger": tbase + 4 * k0, "slot_item": slot_item, "scale": scale, "set_state": set_state,
             "move_site": calls[0], "move_fn": move_fn, "part_frames": part_frames,
-            "camera_site": cams[0], "collect": collect}
+            "camera_site": cams[0], "collect": collect, "collect_list": lists[0]}
 
 
 def main() -> int:

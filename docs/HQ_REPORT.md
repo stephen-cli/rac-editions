@@ -6,6 +6,18 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
 
+### 🥾 Charge Boots (x2) — Charge works in every level, and is no weapon (owner's reports); implemented, awaiting owner test
+
+**What was wrong.** The charge did nothing on Veldin's first visit. The cause was wider than Veldin. The charge borrowed Going Commando's internal number for its movement state, and that number is free in Batalia (where it was tested), but in 11 of the 19 levels R&C1 uses it for a state of its own, a kind of stun. There the game's own code fought the charge: Veldin 1, Aridia, Eudora, Rilgar, Umbris, Gaspar, Orxon, Oltanis Orbit, Quartu and both Veldin 2 levels. Separately, the charge damaged enemies.
+
+**What changed.** The charge now uses a state number that no level uses, checked across all 19 level programs and the main executable. Contact follows Going Commando, whose charge only ever hits crates, plus the owner's rule: crates still break; running into an enemy bonks Ratchet and ends the charge, leaving the enemy unhurt; anything else is left alone.
+
+**Decisions taken.**
+- "Enemy" means the game's own creature class, which covers the 98 enemy types the game's targeting knows across the levels. "Crate" means the game's crate class (bolt, nanotech, metal, explosive and ammo crates).
+- The fix compiles cleanly, and the static checks covered every level. The in-game test is left to the owner: two Claude sessions' builds overlapped and produced a mixed image that crashed on loading, so the test waits for a clean build.
+
+**Findings.** Going Commando's charge never damaged enemies. Its hit goes only to its crate classes, so this rule matches it.
+
 ### 🥾 Charge Boots (x2) — Going Commando's charge camera ported (owner's report), verified in PCSX2; awaiting owner test
 
 **What was wrong.** When Ratchet charged back toward the camera, R&C1's camera stayed where it was, so he often bonked into it. In Going Commando the camera swings round behind him at once.

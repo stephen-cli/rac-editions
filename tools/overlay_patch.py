@@ -322,8 +322,9 @@ def charge_boots(at):
 
 def charge_dash(at):
     """x2: the Charge Boots dash on R1's double tap, Going Commando's hero
-    state 0x7B (src/charge_dash.c), part of the charge_boots feature. The
-    input handler's Thruster-Pack test (its slot_item(3) call) goes to
+    state 0x7B, R&C1's state 0x48 (src/charge_dash.c), part of the
+    charge_boots feature. The input handler's Thruster-Pack test (its
+    slot_item(3) call) goes to
     ee_charge_trigger_hook, which takes the double tap for the boots when
     they are worn, the call of the per-state movement function goes to
     ee_charge_move_hook, which moves the hero while it dashes, and the

@@ -19,9 +19,16 @@
  * block itself and answers "no Thruster-Pack" (0), so the game's block is
  * skipped; without them it is the game's call.
  *
- * R&C1 has no state 0x7B (none of its switches has the case), so the dash
- * is driven from here. Its pieces, R&C2's (60 fps per-frame constants,
- * converted to R&C1's frame_time units as R&C1 writes its own):
+ * The dash is driven from here, in R&C1's hero state 0x48. R&C2's number,
+ * 0x7B, is one of R&C1's own in 11 level builds (0, 2, 4, 5, 7, 9, 10, 13,
+ * 15, 17, 18: set_state and the movement switch have its case, a stun in
+ * control mode 0x19 with animation 0x71, and 13 levels enter it), which
+ * broke the dash there (first seen on Veldin 1). 0x48 is the state no
+ * level's 130- and 131-entry state switches handle (in set_state, the
+ * movement function and the update, all 19 levels), none enters and no
+ * code compares the hero state with (levels and boot executable). Its
+ * pieces, R&C2's (60 fps per-frame constants, converted to R&C1's
+ * frame_time units as R&C1 writes its own):
  *
  *  entry (set_state case, 0x2BF200)  control mode 0x1C (R&C2's own mode for
  *        the dash: no other action reads it), fidget timer 0x68, unk2284 0,
@@ -60,10 +67,11 @@
  *        steering = smoothed stick x (approach 0.17 per frame) * 0.02036 *
  *        stick magnitude, applied when the stick is past 0.2; speed_step
  *        1/36 up, 1/240 down; set_planar_vel along the facing; the hover
- *        spring (pos.z toward ground + 0.17: 0.04, 0.3, 0.125); then
- *        everything in a 0.57 sphere three frames ahead of the body centre
- *        takes a hit of 1 (flags 0x10000) pushed along 7 frames of travel;
- *        and the lean: whole-body roll and upper-body twist from the turn
+ *        spring (pos.z toward ground + 0.17: 0.04, 0.3, 0.125); then the
+ *        crates in a 0.57 sphere three frames ahead of the body centre
+ *        take a hit of 1 (flags 0x10000) pushed along 7 frames of travel
+ *        (charge_contact: enemies bonk instead, the owner's rule); and the
+ *        lean: whole-body roll and upper-body twist from the turn
  *        (clamp(turn * 27, 1.7)) in the hero's ease table.
  *  camera (the hero camera pass, 0x4256E0, at 0x425ED0)  every frame of
  *        the dash: lateral spring 0.04 / 0.2 (0x427D80), turn toward
@@ -100,7 +108,7 @@ DECLARE_LVL_DATA(ease_table);     /* the hero's per-joint ease table */
 extern const u32 ee_charge_trigger[19], ee_charge_slot_item[19], ee_charge_scale[19];
 extern const u32 ee_charge_set_state[19], ee_charge_move_site[19], ee_charge_move_fn[19];
 extern const u32 ee_charge_part_frames[19];   /* the particle engine's per-type frame lists */
-extern const u32 ee_charge_camera_site[19], ee_charge_collect[19];
+extern const u32 ee_charge_camera_site[19], ee_charge_collect[19], ee_charge_collect_list[19];
 extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (build/modseg/gen_anim_charge.c) */
 
 #define HERO            0x0013F450
@@ -145,7 +153,7 @@ extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (bu
 #define STATE_1D        0x1D          /* R&C2's block skips 1 and 0x1D (both look modes) */
 #define STATE_1E        0x1E
 #define STATE_WALL_BONK 0x7A
-#define STATE_CHARGE    0x7B
+#define STATE_CHARGE    0x48          /* R&C2's 0x7B is a state of R&C1's own in 11 levels; see above */
 #define STATE_THRUSTER  0x81
 #define MODE_CHARGE     0x1C
 #define ANIM_SKID       6
@@ -254,7 +262,7 @@ static s32 install_sequence(void)
     return 1;
 }
 
-/* R&C2's state entry (0x2BF200) after hero_set_state(0x7B, 1). */
+/* R&C2's state entry (0x2BF200), after hero_set_state(STATE_CHARGE, 1). */
 static void charge_enter(s32 L)
 {
     s32 i;
@@ -424,6 +432,66 @@ static void jets_age(void)
     }
 }
 
+/* What the boots run into, in the sphere at probe. R&C2 (0x2BC53C) collects
+ * the mobies there without a hit and hits only those 0x315368 accepts, its
+ * classes 500 to 540, the crates, with flags 0x10000, damage 1 and push:
+ * the charge breaks crates and is no weapon. R&C1's crates are class type
+ * 9 (class + 0x46; bolt, nanotech, metal, explosive and ammo crates), its
+ * creatures, the enemies the game's targeting knows, type 5. The owner's
+ * rule: an enemy ends the dash in a bonk, unhurt. So: collect without a
+ * hit (the result list, gen_charge's collect_list); an enemy bonks; else
+ * the crates get R&C2's hit, every other moby in the sphere losing its
+ * hittable flag (+ 0x34 bit 0x4000, which the hit pass tests) for the
+ * call. 1 when the dash ended. */
+#define CLASS_ENEMY     5
+#define CLASS_CRATE     9
+#define MOBY_HITTABLE   0x4000
+#define CONTACTS        64
+
+static s32 class_type(u8 *moby)
+{
+    u8 *cls = *(u8 **)(moby + 0x24);
+    return cls != 0 ? *(s16 *)(cls + 0x46) : -1;
+}
+
+static s32 charge_contact(s32 L, void *moby)
+{
+    u8 *found[CONTACTS];
+    u8 **list = (u8 **)ee_charge_collect_list[L];
+    s32 n, i, crates = 0, hidden = 0;
+    n = LVL(L, func_L00_001F2BE8, CollectInSphere)(0.57f, probe, 0x10, moby, 0);
+    if (n > CONTACTS) {
+        n = CONTACTS;
+    }
+    for (i = 0; i < n; i++) {
+        found[i] = list[i];
+        if (class_type(found[i]) == CLASS_ENEMY) {
+            set_state(L, STATE_WALL_BONK, 1);
+            return 1;
+        }
+        crates += class_type(found[i]) == CLASS_CRATE;
+    }
+    if (crates == 0) {
+        return 0;
+    }
+    for (i = 0; i < n; i++) {
+        u16 *flags = (u16 *)(found[i] + 0x34);
+        if (class_type(found[i]) != CLASS_CRATE && (*flags & MOBY_HITTABLE)) {
+            *flags &= ~MOBY_HITTABLE;
+            found[hidden++] = found[i];
+        }
+    }
+    for (i = 0; i < 16; i++) {
+        hit[i] = 0;
+    }
+    LVL(L, func_L00_0025A8C0, HitDescriptor)(hit, moby, 0x10000, 1.0f, push);
+    LVL(L, func_L00_001F2BE8, CollectInSphere)(0.57f, probe, 0x10, moby, hit);
+    for (i = 0; i < hidden; i++) {
+        *(u16 *)(found[i] + 0x34) |= MOBY_HITTABLE;
+    }
+    return 0;
+}
+
 /* R&C2's movement block (0x2BC338). */
 static void charge_move(s32 L)
 {
@@ -468,11 +536,9 @@ static void charge_move(s32 L)
         push[i] = F32(HERO_DISP + 4 * i) * (7.0f / fs);
     }
     probe[3] = push[3] = 0.0f;
-    for (i = 0; i < 16; i++) {
-        hit[i] = 0;
+    if (charge_contact(L, moby)) {
+        return;
     }
-    LVL(L, func_L00_0025A8C0, HitDescriptor)(hit, moby, 0x10000, 1.0f, push);
-    LVL(L, func_L00_001F2BE8, CollectInSphere)(0.57f, probe, 0x10, moby, hit);
 
     /* The lean: R&C2's rates (0x2AC468/498/4B0) and targets (+ 0x60, + 0x1C8, + 0x278). */
     lean = turn * 27.0f;
@@ -496,7 +562,7 @@ static void charge_move(s32 L)
 }
 
 /* The per-state movement function's call: the dash moves the hero itself
- * (the game's function has no case for 0x7B and runs after it for its
+ * (the game's function has no case for 0x48 and runs after it for its
  * bookkeeping), and hands over when the dash ends. */
 void ee_charge_move_c(u32 ra)
 {

@@ -1036,10 +1036,26 @@ looping sound in hero sound slot 4, the same entry fields.
   (11.5 u/s), 0.5 (30 u/s) for the first 60 frames with a tenth of the
   steering; steering = smoothed stick x (0.17 per frame) x 0.02036 x stick
   magnitude past 0.2; speed_step 1/36 up, 1/240 down; set_planar_vel along
-  the facing; pos.z sprung to ground + 0.17 (0.04, 0.3, 0.125); a hit of 1
-  (flags 0x10000) on everything in a 0.57 sphere three frames ahead of the
-  body centre, pushed along seven frames of travel; a lean from the turn in
-  the hero's ease table (whole body roll, upper body twist).
+  the facing; pos.z sprung to ground + 0.17 (0.04, 0.3, 0.125); the
+  mobies in a 0.57 sphere three frames ahead of the body centre collected
+  without a hit (`0x2D68B8`, mask 0), and a hit of 1 (flags 0x10000,
+  pushed along seven frames of travel, `0x312330`) sent only to those
+  `0x315368` accepts: classes 500 to 540, R&C2's crates. The charge breaks
+  crates and harms nothing else; a lean from the turn in the hero's ease
+  table (whole body roll, upper body twist).
+- **Contact, in the edition** (the owner's rule, 2026-10-18): crates break
+  as in R&C2, and an enemy ends the dash in a bonk, unhurt. R&C1's crates
+  are class type 9 (class + 0x46: bolt, nanotech, metal, explosive and ammo
+  crates, a breakable pipe and box), its enemies class type 5 (the
+  creatures the game's targeting knows: 98 classes across the levels).
+  `charge_contact` collects the sphere without a hit (the result list, a
+  null-terminated list of moby pointers, `collect_list` per level from
+  `tools/gen_charge.py`); any enemy in it sets the wall bonk (0x7A, a
+  state of every level); otherwise, with a crate in it, it collects again
+  with R&C2's hit while every other moby there has its hittable flag
+  (moby + 0x34, bit 0x4000, which the hit pass tests) cleared for the call.
+  The first port sent the hit to everything hittable in the sphere, which
+  hurt enemies.
 - **Update** (`0x2C4BD8`): R1 let go after 61 frames, or the surface flag
   hero + 0x348, ends it in STOP with the skid (animation 6 from frame 4)
   and STOP's jump/crouch tests held off 30 frames (R1 is still down); a
@@ -1058,10 +1074,20 @@ looping sound in hero sound slot 4, the same entry fields.
   mid-dash): the camera is 168 degrees off his facing, then 97 after 0.2 s,
   29 after 0.4 s and behind him after 0.6 s.
 
-**The port** (`src/charge_dash.c`, `src/charge_hooks.s`). R&C1 has no
-state 0x7B: none of its switches has the case, and `hero_set_state` takes
-it without complaint (bookkeeping only). Three calls per level are hooked,
-found by `tools/gen_charge.py` in each level's own program:
+**The port** (`src/charge_dash.c`, `src/charge_hooks.s`). The dash is R&C1
+hero state 0x48. R&C2's number, 0x7B, was the first choice, free in
+Batalia, but it is a state of R&C1's own in 11 level builds (0, 2, 4, 5,
+7, 9, 10, 13, 15, 17, 18): `hero_set_state` and the movement function have
+its case there (in level 0 a stun: control mode 0x19, animation 0x71,
+Ratchet stopped) and 13 levels enter it, so the dash failed in those
+levels (the owner's report, Veldin 1). 0x48 is the state that no level's
+state switch handles (the 130- and 131-entry switches of `hero_set_state`,
+the movement function and the update, read with each switch's own default
+from its bound check, all 19 levels), that no code enters
+(`hero_set_state(0x48, ..)` nowhere) and that no code compares the hero
+state with (levels and boot executable); `hero_set_state` takes it with
+bookkeeping only. Three calls per level are hooked, found by
+`tools/gen_charge.py` in each level's own program:
 
 - the input handler's `slot_item(3)` (the one whose block enters 0x81 and
   reloads the window with `scale(0x1E)`; 13 places test the pack in level 0)
@@ -1071,12 +1097,12 @@ found by `tools/gen_charge.py` in each level's own program:
   even with the pack on the back (the owner's rule: the boots win);
 - the one call of the per-state movement function (the function holding
   the 0x83-entry movement table) goes to `ee_charge_move_hook`, which, in
-  state 0x7B, runs R&C2's update and movement in R&C1's terms and then the
-  game's function (a no-op for 0x7B but for its bookkeeping);
+  the dash's state, runs R&C2's update and movement in R&C1's terms and
+  then the game's function (a no-op for 0x48 but for its bookkeeping);
 - the follow camera overrides' (`func_L00_002E74B0`) one call of
   `collect_mobies_in_sphere`, made every frame just before the overrides'
   Thruster-Pack block (R&C2's charge block sits next to its own), goes to
-  `ee_charge_camera_hook`: the game's call, then, in state 0x7B, R&C2's
+  `ee_charge_camera_hook`: the game's call, then, during the dash, R&C2's
   camera block. R&C1's follow camera has R&C2's helpers, the same code
   with the camera's fields 0x20 to 0x30 lower: `func_L00_002E9A40`
   (lateral spring), `func_L00_002E9DC8` (turn toward a direction; its
@@ -1143,8 +1169,8 @@ blue bubbles. The animation is R&C2's own: sequence 0x8B
 class, as the strafe's backpedal is in 140.
 
 **Verified in PCSX2** (Batalia, the owner's save, which wears the Charge
-Boots and the Thruster-Pack): the double tap enters 0x7B in control mode
-0x1C with animation slot 141; ground speed reaches 0.6 per PAL frame (30
+Boots and the Thruster-Pack): the double tap enters the dash (state 0x7B
+at the time, 0x48 since) in control mode 0x1C with animation slot 141; ground speed reaches 0.6 per PAL frame (30
 u/s) and settles toward 0.23 (11.5 u/s) after the first second; the
 movement step caps the actual displacement at the collision radius minus
 0.02 (0.43 per frame, 21.5 u/s at 50 Hz), as R&C2's does at 60 Hz;
