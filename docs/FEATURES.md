@@ -634,3 +634,37 @@ with the converter's output; the header's counts and the 16-byte-aligned
 frame addresses checked; the install's store (slot 140) checked in
 disassembly; the nine strafe sites unchanged. Owner test: strafe back and
 watch the backward step; forward and sideways unchanged.
+
+## x5: the strafe crash, found and fixed (2026-10-17)
+
+**Owner's report (twice).** Everything ran until a trigger was held while
+moving: "Jump to unmapped recLUT page (PC: 0x70030c00)". The slot fix of
+the previous entry did not change it.
+
+**Reproduced.** With PCSX2's PINE interface and the mod segment's new
+debug pad (`docs/DEBUGGING.md`), the save was loaded and R2 + stick held
+by script: the same exception on the first strafing frame, and the hook
+trace said the twist hook was running.
+
+**Cause.** The twist, the stick classes and the flip blend called three
+executable helpers at their boot-executable addresses (`0x1FA790`
+fast_subtract_rotations, `0x1FA850` fast_difference_between_rotations,
+`0x1F98C0` scale_game_frames). Only the core below `0x15F000` is resident
+in R&C1; above it every level program is linked afresh, and each level
+carries its own copy of these helpers at its own address (the catalogue
+lists them: `func_001FA790`, `func_001FA850`, `func_001F9850`, 19 places
+each). In a level the boot addresses hold level data, so the first call
+executed data and jumped into nowhere. The slot write of the previous fix
+was real but not this crash.
+
+**Fix.** The three helpers go through the level tables (`DECLARE_LVL`),
+like every other level function the edition calls. Checked in the
+emulator with the scripted scenarios: strafing in all four directions,
+strafe side flip, strafe jumps, plain crouch flip, no exception; the twist
+records ease to +90/-90 degrees in a sideways strafe and back to 0 in a
+plain run; the backpedal plays slot 140 at R&C2's pacing and hands back to
+the run cycle on release.
+
+**Kept.** `tools/pine_pad.py`, `tools/pine_scenarios.py` and the debug pad
+and trace in the mod segment (inert unless written), with
+`docs/DEBUGGING.md`.

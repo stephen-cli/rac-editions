@@ -6,6 +6,14 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-17 (x5, fourth increment: flips, twist, backpedal)
 
+### 🎯 Strafing on L2/R2 (x5) — Crash found by reproduction and fixed; awaiting owner test
+
+**What happened.** The strafe crash survived the first fix, so I reproduced it myself: PCSX2's scripting interface plus a debug pad in the edition let a script load a save and hold R2 with the stick, and the edition's new hook trace named the hook that died. The cause was three engine helpers the strafe called at the addresses they have in the boot executable; in R&C1 only memory below a fixed line stays put inside a level, and each level keeps its own copy of those helpers elsewhere, so the calls landed in level data. They now go through the same per-level tables as everything else.
+
+**Verified in the emulator.** Strafing in all directions, strafe side flips, strafe jumps and a plain crouch flip run without an exception; the twist and the converted backward step are visibly in effect in memory. Your PCSX2 settings were put back exactly as they were.
+
+**Kept for next time.** The scripting harness and a short debugging guide are in the repo, so the next strafe-class bug gets reproduced in minutes rather than by round trips.
+
 ### 🎯 Strafing on L2/R2 (x5) — Going Commando's backward step converted and in; awaiting owner test
 
 **What changed (same day, after the crash fix).** The stand-in is gone: strafing backward now plays Going Commando's own 30-frame backward step. R&C2 stores Ratchet's animations in a packed per-frame format its engine unpacks on the fly; the edition now carries a transcription of that unpacker (`tools/rac2_anim.py`), proven by decoding R&C2's run, walk and jump cycles and matching them against R&C1's copies of the same animations to within the format's own quantization. The build reads the cycle from the owner's R&C2 disc and converts it into R&C1's frame layout; nothing is hand-authored.

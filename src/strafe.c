@@ -138,6 +138,9 @@ DECLARE_LVL(func_002181F0);            /* pad parse(pad, report, length): derive
 DECLARE_LVL(func_L00_00267BA8);        /* pad_pressed_within(button, window, out): a pure query of the press history */
 DECLARE_LVL(func_L00_00222580);        /* stick_direction_vs_facing(): 2 forward, 3 back, 0 and 1 the sides */
 DECLARE_LVL(func_L00_00232C10);        /* set_hero_animation(id, start_frame, blend_frames) */
+DECLARE_LVL(func_001FA790);            /* fast_subtract_rotations(a, b): the level's copy */
+DECLARE_LVL(func_001FA850);            /* fast_difference_between_rotations(a, b): the level's copy */
+DECLARE_LVL(func_001F9850);            /* scale_game_frames(n): the level's copy */
 DECLARE_LVL_DATA(ease_table);          /* the hero's per-joint ease table, per level */
 extern const u32 ee_twist_0[19], ee_twist_1[19], ee_twist_2[19], ee_twist_3[19], ee_twist_4[19], ee_twist_5[19], ee_twist_fn[19];
 extern const u32 ee_runanim_site[19], ee_run_anim_fn[19], ee_flip_appr_0[19], ee_flip_appr_1[19], ee_approach_fn[19];
@@ -196,11 +199,24 @@ typedef s32 (*ScaleFrames)(s32 frames);
 typedef void (*SetAnim)(s32 id, s32 start_frame, f32 blend);
 typedef void (*Void)(void);
 typedef f32 (*Approach)(f32 target, f32 step, f32 *var);
-#define sub_rot         ((Rot2)0x001FA790)       /* fast_subtract_rotations */
-#define diff_rot        ((Rot2)0x001FA850)       /* fast_difference_between_rotations */
-#define scale_frames    ((ScaleFrames)0x001F98C0) /* frames at 60 Hz -> this build's frames (NTSC FUN_001f96f8) */
+/* Executable helpers above 0x15F000 are not resident: only the core below
+ * it keeps its addresses, and every level carries its own copy of these
+ * three at its own address (the catalogue's places). A build that called
+ * them at the boot executable's addresses jumped into level data and died
+ * ("jump to unmapped recLUT page") the first time a strafe ran. */
+#define sub_rot(L, a, b)      (LVL(L, func_001FA790, Rot2)(a, b))        /* fast_subtract_rotations */
+#define diff_rot(L, a, b)     (LVL(L, func_001FA850, Rot2)(a, b))        /* fast_difference_between_rotations */
+#define scale_frames(L, n)    (LVL(L, func_001F9850, ScaleFrames)(n))    /* frames at 60 Hz -> this build's frames (NTSC FUN_001f96f8) */
 
 u32 ee_strafe_held;           /* L2 or R2 held this frame (pad 0); the camera patch reads it */
+/* Debugging from outside (PCSX2's PINE): a fake pad 0 report while [0] is
+ * set ([1] buttons, game layout, active high; [2] left stick x | y << 8;
+ * [3] right stick), and a trace of the hook running (its id, 0 between). */
+volatile u32 ee_debug_pad[4];
+volatile u32 ee_debug_trace;
+volatile u32 ee_debug_last;
+#define TRACE(id)  (ee_debug_trace = ee_debug_last = (id))
+#define TRACE_END() (ee_debug_trace = 0)
 static s32 strafe_active;     /* this frame's RUN turn was the strafe one */
 static f32 strafe_heading;    /* the stick heading the velocity follows */
 static s32 strafe_flip;       /* the current flip (state 0xB) is a strafe flip with the stick pushed */
@@ -215,8 +231,28 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     static const u16 fields[] = { 0x1A0, 0x1A4, 0x1A8, 0x1B0, 0x1B4, 0x1B8, 0x1C0, 0x1C4, 0x1C8, 0x348 };
     s32 i;
 
-    LVL(L, func_002181F0, PadParse)(pad, report, length);
+    TRACE(11);
+    if ((u32)pad == PAD0 && ee_debug_pad[0] && length >= 6) {
+        u32 b = ~ee_debug_pad[1];
+        report[0] = (u8)(b >> 8);
+        report[1] = (u8)b;
+        report[2] = (u8)ee_debug_pad[3];
+        report[3] = (u8)(ee_debug_pad[3] >> 8);
+        report[4] = (u8)ee_debug_pad[2];
+        report[5] = (u8)(ee_debug_pad[2] >> 8);
+    }
+    /* The patched call site is in each level's copy of the pad begin-frame
+     * (the catalogue's places for these two exe functions are the levels'
+     * copies); a debug image that also patches the executable's own copy
+     * (ra 0x218134, before any level is loaded) must call the executable's
+     * parser. */
+    if (ra == 0x00218134) {
+        ((PadParse)0x002181F0)(pad, report, length);
+    } else {
+        LVL(L, func_002181F0, PadParse)(pad, report, length);
+    }
     if ((u32)pad != PAD0) {
+        TRACE_END();
         return;
     }
     ee_strafe_held = p[0x1A0 / 4] & PAD_STRAFE;
@@ -224,6 +260,7 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         strafe_flip = 0;
     }
     if (hero_state == STATE_HOVER) {
+        TRACE_END();
         return;
     }
     for (i = 0; i < 10; i++) {
@@ -232,6 +269,7 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     for (i = 0; i < PAD_HISTORY_LEN; i++) {
         p[PAD_HISTORY / 4 + i] &= ~PAD_STRAFE;
     }
+    TRACE_END();
 }
 
 static s32 level_of_two(u32 ra, const u32 *a, const u32 *b)
@@ -264,6 +302,7 @@ static void strafe_turn(s32 L)
 
 void ee_strafe_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
 {
+    s32 trace_ = (TRACE(3), 0);
     s32 L = level_of_two(ra, ee_run_turn_a, ee_run_turn_b);
     if (ee_strafe_held && hero_state == STATE_RUN) {
         strafe_turn(L);
@@ -271,10 +310,12 @@ void ee_strafe_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
         strafe_active = 0;
         ((TurnTo)ee_turn_to[L])(mode, accel, max_speed, rate);
     }
+    TRACE_END();
 }
 
 void ee_strafe_pivot_c(u32 ra)
 {
+    s32 trace_ = (TRACE(4), 0);
     s32 L = ee_level_of_call(ra, ee_run_pivot, 0);
     if (ee_strafe_held && hero_state == STATE_RUN) {
         strafe_turn(L);
@@ -282,6 +323,7 @@ void ee_strafe_pivot_c(u32 ra)
         strafe_active = 0;
         ((Pivot)ee_pivot_turn[L])();
     }
+    TRACE_END();
 }
 
 static void strafe_planar(s32 L, f32 yaw)
@@ -296,7 +338,9 @@ static void strafe_planar(s32 L, f32 yaw)
 
 void ee_strafe_planar_c(f32 yaw, u32 ra)
 {
+    s32 trace_ = (TRACE(5), 0);
     strafe_planar(level_of_two(ra, ee_run_planar_a, ee_run_planar_b), yaw);
+    TRACE_END();
 }
 
 /* The jump block's turn_to and set_planar_vel (the first frames of a
@@ -304,6 +348,7 @@ void ee_strafe_planar_c(f32 yaw, u32 ra)
  * jump family (the flips never reach these calls). */
 void ee_jump_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
 {
+    s32 trace_ = (TRACE(9), 0);
     s32 L = ee_level_of_call(ra, ee_jump_turn_site, 0);
     if (ee_strafe_held) {
         strafe_turn_with(L, mode, accel, max_speed, rate);
@@ -311,17 +356,21 @@ void ee_jump_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
         strafe_active = 0;
         ((TurnTo)ee_turn_to[L])(mode, accel, max_speed, rate);
     }
+    TRACE_END();
 }
 
 void ee_jump_planar_c(f32 yaw, u32 ra)
 {
+    s32 trace_ = (TRACE(10), 0);
     strafe_planar(ee_level_of_call(ra, ee_jump_planar_site, 0), yaw);
+    TRACE_END();
 }
 
 /* The air control's turn_to for plain jumps: toward the camera yaw while
  * strafing (R&C2 0x2B7920), the heading put back for the air steering. */
 void ee_air_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
 {
+    s32 trace_ = (TRACE(8), 0);
     s32 L = ee_level_of_call(ra, ee_air_turn_site, 0);
     if (ee_strafe_held) {
         f32 keep = hero_move_yaw;
@@ -331,6 +380,7 @@ void ee_air_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
     } else {
         ((TurnTo)ee_turn_to[L])(mode, accel, max_speed, rate);
     }
+    TRACE_END();
 }
 
 /* The stick heading this frame: the saved one while the run's strafe turn
@@ -345,14 +395,14 @@ static f32 stick_heading(void)
  * facing): 2 forward, 3 back, 0 left, 1 right. */
 static s32 strafe_class(s32 L)
 {
-    f32 a = sub_rot(stick_heading(), CAMERA_YAW(L));
-    if (diff_rot(a, PI) < QUARTER_PI) {
+    f32 a = sub_rot(L, stick_heading(), CAMERA_YAW(L));
+    if (diff_rot(L, a, PI) < QUARTER_PI) {
         return 3;
     }
-    if (diff_rot(a, -HALF_PI) < QUARTER_PI) {
+    if (diff_rot(L, a, -HALF_PI) < QUARTER_PI) {
         return 1;
     }
-    if (diff_rot(a, HALF_PI) < QUARTER_PI) {
+    if (diff_rot(L, a, HALF_PI) < QUARTER_PI) {
         return 0;
     }
     return 2;
@@ -371,6 +421,7 @@ static s32 backpedalling(s32 L)
  * press itself is re-read with pad_pressed_within, a pure query. */
 s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
 {
+    s32 trace_ = (TRACE(6), 0);
     s32 L;
     for (L = 0; L < 19; L++) {
         if (ee_jump_press_0[L] + 8 == ra || ee_jump_press_1[L] + 8 == ra
@@ -382,9 +433,11 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
         L = ee_level_of_call(ra, ee_jump_press_0, 0);
     }
     if (((JumpPress)ee_jump_press_fn[L])(window, 1)) {
+        TRACE_END();
         return 1;
     }
     if (!LVL(L, func_L00_00267BA8, PadPressedWithin)(PAD_CROSS, window, 0)) {
+        TRACE_END();
         return 0;
     }
     if (ee_strafe_held && hero_stick > FLIP_STICK) {
@@ -397,7 +450,7 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
             if (OPT_MIRROR_ANIM && (id == 0x1C || id == 0x1D)) {
                 id ^= 1;
             }
-            LVL(L, func_L00_00232C10, SetAnim)(id, 0, (f32)scale_frames(5));
+            LVL(L, func_L00_00232C10, SetAnim)(id, 0, (f32)scale_frames(L, 5));
             if (hero_stick > 0.3f) {
                 strafe_flip = 1;
                 hero_flip_speed = FRAME_TIME * 5.0f;
@@ -405,14 +458,18 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
             } else {
                 strafe_flip = 0;
             }
+            TRACE_END();
             return 1;
         }
     }
     if (crouch_jumps_only) {
+        TRACE_END();
         return 0;
     }
     ((SetState)ee_hero_set_state[L])(STATE_JUMP, 1);
+    TRACE_END();
     return 1;
+    TRACE_END();
 }
 
 /* The flip's speed approach (two calls in the air control, states 0xB and
@@ -420,6 +477,7 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
  * else the game's. */
 void ee_flip_approach_c(f32 target, f32 step, f32 *var, u32 ra)
 {
+    s32 trace_ = (TRACE(7), 0);
     s32 L = level_of_two(ra, ee_flip_appr_0, ee_flip_appr_1);
     if (strafe_flip && hero_state == STATE_HIGH_JUMP) {
         f32 t = hero_stick * FRAME_TIME * 5.0f;
@@ -431,12 +489,14 @@ void ee_flip_approach_c(f32 target, f32 step, f32 *var, u32 ra)
     } else {
         ((Approach)ee_approach_fn[L])(target, step, var);
     }
+    TRACE_END();
 }
 
 /* The lean helper's six calls: R&C2's strafe twist (0x2B80B4) instead of
  * the lean while strafing on the stick, not flipping, not backpedalling. */
 void ee_twist_c(u32 ra)
 {
+    s32 trace_ = (TRACE(1), 0);
     static const u32 *const sites[6] = { ee_twist_0, ee_twist_1, ee_twist_2, ee_twist_3, ee_twist_4, ee_twist_5 };
     s32 L, k;
     for (L = 0; L < 19; L++) {
@@ -450,16 +510,18 @@ void ee_twist_c(u32 ra)
 found:
     if (ee_strafe_held && hero_stick > 0.15f && hero_state != STATE_HIGH_JUMP && !backpedalling(L)) {
         volatile f32 *t = EASE(L);
-        f32 a = sub_rot(stick_heading(), hero_facing);
+        f32 a = sub_rot(L, stick_heading(), hero_facing);
         t[0x158 / 4] = 0.27f;
         t[0xA4 / 4] = 0.037f;
         t[0x154 / 4] = 0.025f;
         t[0xA8 / 4] = 0.27f;
         t[0x68 / 4] = a;
         t[0x118 / 4] = -a;
+        TRACE_END();
         return;
     }
     ((Void)ee_twist_fn[L])();
+    TRACE_END();
 }
 
 /* The backward step, R&C2's cycle in R&C1's layout, in slot 140 of the
@@ -481,6 +543,7 @@ static void install_backpedal(void)
  * (0x2C2560) while strafing back, else the game's walk/run cycles. */
 void ee_run_anim_c(u32 ra)
 {
+    s32 trace_ = (TRACE(2), 0);
     s32 L = ee_level_of_call(ra, ee_runanim_site, 0);
     u8 *moby = hero_moby;
     if (backpedalling(L)) {
@@ -501,10 +564,12 @@ void ee_run_anim_c(u32 ra)
             speed = 2.2f;
         }
         hero_anim_speed = speed;
+        TRACE_END();
         return;
     }
     if (moby[0x53] == BACKPEDAL_SLOT) {
         LVL(L, func_L00_00232C10, SetAnim)(hero_state_step + 3, 0, 7.0f);
     }
     ((Void)ee_run_anim_fn[L])();
+    TRACE_END();
 }
