@@ -867,3 +867,17 @@ Also found on the way: `tools/pine_pad.py` could never load its symbol file
 Pipeline note: `pack.sh --quick` numbers its output when the previous
 image is open in an emulator, so the newest `executive-edition*.iso` by
 time is the current build.
+
+## x2: fourth round (2026-10-17): the texture regression's real cause
+
+The 8-entry loop was a bug but not the one breaking every icon: the
+bank-link hook addressed the HUD arena at the executable's `D_0019A4E8`,
+and that variable is above the resident core, so in a level that address
+is unrelated memory, which the hook then "linked" by adding the bank's
+address to whatever it found there (the level-local copy is at 0x17E5D8 in
+Veldin). The attract demo looked fine because it runs the frontend's
+unpatched copy of the loader. The hook now goes through a trampoline that
+passes its return address, learns the level from the call site and reads
+the arena from a `LEVEL_DATA` table built from the loader's own lui/addiu
+(`hud_arena`). Checked live: the arena, the rebuilt tables with icon
+0xEA84 at the end, and the two pages' sources inside the segment.

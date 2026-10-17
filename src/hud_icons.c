@@ -53,7 +53,13 @@ struct HudArena {
     struct Page *image_pages;   /* 0x24 */
     struct Page *palette_pages; /* 0x28 */
 };
-#define ARENA (*(volatile struct HudArena *)0x0019A4E8)
+/* The arena (D_0019A4E8 in the executable) is above the resident core, so it
+ * has a different address in every level: the link hook learns its level
+ * from its call site and reads the arena's address from the level table
+ * (tools/modseg.py LEVEL_DATA hud_arena, from the loader's own lui/addiu). */
+DECLARE_LVL(func_002032D0);             /* load_hud_banks: the hooked call sites are in it */
+DECLARE_LVL_DATA(hud_arena);            /* the arena: header pointer at +0x18, tables at +0x1C.. */
+#define ARENA_OF(L) (*(volatile struct HudArena *)LVL_DATA(L, hud_arena, u8 *))
 #define HEADER_PAL_ENDS(h)   ((s32 *)((h) + 0x14))   /* palette page range ends per bank */
 #define HEADER_IMG_ENDS(h)   ((s32 *)((h) + 0x34))   /* image page range ends per bank: 8 words, then the bank sizes and flags at +0x54 */
 #define IMG_ENDS             8
@@ -166,14 +172,15 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
 /* LinkHudBank(bank, address), as retail's func_001FF7F0: records the
  * bank's address and adds it to the source offsets of the bank's palette
  * and image pages, once. Then the edition's pages get their real source. */
-void ee_hud_link_bank(s32 bank, u32 addr)
+void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra)
 {
-    u8 *header = ARENA.header;
+    s32 L = ee_level_of_call(ra, lvl_func_002032D0, EE_SITE_HUD_LINK_BANK);
+    u8 *header = ARENA_OF(L).header;
     u32 *slot = HEADER_BANKS(header) + bank;
     s32 *pal_ends = HEADER_PAL_ENDS(header);
     s32 *img_ends = HEADER_IMG_ENDS(header);
-    struct Page *pal = ARENA.palette_pages;
-    struct Page *img = ARENA.image_pages;
+    struct Page *pal = ARENA_OF(L).palette_pages;
+    struct Page *img = ARENA_OF(L).image_pages;
     s32 i, start, limit;
 
     if (*slot != 0) {

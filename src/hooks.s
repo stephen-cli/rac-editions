@@ -119,3 +119,11 @@ ee_stop:
 ee_metal_detector_spawn:
     j     ee_metal_detector_spawn_c
     addu  $10, $31, $0
+
+/* LinkHudBank(bank, address): two integer arguments, so the return address
+ * goes in $6 (the HUD arena is level-local; the hook needs the level). */
+.globl ee_hud_link_bank
+.extern ee_hud_link_bank_c
+ee_hud_link_bank:
+    j     ee_hud_link_bank_c
+    addu  $6, $31, $0
