@@ -40,11 +40,19 @@
  *        Every frame two sprites at each ankle, blue 20 80 FF 40 and cyan
  *        00 FF FF 20: the boots' jets. R&C2 asks for the positions of
  *        Ratchet's joint lists 22 and 23, his class's ankle chains (both
- *        games' Ratchet carry the same skeleton and lists), and draws the
- *        sprites with a particle type R&C1 lacks (0x4A), riding on the
- *        hero; here they are R&C1's glow particles (class 112, in every
- *        level), moving on with most of Ratchet's motion so that each
- *        ankle trails a short streak.
+ *        games' Ratchet carry the same skeleton and lists), and spawns
+ *        particle type 0x4A (spawner 0x331FC8, update 0x332130): an
+ *        additive sprite riding on the hero, blown backwards (his local
+ *        -x) at 1/12 unit a frame, damped 2% a frame, growing and fading to
+ *        nothing over 25 and 15 frames, drawn with particle texture 12, a
+ *        faint cloud. R&C1's particle engine is the same one (ReRAC's
+ *        particles.md), texture 12 included (the first frame of its cloud
+ *        types 4, 11, 13, 18, 23 and 28, pixel for pixel R&C2's). Its type
+ *        27 (spawner func_L00_0026EBC0, in every level) is that sprite
+ *        without the riding, the drift, the growth, the colour change and
+ *        the spin: additive, moving by a fixed step a frame, fading
+ *        linearly. Here it takes texture 12, and every frame (jets_age)
+ *        does the rest of R&C2's update on it.
  *  movement (0x2BC338)  the loop sound (R&C2's sound 0xD; R&C1's Ratchet
  *        has the Thruster-Pack's jet loop, 0x12, in the same slot); the
  *        stick target; target speed 0.1917 per frame (11.5 u/s), and for
@@ -63,7 +71,7 @@
  * slot of Ratchet's class like the strafe's backpedal (src/strafe.c). */
 #include "modseg.h"
 
-DECLARE_LVL(func_L00_002ADBB0);   /* spawn_glow_particle(owner, pos, vel, lifetime, r, g, b, a, scale) */
+DECLARE_LVL(func_L00_0026EBC0);   /* spawn particle type 27(pos, vel, colour, lifetime, size): an additive sprite that drifts and fades */
 DECLARE_LVL(func_L00_001F2BE8);   /* collect_mobies_in_sphere(radius, pos, mask, self, hit) */
 DECLARE_LVL(func_L00_0025A8C0);   /* make_hit_descriptor(hit, attacker, flags, damage, push) */
 DECLARE_LVL(func_0020DAF8);       /* build_moby_bone_transform(moby, joint list, matrix): the level's copy */
@@ -76,6 +84,7 @@ DECLARE_LVL(func_L00_00232C10);   /* set_hero_animation(id, start_frame, blend_f
 DECLARE_LVL_DATA(ease_table);     /* the hero's per-joint ease table */
 extern const u32 ee_charge_trigger[19], ee_charge_slot_item[19], ee_charge_scale[19];
 extern const u32 ee_charge_set_state[19], ee_charge_move_site[19], ee_charge_move_fn[19];
+extern const u32 ee_charge_part_frames[19];   /* the particle engine's per-type frame lists */
 extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (build/modseg/gen_anim_charge.c) */
 
 #define HERO            0x0013F450
@@ -143,7 +152,44 @@ typedef void (*Spring)(volatile f32 *value, volatile f32 *velocity, f32 target, 
 typedef void (*HitDescriptor)(void *hit, void *attacker, s32 flags, f32 damage, void *push);
 typedef s32 (*CollectInSphere)(f32 radius, void *pos, s32 mask, void *self, void *hit);
 typedef void (*BoneTransform)(void *moby, s32 joint, f32 *matrix);
-typedef void *(*SpawnGlow)(void *owner, void *pos, void *vel, s32 lifetime, s32 r, s32 g, s32 b, s32 a, f32 scale);
+typedef void *(*SpawnFade)(void *pos, void *vel, u32 colour, s32 lifetime, f32 size);
+
+/* R&C2's two jet records (0x1A7CA0, 0x1A7CB0), its layout: the colour at
+ * birth and at death (R, G, B, A from the low byte, as R&C1's particles
+ * take it), the size's growth over the life and its size at birth (x 1000,
+ * in 1/210 000 unit, R&C1's and R&C2's sprite size), the lifetime in 60 Hz
+ * frames. */
+struct jet {
+    u32 birth, death;
+    s16 grow, base;
+    s32 frames;
+};
+struct jet ee_charge_jets[2] = {
+    { 0x40FF8020, 0x00CF6000, 100, 70, 25 },
+    { 0x20FFFF00, 0x00008000, 90, 45, 15 },
+};
+f32 ee_charge_jet_size = 1000.0f;  /* R&C2's scale of grow and base */
+f32 ee_charge_jet_push = 5.0f;     /* R&C2's velocity, local -x: 1/12 unit a frame, in units a second */
+f32 ee_charge_jet_damp = 0.02f;    /* of the velocity, a 60 Hz frame */
+#define PART_CLOUD      4             /* a particle type drawn with texture 12, R&C2's jets' */
+
+/* Type 27 fades the alpha (R&C2's does the same) but keeps the step,
+ * colour and size it was born with and does not spin; the rest of R&C2's
+ * update (0x332130) is done here on the sprites this file spawned, while
+ * each one is still the record it was: type 27, alive, the lifetime and
+ * colour it was given. R&C2 keeps each sprite in its owner's frame (the
+ * moby's matrix rows at + 0xC0 and position at + 0x10, R&C1's mobys
+ * the same; row 0 is the facing): an offset moved by the velocity, so the
+ * jets blow out behind the heels and turn with Ratchet. */
+#define JET_TRACKED 128
+static u8 *jet_part[JET_TRACKED];
+static u8 jet_record[JET_TRACKED];
+static u32 jet_rgb[JET_TRACKED];
+static f32 jet_local[JET_TRACKED][3]; /* the offset in Ratchet's frame */
+static f32 jet_push[JET_TRACKED];     /* its velocity backwards, units a frame */
+static s32 jet_next;
+static s32 jet_live;
+static f32 jet_spin;                  /* R&C2's turn of 1/256 a 60 Hz frame, in PAL frames */
 
 #define scale_frames(L, n)  (((ScaleFrames)ee_charge_scale[L])(n))
 #define set_state(L, s, a)  (((SetState)ee_charge_set_state[L])((s), (a)))
@@ -257,23 +303,106 @@ static s32 charge_ends(s32 L)
     return 0;
 }
 
-/* Two sprites at an ankle, R&C2's colours. R&C2's ride on the hero; these
- * move on with 90% of his motion, so each frame's pair falls a little
- * behind the last: a short streak off the boot. */
-static void streak(s32 L, void *moby, s32 joint_list)
+static u32 lerp_rgb(u32 from, u32 to, s32 n, s32 d)
 {
-    s32 i;
+    u32 out = 0;
+    s32 shift;
+    for (shift = 0; shift < 24; shift += 8) {
+        s32 a = (from >> shift) & 0xFF, b = (to >> shift) & 0xFF;
+        out |= (u32)(a + (b - a) * n / d) << shift;
+    }
+    return out;
+}
+
+/* R&C2's two jet sprites at an ankle (its spawner, 0x331FC8): born where
+ * the ankle is, kept as an offset in Ratchet's frame. */
+static void jets(s32 L, u8 *moby, s32 joint_list)
+{
+    u8 *frames = *(u8 **)(ee_charge_part_frames[L] + 4 * PART_CLOUD);
+    f32 *row = (f32 *)(moby + 0xC0);
+    f32 *at = (f32 *)(moby + 0x10);
+    f32 d[3];
+    s32 i, r;
     LVL(L, func_0020DAF8, BoneTransform)(moby, joint_list, bone);
     probe[0] = bone[12];
     probe[1] = bone[13];
     probe[2] = bone[14];
     probe[3] = 1.0f;
-    for (i = 0; i < 3; i++) {
-        drift[i] = F32(HERO_DISP + 4 * i) * 0.9f;
+    for (i = 0; i < 4; i++) {
+        drift[i] = 0.0f;
     }
-    drift[3] = 0.0f;
-    LVL(L, func_L00_002ADBB0, SpawnGlow)(moby, probe, drift, scale_frames(L, 8), 0x20, 0x80, 0xFF, 0x50, 0.3f);
-    LVL(L, func_L00_002ADBB0, SpawnGlow)(moby, probe, drift, scale_frames(L, 6), 0x00, 0xFF, 0xFF, 0x40, 0.22f);
+    for (i = 0; i < 3; i++) {
+        d[i] = probe[i] - at[i];
+    }
+    for (i = 0; i < 2; i++) {
+        const struct jet *j = &ee_charge_jets[i];
+        u8 *part = LVL(L, func_L00_0026EBC0, SpawnFade)(probe, drift, j->birth, scale_frames(L, j->frames),
+                                                        j->base * ee_charge_jet_size);
+        if (part != 0) {
+            s32 k = jet_next;
+            if (frames != 0) {
+                part[2] = frames[0];
+            }
+            jet_next = (jet_next + 1) % JET_TRACKED;
+            jet_live += jet_part[k] == 0;
+            jet_part[k] = part;
+            jet_record[k] = i;
+            jet_rgb[k] = j->birth & 0xFFFFFF;
+            for (r = 0; r < 3; r++) {
+                jet_local[k][r] = d[0] * row[4 * r] + d[1] * row[4 * r + 1] + d[2] * row[4 * r + 2];
+            }
+            jet_push[k] = FRAME_TIME * ee_charge_jet_push;
+        }
+    }
+}
+
+/* R&C2's update (0x332130), every frame before the particles' own: the
+ * size and colour at the sprite's age, the velocity damped and added to
+ * the offset, the position from Ratchet's frame, a turn. R&C2 places the
+ * sprite after the hero has moved; here the hero has not moved yet, so the
+ * record's own step is his last one and type 27's update adds it. */
+static void jets_age(void)
+{
+    u8 *moby = *(u8 **)(HERO + HERO_MOBY);
+    f32 *row = (f32 *)(moby + 0xC0);
+    f32 *at = (f32 *)(moby + 0x10);
+    f32 keep = 1.0f - ee_charge_jet_damp * FRAME_TIME * 60.0f;
+    s32 k, i, turn;
+    if (jet_live == 0) {
+        return;
+    }
+    jet_spin += FRAME_TIME * 60.0f;
+    turn = (s32)jet_spin;
+    jet_spin -= turn;
+    for (k = 0; k < JET_TRACKED && jet_live != 0; k++) {
+        u8 *part = jet_part[k];
+        f32 *l = jet_local[k];
+        const struct jet *j;
+        s32 left, life, age;
+        if (part == 0) {
+            continue;
+        }
+        j = &ee_charge_jets[jet_record[k]];
+        left = *(s32 *)(part + 0x30);
+        life = *(s32 *)(part + 0x34);
+        if (part[0] != 27 || (part[1] & 0x80) || left <= 0 || left > life
+            || (*(u32 *)(part + 4) & 0xFFFFFF) != jet_rgb[k]) {
+            jet_part[k] = 0;
+            jet_live--;
+            continue;
+        }
+        age = life - left;
+        *(f32 *)(part + 0xC) = (j->base + (f32)j->grow * age / life) * ee_charge_jet_size;
+        jet_push[k] *= keep;
+        l[0] -= jet_push[k];
+        for (i = 0; i < 3; i++) {
+            ((f32 *)(part + 0x10))[i] = at[i] + l[0] * row[i] + l[1] * row[4 + i] + l[2] * row[8 + i];
+            ((f32 *)(part + 0x20))[i] = F32(HERO_DISP + 4 * i);
+        }
+        part[8] += turn;
+        jet_rgb[k] = lerp_rgb(j->birth, j->death, age, life);
+        *(u32 *)(part + 4) = (*(u32 *)(part + 4) & 0xFF000000) | jet_rgb[k];
+    }
 }
 
 /* R&C2's movement block (0x2BC338). */
@@ -343,8 +472,8 @@ static void charge_move(s32 L)
     ease[0x1C8 / 4] = lean * 0.5f;
     ease[0x278 / 4] = lean * 0.5f;
 
-    streak(L, moby, ANKLE_RIGHT);
-    streak(L, moby, ANKLE_LEFT);
+    jets(L, moby, ANKLE_RIGHT);
+    jets(L, moby, ANKLE_LEFT);
 }
 
 /* The per-state movement function's call: the dash moves the hero itself
@@ -356,5 +485,6 @@ void ee_charge_move_c(u32 ra)
     if (S32(HERO_STATE) == STATE_CHARGE && !charge_ends(L)) {
         charge_move(L);
     }
+    jets_age();
     ((Void)ee_charge_move_fn[L])();
 }

@@ -6,6 +6,17 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
 
+### 🥾 Charge Boots (x2) — Jets redone with Going Commando's own effect (owner's reports), verified in PCSX2; awaiting owner test
+
+**What was wrong.** The first jets used an R&C1 "glow" that turns out to be a small 3D sphere rather than a particle, so they read as blue bubbles. The owner asked whether R&C1 had something closer to Going Commando's blue jets. An intermediate build then drew the plume straight down; the owner pointed out it should trail back toward the camera. That came from misreading one value in R&C2's code.
+
+**What changed.** The jets are now Going Commando's own effect, rebuilt from its code. R&C2 draws them with the particle engine it inherited from R&C1, so R&C1 has the same pieces: the same faint cloud texture (the same image in the same slot, in every level) and an additive sprite type. Everything else uses R&C2's numbers: two sprites a frame at each ankle, one blue and one cyan, blown backwards out of the heels and turning with Ratchet, growing and darkening as they fade. Measured in the emulator, the trail runs from the ankle to about two units behind, at ankle height.
+
+**Decisions taken.**
+- The edition repeats R&C2's per-sprite update every frame on the sprites it spawns, because R&C1's nearest particle type has no growth, no colour change and does not move with Ratchet.
+
+**Findings.** Going Commando kept R&C1's particle texture slots: texture 12 is the same cloud in both games. That helps if other R&C2 effects are ported later.
+
 ### 🥾 Charge Boots (x2) — Going Commando's dash on R1's double tap implemented and verified in PCSX2; awaiting owner test
 
 **What changed.** With the Charge Boots on, double-tapping R1 (and holding it) charges as in Going Commando: R&C2's own animation, its speed curve (a fast first second, then about twice running speed while R1 is held), its weak-then-normal steering and lean, the hover just above the ground, enemies hit along the way, a wall bonk, and a skid to a stop when R1 is let go. The boots show blue jets at the ankles. With the Thruster-Pack also on the back, the double tap belongs to the boots, as the owner asked; with other boots on, it is the Thruster-Pack's hover as before. Applied to all 19 levels.

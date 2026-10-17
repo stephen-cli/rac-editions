@@ -1072,8 +1072,8 @@ R&C1 has every primitive under its own name: `stick_target`, `speed_step`,
 `set_planar_vel` (the full velocity, slope included, as R&C2's),
 the spring the Thruster-Pack hovers with (`func_L00_0025C918`),
 `hero_loop_sound`, `make_hit_descriptor` + `collect_mobies_in_sphere` (the
-hero's slams use them), `build_moby_bone_transform` and
-`spawn_glow_particle` (class 112, loaded in every level). R&C2's per-frame
+hero's slams use them), `build_moby_bone_transform` and particle type 27's
+spawner (`func_L00_0026EBC0`). R&C2's per-frame
 constants become R&C1's frame_time units, as R&C1 writes its own (speeds x
 60 x frame_time, accelerations x 3600 x frame_time², frame counts through
 the level's `scale_game_frames`, the block's own call). Field map: R&C2
@@ -1085,14 +1085,36 @@ STOP's hold-off + 0x1C4, + 0x1FB0 = stick x + 0x1D20, + 0x24B8 = stick
 magnitude + 0x229C.
 
 Where R&C1 lacks a piece: the loop sound is the Thruster-Pack's jet
-(Ratchet's sound 0x12; R&C2's 0xD is not on the R&C1 disc), and the jets
-are R&C1 glow sprites (R&C2's particle type 0x4A, which rides on the hero,
-does not exist in R&C1) moving on with 90% of Ratchet's motion, so each
-ankle trails a short plume. Their size was set against Going Commando
-itself (Oozla, from the owner's PCSX2 savestate, the charge forced through
-PINE): a bright cyan plume about a boot long at each sole; R&C1's glow
-sprite at scale 0.3 (blue) and 0.22 (cyan) comes closest (the owner found
-0.12 too small; 0.5 drew separate spheres). The animation is R&C2's own: sequence 0x8B
+(Ratchet's sound 0x12; R&C2's 0xD is not on the R&C1 disc). The jets are
+R&C1's own particles, the engine R&C2's grew from (OpenRAC's
+`docs/engine/systems/PARTICLES.md`):
+R&C2's are its particle type 0x4A (spawner `0x331FC8`, update `0x332130`,
+records at `0x1A7CA0`/`0x1A7CB0`), an additive sprite with particle
+texture 12, a faint grey cloud. The spawner keeps it as an offset in its
+owner's frame (the moby's matrix rows at + 0xC0, position at + 0x10) with
+a velocity in that frame, (-1/12, 0, 0) a frame: backwards, along -x, the
+facing being row 0. Each frame the update damps the velocity by 2% and
+adds it to the offset, places the sprite from Ratchet's frame (so the jets
+blow out behind the heels and turn with him), turns it 1/256, grows it
+from 70 000 to 170 000 (blue) and 45 000 to 135 000 (cyan) in 1/210 000
+unit, and moves its colour from birth to death (blue `20 80 FF 40` to
+`00 60 CF 00`, cyan `00 FF FF 20` to `00 80 00 00`) over 25 and 15
+frames. R&C1 has the texture: index 12 is the first frame of its cloud
+types 4, 11, 13, 18, 23 and 28 in every level, pixel for pixel R&C2's
+(R&C2 kept the slot). Its type 27 (spawner `func_L00_0026EBC0`, update
+`func_L00_0026ECA0`, both in every level) is the same kind of sprite,
+additive, fading its alpha linearly as R&C2's does, but moving by a fixed
+step a frame and keeping its size, colour and angle. The dash spawns type
+27 and gives it texture 12 from type 4's frame list (the frame-list table
+found per level by `tools/gen_charge.py`, `part_frames`, from the type 27
+spawner's own load); `jets_age` does the rest of R&C2's update every frame
+on the sprites the dash spawned (128 tracked, each checked to be the same
+record still: type 27, alive, its lifetime and last colour). R&C2 places
+the sprites after the hero has moved; the dash runs before, so each
+record's step is Ratchet's last one and type 27's update adds it. A first
+port drew the jets with `spawn_glow_particle` (`func_L00_002ADBB0`), which
+spawns a 3D moby (class 112, random orientation), not a sprite: it read as
+blue bubbles. The animation is R&C2's own: sequence 0x8B
 (15 frames) expanded by `tools/rac2_anim.py` into
 `build/modseg/gen_anim_charge.c` and installed in slot 141 of Ratchet's
 class, as the strafe's backpedal is in 140.

@@ -18,6 +18,11 @@ levels, so the catalogue does not name these.
              calls speed_step, as tools/gen_hero.py finds it); the dash
              hooks it and moves the hero itself in its state
   move_fn    that function
+  part_frames the particle engine's table of per-type frame lists (each a
+             list of particle texture indices), read from particle type
+             27's spawner (func_L00_0026EBC0: lui a1 / lw v0 of its own
+             entry, the table + 27 * 4); the dash's jets take their texture
+             from type 4's list, R&C2's jet texture
 
 Writes build/modseg/gen_charge.c (19-entry tables) and
 build/modseg/charge_sites.json (for tools/overlay_patch.py).
@@ -35,11 +40,13 @@ ROOT = HERE.parent
 SLOT_ITEM = "func_L00_0020DB30"
 SPEED_STEP = "func_L00_00212740"
 TURN_TO = "func_L00_002124E8"
+SPAWN_FADE = "func_L00_0026EBC0"
+FADE_TYPE = 27
 STATE_COUNT = 0x83
 STATE_COMET = 0x15
 STATE_RUN = 2
 STATE_THRUSTER = 0x81
-NAMES = ("trigger", "slot_item", "scale", "set_state", "move_site", "move_fn")
+NAMES = ("trigger", "slot_item", "scale", "set_state", "move_site", "move_fn", "part_frames")
 
 
 def jal(target: int) -> int:
@@ -52,7 +59,7 @@ def catalogue(openrac: Path) -> dict:
         if line.startswith("#"):
             continue
         p = line.split("\t")
-        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO):
+        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE):
             lv = {}
             for pl in p[5].split(","):
                 L, a = pl.split(":")
@@ -151,8 +158,16 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
     calls = [tbase + 4 * k for k in range(n) if w[k] == jal(move_fn)]
     if len(calls) != 1:
         raise SystemExit(f"level {level}: the movement function {move_fn:#x} is called {len(calls)} times")
+
+    # Type 27's spawner loads its own frame list: lui a1, hi ... lw v0, lo(a1).
+    spawn = (one(SPAWN_FADE) - tbase) // 4
+    hi = [w[k] & 0xFFFF for k in range(spawn, spawn + 56) if w[k] >> 16 == 0x3C05]
+    lo = [w[k] & 0xFFFF for k in range(spawn, spawn + 56) if w[k] >> 16 == 0x8CA2]
+    if len(hi) != 1 or len(lo) != 1:
+        raise SystemExit(f"level {level}: type {FADE_TYPE}'s frame list not found in its spawner")
+    part_frames = (hi[0] << 16) + (lo[0] - 0x10000 if lo[0] & 0x8000 else lo[0]) - 4 * FADE_TYPE
     return {"trigger": tbase + 4 * k0, "slot_item": slot_item, "scale": scale, "set_state": set_state,
-            "move_site": calls[0], "move_fn": move_fn}
+            "move_site": calls[0], "move_fn": move_fn, "part_frames": part_frames}
 
 
 def main() -> int:
