@@ -699,3 +699,62 @@ levels 0, 7 and 18 against the trampoline and found once per level at
 build time. Owner test: strafe at speed and release the stick with the
 trigger held: Ratchet should stop on the spot; release both and he should
 skid as before.
+
+## x2: Charge Boots — first step (2026-10-17): the item, its icon and its menu cell, awaiting owner test
+
+The reward and the gold model come later; this step makes "Charge Boots" a
+gadget the player owns and can equip from the Gadgets page. Equipping it
+attaches the Grindboots model and grants nothing else.
+
+**Item 36.** The game's item records (0x4C bytes each: name and description
+text ids, equip slot, attach bone, moby class, icon, 37 of them) are part
+of every level's data record. Record 36 is an unused copy of the Devastator
+in retail: no grid shows it and no vendor sells it, and the loops that walk
+the table run to 37. The per-item byte arrays the id indexes (owned flags
+at 0x13D5C8, gold-weapon flags at 0x13E620) hold 40 entries (the
+challenge-mode reset copies them whole, 0x28 bytes), so id 36 is in range.
+`tools/gen_items.py` finds the table in each level (icons 0xEA60 + id at
+record +0x38) and rewrites record 36 per level as the Grindboots record
+(slot 1, class 0xC3 on both feet, same bone) with name 0x5406, description
+0x5407, "works on" 0x5408 (text/strings.tsv) and icon 0xEA84. The boots
+grid of the Gadgets page (Grindboots, Magneboots: a 1x2 grid widget, cells
+{icon, frame, kind, id, stream}) gets a third cell: the generator emits a
+three-cell copy per level into the mod segment and `tools/overlay_patch.py`
+(feature `charge_boots`) points the widget's cell pointer (+0x48) at it and
+sets its column count (+0x44) to 3; the grid draw spaces columns from the
+count. The equip handler (`update_menu_grid_selection` in the NTSC decomp)
+writes the id into the slot the record names, and the gadget loader
+attaches the record's class, so nothing else needs to know the id.
+
+**Owned.** Until the Challenge Mode reward exists, `ee_charge_boots_frame`
+(src/charge_boots.c), called from the HUD update hook, sets the owned flag
+every frame. The flag is saved with the game like any item's.
+
+**Icon 0xEA84.** HUD icons live in the HUD header (table of contents 0x14F8,
+3 sectors): an icon table {id, frames, first frame}, frame references
+{palette page, image page} and page tables {source address, GS block, log2
+size}. Page addresses are bank offsets until `LinkHudBank` adds the bank's
+address to the pages in that bank's index range (header +0x14 / +0x34 hold
+the ends); pages past the last range are never relinked or uploaded with a
+bank, and `GetFrameTex` fetches a page from its address on first use. So
+the icon's two 32x32 frames (black, white while equipped; every gadget
+icon's two frames share palette pages 5 and 6, tile colour included) are 2
+KB in the mod segment (`ee_icon_charge_boots`, build/modseg/gen_icons.c),
+and `tools/gen_hud.py header` writes build/hud_header.bin: the retail
+header plus one icon row, two frame references and two image pages at the
+segment's address. The patcher writes it over the header's sectors, so no
+HUD bank is recompressed. `tools/gen_hud.py emit` converts
+art/charge_boots.png (32x32 RGB) to the frames with the Grindboots icon's
+palette entries, the white frame by the same black-to-white entry mapping
+the Grindboots frames show. The hud header is re-read from the disc at each
+level load, so the pages' GS allocations start clean like every other page's.
+
+**Pipeline.** pack.sh runs gen_items.py and `gen_hud.py emit` before the
+mod segment and `gen_hud.py header` after it (the header needs the pixels'
+address). In-place route only; the wrench route does not carry the header.
+
+**Test plan (owner).** Pause, Gadgets: a third boots cell with the new icon,
+black; equip it: the icon turns white, Ratchet wears the Grindboots model;
+the name and description read "Charge Boots". Grind rails need not work
+with it. Check Magneboots and Grindboots still equip, and that a save made
+with it equipped loads.

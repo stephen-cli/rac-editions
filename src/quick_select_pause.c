@@ -90,6 +90,7 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
     s32 open, held, want;
 
     LVL(L, func_L00_0023B610, HudUpdateFn)(arg);
+    ee_charge_boots_frame();           /* x2: the Charge Boots are owned (src/charge_boots.c) */
 
     gate = (volatile u32 *)(LVL_DATA(L, update_flags, u32) + 8);
     open = HUD_SLOT_UPDATE(L, 3) == lvl_func_L00_00238530[L];

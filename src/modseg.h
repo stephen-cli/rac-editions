@@ -59,4 +59,7 @@ typedef float f32;
  * function's 19 addresses and the call site's offset in it (src/level.c). */
 s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);
 
+/* x2: grants the Charge Boots item each frame (src/charge_boots.c). */
+void ee_charge_boots_frame(void);
+
 #endif

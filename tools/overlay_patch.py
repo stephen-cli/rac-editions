@@ -275,7 +275,24 @@ def commercials(at):
     return [(site, 0xA4400060, NOP)]
 
 
+def charge_boots(at):
+    """x2, first step: the Charge Boots item (src/charge_boots.c).
+
+    Per level (tools/gen_items.py's items_sites.json): item record 36, the
+    unused Devastator copy, rewritten as a Grindboots copy with its own
+    name, description and icon; the boots grid's cell pointer sent to a
+    three-cell copy in the mod segment, and its column count made 3."""
+    import json
+    sites = HERE.parent / "build/modseg/items_sites.json"
+    if not sites.is_file():
+        raise SystemExit(f"missing {sites}: run tools/gen_items.py first")
+    m = json.loads(sites.read_text())[str(at.level)]
+    return [(m["cells"]["site"], m["cells"]["expect"], modseg_symbol(m["cells"]["symbol"])),
+            (m["cols"]["site"], m["cols"]["expect"], m["cols"]["value"])] + [tuple(w) for w in m["record"]]
+
+
 FEATURES = {
+    "charge_boots": charge_boots,
     "edition_text": edition_text,
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
@@ -285,7 +302,8 @@ FEATURES = {
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials", "comet_strike_run", "strafe", "strafe_camera"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials", "comet_strike_run", "strafe", "strafe_camera", "charge_boots"]
+HUD_HEADER_TOC = 1500 * SECTOR + 0x14F8   # the table of contents entry {sector, sectors} of the HUD header
 
 
 # --- Disc plumbing ------------------------------------------------------------
@@ -405,6 +423,21 @@ def main() -> int:
         name = f"sectors_{first}.bin"
         (args.output / name).write_bytes(b"".join(sectors[first + k] for k in range(count)))
         lines.append(f"{first}\t{count}\t{name}")
+    # The HUD header with the edition's icon (tools/gen_hud.py header), in place
+    # over the retail header's sectors; its disc place comes from the table of contents.
+    if "charge_boots" in args.features:
+        hud_header = HERE.parent / "build/hud_header.bin"
+        if not hud_header.is_file():
+            raise SystemExit(f"missing {hud_header}: run tools/gen_hud.py header first")
+        with iso.open("rb") as f:
+            f.seek(HUD_HEADER_TOC)
+            first, count = struct.unpack("<2I", f.read(8))
+        blob = hud_header.read_bytes()
+        if len(blob) != count * SECTOR:
+            raise SystemExit(f"{hud_header}: {len(blob)} bytes, the HUD header has {count} sectors")
+        (args.output / "hud_header.bin").write_bytes(blob)
+        lines.append(f"{first}	{count}	hud_header.bin")
+        runs.append([first, count])
     (args.output / "patches.tsv").write_text("\n".join(lines) + "\n")
     print(f"wrote {args.output / 'patches.tsv'} ({len(runs)} sector runs)")
     return 0
