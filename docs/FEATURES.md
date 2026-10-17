@@ -1179,3 +1179,68 @@ stick; letting go of R1 skids to STOP; running into a railing bonks
 (0x7A); with the Grindboots worn instead, the double tap enters the
 Thruster-Pack hover as in retail. Not tested in game: hitting an enemy
 with the charge.
+
+## x5: the quick second strafe flip (2026-10-18), awaiting owner test
+
+**Owner's report.** A quick follow-up side flip while strafing often came
+out as a boosted plain side jump, which (unlike a flip) takes a double jump.
+
+**What R&C2 does, measured in R&C2.** The owner's Oozla savestate,
+driven through PINE: the pad parse's report pointer (Oozla `0x324F60`,
+`daddu $a1, $sp, $zero`) redirected to a buffer at `0xF0000` (free in the
+state), so the game parses a report the script writes, R2 and the stick
+held. A strafe side flip is state 0xB; it lands after 57 frames and is in
+RUN the next frame.
+- Cross after the landing: another flip (the RUN update calls the
+  jump-press handler `0x2C2420` with crouch_jumps_only, and its strafe rule
+  flips).
+- Cross in the last 8 frames before the landing (pressed at flip frames 49
+  and 52): a plain jump (state 7) on landing. The jump family's landing
+  branch (`0x2C6A04`: not on slip ground, hold-off `+ 0x1E0` clear, Cross
+  within 8 frames, air frames under 4, then RUN_JUMP when fast and facing
+  the heading, else JUMP) has no strafe test, in R&C2 as in R&C1 (NTSC
+  `00242930.c`, the jump-family case, `hero.unk418 != 0`). Cross again 12
+  frames into that jump is a double jump (state 0xE).
+- Cross 12 frames before the landing: dropped (out of the window).
+- Speeds, per frame at 60 Hz: flip 0.083 (5 u/s); the plain jump 0.083
+  rising to 0.099 (the run speed); the double jump 0.083.
+
+**What the edition did.** The same states at the same moments: the flip
+lands after 43 PAL frames, Cross after the landing flips again, Cross 5
+frames before it jumps (state 7) and Cross again double jumps. But the
+plain jump left at 0.208 per PAL frame (10.4 u/s, against R&C2's 5 to 6)
+and the RUN after a landing started with a one-frame spike to 0.218.
+
+**Cause.** R&C2's strafe flip path keeps the ground speed at `hero +
+0x174` (`0x2B765C`), which is R&C1's `motion + 0x164`: R&C2's jump-family
+entry takes the take-off speed from it (`0x2C0714`: `+ 0x4D8 = + 0x174`
+when above 1.5/60) as R&C1's does (NTSC `hero_set_state.c`: `unk454 =
+motion.unk164` when above frame_time * 1.5), and R&C1's own air states
+write `ground_speed = motion.unk164` (NTSC `00233de0.c`, states 10 and
+0x11). The port copied `motion + 0x160` (speed_xy), which eases toward the
+run target all through the flip: frame by frame it rose from 0.15 to 0.22
+by the landing, while the flip travelled at 0.10. The landing jump (and
+the RUN after a landing) start from the ground speed.
+
+**Fix.** `ee_flip_approach_c` (`src/strafe.c`) copies `motion + 0x164`.
+The landing-jump rule stays the game's: a press in the last frames of a
+flip is a plain jump in R&C2 too.
+
+**Verified in PCSX2** (the owner's Batalia save, a clean `pack.sh --quick`
+build, the mod segment's debug pad over PINE; the hook in RAM reads `hero +
+0x164`): a strafe flip right lands after 42 frames into RUN at 0.10 rising
+to 0.114 (was a spike to 0.218); Cross at flip frame 38 (5 before the
+landing) and at frame 41: a plain jump (state 7) at 0.10 rising to 0.114,
+the run speed (was 0.208), and Cross 12 frames into it a double jump
+(state 0xE); Cross on the first RUN frame after the landing: the next flip
+(state 0xB), as before. Per second that is close to R&C2's: its plain
+jump goes from 5 to 6 u/s, the edition's from 5 to 5.7.
+
+**Not changed (retail R&C1).** A double jump over a moby floor (hero +
+0x30A, set by the ground probe when the ground below is a moby: it found
+one under that trial's landing spot on the Batalia bridge) has its air
+target capped at frame_time (0.02 a frame) by air control (`air_accel`,
+level 1 `func_L01_00234970`: state 0xE with + 0x30A set); the same double
+jump over plain ground keeps 0.07, strafing or not. One trial's double
+jump fell to 0.02 for that reason alone (measured: + 0x30A = 1 there, 0
+where it kept its speed).

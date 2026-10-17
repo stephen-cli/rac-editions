@@ -88,9 +88,18 @@
  * adds for a strafe flip (0x2B760C): the horizontal speed (hero + 0x458)
  * starts at frame_time * 5 instead of 0 and follows the stick, approached
  * at frame_time^2 * 37 toward max(stick * frame_time * 5, frame_time * 2),
- * the ground speed is kept at the current horizontal speed, and the
- * "drift back toward the take-off yaw" term is dropped (take-off speed +
- * 0x454 = 0). R&C1's flip only gains speed after the apex, so it stands
+ * the ground speed is kept at the speed actually travelled (R&C2's + 0x174
+ * = R&C1's motion + 0x164, the field both games' flip entries take the
+ * take-off speed from), and the "drift back toward the take-off yaw" term
+ * is dropped (take-off speed + 0x454 = 0). A first port copied motion +
+ * 0x160 instead, which keeps easing toward the run target through the
+ * flip (0.15 to 0.22 per frame by the landing, measured, against the
+ * flip's 0.10): a press in the last frames of the flip, which both games
+ * turn into a plain jump on landing (Cross within 8 frames, NTSC
+ * 00242930.c's jump-family landing; R&C2 0x2C6A18, measured in Oozla: a
+ * plain jump that can double jump), left at twice R&C2's speed (owner's
+ * report: a boosted side jump instead of the next flip). R&C1's flip only
+ * gains speed after the apex, so it stands
  * still in the air. R&C2 also classifies the flip from the stick relative
  * to the camera (its raw stick classes), where R&C1's entry uses the
  * facing, which lags the camera while strafing: the edition reclassifies
@@ -502,7 +511,7 @@ void ee_flip_approach_c(f32 target, f32 step, f32 *var, u32 ra)
             t = FRAME_TIME * 2.0f;
         }
         ((Approach)ee_approach_fn[L])(t, FRAME_TIME_SQ * 37.0f, var);
-        hero_ground_speed = hero_speed_xy;
+        hero_ground_speed = hero_speed_164;
     } else {
         ((Approach)ee_approach_fn[L])(target, step, var);
     }

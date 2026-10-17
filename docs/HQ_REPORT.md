@@ -4,6 +4,25 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-18 (x5: the quick second strafe flip)
+
+### 🎯 Strafing on L2/R2 (x5) — Quick follow-up flip fixed (owner's report), verified in PCSX2; awaiting owner test
+
+**What was wrong.** A quick second side flip while strafing often came out as a fast plain side jump that could take a double jump.
+
+**What Going Commando does (measured in R&C2 itself).** On the owner's Oozla save, with the controller driven from a script, a strafe side flip lasts about a second. Pressing Cross after Ratchet lands gives another flip. Pressing Cross in the last 8 frames before he lands gives a plain jump the moment he touches down, and that jump can double jump. That is the game's "jump as soon as you land" buffer, which has no strafe rule in either game. So the plain jump and its double jump are Going Commando's behaviour too. The difference was speed: Going Commando's buffered jump leaves at about the flip's speed (5 to 6 units a second), and the edition's left at 10.4.
+
+**Fix.** The strafe flip kept Ratchet's ground speed in the wrong speed field. That value kept climbing toward running speed during the flip, so whatever followed the landing started at about twice the speed. The flip now keeps the same field Going Commando uses, the speed Ratchet is actually travelling.
+
+**Decisions taken.**
+- The buffered landing jump is kept as both games have it. Making a late press flip instead would differ from Going Commando; it can be done if wanted.
+
+**Verification.** Built and tested in PCSX2 on the owner's Batalia save. A strafe side flip with Cross pressed 5 frames before landing, and again 2 frames before: Ratchet now goes into the plain jump at the flip's own speed, building to normal running speed (was twice that), as in Going Commando (5 to 5.7 units a second here, 5 to 6 there). He can double jump out of it, as in Going Commando. Cross right after landing still gives the next side flip. A plain landing no longer surges forward for a frame. Owner test: strafe sideways and chain side flips. Pressing Cross just after each landing should flip every time. Pressing slightly early gives a normal-speed side hop, as in Going Commando.
+
+**Findings.**
+- Going Commando can now be driven from a script in the emulator (its controller input redirected to a buffer the script writes), so its own behaviour can be measured rather than inferred from code. That's how these numbers were taken.
+- One test double jump stalled in mid-air. That's retail R&C1, not the strafe: over some platform objects (the game found one under that spot on the Batalia bridge) the game deliberately cuts a double jump's sideways drift. Over plain ground it keeps its speed, strafing or not.
+
 ## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
 
 ### 🥾 Charge Boots (x2) — Charge works in every level, and is no weapon (owner's reports); implemented, awaiting owner test
