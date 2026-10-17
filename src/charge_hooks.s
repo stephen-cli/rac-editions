@@ -6,6 +6,22 @@
 .set noreorder
 .text
 
+/* slot_item(slot) at the input handler's Thruster-Pack test: one integer
+ * argument, so the return address goes in $5; the result goes back in $2. */
+.globl ee_charge_trigger_hook
+.extern ee_charge_trigger_c
+ee_charge_trigger_hook:
+    j     ee_charge_trigger_c
+    addu  $5, $31, $0
+
+/* The per-state movement function: no arguments, the return address goes
+ * in $4. */
+.globl ee_charge_move_hook
+.extern ee_charge_move_c
+ee_charge_move_hook:
+    j     ee_charge_move_c
+    addu  $4, $31, $0
+
 /* slot_item(slot) in the boots predicate (func_L00_0020DBD8 + 8): one
  * integer argument, the return address goes in $5 (src/charge_boots.c). */
 .globl ee_boots_pose_item_hook

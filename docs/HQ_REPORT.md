@@ -4,6 +4,25 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
+
+### 🥾 Charge Boots (x2) — Going Commando's dash on R1's double tap implemented and verified in PCSX2; awaiting owner test
+
+**What changed.** With the Charge Boots on, double-tapping R1 (and holding it) charges as in Going Commando: R&C2's own animation, its speed curve (a fast first second, then about twice running speed while R1 is held), its weak-then-normal steering and lean, the hover just above the ground, enemies hit along the way, a wall bonk, and a skid to a stop when R1 is let go. The boots show blue jets at the ankles. With the Thruster-Pack also on the back, the double tap belongs to the boots, as the owner asked; with other boots on, it is the Thruster-Pack's hover as before. Applied to all 19 levels.
+
+**Findings.** Going Commando built the Charge Boots out of R&C1's Thruster-Pack: the same double-tap test at the end of the same input routine, the same hover spring and sound slot. R&C1 has every building block under its own name, so the port is R&C2's charge written in R&C1's terms rather than new physics. R&C1's movement step caps a frame's travel at Ratchet's collision radius, as R&C2's does, so at PAL's 50 Hz the burst tops out at 21.5 units a second where NTSC reaches 25.8.
+
+**Decisions taken.**
+- The charge sound is the Thruster-Pack's jet loop: R&C2's charge sound is not on the R&C1 disc.
+- The jets are R&C1 glow sprites (R&C2's particle type does not exist in R&C1), sized against Going Commando itself: the owner's R&C2 savestate on Oozla, with the charge forced from the emulator.
+- R&C2's charge camera tweaks are not ported; the follow camera keeps up.
+
+### 🥾 Charge Boots (x2) — Worn boots now sit flat (owner's report fixed), verified in PCSX2
+
+**What was wrong.** The Charge Boots tipped with Ratchet's shins and their soles went through the floor. The game poses worn boots from Ratchet's leg (knee, ankle, heel, ball, toe) only for two items, the Magneboots and the Grindboots; every other item is drawn rigid on the knee. A first fix re-skinned the boot to follow the ankle, and the owner rightly reported no change: the skin never mattered while the game skipped the pose.
+
+**Fix.** The pose test now accepts the Charge Boots, and their skin follows the ankle below the ankle as the other boots' does. Side views of idle and crouch in the emulator show the soles flat on the floor, the cuff following the shin, as with the Magneboots.
+
 ## 2026-10-17 (x5, fourth increment: flips, twist, backpedal)
 
 ### 🎯 Strafing on L2/R2 (x5) — Strafe stop measured and finished

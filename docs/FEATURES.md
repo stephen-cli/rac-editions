@@ -1012,3 +1012,99 @@ Verified in PCSX2 (Batalia, the owner's save): with both, the Charge
 Boots' frame pointers point at the leg buffers like the Magneboots', and
 side views of idle and crouch show the soles flat on the floor with the
 cuff following the shin, as the Magneboots do.
+
+## x2: the Charge Boots dash, Going Commando's, on R1's double tap (2026-10-18)
+
+**What R&C2 does.** Read from SCUS_972.68's Oozla program. The Charge Boots
+are hero state 0x7B. Its input handler (`0x2C1A70`) ends with the very
+block R&C1's ends with for the Thruster-Pack (NTSC decomp
+`hero_set_state.c`, the end of `FUN_L01_00240ed8`; level 1 PAL `0x241F50`):
+when nothing changed state this frame, R1 pressed and held (pad + 0x1A0 /
++ 0x1A4, bit 8) within 30 frames of the previous press, in control mode 0,
+1 or 12, or 2 or 4 on the ground, enters the state. R&C1 tests the
+Thruster-Pack on the back (`slot_item(3) == 3`) and enters its hover, 0x81;
+R&C2 tests the Charge Boots owned and worn (`0x1A7B2E`, `0x1A739C == 0x36`)
+and enters 0x7B (`0x2C23D0`), skipping the two look states. The dash
+itself took the Thruster-Pack's kit: the hover spring at ground + 0.17, the
+looping sound in hero sound slot 4, the same entry fields.
+
+- **Entry** (set_state case, `0x2BF200`): control mode 0x1C (the dash's
+  own; no action reads it), fidget timer 0x68, velocity = this frame's
+  displacement, animation 0x8B with an immediate blend. R&C2 also puts its
+  Charge Boots item in the foot slot for the dash only.
+- **Movement** (`0x2BC338`): loop sound 0xD; target speed 0.1917 per frame
+  (11.5 u/s), 0.5 (30 u/s) for the first 60 frames with a tenth of the
+  steering; steering = smoothed stick x (0.17 per frame) x 0.02036 x stick
+  magnitude past 0.2; speed_step 1/36 up, 1/240 down; set_planar_vel along
+  the facing; pos.z sprung to ground + 0.17 (0.04, 0.3, 0.125); a hit of 1
+  (flags 0x10000) on everything in a 0.57 sphere three frames ahead of the
+  body centre, pushed along seven frames of travel; a lean from the turn in
+  the hero's ease table (whole body roll, upper body twist).
+- **Update** (`0x2C4BD8`): R1 let go after 61 frames, or the surface flag
+  hero + 0x348, ends it in STOP with the skid (animation 6 from frame 4)
+  and STOP's jump/crouch tests held off 30 frames (R1 is still down); a
+  wall (the collision's wall flag and the frame's movement under 3/4 of
+  the velocity) gives the wall bonk, 0x77 (R&C1's 0x7A: same animation
+  0x29, same 9 u/s rebound). Every frame two sprites at each ankle
+  (Ratchet's joint lists 22 and 23, his ankle chains; both games' Ratchet
+  carry the same 111-joint skeleton and lists), blue `20 80 FF 40` and cyan
+  `00 FF FF 20`: the boots' jets.
+- The camera pass special-cases the state (distance 3, the lateral spring
+  0.04/0.2, a slide); not ported.
+
+**The port** (`src/charge_dash.c`, `src/charge_hooks.s`). R&C1 has no
+state 0x7B: none of its switches has the case, and `hero_set_state` takes
+it without complaint (bookkeeping only). Two calls per level are hooked,
+found by `tools/gen_charge.py` in each level's own program:
+
+- the input handler's `slot_item(3)` (the one whose block enters 0x81 and
+  reloads the window with `scale(0x1E)`; 13 places test the pack in level 0)
+  goes to `ee_charge_trigger_hook`. Without the Charge Boots worn
+  (`D_00141760[1] != 36`) it is the game's call. With them it runs R&C2's
+  block and answers "no Thruster-Pack", so the R1 double tap is the boots'
+  even with the pack on the back (the owner's rule: the boots win);
+- the one call of the per-state movement function (the function holding
+  the 0x83-entry movement table) goes to `ee_charge_move_hook`, which, in
+  state 0x7B, runs R&C2's update and movement in R&C1's terms and then the
+  game's function (a no-op for 0x7B but for its bookkeeping).
+
+R&C1 has every primitive under its own name: `stick_target`, `speed_step`,
+`set_planar_vel` (the full velocity, slope included, as R&C2's),
+the spring the Thruster-Pack hovers with (`func_L00_0025C918`),
+`hero_loop_sound`, `make_hit_descriptor` + `collect_mobies_in_sphere` (the
+hero's slams use them), `build_moby_bone_transform` and
+`spawn_glow_particle` (class 112, loaded in every level). R&C2's per-frame
+constants become R&C1's frame_time units, as R&C1 writes its own (speeds x
+60 x frame_time, accelerations x 3600 x frame_time², frame counts through
+the level's `scale_game_frames`, the block's own call). Field map: R&C2
+hero + 0x1B0/0x1B4 = R&C1 target/ground speed + 0x190/0x194, + 0x1B8 =
+state timer + 0x198, + 0xF0/0x110 = velocity/displacement + 0xE0/0x100,
++ 0xE0 = body centre + 0xD0, + 0x287 = wall flag + 0x257, + 0x318 = ground
+z + 0x2D8, + 0x340 = grounded frames + 0x300, + 0x348 = + 0x308, + 0x1E0 =
+STOP's hold-off + 0x1C4, + 0x1FB0 = stick x + 0x1D20, + 0x24B8 = stick
+magnitude + 0x229C.
+
+Where R&C1 lacks a piece: the loop sound is the Thruster-Pack's jet
+(Ratchet's sound 0x12; R&C2's 0xD is not on the R&C1 disc), and the jets
+are R&C1 glow sprites (R&C2's particle type 0x4A, which rides on the hero,
+does not exist in R&C1) moving on with 90% of Ratchet's motion, so each
+ankle trails a short plume. Their size was set against Going Commando
+itself (Oozla, from the owner's PCSX2 savestate, the charge forced through
+PINE): a bright cyan plume about a boot long at each sole; R&C1's glow
+sprite at scale 0.3 (blue) and 0.22 (cyan) comes closest (the owner found
+0.12 too small; 0.5 drew separate spheres). The animation is R&C2's own: sequence 0x8B
+(15 frames) expanded by `tools/rac2_anim.py` into
+`build/modseg/gen_anim_charge.c` and installed in slot 141 of Ratchet's
+class, as the strafe's backpedal is in 140.
+
+**Verified in PCSX2** (Batalia, the owner's save, which wears the Charge
+Boots and the Thruster-Pack): the double tap enters 0x7B in control mode
+0x1C with animation slot 141; ground speed reaches 0.6 per PAL frame (30
+u/s) and settles toward 0.23 (11.5 u/s) after the first second; the
+movement step caps the actual displacement at the collision radius minus
+0.02 (0.43 per frame, 21.5 u/s at 50 Hz), as R&C2's does at 60 Hz;
+steering is a tenth for the first second, then about 1.2 rad/s at full
+stick; letting go of R1 skids to STOP; running into a railing bonks
+(0x7A); with the Grindboots worn instead, the double tap enters the
+Thruster-Pack hover as in retail. Not tested in game: hitting an enemy
+with the charge.

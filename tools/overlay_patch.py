@@ -317,7 +317,24 @@ def charge_boots(at):
     # The worn boots' pose: the boots predicate's slot_item call answers 36 as the
     # Magneboots, so the item updater poses them from Ratchet's leg (src/charge_boots.c).
     out.append((at("func_L00_0020DBD8") + 8, jal(at("func_L00_0020DB30")), jal(modseg_symbol("ee_boots_pose_item_hook"))))
-    return out
+    return out + charge_dash(at)
+
+
+def charge_dash(at):
+    """x2: the Charge Boots dash on R1's double tap, Going Commando's hero
+    state 0x7B (src/charge_dash.c), part of the charge_boots feature. The
+    input handler's Thruster-Pack test (its slot_item(3) call) goes to
+    ee_charge_trigger_hook, which takes the double tap for the boots when
+    they are worn, and the call of the per-state movement function goes to
+    ee_charge_move_hook, which moves the hero while it dashes. Sites from
+    tools/gen_charge.py."""
+    import json
+    sites = HERE.parent / "build/modseg/charge_sites.json"
+    if not sites.is_file():
+        raise SystemExit(f"missing {sites}: run tools/gen_charge.py first")
+    c = json.loads(sites.read_text())[str(at.level)]
+    return [(c["trigger"], jal(c["slot_item"]), jal(modseg_symbol("ee_charge_trigger_hook"))),
+            (c["move_site"], jal(c["move_fn"]), jal(modseg_symbol("ee_charge_move_hook")))]
 
 
 FEATURES = {
