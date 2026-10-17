@@ -11,7 +11,14 @@ and wrench's unpack of the owner's R&C2 disc holds that class under
 moby_classes/unsorted/3696 (core.bin, 0.png). wrench's mobyconvert (the
 edition's wrench fork) rewrites the class core in R&C1's format, taking the
 R&C1-only header bytes from R&C1's Grindboots class (195), which the Charge
-Boots stand in for. The class gets id CLASS_ID (R&C1 uses ids up to 1973 and
+Boots stand in for, and re-skins the boot below the ankle (REBIND). A worn
+boot's five joints are Ratchet's knee, ankle, heel, ball and toe (his class's
+joint lists 2 and 3). R&C2's Charge Boots hang the whole boot, sole
+included, on joint 0, the knee, which follows the shin, where both games'
+other boots (R&C1's Magneboots and Grindboots, R&C2's Magneboots) put the
+shoe on joint 1, the ankle, and only the cuff on joint 0; R&C2 shows these
+boots only for the length of a charge. The game must also pose the boots
+from Ratchet's leg at all (src/charge_boots.c). The class gets id CLASS_ID (R&C1 uses ids up to 1973 and
 indexes them in a 0x800-entry table), and every level's class collection a
 reference to it: every level carries both retail boots classes, and the
 fullest level (Oltanis Orbit) goes from 220 to 221 of the engine's 224
@@ -39,6 +46,10 @@ ROOT = HERE.parent
 CLASS_ID = 2000
 RAC2_CLASS = 3696
 RAC1_GRINDBOOTS = "moby_classes/gadget/195_grindboot"
+# mobyconvert --rebind: joint 0 -> joint 1 below the ankle (the boot's origin
+# is the knee; joint 1, the ankle, sits at z -1335 in the boot's vertex units,
+# the ground at -1905), blended between, about where the Magneboots blend.
+REBIND = ("0", "1", "-950", "-1250")
 
 
 def main() -> int:
@@ -64,7 +75,8 @@ def main() -> int:
     cls_dir = out / f"moby_classes/{CLASS_ID}_charge_boots"
     cls_dir.mkdir(parents=True)
     result = subprocess.run([str(convert), str(src / "core.bin"), "gc", str(cls_dir / "core.bin"), "rac",
-                             str(rac1 / RAC1_GRINDBOOTS / "core.bin")], capture_output=True, text=True)
+                             str(rac1 / RAC1_GRINDBOOTS / "core.bin"), "--rebind", *REBIND],
+                            capture_output=True, text=True)
     sys.stdout.write(result.stdout)
     if result.returncode != 0:
         sys.stderr.write(result.stderr)

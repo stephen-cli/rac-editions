@@ -970,3 +970,45 @@ class blobs must sit in the resident part of the core, below +0x7C (wrench's
 scene_view_size); the texture and upload tables may move. Retail packs its
 core data about 3.5% looser than wrench's compressor, which leaves room for
 the additions with every archive still smaller than retail's.
+
+## x2: the Charge Boots posed from Ratchet's leg (2026-10-18) — fixed, verified in PCSX2
+
+**The owner's report.** Worn, R&C2's Charge
+Boots tipped with Ratchet's shin and their soles went through the floor,
+where the Magneboots and Grindboots stay flat. Two causes, both needed:
+
+- *The game poses only two boots.* A worn boot is two item mobys (one per
+  foot) placed at Ratchet's knee each frame. The item updater
+  (`func_L00_0020FC18`) asks three predicates of each slot's item, and the
+  boots one (`func_L00_0020DBD8`: `item - 0x1C < 2`, the Magneboots or the
+  Grindboots) sends each boot moby through the pose builder
+  (`func_L00_00209940`), which writes Ratchet's leg (his class's joint
+  lists 2 and 3: knee, ankle, heel, ball, toe) into a per-boot frame
+  buffer the moby then plays (`0x17D100`/`0x17D200` in level 8, the moby's
+  frame pointers at + 0x68/+ 0x6C). Item 36 failed the test, so the
+  Charge Boots played their class's own static frame (all bind pose) and
+  were drawn rigid on the knee whatever their skin: measured in PCSX2,
+  the boot mobys' frame pointers pointed into the class, the Magneboots'
+  at the buffers; and a test image binding the whole boot to the toe
+  joint looked exactly the same. The predicate's `slot_item` call
+  (`func_L00_0020DBD8 + 8`) now goes to `ee_boots_pose_item_hook`
+  (`src/charge_boots.c`), which answers 36 as the Magneboots for that
+  test only (the predicate has no other caller).
+- *Their skin hangs the shoe on the knee.* The boot classes' five joints
+  are those five leg joints. R&C1's Magneboots and Grindboots, and R&C2's
+  own Magneboots, put the shoe on joint 1 (the ankle) and only the cuff
+  on joint 0 (the knee); R&C2's Charge Boots hang the whole boot, sole
+  included, on joint 0 (R&C2 shows them only during a charge). `mobyconvert
+  --rebind 0 1 -950 -1250` (the edition's wrench fork, `tools/gen_boots.py`)
+  moves the skin below the ankle to joint 1: vertices on joint 0 alone
+  below z -1100 (boot units; the knee is the origin, the ankle at -1335,
+  the ground at -1905) load joint 1 (one more matrix transfer per packet,
+  into a VU0 address no vertex uses), the knee/ankle two-way blends are
+  re-weighted from all knee at -950 to all ankle at -1250, about where
+  the Magneboots blend, and the metal (shine) packets, which name their
+  joints directly, get the same. Vertex order (the VU1 slots) is kept.
+
+Verified in PCSX2 (Batalia, the owner's save): with both, the Charge
+Boots' frame pointers point at the leg buffers like the Magneboots', and
+side views of idle and crouch show the soles flat on the floor with the
+cuff following the shin, as the Magneboots do.

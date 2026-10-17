@@ -97,3 +97,30 @@ void ee_charge_boots_frame(s32 L)
         EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
     }
 }
+
+/* The worn boots' pose. A worn item moby is placed at a joint of Ratchet's
+ * every frame, but only some items are posed from Ratchet's skeleton: the
+ * item updater (func_L00_0020FC18) asks three predicates of each slot's
+ * item, and the boots one (func_L00_0020DBD8: item - 0x1C < 2, i.e. the
+ * Magneboots or the Grindboots) sends each boot moby through the pose
+ * builder (func_L00_00209940), which writes Ratchet's leg (joint lists 2
+ * and 3: knee, ankle, heel, ball, toe) into a per-boot frame buffer that
+ * the moby then plays. Any other item keeps its class's own static frame,
+ * so the Charge Boots (36) were drawn rigid on the knee whatever their
+ * skin, the soles tilting with the shin through the floor (owner's report,
+ * 2026-10-18; measured: the boot moby's frame pointer at + 0x6C pointed
+ * into its class, the Magneboots' at the buffers 0x17D100/0x17D200 in
+ * level 8). The predicate's slot_item call comes here (src/charge_hooks.s)
+ * and the Charge Boots answer as the Magneboots, for that test only. */
+DECLARE_LVL(func_L00_0020DBD8);        /* the boots predicate; its slot_item call is at + 8 */
+DECLARE_LVL(func_L00_0020DB30);        /* slot_item(slot): the item in a hero slot */
+#define ITEM_MAGNEBOOTS    0x1C
+#define EE_SITE_BOOTS_POSE 0x8
+typedef s32 (*SlotItem)(s32 slot);
+
+s32 ee_boots_pose_item_c(s32 slot, u32 ra)
+{
+    s32 L = ee_level_of_call(ra, lvl_func_L00_0020DBD8, EE_SITE_BOOTS_POSE);
+    s32 item = LVL(L, func_L00_0020DB30, SlotItem)(slot);
+    return item == ITEM_CHARGE_BOOTS ? ITEM_MAGNEBOOTS : item;
+}

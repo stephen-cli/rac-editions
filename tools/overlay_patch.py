@@ -314,6 +314,9 @@ def charge_boots(at):
             if (old >> 26) != 0x09:
                 raise SystemExit(f"level {at.level}: {fn} + {o} is not an addiu")
             out.append((f + o, old, (old & 0xFFFF0000) | lo))
+    # The worn boots' pose: the boots predicate's slot_item call answers 36 as the
+    # Magneboots, so the item updater poses them from Ratchet's leg (src/charge_boots.c).
+    out.append((at("func_L00_0020DBD8") + 8, jal(at("func_L00_0020DB30")), jal(modseg_symbol("ee_boots_pose_item_hook"))))
     return out
 
 
