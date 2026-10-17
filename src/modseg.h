@@ -55,6 +55,14 @@ typedef float f32;
  * control.) tools/gen_menu.py reads this name from here. */
 #define EE_SETTING_QS_PAUSE     0x0015EEBB
 
+/* The Options list row the edition inserts (q3), shared with tools/gen_menu.py,
+ * and the two core tables the game fills at boot from the disc's table of
+ * contents: {first sector, sectors} per Options row (options_ss) and per Help
+ * row (help_ss: Help Log, Controls, Moves, Weapons, Gadgets). */
+#define EE_OPTIONS_ROW          3
+#define EE_OPTIONS_SS           0x00138140
+#define EE_HELP_SS              0x00138108
+
 /* The level whose program made the call that returns to RA, given the hooked
  * function's 19 addresses and the call site's offset in it (src/level.c). */
 s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);

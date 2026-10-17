@@ -349,24 +349,41 @@ def load_catalogue(openrac: Path) -> dict[str, dict[int, int]]:
     return places
 
 
-def level_text_locations(openrac: Path):
+TOC_LBA, LEVEL_TABLE = 1500, 0x28C8      # table of contents; its level table: {header LBA, sectors} x 19
+
+
+def level_data_ranges(iso: Path) -> dict[int, tuple[int, int]]:
+    """level id -> (first sector, sectors) of its data archive, read through the table of
+    contents and each level header (+0x08). Works on the retail image and on wrench-built
+    ones, whose directory layout the editor's Disc reader does not accept."""
+    out = {}
+    with iso.open("rb") as f:
+        f.seek(TOC_LBA * SECTOR)
+        toc = f.read(6 * SECTOR)
+        for level in range(19):
+            header, _ = struct.unpack_from("<2I", toc, LEVEL_TABLE + 8 * level)
+            f.seek(header * SECTOR + 8)
+            out[level] = struct.unpack("<2I", f.read(8))
+    return out
+
+
+def level_text_locations(openrac: Path, iso: Path | None = None):
     """level id -> list of (first byte of a record in the image, its load address, its size),
     text record first, then the level's data record (the executable's data, menus included,
     is part of every level's data record at the same addresses)."""
     sys.path.insert(0, str(openrac / "editor"))
-    from disc import Disc
     from formats import unpack, span, overlay_sections
     from level import SECTION_NAMES
-    iso = openrac / "games/rac1/baserom/SCES_509.16.iso"
+    iso = iso or openrac / "games/rac1/baserom/SCES_509.16.iso"
     out = {}
-    with Disc(iso) as disc:
-        for info in disc.survey()["levels"]:
-            r = info["ranges"]["data"]
-            data = disc.sectors(r["lba"], r["sectors"])
+    with iso.open("rb") as f:
+        for level, (lba, sectors) in level_data_ranges(iso).items():
+            f.seek(lba * SECTOR)
+            data = f.read(sectors * SECTOR)
             off, size = unpack("<ii", data, SECTION_NAMES.index("overlay") * 8)
             secs = overlay_sections(span(data, off, size))["sections"]
-            out[info["id"]] = [(r["lba"] * SECTOR + off + rec["offset"], rec["address"], rec["bytes"])
-                               for rec in (secs[-1], secs[2])]
+            out[level] = [(lba * SECTOR + off + rec["offset"], rec["address"], rec["bytes"])
+                          for rec in (secs[-1], secs[2])]
     return iso, out
 
 
@@ -376,6 +393,8 @@ def main() -> int:
     ap.add_argument("--openrac", type=Path, default=HERE.parent.parent / "OpenRAC")
     ap.add_argument("-o", "--output", type=Path, default=HERE.parent / "build/patches")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--iso", type=Path, default=None,
+                    help="image whose level code to patch (default: the retail image); e.g. a wrench-built one")
     args = ap.parse_args()
 
     for f in args.features:
@@ -383,7 +402,7 @@ def main() -> int:
             print(f"unknown feature {f}; known: {', '.join(FEATURES)}", file=sys.stderr)
             return 2
     places = load_catalogue(args.openrac)
-    iso, texts = level_text_locations(args.openrac)
+    iso, texts = level_text_locations(args.openrac, args.iso)
 
     sectors: dict[int, bytearray] = {}
     with iso.open("rb") as f:

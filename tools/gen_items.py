@@ -48,7 +48,7 @@ def level_record(pal: Path, level: int):
     return rec["address"], data
 
 
-def find_items(pal: Path, level: int) -> dict:
+def find_items(pal: Path, level: int, boots_class: int | None = None) -> dict:
     base, d = level_record(pal, level)
     u32 = lambda a: struct.unpack_from("<I", d, a - base)[0]
     u16 = lambda a: struct.unpack_from("<H", d, a - base)[0]
@@ -66,6 +66,8 @@ def find_items(pal: Path, level: int) -> dict:
     if spare[0] != 0x4E4D or spare[16] != 0:
         raise SystemExit(f"level {level}: record 36 is not the unused Devastator copy")
     new = list(grind)
+    if boots_class is not None:
+        new[4] = new[5] = boots_class                   # the model, on both feet (tools/gen_boots.py's class)
     new[0] = TEXT_NAME                                  # name
     new[14] = (grind[14] & 0xFFFF0000) | ICON_CHARGE_BOOTS   # icon; the preview class stays -1
     new[16] = TEXT_DESC                                 # description on the Gadgets page
@@ -157,6 +159,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/modseg")
+    ap.add_argument("--boots-class", type=int, default=None,
+                    help="moby class of the Charge Boots model (tools/gen_boots.py's, wrench route); "
+                         "default: the Grindboots' (0xC3), for images without the new class")
     args = ap.parse_args()
     pal = args.openrac / "games/rac1"
     args.out.mkdir(parents=True, exist_ok=True)
@@ -165,7 +170,7 @@ def main() -> int:
     sites = {}
     placements = None
     for L in range(19):
-        m = find_items(pal, L)
+        m = find_items(pal, L, args.boots_class)
         if placements is None:
             placements = m["placements"]
         elif m["placements"] != placements:

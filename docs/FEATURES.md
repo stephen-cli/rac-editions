@@ -881,3 +881,60 @@ passes its return address, learns the level from the call site and reads
 the arena from a `LEVEL_DATA` table built from the loader's own lui/addiu
 (`hud_arena`). Checked live: the arena, the rebuilt tables with icon
 0xEA84 at the end, and the two pages' sources inside the segment.
+
+## x2: Going Commando's Charge Boots model, and the wrench route made whole (2026-10-17)
+
+**The model.** R&C2 names its items in a weapon table in the boot program
+(`g_weaponTable`, 0xE0-byte records): record 54 has the "Charge Boots" text
+(0xA9F), the foot slot and moby class 0xE70 (3696) on both feet, the same
+shape as R&C1's Grindboots record. wrench's unpack of the owner's R&C2 disc
+holds that class (5 joints, 3 sequences, 18 mesh and 5 metal packets, one
+128x128 texture, scale 0.1458, like the Grindboots). `mobyconvert` in the
+edition's wrench fork rewrites it in R&C1's format; R&C1 vertex tables end
+with per-vertex colour multipliers that R&C2's lack, so the fork's writer now
+generates neutral ones (0x80, the only value on the R&C1 disc). The result
+decodes with OpenRAC's independent R&C1 moby decoder (1,591 skinned
+vertices). `tools/gen_boots.py` builds `build/boots_bank`, a wrench asset
+bank with the class as id 2000 (R&C1 indexes ids in a 0x800-entry table and
+uses up to 1973) and a reference to it in every level's class collection;
+the fullest level (Oltanis Orbit) goes from 220 to 221 of the engine's 224
+class slots, gadget entries included. Item 36's record then names class 2000
+(`gen_items.py --boots-class 2000`). Nothing from either disc is committed.
+
+**wrench's mipmaps (chaoticgd/wrench#286), fixed in the fork.** Measured on
+PAL Aridia: a mipped R&C1 texture (types 3 and 4; type 1 has none) stores a
+half-size image right after its pixels, which the game reads as mip level 1,
+and a quarter-size image in GS RAM, both box-filtered (within 1.9 and 2.7
+RGB units of the block averages). Upstream wrench wrote no half image, so
+mip 1 was the next texture in the pool (98.7 from the average), and point
+sampled the quarter (22.7). The fork writes both, filtered (1.7 and 2.0).
+
+**The wrench route carries the edition.** `tools/pack.sh` without `--quick`
+now packs the game bank, wrench's overlay, `mod/` and the boots bank with the
+fork, then runs `overlay_patch.py --iso` against the packed image (level
+locations read through the table of contents and level headers, which works
+on wrench's layout where the editor's disc reader does not) and writes the
+sectors in place with `tools/apply_patches.py`. The Options page previews,
+which are streamed by sector, are refreshed at runtime from the tables the
+game fills at boot from the table of contents (`EE_OPTIONS_SS`, `EE_HELP_SS`),
+so each image streams its own. `--quick` stays as it was, with the
+Grindboots model.
+
+**Status at the end of 2026-10-17, tested in PCSX2 on the owner's Hoven save
+(wrench route).** The edition boots and loads; the Charge Boots icon and the
+R&C2 model show in the Gadgets page. But every item Ratchet carries or wears
+(Clank, the Heli-pack, the weapons in the menus, the boots, the infobot)
+draws with corrupt garbage instead of its texture, as in upstream wrench
+builds (the "texture errors in menus" of #286). Measured and ruled out:
+- the retail rule for those items' textures is type 1, no mips (33 textures
+  in Hoven, 39 classes over the 19 levels, never mixed with other types);
+  the fork now unpacks them as `stash_textures` and packs them as type 1
+  without mips (bank `assets/wrench/rac1-pal-fork`, `GAME_BANK` in pack.sh),
+  which matches retail but does not fix the corruption;
+- texture pixel offsets in the core are now identical to retail's;
+- the GS RAM upload is consistent (the uploader's running cursor equals
+  every entry's stored address, in retail and in the wrench image), so the
+  palettes are where the texture entries say.
+Still unknown: how the engine keeps those items' textures (the per-frame
+moby texture streaming is not decompiled to C yet). The quick route is
+unaffected and still wears the Grindboots model.

@@ -83,6 +83,33 @@ static s32 paused;
 static s32 held_frames;     /* consecutive frames with the ring open and Triangle held */
 static s32 was_held;        /* last frame's held, to see the release */
 
+/* The Options page's preview table (tools/gen_menu.py): the Options rows'
+ * {first sector, sectors} with the Help page's "Controls" preview at the
+ * edition's row. Refreshed from the tables the game fills at boot from the
+ * disc's table of contents, so a wrench-built image, whose files sit
+ * elsewhere, streams its own previews. */
+extern u32 ee_options_images[16];
+
+static void refresh_option_images(void)
+{
+    volatile u32 *options = (volatile u32 *)EE_OPTIONS_SS;
+    volatile u32 *help = (volatile u32 *)EE_HELP_SS;
+    s32 row, out = 0;
+    if (options[1] == 0 || help[3] == 0) {
+        return;                                  /* not filled yet: keep the retail numbers */
+    }
+    for (row = 0; row < 7; row++) {
+        if (row == EE_OPTIONS_ROW) {
+            ee_options_images[2 * out] = help[2];
+            ee_options_images[2 * out + 1] = help[3];
+            out++;
+        }
+        ee_options_images[2 * out] = options[2 * row];
+        ee_options_images[2 * out + 1] = options[2 * row + 1];
+        out++;
+    }
+}
+
 void ee_hud_update_hook_c(s32 arg, u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_L00_00299250, EE_SITE_HUD_UPDATE);
@@ -91,6 +118,7 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
 
     LVL(L, func_L00_0023B610, HudUpdateFn)(arg);
     ee_charge_boots_frame(L);          /* x2: the Charge Boots are owned; their box sequence (src/charge_boots.c) */
+    refresh_option_images();
 
     gate = (volatile u32 *)(LVL_DATA(L, update_flags, u32) + 8);
     open = HUD_SLOT_UPDATE(L, 3) == lvl_func_L00_00238530[L];
