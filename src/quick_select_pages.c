@@ -55,8 +55,6 @@
 DECLARE_LVL(func_L00_00238530);   /* QuickSelectUpdate(slot) */
 DECLARE_LVL(func_L00_00238C30);   /* QuickSelectDraw(slot) */
 DECLARE_LVL(func_L00_00236400);   /* the box origin from the slot's anchor flags: (slot, &x, &y) */
-DECLARE_LVL(func_00200198);       /* get_icon_frame(icon id, variant: 4 = gold) */
-DECLARE_LVL(func_00200468);       /* draw_hud_sprite(frame, x, y, w, h, alpha) */
 DECLARE_LVL(func_001F68E8);       /* font_print_large(x, y, colour, text, limit) */
 DECLARE_LVL(func_001F6EA8);       /* font_print_center(x, y, colour, text, limit) */
 DECLARE_LVL(func_001F4630);       /* setup_gif_paging(0) */
@@ -209,108 +207,28 @@ void ee_qs_update_c(void *slot, u32 ra)
     LVL(L, func_L00_00238530, SlotFn)(slot);
 }
 
-/* Ghost rings (owner's stretch goal): faint, shrunken copies of the next page
- * (right, R1) and the previous page (left, L1) behind the ring, each showing
- * the five icons on its far side; the three on its near side would sit under
- * the ring and are left out. The game's ring puts slot i at angle
- * i * 45 degrees - 180 + 90 (FastAddRots(a, pi/2), func_001FA748): slot 0
- * top, then clockwise, 2 right, 4 bottom, 6 left (y down). A first build
- * missed the quarter turn and drew every ghost icon 90 degrees anticlockwise
- * of its real place (owner's report: East at North, South at East). At
- * 74 x 1.05 across and 74 down (QuickSelectDraw: gp constants 74 and 1.05).
- * There is no room for the left ghost at the ring's retail place near the
- * screen's left edge, so while ghosts are shown the ring moves right just
- * enough (its slot record's x, +0x50, for the length of the game's draw).
- * With ghosts, the L1/R1 glyphs sit between the ring and each ghost's far
- * icon (in the ghosts' centres they covered the ring's side icons). */
-#define GHOSTS          1
-/* The ghosts' layout, as a table the tuning sessions changed live over PINE
- * (build/modseg/modseg.sym names it); the values are the ones settled on
- * screen (2026-10-18; 96/750/24 looked scattered, 104/820/26 read best as
- * rings but pushed the ring further right; then narrowed across at the
- * owner's request, which moves the ring 19 pixels less). */
-enum { T_DX, T_SCALE, T_ICON, T_ALPHA, T_GLYPH_DX, T_MARGIN, T_SCALE_X, T_COUNT };
-s32 ee_qs_tune[T_COUNT] = {
-    96,     /* T_DX: ghost centre from the ring's; its top/bottom icons clear the ring's diagonals */
-    800,    /* T_SCALE: ghost circle radius, per mille of the ring's (down) */
-    26,     /* T_ICON: ghost icon size; the ring's are 32 */
-    0x30,   /* T_ALPHA: at full fade-in; the ring's icons are 0x80 */
-    112,    /* T_GLYPH_DX: L1/R1 glyph centres from the ring's centre, with ghosts: midway
-               between the ring's side icon (edge 94 out) and the ghost's far icon (130) */
-    4,      /* T_MARGIN: the left ghost's outer icon from the screen's left edge */
-    600,    /* T_SCALE_X: ghost circle radius across, per mille of the ring's (owner: narrower
-               ghosts, so the ring moves less: 550 crowded R1 against the ghost, 500 overlapped) */
-};
-#define TUNE(k)         (*(volatile s32 *)&ee_qs_tune[k])
-#define RING_RX         78      /* 74 x 1.05 */
-#define RING_RY         74
-#define GOLD            ((volatile u8 *)0x0013E620)   /* per item, saved: gold weapon (the ring's icon variant 4) */
-static const s16 ring_cos[8] = { 0, 707, 1000, 707, 0, -707, -1000, -707 };
-static const s16 ring_sin[8] = { -1000, -707, 0, 707, 1000, 707, 0, -707 };
-
-typedef s32 (*FrameFn)(s32, s32);
-typedef void (*SpriteFn)(s32, s32, s32, s32, s32, s32);
-
-static void ghost(s32 L, volatile const u8 *page, s32 cx, s32 cy, s32 side, s32 alpha)
-{
-    const u8 *items = LVL_DATA(L, item_table, const u8 *);
-    s32 i;
-    for (i = 0; i < SLOTS; i++) {
-        s32 id = page[i], icon, frame, gx, gy;
-        if (ring_cos[i] * side < 0 || id >= ITEM_COUNT) {
-            continue;                              /* its near side, under the ring */
-        }
-        icon = *(const u16 *)(items + id * 0x4C + 0x38);
-        if (icon == 0) {
-            continue;
-        }
-        frame = LVL(L, func_00200198, FrameFn)(icon, id && GOLD[id] ? 4 : 0);
-        gx = cx + side * TUNE(T_DX) + ring_cos[i] * RING_RX / 1000 * TUNE(T_SCALE_X) / 1000;
-        gy = cy + ring_sin[i] * RING_RY / 1000 * TUNE(T_SCALE) / 1000;
-        LVL(L, func_00200468, SpriteFn)(frame, gx - TUNE(T_ICON) / 2, gy - TUNE(T_ICON) / 2, TUNE(T_ICON), TUNE(T_ICON), alpha);
-    }
-}
-
+/* The ghost rings (owner's stretch goal: faint, shrunken copies of the
+ * neighbouring pages beside the ring) were built and tuned on 2026-10-18 and
+ * taken out the same day at the owner's word: too busy (commits d0b0ce9,
+ * 0ff040b). The ring stays at its retail place. */
 void ee_qs_draw_c(void *slot, u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_001FFFB8, EE_SITE_HUD_SLOT_DRAW);
     volatile u8 *s = (volatile u8 *)slot;
-    volatile s32 *slot_x = (volatile s32 *)(s + 0x50);
-    s32 x, y, fade, shift = 0;
+    s32 x, y, fade;
     u32 colour;
+    LVL(L, func_L00_00238C30, SlotFn)(slot);
     fade = s[0x70];
     if (fade > FADE_FRAMES) {
         fade = FADE_FRAMES;
-    }
-    x = *slot_x;
-    y = *(volatile s32 *)(s + 0x54);
-    LVL(L, func_L00_00236400, OriginFn)(slot, &x, &y);
-    if (!GHOSTS || fade == 0) {
-        LVL(L, func_L00_00238C30, SlotFn)(slot);
-    } else {
-        s32 reach = TUNE(T_DX) + RING_RX * TUNE(T_SCALE_X) / 1000 + TUNE(T_ICON) / 2 + TUNE(T_MARGIN);
-        if (x + BOX_CX < reach) {
-            shift = reach - (x + BOX_CX);
-        }
-        x += shift;
-        ghost(L, QS_NEXT, x + BOX_CX, y + BOX_CY, 1, TUNE(T_ALPHA) * fade / FADE_FRAMES);
-        ghost(L, QS_PREV, x + BOX_CX, y + BOX_CY, -1, TUNE(T_ALPHA) * fade / FADE_FRAMES);
-        *slot_x += shift;
-        LVL(L, func_L00_00238C30, SlotFn)(slot);
-        *slot_x -= shift;
     }
     if (fade == 0) {
         return;
     }
     colour = ((u32)(fade * 0x80 / FADE_FRAMES) << 24) | PROMPT_COLOUR;
-    if (GHOSTS) {
-        /* In the free space between the ring's side icon (edge 94 out) and
-         * the ghost's far icon (inner edge 142 out); the glyphs draw about 19
-         * wide from x + 4, so x - 14 centres them. */
-        LVL(L, func_001F68E8, FontFn)(x + BOX_CX - TUNE(T_GLYPH_DX) - 14, y + BOX_CY - 8, colour, glyph_l1, -1);
-        LVL(L, func_001F68E8, FontFn)(x + BOX_CX + TUNE(T_GLYPH_DX) - 14, y + BOX_CY - 8, colour, glyph_r1, -1);
-        return;
-    }
+    x = *(volatile s32 *)(s + 0x50);
+    y = *(volatile s32 *)(s + 0x54);
+    LVL(L, func_L00_00236400, OriginFn)(slot, &x, &y);
     /* The ring sits at the screen's left edge (box x ~18): the L1 glyph is
      * kept on screen, which still clears the left icon (box x + 11). */
     LVL(L, func_001F68E8, FontFn)(x - 26 < GLYPH_MIN_X ? GLYPH_MIN_X : x - 26, y + BOX_CY - 8, colour, glyph_l1, -1);

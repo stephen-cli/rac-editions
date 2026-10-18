@@ -6,6 +6,12 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (q2: three quick-select pages)
 
+### 📑 Quick select pages (q2) — Ghost rings removed (owner's call); R1 prompt kept moved in, awaiting owner test
+
+**What changed.** At the owner's word the ghost rings are gone: it was all too busy. The quick-select ring is back at its original place, as before the ghosts. The L1 and R1 prompts are where they were after the owner's R1 note: L1 just left of the ring, and R1 moved in to the same small gap on the right. The ghost code is kept in git history (commits d0b0ce9, 0ff040b) if the idea ever comes back.
+
+**Verification.** In PCSX2, on a copy of the owner's memory card: the ring is at its retail place with no ghosts, the L1/R1 prompts sit evenly beside it, and R1/L1 still turn the pages.
+
 ### 📑 Quick select pages (q2) — Ghost icons in their real places; narrower ghosts (owner's report), verified in PCSX2, awaiting owner test
 
 **What was wrong.** The ghost icons were a quarter turn out of place: what sits East on a page showed at North, SE at NE, South at East, and so on. The ring's draw code turns its slot angles by an extra 90° that the ghost code had missed.
