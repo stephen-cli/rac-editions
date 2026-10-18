@@ -289,7 +289,7 @@ unlock, description switch and movie playback are retail code.
 previews; each plays (PAL encodes, 50 Hz) and returns to the game. On a save
 without the Gold Weapons the row shows locked with the Gold Weapons message.
 
-## x3b: Free movement after the wrench throw — implemented (2026-10-17), awaiting owner test
+## x3b: Free movement after the wrench throw — run cancel and jump cancel working (owner, 2026-10-18)
 
 **What R&C1 does.** The Comet-Strike (crouch + Square; the game's Moves
 help names it so) is hero state 0x15 (the NTSC decomp calls it
@@ -327,6 +327,35 @@ the three 19-entry tables the hook indexes by its own call site. The hero is cor
 (state + 0x2084, animation frame + 0xAA8, stick magnitude + 0x229C). Not
 ported: R&C2's Circle-with-wrench throw (state 0x83), which R&C1 has no
 input for; and R&C2's auto-aim on the moving throw.
+
+**The jump cancel (owner's request, 2026-10-18).** R&C1 already has one:
+the state update's block for states 0x13-0x15 (NTSC `00242930.c` case
+19-21; level 0 `0x22B938`) jumps when, past the attack record's f14 frame
+and with no lock-on target, Cross was pressed within
+`(int(frame) - fC) * 2` frames (`pad_pressed_within`, `func_L00_00267BA8`):
+`hero_set_state(JUMP, 1)`, or with R1 held the crouch jumps
+(`func_L00_00229E30`). The Comet-Strike is attack record 3 (table at
+`0x17BD28` in level 0, 0x2C-byte records, level data), whose fC, f14 and
+f18 are 83, 87 and 91 in every level, so the jump only opens 4 frames
+before the throw ends. R&C2's block (`0x2C45B0`) is the same with two
+differences, read from Oozla: its record 3 (`0x25EC90`, set for state 0x15
+at `0x2C0D94`) has f14 = 35, and for state 0x15 the window is a fixed 8
+frames (`movz` at `0x2C4604`; `(frame - 83) * 2` would be negative that
+early). Its other records match R&C1's.
+
+The port makes the same two changes. `tools/overlay_patch.py` feature
+`comet_strike_jump` writes 35 into record 3's f14 (one data word per
+level) and sends the block's `pad_pressed_within` call (level 0:
+`0x22BB18`) to `ee_comet_jump_window` (`src/comet_strike.c`), which in
+state 0x15 asks for R&C2's 8 frames through the level's
+`scale_game_frames` (7 at 50 Hz, like the game's other jump windows) and
+leaves states 0x13 and 0x14 their own windows. The lock-on test, the R1
+crouch jumps and the jump itself stay the game's code. `tools/gen_hero.py`
+finds the call (of the 0x83-entry state tables, the one whose entries
+0x13-0x15 are a single block that indexes the attack records and calls
+`pad_pressed_within` with Cross) and the record table (the block's
+lui/addiu after `addiu $a0, 0x2C`), and checks record 3 is 83/87/91.
+Record 3's f14 has no other reader: the block is its only use.
 
 ## x5: Strafing on L2 and R2 — first increment (movement) implemented (2026-10-17), awaiting owner test
 

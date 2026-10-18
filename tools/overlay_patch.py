@@ -216,6 +216,30 @@ def comet_strike_run(at):
     return [(h["comet_site"], jal(h["speed_step"]), jal(modseg_symbol("ee_comet_speed_step")))]
 
 
+COMET_RECORD = 3                      # hero.attack_record of the Comet-Strike (tools/gen_hero.py checks it)
+COMET_F14 = COMET_RECORD * 0x2C + 0x14   # its f14: the frame after which Cross jumps out of the attack
+COMET_F14_RETAIL, COMET_F14_RAC2 = 87, 35
+
+
+def comet_strike_jump(at):
+    """x3b: the Comet-Strike can be cancelled into a jump once the wrench has
+    left the hand, as in Going Commando (src/comet_strike.c). R&C1's state
+    update already has the cancel in the block states 0x13-0x15 share (past
+    the attack record's f14 frame, Cross within a window jumps; with R1 held,
+    the crouch jumps), but the Comet-Strike's record opens it at frame 87 of
+    91. R&C2's record opens it at 35, and its update gives the crouch throw a
+    fixed 8-frame window. So record 3's f14 (level data) becomes 35, and the
+    block's pad_pressed_within call goes to the hook, which gives state 0x15
+    R&C2's window. Sites from tools/gen_hero.py."""
+    import json
+    hero = HERE.parent / "build/modseg/hero_sites.json"
+    if not hero.is_file():
+        raise SystemExit(f"missing {hero}: run tools/gen_hero.py first")
+    h = json.loads(hero.read_text())[str(at.level)]
+    return [(h["comet_jump_site"], jal(at("func_L00_00267BA8")), jal(modseg_symbol("ee_comet_jump_window"))),
+            (h["attack_records"] + COMET_F14, COMET_F14_RETAIL, COMET_F14_RAC2)]
+
+
 def strafe(at):
     """x5 (first increment): L2/R2 strafe (src/strafe.c). The pad begin-frame's
     parse call goes to a hook that records the triggers and hides them from
@@ -443,10 +467,11 @@ FEATURES = {
     "commercials": commercials,
     "health_backing": health_backing,
     "comet_strike_run": comet_strike_run,
+    "comet_strike_jump": comet_strike_jump,
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "comet_strike_run", "strafe", "strafe_camera", "charge_boots"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

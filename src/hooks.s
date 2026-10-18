@@ -23,6 +23,15 @@ ee_comet_speed_step:
     j     ee_comet_speed_step_c
     addu  $4, $31, $0
 
+/* pad_pressed_within(button, window, out) in the state update's attack
+ * block: three integer arguments, $4-$6; the return address goes in $7
+ * and the C hook's result goes back in $2. */
+.globl ee_comet_jump_window
+.extern ee_comet_jump_window_c
+ee_comet_jump_window:
+    j     ee_comet_jump_window_c
+    addu  $7, $31, $0
+
 /* pad parse(pad, report, length): three integer arguments, $4-$6; the
  * return address goes in $7. (A first build passed it in $5 and so fed
  * the parser the return address as its report buffer: every input dead.) */

@@ -150,6 +150,22 @@ Not yet tested:
 - Going Commando can now be driven from a script in the emulator (its controller input redirected to a buffer the script writes), so its own behaviour can be measured rather than inferred from code. That's how these numbers were taken.
 - One test double jump stalled in mid-air. That's retail R&C1, not the strafe: over some platform objects (the game found one under that spot on the Batalia bridge) the game deliberately cuts a double jump's sideways drift. Over plain ground it keeps its speed, strafing or not.
 
+## 2026-10-18 (x3b: jump out of the throw)
+
+### 🔧 Free movement during the wrench throw (x3b) — Run cancel and jump cancel working (owner)
+
+**Owner test.** Passed: the owner confirmed the jump cancel works (2026-10-18).
+
+**What changed.** After a Comet-Strike (crouch + Square), pressing Cross once the wrench has left his hand now jumps Ratchet out of the throw, as in Going Commando. It works from animation frame 35, right after the release at 33, and a press up to about 7 frames early still counts. Holding R1 when pressing Cross gives the crouch jumps as usual. Applied to all 19 levels.
+
+**Findings.** R&C1 already had this jump in its code, but its Comet-Strike data only allowed it in the last 4 frames of the 91-frame throw, so in practice it never happened. Going Commando changed exactly two things: the data opens the jump at frame 35, and the press window is a fixed 8 frames because R&C1's formula gives nothing that early. The edition makes the same two changes and nothing else.
+
+**Decisions taken.**
+- The rest is left to the game's own code: no jump while locked on, the R1 crouch jumps and the jump itself. This also matches Going Commando.
+- The 8-frame window is scaled to PAL's 50 Hz the way the game scales its other jump windows (7 frames).
+
+**Verification.** Rebuilt; the new sites were found and checked in all 19 levels (the record holds 83/87/91 in every level before the patch), and the hook disassembly was checked. Owner test: crouch + Square, then press Cross right after the wrench leaves. Ratchet should jump at once, and the wrench should still fly back to him and catch in the air or after landing. Also try R1 + Cross mid-throw (crouch jump), Cross while locked on (no jump, as before), and a normal Comet-Strike without Cross (unchanged). The stick-to-run cancel should still work.
+
 ## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
 
 ### 🥾 Charge Boots (x2) — Cheats page switch now updates the Gadgets screen at once; "Cheat Enabled" banner (owner's reports); verified in PCSX2, awaiting owner test

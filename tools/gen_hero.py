@@ -44,6 +44,17 @@ level's own program:
                  one whose state 0x15 entry leads, within the block, to a
                  jal to speed_step (func_L00_00212740, shared by all 19)
   speed_step     that call's target
+  comet_jump_site  the state update's attack block (states 0x13-0x15 share
+                 it; NTSC 00242930.c case 19-21): its pad_pressed_within
+                 (func_L00_00267BA8) call, Cross within the window after the
+                 attack record's f14 frame -> jump; of the 0x83-entry state
+                 tables, the one whose entries 0x13-0x15 are one block that
+                 indexes the attack records (addiu $a0, 0x2C, then the
+                 table's lui/addiu) and makes that call. src/comet_strike.c
+                 gives the Comet-Strike R&C2's window there
+  attack_records that table (0x2C-byte records; level data), checked by the
+                 Comet-Strike record 3's fC/f14/f18 (83, 87, 91);
+                 tools/overlay_patch.py writes record 3's f14 (hero_sites.json only)
   arm_*          the gun-arm layer manager's sites (func_L00_0020E3B8, shared
                  code, so at fixed offsets, each checked): its identity call on
                  Ratchet's current sequence, its two calls of the body-to-arm
@@ -81,6 +92,7 @@ JUMP_PRESS = "func_L00_00229348"
 TWIST = "func_L00_00215A90"
 RUN_ANIM = "func_L00_002293E8"
 APPROACH = "func_00214D28"
+PAD_PRESSED_WITHIN = "func_L00_00267BA8"
 ARM_MANAGER = "func_L00_0020E3B8"   # the gun-arm layer manager (NTSC FUN_L00_0020dd20), shared by all 19
 ARM_MAPPER = "func_L00_0020DC50"    # its body-to-arm sequence mapper (0xFF -> moby + 0xA5, else the id)
 # the manager's sites, at fixed offsets in the shared code: (name, offset, word or None for a jal, delay slot)
@@ -91,6 +103,8 @@ ARM_SITES = [("arm_ident_site", 0x29C, None, 0x90640053),   # identity(moby[0x53
              ("arm_check_1", 0x5B8, 0x2C420017, None)]
 RUN_ORDER = ["turn", "pivot", "turn", "speed", "planar", "planar"]
 STATE_JUMP = 7
+COMET_RECORD = 3                    # hero.attack_record in state 0x15 (hero_set_state case 0x15)
+COMET_RECORD_FRAMES = [83, 87, 91]  # its fC, f14, f18 in the retail levels
 
 
 def records(pal: Path, level: int):
@@ -139,6 +153,7 @@ def find_level(openrac: Path, level: int) -> dict:
     # Every `jr` fed by a jump table with 0x83 entries: for each, the state 0x15
     # entry; the movement switch's block calls speed_step within 0x400 bytes.
     site = None
+    tables = set()
     for k in range(n):
         ins = w[k]
         if ins >> 26 != 0 or (ins & 0x3F) != 8 or ((ins >> 21) & 31) == 31:
@@ -164,6 +179,7 @@ def find_level(openrac: Path, level: int) -> dict:
         entries = [word_at(tbl + 4 * i) for i in (0, 1, 2, 3, STATE_COMET)]
         if any(e is None or not (tbase <= e < tbase + len(text)) for e in entries):
             continue
+        tables.add(tbl)
         entry = entries[-1]
         for a in range(entry, entry + 0x400, 4):
             if w[(a - tbase) // 4] == jal_speed_step:
@@ -196,6 +212,44 @@ def find_level(openrac: Path, level: int) -> dict:
                 break
     if site is None:
         raise SystemExit(f"level {level}: the Comet-Strike movement block's speed_step call not found")
+
+    # The state update's attack block: entries 0x13-0x15 of one state table are one block
+    # that indexes the attack records and then calls pad_pressed_within(Cross, window, 0).
+    jal_ppw = 0x0C000000 | ((catalogue_place(openrac, PAD_PRESSED_WITHIN, level) >> 2) & 0x3FFFFFF)
+    attack = set()
+    for tbl in tables:
+        e = [word_at(tbl + 4 * s) for s in (0x13, 0x14, STATE_COMET)]
+        if None in e or len(set(e)) != 1 or not (tbase <= e[0] < tbase + len(text)):
+            continue
+        k0 = (e[0] - tbase) // 4
+        for a in range(k0, min(k0 + 0xC0, n)):
+            if w[a] != 0x2404002C:          # addiu $a0, $zero, 0x2C: the record size
+                continue
+            records_at = None
+            for b in range(a + 1, a + 8):   # the table's lui, then its addiu
+                if w[b] >> 26 == 0x0F:
+                    rt = (w[b] >> 16) & 31
+                    for c in range(b + 1, b + 4):
+                        if w[c] >> 26 == 9 and ((w[c] >> 21) & 31) == rt and ((w[c] >> 16) & 31) == rt:
+                            lo = w[c] & 0xFFFF
+                            records_at = ((w[b] & 0xFFFF) << 16) + (lo - 0x10000 if lo & 0x8000 else lo)
+                    break
+            if records_at is None:
+                continue
+            call = next((tbase + 4 * c for c in range(a, min(a + 0x40, n)) if w[c] == jal_ppw), None)
+            if call is not None:
+                attack.add((call, records_at))
+                break
+    if len(attack) != 1:
+        raise SystemExit(f"level {level}: the state update's attack block found {len(attack)} times: "
+                         f"{[(hex(c), hex(r)) for c, r in attack]}")
+    comet_jump_site, attack_records = attack.pop()
+    if w[(comet_jump_site - tbase) // 4 - 1] != 0x24040040:     # addiu $a0, $zero, 0x40 (Cross)
+        raise SystemExit(f"level {level}: the attack block's pad_pressed_within at {comet_jump_site:#x} does not test Cross")
+    frames = [word_at(attack_records + COMET_RECORD * 0x2C + o) for o in (0xC, 0x14, 0x18)]
+    if frames != COMET_RECORD_FRAMES:
+        raise SystemExit(f"level {level}: attack record {COMET_RECORD} at {attack_records:#x} has fC/f14/f18 {frames}, "
+                         f"expected {COMET_RECORD_FRAMES}")
 
     # Air control: the turn_to whose rate is hero + 0x414 (lwc1 0x414 within 8 words before the jal).
     air = [tbase + 4 * j for k, x in enumerate(w) if x >> 26 == 0x31 and (x & 0xFFFF) == 0x414
@@ -312,7 +366,7 @@ def find_level(openrac: Path, level: int) -> dict:
             "twist_0": twist[0], "twist_1": twist[1], "twist_2": twist[2], "twist_3": twist[3], "twist_4": twist[4], "twist_5": twist[5],
             "twist_fn": tw, "runanim_site": runanim[0], "run_anim_fn": ra,
             "flip_appr_0": appr[0], "flip_appr_1": appr[1], "approach_fn": ap, "stop_site": stops[0][0], "stop_site_low": stops[0][1],
-            **arm}
+            "comet_jump_site": comet_jump_site, "attack_records": attack_records, **arm}
 
 
 def main() -> int:
@@ -325,7 +379,8 @@ def main() -> int:
     if args.print:
         for L, f in found.items():
             print(f"level {L:2d}: comet speed_step call {f['comet_site']:#x}, speed_step {f['speed_step']:#x}, "
-                  f"hero_set_state {f['hero_set_state']:#x} ({f['set_state_calls']} calls)")
+                  f"hero_set_state {f['hero_set_state']:#x} ({f['set_state_calls']} calls), "
+                  f"attack jump test {f['comet_jump_site']:#x}, attack records {f['attack_records']:#x}")
     args.out.mkdir(parents=True, exist_ok=True)
     c = ["/* generated by tools/gen_hero.py from each level's own program; see src/comet_strike.c */",
          "typedef unsigned int u32;"]
@@ -333,12 +388,12 @@ def main() -> int:
              "run_planar_a", "run_planar_b", "turn_to", "pivot_turn", "set_planar_vel",
              "jump_turn_site", "jump_planar_site", "air_turn_site", "jump_press_0", "jump_press_1", "jump_press_2", "jump_press_3", "jump_press_fn",
              "twist_0", "twist_1", "twist_2", "twist_3", "twist_4", "twist_5", "twist_fn", "runanim_site", "run_anim_fn",
-             "flip_appr_0", "flip_appr_1", "approach_fn", "stop_site", "stop_site_low",
+             "flip_appr_0", "flip_appr_1", "approach_fn", "stop_site", "stop_site_low", "comet_jump_site",
              "arm_ident_site", "arm_ident_fn", "arm_map_0", "arm_map_1", "arm_mapper", "arm_check_0", "arm_check_1")
     for name in names:
         c.append(f"const u32 ee_{name}[19] = {{ {', '.join(f'0x{found[L][name]:08X}' for L in range(19))} }};")
     (args.out / "gen_hero.c").write_text("\n".join(c) + "\n")
-    (args.out / "hero_sites.json").write_text(json.dumps({L: {k: f[k] for k in names} for L, f in found.items()}, indent=1))
+    (args.out / "hero_sites.json").write_text(json.dumps({L: {k: f[k] for k in names + ("attack_records",)} for L, f in found.items()}, indent=1))
     print(f"wrote {args.out / 'gen_hero.c'} and hero_sites.json (19 levels)")
     return 0
 
