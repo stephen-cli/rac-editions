@@ -5,7 +5,45 @@ hardware limits, built on the [OpenRAC](https://github.com/OpenRAC/OpenRAC)
 decompilation. You build it yourself from your own discs: this repository
 holds only the edition's code, tools and notes, never game data.
 
-What it changes: [docs/FEATURES.md](docs/FEATURES.md).
+## What's in it
+
+### New features
+
+- **Charge Boots.** Going Commando's Charge Boots, model and all. Double-tap
+  R1 and keep holding it to charge: a fast dash with blue jets that smashes
+  crates and bonks off enemies and walls. Unlock them in Challenge Mode with
+  a new cheat: crouch for a second, back flip, back flip, Comet-Strike,
+  Hyper-Strike, Hyper-Strike. Switch them on or off in Goodies → Cheats.
+- **Strafing on L2 and R2.** Hold either trigger and Ratchet keeps facing
+  where the camera looks, as in Going Commando. He side-flips, strafe-jumps,
+  backpedals with his gun held up and stops on the spot. L1 and R1 still
+  look and crouch.
+- **Three quick-select pages.** With the ring open, R1 and L1 turn between
+  three pages of eight slots. In the pause menu's Quick Select tab, Square
+  changes the page. Your saves still load in the original game.
+- **Quick Select Pause.** A new Controls row in Options. Turned on, the game
+  stops while the quick-select ring is open, as in the sequels. Off by
+  default.
+- **Moving out of the Comet-Strike.** Once the wrench has left Ratchet's
+  hand, push the stick to run or press X to jump, as in Going Commando.
+- **A richer Metal Detector in Challenge Mode.** Buried bolt stashes pay 20
+  times as much: about 349,000 bolts across the game instead of 17,000.
+  Together with the bolts you pick up anyway, one Challenge Mode run that
+  finds them all should pay for the RYNO and all ten Gold Weapons (400,000
+  bolts), with no bolt farming.
+- **Commercials.** The three TV ads from the American release, in Goodies.
+  They unlock with all ten Gold Weapons, along with the 'Making Of' video.
+
+### Fixes to the original game
+
+- **Health display.** With 5 or 8 health orbs (Premium or Ultra Nanotech),
+  the lower row's dark backing sat halfway under the top row. Each row now
+  sits on its own backing.
+- **Gadgets page preview.** Moving the cursor from an empty slot to an item
+  no longer flashes the empty slot's item for a frame.
+
+Some of these are still being tested. [docs/FEATURES.md](docs/FEATURES.md)
+has every change in full detail, with its status.
 
 ## What you need
 
