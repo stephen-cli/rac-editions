@@ -1727,7 +1727,7 @@ result too busy and asked for the ring as it was, at its retail place.
 x + 201, the same small gap (about 3 pixels) to the right-hand icon as the
 clamped L1 leaves on the left (R1 had sat about 13 pixels out).
 
-## Health display: the lower backing with Premium/Ultra Nanotech — fixed (2026-10-18), verified in PCSX2 (Ultra), awaiting owner test
+## Health display: the lower backing with Premium/Ultra Nanotech — fixed (2026-10-18); working per the owner
 
 **Retail's bug.** HudHealthDraw (`func_L00_0023A1A0`, every level; decompiled
 in OpenRAC's `src/overlays/shared/hud_00235960.c`) takes the orb positions
@@ -1751,6 +1751,9 @@ the load before patching.
 nanotech 8; the display shown with L3, which the frame-start code
 `func_L00_00299250` turns into HudShowHealth): with the retail word written
 back over PINE the two bars overlap and the lower orbs sit half off theirs;
-with the patch each bar is centred on its row. The 5-orb layout was not
-seen on screen (no Premium Nanotech save on the card); it uses the same
-instruction and the same 32 px row spacing.
+with the patch each bar is centred on its row. Then on Veldin 2 (level
+18) with max nanotech and health set to 5 and to 4 over PINE (restored to
+8, nothing saved): 5 orbs, retail leaves the lower orbs half off their bar
+and the patch puts the bar behind the whole lower row; 4 orbs, one row and
+one bar, identical either way (the second bar is skipped). The owner
+confirmed the fix.

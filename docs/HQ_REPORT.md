@@ -6,15 +6,13 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (owner's extra item: the health display's lower backing)
 
-### ❤️ Health display with Premium/Ultra Nanotech — Fixed, verified in PCSX2 (Ultra), awaiting owner test
+### ❤️ Health display with Premium/Ultra Nanotech — Fixed; working per the owner
 
 **What was wrong.** A bug in the original game, in every level: with 5 or 8 nanotech the health display draws its orbs in two rows, 32 pixels apart, but moves the second row's dark backing down by only 16. The lower backing started halfway up the top row and the lower orbs hung below it.
 
 **What changed.** The lower backing now moves down the full 32 pixels, so each row of orbs sits centred on its own backing. One instruction per level (new feature `health_backing`, in the default build); the game's stored value is left alone. Nothing else changes: the top row, the 4-orb display, and the left-right placement were already right.
 
-**Verification.** Rebuilt with `pack.sh --quick`. On the owner's Challenge Mode Novalis save (slot 1 of Mcd003, Ultra Nanotech), compared in PCSX2 by switching the instruction between the original and the fix while the game ran: the original overlaps the two backings, the fix gives two separate backings, each under its row. The 5-orb case wasn't seen on screen (no save on the card has Premium Nanotech, and a RAM test was cut short); it draws through the same instruction with the same 32-pixel row spacing.
-
-**Owner test.** Press L3 in game to show the health display, with Ultra Nanotech and, if a save has it, Premium Nanotech.
+**Verification.** Rebuilt with `pack.sh --quick`. On the owner's Challenge Mode Novalis save (slot 1 of Mcd003, Ultra Nanotech), compared in PCSX2 by switching the instruction between the original and the fix while the game ran: the original overlaps the two backings, the fix gives two separate backings, each under its row. Then, at the owner's request, max nanotech set to 5 and to 4 in RAM on Veldin 2 (restored to 8 after, nothing saved): with 5 the original leaves the lower orbs' bottom halves off their backing and the fix puts the backing behind the whole lower row; with 4 there is one row and one backing, the same with or without the patch. The owner confirmed it fixed.
 
 **Findings.** L3 shows the health display on demand (the game's own per-frame check), which is handy for testing any HUD change.
 
