@@ -4,6 +4,44 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-19 (q4: proper widescreen)
+
+### 🖥️ Proper widescreen (q4) — Implemented; verified in PCSX2, awaiting owner test
+
+**What changed.** A new row on the pause menu's Camera page: "16:9 (widescreen)", on or off, saved with the game (off in every existing save). Turned on, the game draws for a television, or PCSX2, set to 16:9:
+- **Gameplay shows more to the sides.** Nothing is cut off at the top or bottom, and nothing is zoomed. Culling widens with the view; no pop-in seen.
+- **The HUD moves to the 16:9 corners without stretching.** Nanotech stays top centre, the weapon and ammo go top left, the bolts top right, and the O2 gauge to the right edge. The quick-select ring goes halfway out (the owner left this to us).
+- **Pause menu, vendor and map keep their shape and place**, with more of the level visible around them. Panels that slide off screen now slide all the way past the 16:9 edges.
+- **In-level movies and arrival flights keep their original framing**, with thin black bars at the sides. Letterboxed scenes fill the screen's height instead of showing the top and bottom bars.
+- **Prerendered movies play at 4:3 with black bars at the sides**, as on a 4:3 television.
+- **The title screen and main menu stay 4:3.**
+
+**Decisions taken.**
+- **Frontend stays 4:3** (owner's choice from three options); 16:9 starts when a save with the setting on is loaded.
+- **In-level cutscenes fill the height** (owner's choice). Retail letterboxes them to about 3:2, not 16:9, so they show exactly the original picture, scaled to the screen's height, with thin bars at the sides.
+- **The camera departs from Going Commando on purpose.** Going Commando's own 16:9 crops the top and bottom, which is what the owner asked to avoid.
+- **Setting byte:** `gCheats[10]`, next to Quick Select Pause's `gCheats[11]`. Saves stay compatible with the original game both ways.
+
+**Findings.**
+- **The pause menu's text is laid out per panel at the panel's on-screen size.** At 16:9 width the Camera page's labels ran into their values, so each panel is laid out at its 4:3 size and then drawn narrower.
+- **The vendor's item monitor draws the item model with the main camera's transform**, so its monitors are drawn with the 4:3 view.
+- **The HUD's 13 places carry their own anchor flags.** Any element shown in a right-anchored place (the side meters) moves to the edge with no per-element work, and slides in and out exactly as before.
+
+**Verification.** In PCSX2 at 16:9, on a copy of the owner's card, nothing saved:
+- Novalis and Pokitaru gameplay, the HUD, the quick-select ring.
+- The Novalis arrival, and a letterboxed scene (forced).
+- The pause menu: Options, Camera with the new row, Sound, Load, Goodies, Cinematics, In-Level Movies, Weapons, the map, and their open, close and page animations.
+- The vendor.
+- A prerendered cinematic, an in-level movie with subtitles, the O2 gauge underwater.
+- The setting switches live, and 4:3 is unchanged with it off.
+
+**Not yet seen.** The Suck Cannon meter, the ship HUD, boss health bars, the Visibomb's camera view, the hoverboard race HUD. They use the same HUD places, so they should follow, but nobody has watched them yet.
+
+**Owner test.**
+- **Setup:** set PCSX2's aspect ratio (or the TV) to 16:9, load a save, turn the row on in Options → Camera.
+- **What to look at:** a boss fight, a ship mission, the Suck Cannon, and any cutscene.
+- **Then off:** turn it off and check that everything looks exactly as before.
+
 ## 2026-10-18 (x4: Metal Detector against the Blackwater City farm)
 
 ### 💰 Metal Detector gives 20x bolts (x4) — Raised from 10x; builds, not yet run in-game, awaiting owner test

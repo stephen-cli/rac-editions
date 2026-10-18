@@ -1849,3 +1849,120 @@ which returns it only when its own item (moby pvars + 0xC, which the binding
 sets) is owned. Otherwise the draw returns 0, as retail does for an unowned
 cell: nothing drawn and no blit. The secondary moby (two-part previews) is
 drawn as before, only after the primary.
+
+## q4: 16:9 (widescreen) — implemented (2026-10-19), verified in PCSX2, awaiting owner test
+
+**Setting.** `EE_SETTING_WIDESCREEN` in src/modseg.h = `0x15EEBA`,
+`gCheats[10]` (saved with the file, 0 in every retail save; see q3 for why
+bytes 8-11 are free). A fourth row of the pause menu's Camera page,
+"16:9 (widescreen)" (string 0x540D), on/off. The Camera page's list widget
+(page +0x40) holds entries of six words `{label, value byte*, names[4]}` and
+shows `names[*value]`, Cross cycling the value; `tools/gen_menu.py` copies
+each level's three retail entries into the mod segment with the new one
+appended (`{0x540D, &gCheats[10], "off", "on"}`) and the widget's +0x34 is
+pointed at the copy. Rows are spaced `height / (rows + 1)`, so four fit the
+retail panel. The frontend (title, main menu) is not patched and stays 4:3
+(owner's choice); a save with the setting on comes up in 16:9.
+
+**How 16:9 works on a PS2.** Anamorphically: the game still draws its
+512-pixel-wide frame and the television (or PCSX2 at 16:9) shows it a third
+wider. So the 3D view must show a third more to the sides, and every 2D
+element must be drawn 3/4 as wide about the centre. Everything below is in
+`src/widescreen.c` and `src/ws_hooks.s`, patched by the `widescreen` feature
+of `tools/overlay_patch.py` (default build).
+
+**The view (Hor+).** UpdateViewContext (`func_001F3140`) builds every
+projection, frustum and culling constant from the view record's horizontal
+field of view (+0xB0, 0.63 in play, 0.414 in some cinematics) and a vertical
+one derived from it (+0xB4 = +0xB0 x 0.756 at 50 Hz, 0.775 at 60 Hz). Each
+level's copy starts with `j ee_view_hook` / `addiu $at, $zero, LEVEL`, and
+its read of +0xB0 for the vertical value (+0x68) reads +0xBC instead. For the
+full-screen view (screen size = the resolution table's, `0x1519D0`; a render
+to a texture has its own size and is left alone) the hook hands the function
++0xB0 x 4/3 with the unwidened value in +0xBC, and puts +0xB0 back after, so
+nothing else ever sees the widened value and repeated calls cannot compound.
+Going Commando's own 16:9 (`SCUS_972.68` 0x27ABC0) multiplies the vertical
+value by 0.75 instead, which crops the top and bottom: departed from on
+purpose (owner's request). Occlusion is per camera position, so the wider
+view causes no pop-in (none seen).
+
+**2D.** The HUD and text routines append DMA-tagged GIF packets (CNT tags,
+VIF DIRECT, PACKED or register-list GIF) to the VIF1 chain through its
+cursor (`D_00161000`, level-local; x in 12.4 around 2048). A bracketed draw
+records the cursor before and after, and `chain_squeeze` walks what it wrote:
+every XYZ2/XYZF2/XYZ3/XYZF3 x (packed, register list or A+D) goes to
+`2048 + (x - 2048) x 3/4`, scissors likewise; a GIF tag whose vertices span
+the whole screen (fades, tints) is left alone; REF'd data (shared) is never
+touched. Bracketed: DrawWorld's HudDraw, draw_help and subtitles
+(`func_001F3D78` + 0x4C0/0x4C8/0x4FC), the pause renderer's panel fills,
+self-drawing panels, content quads and last pass, the vendor's monitor
+quads and its HudDraw (`ee_ws_bracket`, which keeps stack arguments where
+the callee expects them).
+
+**The HUD.** The 13 HUD slots (level-local, 0x90 each) have fixed places and
+anchor flags (+0x60: 1 top, 2 bottom, 4 left, 8 right; x at +0x50): 0
+weapon/ammo top-left, 1 health top-centre, 2 bolts top-right, 3 quick select
+left, 4 right-middle, 5-7 bottom row, 8-11 right, 12 centred (x 142). Around
+HudDraw, left/right-anchored slots move out by a third of the half width
+(85), so after the squeeze they sit as far from the 16:9 edges as from the
+4:3 ones (the native port's rule); the quick-select ring moves half that.
+Elements slide in and out from their anchored edge by their width + 20, so
+the 4:3 edge maps exactly onto the 16:9 edge: the O2 gauge and the other
+side meters leave and enter the screen as in retail.
+
+**The pause menu.** Its panels are 14 mobys of class 0x472 in front of the
+menu camera (the view keeps their shape). Each page plays a sequence per
+panel that moves its root joint between a resting place (|y| <= 11983 on the
+disc's data) and a parked one off to the side (|y| >= 15056; the 4:3 edge is
+at 16904 at the panels' depth, the 16:9 edge at 22538), so in 16:9 parked
+panels showed at the sides and slides stopped short. The renderer's panel
+draw (`func_L00_002781D8` + 0xFC) draws from copies of the two key frames
+with the root's y remapped: unchanged to 12500, stretched to the 16:9 edge up
+to the 4:3 edge, moved out by the difference beyond (one copy pair per panel:
+the walker queues frames and evaluates them later). The corners projected for
+the panel's rectangle (+0x1EC) move by the same remap. That rectangle is
+given back as the 4:3 picture would have it: the renderer lays each panel's
+content out in a texture of the rectangle's size, and at 16:9 width the
+Camera page's labels ran into their values. The fill and content quad are
+then squeezed.
+
+**The vendor.** The six monitor screens (VendorDrawScreens, `func_0023AA38`,
+called at `func_L00_002A1540` + 0x3C4) are drawn with the 4:3 view and frame
+transform (`func_001F2608`), both rebuilt widened after: the item monitor
+draws its moby straight into the monitor's texture with the frame's
+transform, which with the wide view put the item a third of the way to the
+right. Their quads are squeezed; the other monitors' projections
+(`func_L00_002A0F60` + 0x188) get the 4:3 rectangle like the pause panels.
+
+**In-level movies.** Game mode 2 (cinematics) and 6 (a level's arrival and
+departure) keep the original framing: the horizontal field drops back to the
+original and black pillars cover the rest (DrawWorld's DoGifPaging after the
+HUD block, + 0x520, draws them, over the world and under the fades). The
+letterbox (bars growing to 24 lines over 24 frames, `D_0015F548`) is not
+drawn in 16:9: the view zooms instead until the picture between the bars
+fills the height (H / (H - 48)), with pillars for the original width; the
+bars' growth carries the change (owner's choice: fill the height, nothing
+beyond the original framing).
+
+**Prerendered movies.** The player (Sony's ezmpeg design) uploads each
+frame to a texture and draws it with a fixed packet in the core
+(`0x151EF0`: TEST/TEX1/TEX0, then 16 sprite strips 32 pixels wide), REF'd
+from the end of setImageTag's (`func_0023C5E0`) tag list. The level's call
+(`func_0023E298` + 0xF8) goes to `ee_ws_movie_tag`, which points that REF at
+a copy with the strips squeezed and two black sprites over the sides: 4:3
+with bars, as on a 4:3 television. The frontend's movies are untouched.
+
+**Verified in PCSX2** (16:9 aspect, a copy of the owner's card, nothing
+saved): Novalis and Pokitaru gameplay (Hor+, HUD corners, quick-select ring,
+weapon/ammo top-left, bolts top-right, health top-centre), the Novalis
+arrival (pillarboxed), a letterboxed cutscene forced through the letterbox
+request (zoomed to the height, pillarboxed), the pause menu (main, Options,
+Camera with the new row, Sound, Load, Goodies, Cinematics, In-Level Movies,
+Weapons, map) with its open, close and page transitions, the vendor
+(monitors, item model, prices), a prerendered cinematic (4:3, bars), an
+in-level movie with subtitles, the O2 gauge underwater. The setting
+switches live from the Camera page; 4:3 is unchanged with it off.
+
+**Not seen yet.** The Suck Cannon meter, the ship HUD, boss health bars
+(they use the same slots: right-anchored slots go to the edge, slot 12 is
+centred), the Visibomb's camera view, the hoverboard races' HUD.
