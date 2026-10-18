@@ -1722,18 +1722,25 @@ the three on its near side would sit under the ring and are not drawn.
 on their alpha, from the item table's icon ids (gold icons as the ring
 does, variant 4 from `0x13E620`), with `get_icon_frame` (`func_00200198`)
 and `draw_hud_sprite` (`func_00200468`, `(frame, x, y, w, h, alpha)`).
-Geometry from QuickSelectDraw: slot i at angle i x 45 degrees - 180 (slot 0
-left, 2 top, 4 right, 6 bottom), 74 x 1.05 across and 74 down from the
-box's (105, 100). The retail ring sits near the screen's left edge, where
+Geometry from QuickSelectDraw: slot i at angle i x 45 degrees - 180 + 90
+(the angle goes through FastAddRots(a, pi/2), `func_001FA748`): slot 0 at
+the top, then clockwise (2 right, 4 bottom, 6 left), 74 x 1.05 across and 74
+down from the box's (105, 100). The first ghost build missed the + 90 and
+drew every ghost icon a quarter turn anticlockwise of its real place (owner:
+"East at North, SE at NE, South at East"); checked since by turning a page
+and comparing the ring with the ghost it came from. The retail ring sits near the screen's left edge, where
 the left ghost does not fit, so while ghosts show the ring moves right just
 enough (its slot record's x, +0x50, raised for the length of the game's
 draw and restored). An empty neighbouring page shows no ghost. With ghosts
 the L1/R1 glyphs sit midway between the ring's side icon and the ghost's
 far icon; in the ghosts' centres (first draft) they covered the ring's side
-icons. The layout is the table `ee_qs_tune` {centre offset 100, radius 800
-per mille, icon 26, alpha 0x30, glyph offset 121, margin 4}, tuned live
-over PINE on the owner's Challenge Mode Novalis save: 96/750/24 looked
-scattered; 104/820/26 read best as rings but pushed the ring further right.
+icons. The layout is the table `ee_qs_tune` {centre offset 96, radius down 800
+per mille, icon 26, alpha 0x30, glyph offset 112, margin 4, radius across
+600 per mille}, tuned live over PINE on the owner's Challenge Mode Novalis
+save: 96/750/24 looked scattered; 104/820/26 read best as rings but pushed
+the ring further right; at the owner's request the ghosts were then
+narrowed across (550 crowded R1 against the ghost, 500 overlapped it), which
+moves the ring 19 pixels less (about 35 in all).
 `GHOSTS` 0 restores the plain ring, where R1 sits at box x + 201: the same
 3-pixel gap to the right-hand icon as the clamped L1 leaves on the left
 (owner's note: R1 sat about 13 pixels out, L1 about 3).

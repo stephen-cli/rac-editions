@@ -6,6 +6,16 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (q2: three quick-select pages)
 
+### 📑 Quick select pages (q2) — Ghost icons in their real places; narrower ghosts (owner's report), verified in PCSX2, awaiting owner test
+
+**What was wrong.** The ghost icons were a quarter turn out of place: what sits East on a page showed at North, SE at NE, South at East, and so on. The ring's draw code turns its slot angles by an extra 90° that the ghost code had missed.
+
+**What changed.**
+- The ghost icons now sit where they really are on their page. Checked by turning a page in PCSX2: the ring that comes in matches the ghost it came from, icon for icon.
+- At the owner's request the ghosts are narrower (60% of the ring's width instead of 80%, height unchanged). The whole group now moves about 35 game pixels away from the screen edge instead of 55. Narrower still started to crowd the R1 prompt against the ghost.
+
+**Owner test.** With weapons on pages 2 and 3, hold Triangle and compare each ghost with the page that comes in when you press R1 or L1.
+
 ### 📑 Quick select pages (q2) — R1 prompt moved in; ghost rings added (stretch goal), tuned in PCSX2, awaiting owner test
 
 **What changed.**

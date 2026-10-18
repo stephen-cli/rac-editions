@@ -213,7 +213,10 @@ void ee_qs_update_c(void *slot, u32 ra)
  * (right, R1) and the previous page (left, L1) behind the ring, each showing
  * the five icons on its far side; the three on its near side would sit under
  * the ring and are left out. The game's ring puts slot i at angle
- * i * 45 degrees - 180 (slot 0 left, 2 top, 4 right, 6 bottom; y down), at
+ * i * 45 degrees - 180 + 90 (FastAddRots(a, pi/2), func_001FA748): slot 0
+ * top, then clockwise, 2 right, 4 bottom, 6 left (y down). A first build
+ * missed the quarter turn and drew every ghost icon 90 degrees anticlockwise
+ * of its real place (owner's report: East at North, South at East). At
  * 74 x 1.05 across and 74 down (QuickSelectDraw: gp constants 74 and 1.05).
  * There is no room for the left ghost at the ring's retail place near the
  * screen's left edge, so while ghosts are shown the ring moves right just
@@ -224,23 +227,26 @@ void ee_qs_update_c(void *slot, u32 ra)
 /* The ghosts' layout, as a table the tuning sessions changed live over PINE
  * (build/modseg/modseg.sym names it); the values are the ones settled on
  * screen (2026-10-18; 96/750/24 looked scattered, 104/820/26 read best as
- * rings but pushed the ring further right). */
-enum { T_DX, T_SCALE, T_ICON, T_ALPHA, T_GLYPH_DX, T_MARGIN, T_COUNT };
+ * rings but pushed the ring further right; then narrowed across at the
+ * owner's request, which moves the ring 19 pixels less). */
+enum { T_DX, T_SCALE, T_ICON, T_ALPHA, T_GLYPH_DX, T_MARGIN, T_SCALE_X, T_COUNT };
 s32 ee_qs_tune[T_COUNT] = {
-    100,    /* T_DX: ghost centre from the ring's; its top/bottom icons clear the ring's diagonals */
-    800,    /* T_SCALE: ghost circle radius, per mille of the ring's */
+    96,     /* T_DX: ghost centre from the ring's; its top/bottom icons clear the ring's diagonals */
+    800,    /* T_SCALE: ghost circle radius, per mille of the ring's (down) */
     26,     /* T_ICON: ghost icon size; the ring's are 32 */
     0x30,   /* T_ALPHA: at full fade-in; the ring's icons are 0x80 */
-    121,    /* T_GLYPH_DX: L1/R1 glyph centres from the ring's centre, with ghosts: midway
-               between the ring's side icon (edge 94 out) and the ghost's far icon (149) */
+    112,    /* T_GLYPH_DX: L1/R1 glyph centres from the ring's centre, with ghosts: midway
+               between the ring's side icon (edge 94 out) and the ghost's far icon (130) */
     4,      /* T_MARGIN: the left ghost's outer icon from the screen's left edge */
+    600,    /* T_SCALE_X: ghost circle radius across, per mille of the ring's (owner: narrower
+               ghosts, so the ring moves less: 550 crowded R1 against the ghost, 500 overlapped) */
 };
 #define TUNE(k)         (*(volatile s32 *)&ee_qs_tune[k])
 #define RING_RX         78      /* 74 x 1.05 */
 #define RING_RY         74
 #define GOLD            ((volatile u8 *)0x0013E620)   /* per item, saved: gold weapon (the ring's icon variant 4) */
-static const s16 ring_cos[8] = { -1000, -707, 0, 707, 1000, 707, 0, -707 };
-static const s16 ring_sin[8] = { 0, -707, -1000, -707, 0, 707, 1000, 707 };
+static const s16 ring_cos[8] = { 0, 707, 1000, 707, 0, -707, -1000, -707 };
+static const s16 ring_sin[8] = { -1000, -707, 0, 707, 1000, 707, 0, -707 };
 
 typedef s32 (*FrameFn)(s32, s32);
 typedef void (*SpriteFn)(s32, s32, s32, s32, s32, s32);
@@ -259,7 +265,7 @@ static void ghost(s32 L, volatile const u8 *page, s32 cx, s32 cy, s32 side, s32 
             continue;
         }
         frame = LVL(L, func_00200198, FrameFn)(icon, id && GOLD[id] ? 4 : 0);
-        gx = cx + side * TUNE(T_DX) + ring_cos[i] * RING_RX / 1000 * TUNE(T_SCALE) / 1000;
+        gx = cx + side * TUNE(T_DX) + ring_cos[i] * RING_RX / 1000 * TUNE(T_SCALE_X) / 1000;
         gy = cy + ring_sin[i] * RING_RY / 1000 * TUNE(T_SCALE) / 1000;
         LVL(L, func_00200468, SpriteFn)(frame, gx - TUNE(T_ICON) / 2, gy - TUNE(T_ICON) / 2, TUNE(T_ICON), TUNE(T_ICON), alpha);
     }
@@ -282,7 +288,7 @@ void ee_qs_draw_c(void *slot, u32 ra)
     if (!GHOSTS || fade == 0) {
         LVL(L, func_L00_00238C30, SlotFn)(slot);
     } else {
-        s32 reach = TUNE(T_DX) + RING_RX * TUNE(T_SCALE) / 1000 + TUNE(T_ICON) / 2 + TUNE(T_MARGIN);
+        s32 reach = TUNE(T_DX) + RING_RX * TUNE(T_SCALE_X) / 1000 + TUNE(T_ICON) / 2 + TUNE(T_MARGIN);
         if (x + BOX_CX < reach) {
             shift = reach - (x + BOX_CX);
         }
