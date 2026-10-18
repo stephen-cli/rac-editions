@@ -322,6 +322,28 @@ def commercials(at):
     return [(site, 0xA4400060, NOP)]
 
 
+HEALTH_ROW_SITE = 0x23A47C - 0x23A1A0   # in HudHealthDraw: lw $2, D_0015F8EC (delay slot of beqz $19)
+HEALTH_ROW_STEP = 32                    # the orb tables' second row (D_0017E560, D_0017E578) is 32 px down
+
+
+def health_backing(at):
+    """The health HUD's second row of nanotech orbs, with Premium (5) or
+    Ultra (8) Nanotech, sits on its backing again. HudHealthDraw
+    (func_L00_0023A1A0) draws the backing bar 16 px above the orbs' row
+    (D_0015F8F0 = -16, bar 32 px tall) and both orb tables put the second
+    row 32 px below the first, but the second bar is offset by
+    D_0015F8EC = 16 (gp-0x7414; gp-0x7404 in levels 5 and 16), so it sat
+    16 px too high, half behind the first. Retail's own bug, in every
+    level; nothing else reads that constant, but the patch leaves it alone
+    and loads 32 in its place."""
+    site = at("func_L00_0023A1A0") + HEALTH_ROW_SITE
+    branch, load = at.words(site - 4, 2)
+    if branch != 0x12600019 or load >> 16 != 0x8F82:   # beqz $19, .L_orbs; lw $2, imm($gp)
+        raise SystemExit(f"level {at.level}: HudHealthDraw's second-row offset is not at 0x{site:X} "
+                         f"({branch:08X} {load:08X})")
+    return [(site, load, addiu(2, ZERO, HEALTH_ROW_STEP))]
+
+
 def charge_boots(at):
     """x2, first step: the Charge Boots item (src/charge_boots.c).
 
@@ -419,11 +441,12 @@ FEATURES = {
     "quick_select_pause": quick_select_pause,
     "quick_select_pages": quick_select_pages,
     "commercials": commercials,
+    "health_backing": health_backing,
     "comet_strike_run": comet_strike_run,
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "comet_strike_run", "strafe", "strafe_camera", "charge_boots"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "comet_strike_run", "strafe", "strafe_camera", "charge_boots"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

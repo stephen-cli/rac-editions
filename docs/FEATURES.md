@@ -1726,3 +1726,31 @@ result too busy and asked for the ring as it was, at its retail place.
 **R1 prompt.** The plain ring keeps the owner's earlier note: R1 sits at box
 x + 201, the same small gap (about 3 pixels) to the right-hand icon as the
 clamped L1 leaves on the left (R1 had sat about 13 pixels out).
+
+## Health display: the lower backing with Premium/Ultra Nanotech — fixed (2026-10-18), verified in PCSX2 (Ultra), awaiting owner test
+
+**Retail's bug.** HudHealthDraw (`func_L00_0023A1A0`, every level; decompiled
+in OpenRAC's `src/overlays/shared/hud_00235960.c`) takes the orb positions
+from a table chosen by the orb count (`gMaxNanotech`, `0x15EEA0`): 4 orbs in
+one row (`D_0015F8D8`), 5 as 3 + 2 (`D_0017E560`) or 8 as 4 + 4
+(`D_0017E578`), the second row at dy = 32 in both two-row tables. The backing
+bar (icon 0x7580: caps and a stretched middle) is 32 px tall and drawn at
+the row's y + `D_0015F8F0` (-16), centred on the orbs; the second bar is
+offset from the first by `D_0015F8EC`, which is 16. So the second bar sat
+16 px too high, half behind the first, and the lower orbs hung below it.
+All 19 levels hold the same values (`D_0015F8EC` is `gp-0x7414`, or
+`gp-0x7404` in levels 5 and 16); nothing else reads it.
+
+**The patch.** `tools/overlay_patch.py` feature `health_backing` (default):
+the delay-slot load of that offset (`lw $2, D_0015F8EC($gp)` at function +
+0x2DC, after `beqz $19` that skips the second bar for 4 orbs) becomes
+`addiu $2, $zero, 32`. One word per level, checked against the branch and
+the load before patching.
+
+**Verified in PCSX2** (owner's Mcd003 slot 1, Challenge Mode Novalis, max
+nanotech 8; the display shown with L3, which the frame-start code
+`func_L00_00299250` turns into HudShowHealth): with the retail word written
+back over PINE the two bars overlap and the lower orbs sit half off theirs;
+with the patch each bar is centred on its row. The 5-orb layout was not
+seen on screen (no Premium Nanotech save on the card); it uses the same
+instruction and the same 32 px row spacing.
