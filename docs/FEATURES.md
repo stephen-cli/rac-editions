@@ -1713,3 +1713,27 @@ of the memory card; the owner's card untouched):
 Not yet run: a retail game loading an edition save (no scripted input on
 the retail image; the owner's test), the new-weapon overflow to the next
 page (needs a fresh weapon with a full page), Challenge Mode carry-over.
+
+**Ghost rings (owner's stretch goal, 2026-10-18).** While the ring is
+open, faint, shrunken copies of the next page (right, R1) and the previous
+page (left, L1) sit behind it, each showing the five icons on its far side;
+the three on its near side would sit under the ring and are not drawn.
+`ee_qs_draw` draws them before the game's draw, with the ring's own fade
+on their alpha, from the item table's icon ids (gold icons as the ring
+does, variant 4 from `0x13E620`), with `get_icon_frame` (`func_00200198`)
+and `draw_hud_sprite` (`func_00200468`, `(frame, x, y, w, h, alpha)`).
+Geometry from QuickSelectDraw: slot i at angle i x 45 degrees - 180 (slot 0
+left, 2 top, 4 right, 6 bottom), 74 x 1.05 across and 74 down from the
+box's (105, 100). The retail ring sits near the screen's left edge, where
+the left ghost does not fit, so while ghosts show the ring moves right just
+enough (its slot record's x, +0x50, raised for the length of the game's
+draw and restored). An empty neighbouring page shows no ghost. With ghosts
+the L1/R1 glyphs sit midway between the ring's side icon and the ghost's
+far icon; in the ghosts' centres (first draft) they covered the ring's side
+icons. The layout is the table `ee_qs_tune` {centre offset 100, radius 800
+per mille, icon 26, alpha 0x30, glyph offset 121, margin 4}, tuned live
+over PINE on the owner's Challenge Mode Novalis save: 96/750/24 looked
+scattered; 104/820/26 read best as rings but pushed the ring further right.
+`GHOSTS` 0 restores the plain ring, where R1 sits at box x + 201: the same
+3-pixel gap to the right-hand icon as the clamped L1 leaves on the left
+(owner's note: R1 sat about 13 pixels out, L1 about 3).

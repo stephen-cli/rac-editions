@@ -6,6 +6,26 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (q2: three quick-select pages)
 
+### 📑 Quick select pages (q2) — R1 prompt moved in; ghost rings added (stretch goal), tuned in PCSX2, awaiting owner test
+
+**What changed.**
+- **R1 prompt (owner's note):** R1 sat further from the ring than L1. It now leaves the same small gap to the ring as L1.
+- **Ghost rings:** while the quick-select ring is open, faint, smaller copies of the neighbouring pages sit behind it: the next page (R1) on the right, the previous page (L1) on the left. Each ghost shows the five icons on its far side and hides the three that would sit under the ring. The L1 and R1 prompts sit in the gap between the ring and each ghost. A page with nothing on it shows no ghost. The ghosts fade in and out with the ring and update as pages turn.
+
+**Decisions taken.**
+- The retail ring sits close to the screen's left edge, where the left ghost doesn't fit, so the ring moves right just enough while it is open. It shows on screen about 55 game pixels (about a tenth of the width) further right than before.
+- Layout settled on screen: ghost centres 100 pixels from the ring's centre, ghost circles 0.8 of the ring's size, ghost icons 26 pixels (the ring's are 32), at about a third of the ring's brightness. A tighter layout looked scattered; a larger one pushed the ring too far right.
+
+**Verification.** On a copy of the owner's memory card (Challenge Mode Novalis, slot 1), with weapons put on pages 2 and 3 in RAM for the test:
+- Both ghosts draw on screen, and the left one clears the screen edge.
+- Turning pages with R1 moves the right ghost's page to the main ring and the old page to the left ghost.
+- An empty neighbour shows no ghost.
+- Equipping works in every direction with the ring moved.
+
+The owner's card was not changed (checksum matches).
+
+**Owner test.** Fill pages 2 and 3 in the pause menu, then hold Triangle in game and judge the ghosts: spacing, size, faintness, and whether the ring's new position works. Each of these is one number to change.
+
 ### 📑 Quick select pages (q2) — Fix: opening the ring froze Batalia (owner's report); fixed and verified in PCSX2, awaiting owner test
 
 **What was wrong.** On the owner's Batalia Challenge Mode save, opening quick select froze the game. The edition's ring code worked out which level was running from where the level keeps its HUD data, but several levels keep it at the same address. In Batalia it therefore ran another level's ring code. Novalis happened to be unaffected, so the earlier test missed it.
