@@ -4,6 +4,29 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-18 (x4: Metal Detector against the Blackwater City farm)
+
+### 💰 Metal Detector gives 20x bolts (x4) — Raised from 10x; builds, not yet run in-game, awaiting owner test
+
+**Goal (owner).** Make a Challenge Mode run that collects every Metal Detector stash a better way to 400,000 bolts than the Blackwater City crate farm: 150,000 for the RYNO and 250,000 for the ten Gold Weapons (prices read from the game: Devastator and Tesla Claw 60,000, Pyrocitor 30,000, Bomb Glove, Blaster and Morph-o-Ray 20,000, Suck Cannon, Mine Glove, Glove of Doom and Decoy Glove 10,000).
+
+**What changed.** In Challenge Mode every 5 bolts of a stash now comes out as two 50-bolt circlenuts instead of one: 20x the original, so a 50-bolt stash pays 1,000. Normal playthroughs are unchanged.
+
+**Decisions taken.**
+- 20x (owner's choice, from 20x, 25x and 30x). The 358 stashes pay 349,200 in a Challenge Mode run; the remaining ~51,000 of the 400,000 comes from the run's enemies and crates (not measured). For comparison, forum figures for the farm are 58,000-100,000 bolts an hour, so 4-7 hours for 400,000.
+- Only 50-bolt pieces, two per step, rather than odd mixes.
+
+**Findings.**
+- 358 stashes over 18 levels (none in the Veldin tutorial), 17,460 bolts in the original game. 347 hold 50; ten on Kalebo III and one on Veldin 2 hold 10.
+- The stashes cannot be farmed: the game saves how much of each stash was dug up, so a stash stays empty for the rest of the run. Starting Challenge Mode does not carry that record over, so every stash refills once per Challenge Mode run.
+- A whole stash pays out in a single frame once Ratchet stands on it; all the time goes into finding the stashes. Shortening the search (a larger pickup radius, a map marker) would raise the bolts per hour without raising the payout.
+- When the game runs out of room for bolt pieces, the value goes straight to the bolt count, so no bolts are lost however many pieces a stash throws.
+- Correction to an earlier note: the two extra numbers on some stashes are the area Ratchet must stand in for the stash to register, not a mission lock; all 358 can be collected.
+
+**Verification.** The mod segment compiles with the change, and its code was checked in disassembly: two calls to the level's bolt spawner with 50 in Challenge Mode, the original single call otherwise. No image was built and nothing was run in PCSX2 (another session's emulator was running).
+
+**Owner test.** Challenge Mode save (slots 3-5), a stash not yet dug: twice the circlenuts of the 10x build, bolt count up 1,000 for a 50-bolt stash. Then a normal save: hexnuts worth 5.
+
 ## 2026-10-18 (owner's extra item: the health display's lower backing)
 
 ### ❤️ Health display with Premium/Ultra Nanotech — Fixed; working per the owner

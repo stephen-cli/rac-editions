@@ -75,18 +75,51 @@ moves the directory record (verified booting in PCSX2 from sector 2058000).
 - The mod segment is the default route; the cave shim of x4 remains as
   feature `metal_detector_10x` for reference.
 
-## x4: Metal Detector gives 10x bolts in challenge mode — implemented, awaiting owner test
+## x4: Metal Detector gives 20x bolts in challenge mode — 10x owner-confirmed 2026-10-17; raised to 20x 2026-10-18, awaiting owner test
+
+**Goal (owner, 2026-10-18).** Make a Challenge Mode run that collects every
+hidden spot a better way to the 400,000 bolts of the RYNO (150,000) and the
+ten Gold Weapons (250,000 together) than the Blackwater City crate farm
+(forum figures 58,000-100,000 bolts an hour, so 4-7 hours for 400,000).
+
+**The spots.** 358 spots of class 605 over 18 levels (none in the Veldin
+tutorial), 17,460 bolts in retail: 347 hold 50, 11 hold 10 (ten on
+Kalebo III, one on Veldin 2). Counted from the unpacked gameplay instances
+(`OpenRAC/assets/wrench/rac1-pal`). Each spot's pvars `+0x10`/`+0x14` are a
+path and a volume (-1 for none) that the hero must be inside for the spot to
+register (`func_L01_002F4290`), not a mission lock. At 10x the run pays
+174,600; at 20x 349,200, the rest of the 400,000 coming from the run's
+enemies and crates (not measured).
+
+**Not farmable.** Each 5-bolt step taken from a spot is counted in a nibble
+of the table at `0x14C010` (16 bytes per level, one nibble per spot in
+placement order; `func_L00_002D42D8` increments it), which is a per-level
+save block (id 3008, 0x10 bytes, saved for all 20 level slots). The spot's
+init subtracts it from the count, so a drained spot stays drained for the
+run. The challenge-mode reset `func_00227DB0` keeps 0x50 bytes at
+`0x14BFC0`, which ends exactly at `0x14C010`, and restores everything else
+from the new-game save, so the spots refill once per challenge-mode run.
 
 **Mechanism in retail.** Hidden bolt spots are mobys of class 605 (wrench
 underlay: "Metal Detector", the placed spot; class 585 is the held gadget's
 own moby). The held detector's update function `func_L00_002D4398`
 (class 585) tracks the nearest spot (`hero + 0x2040`), and when within 1.0
-drains the spot's bolt count (`spot->pvars + 0x18`) in steps of 5, each step
+drains the spot's bolt count (`spot->pvars + 0x18`) in steps of 5, the whole
+spot in one frame, each step
 spawning one bolt through `func_L00_002A86D8(spot, pos, dir, 0x13, value=5, 0)`.
-That spawner maps the value to a bolt class: 1-4 plain bolt (class 13),
-5 hexnut (14), 20 starnut (15), 50 circlenut (16); other values spawn
-nothing. The PS3 multiplayer mod implements the same feature by multiplying
-the spot's count (10x as many spawns).
+That spawner maps the value to a bolt class: 5 hexnut (14), 20 starnut
+(15), 50 circlenut (16), any other value a plain bolt (13). Flags 2|0x10
+give each bolt a random throw of +-30 degrees; with no free moby it adds the
+value to `gBolts` instead, so no bolt is lost to the moby limit. The PS3
+multiplayer mod implements the same feature by multiplying
+the spot's count (10x as many spawns), which would overflow the 4-bit
+per-spot counter above.
+
+**20x (mod segment, `src/metal_detector.c`, the default
+`metal_detector_10x_modseg`).** In a challenge-mode run each step spawns two
+circlenuts instead of one hexnut: 100 per step, exactly 20x. The two get
+independent random throws from the same arguments. The cave shim below
+(feature `metal_detector_10x`) stays at 10x, for reference.
 
 **Challenge mode.** `D_0015EF20` (s32, save global chunk 2, "times
 completed") is incremented by the challenge-mode reset `func_00227DB0`
@@ -109,9 +142,10 @@ Same number of spawns, each worth 50 instead of 5: exactly 10x, with the
 circlenut model. 133 words over 38 sectors across the 19 levels. The shim's
 encoding was checked against the SN assembler's output.
 
-**Test plan (owner).** Challenge-mode save with the Metal Detector: find a
-hidden spot, observe circlenut bolts and 10x the bolt gain. Then a normal
-save: unchanged hexnut bolts worth 5. Levels to cover: any two.
+**Test plan (owner).** Challenge-mode save with the Metal Detector: find an
+undrained hidden spot, observe twice as many circlenut bolts as before and
+20x the bolt gain (a 50-bolt spot pays 1,000). Then a normal save:
+unchanged hexnut bolts worth 5. Levels to cover: any two.
 
 ## q3: Quick select pause setting — working (owner, 2026-10-17); labels, row position and preview fixed, awaiting re-check
 
