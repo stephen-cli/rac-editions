@@ -1248,6 +1248,59 @@ back flip by pad needs the direction pressed with Cross while crouched
 (`HeroCrouchJumps` wants a fresh direction press); the stick held alone
 gives a high jump.
 
+## x2: the Charge Boots on the Cheats page; Challenge Mode only (2026-10-18) — verified in PCSX2, awaiting owner test
+
+**Owner's requests.** Once unlocked, the Charge Boots should be listed on the
+Goodies Cheats page and switch on and off there. The cheat must not unlock
+outside Challenge Mode (the previous round's test had written the gate's
+flag into RAM on a save that is not in Challenge Mode).
+
+**The page.** Goodies > Cheats is a toggle list (level 0's widget at
+`0x1B8098`). Its "enter" callback (widget + 8) is the row builder
+`func_0021B138` (NTSC decomp `rebuild_configured_text_label_list`), which
+writes a row {name, &gCheats[id], "on", "off", 0} for each seen cheat of its
+id list {1, 3, 0, 7, 4, 6, 2} into the widget's list (widget + 0x34, 13 rows
+of 0x14 bytes) and ends it with a zero name; Cross flips the byte the row
+points at. The page has no other per-row table (its other widgets are the
+title and the button prompts). Each level's callback slot (one data word,
+`cheats_enter` from `tools/gen_charge.py`, which checks it is the only word
+holding the builder's address) now holds a stub `ee_cheats_enter_NN`
+(src/charge_hooks.s; a callback reached through a pointer has no call site
+to name the level, so each stub passes its own), and `ee_cheats_enter_c`
+runs the builder and then, once the cheat has been seen, appends {0x5406
+"Charge Boots", &gCheats[8], "on", "off", 0}. 19 words.
+
+**Toggle and unlock split.** `gCheats[8]` (0x15EEB8) is now the switch:
+`ee_charge_boots_frame` owns the boots while it is 1 and takes them away
+while it is 0 (as when locked). The unlock is the detector's own seen byte
+for entry 8, 0x15EEC8, saved with the file like the retail cheats': it lists
+the row, keeps entry 8 of the loaded level's sequence table blanked (so only
+the page switches the boots off) and picks the "Charge Boots unlocked"
+banner. Saves that unlocked the boots on the previous build have both bytes
+set, so they get the row with the boots on.
+
+**Challenge Mode only.** The detector returns before recording any move
+unless 0x15EFA0 or 0x15EF20 is set (NTSC decomp `if (D_0015EEA0 == 0 &&
+D_0015EE20 == 0) return;`, PAL + 0x100). 0x15EF20 is the completion count,
+the "R 1" badge on the Load Game list; 0x15EFA0 is set when a beaten game
+continues into Challenge Mode (NTSC `process_global_state_flags`). Both are
+Challenge Mode, so the game's own gate already confines the cheat to it and
+the edition adds none; nothing in the edition writes either flag.
+
+**Verified in PCSX2 (this build, no RAM writes unless said).**
+- Slot 1, Novalis, not Challenge Mode (both flags 0): the six moves leave
+  the detector's ring empty; the boots stay locked.
+- Slot 4, Batalia, Challenge Mode (0x15EF20 = 1): the sequence entered by
+  hand in the emulator window (the scripted attempt's ring index was reset
+  mid-sequence, cause not found) left the ring reading `7 3 3 4 6 6` and the
+  boots unlocked (gCheats[8] 1, seen 1, owned); then switched off on the
+  page: gCheats[8] 0, the boots no longer owned.
+- The page itself (Novalis with 0x15EFA0 written in RAM, the earlier run
+  of this build): the row reads "Charge Boots ... on"; Cross shows "off",
+  gCheats[8] 0, and back in the game the boots are no longer owned.
+  Switching back on was not separately exercised; it is the same frame code
+  that gives the boots on the unlock.
+
 ## x5: the quick second strafe flip (2026-10-18), awaiting owner test
 
 **Owner's report.** A quick follow-up side flip while strafing often came

@@ -342,8 +342,11 @@ def charge_dash(at):
     every level) goes to ee_frame_start_hook, which keeps the edition's
     sequences in Ratchet's class after a pause and runs the Charge Boots
     cheat; the cheat detector's ShowBanner call goes to
-    ee_charge_banner_hook; and entry 8 of the detector's sequence table
-    gets the cheat's moves (CHARGE_CHEAT). Sites from tools/gen_charge.py."""
+    ee_charge_banner_hook; entry 8 of the detector's sequence table gets
+    the cheat's moves (CHARGE_CHEAT); and the Goodies Cheats page's list
+    widget's "enter" slot (its row builder) goes to the level's
+    ee_cheats_enter_NN stub, which adds the Charge Boots row. Sites from
+    tools/gen_charge.py."""
     import json
     sites = HERE.parent / "build/modseg/charge_sites.json"
     if not sites.is_file():
@@ -356,7 +359,8 @@ def charge_dash(at):
             (c["camera_site"], jal(c["collect"]), jal(modseg_symbol("ee_charge_camera_hook"))),
             (at("func_L00_00299250") + FRAME_START_SITE, jal(at("func_L00_0024F7E0")),
              jal(modseg_symbol("ee_frame_start_hook"))),
-            (c["banner_site"], jal(c["show_banner"]), jal(modseg_symbol("ee_charge_banner_hook")))] + \
+            (c["banner_site"], jal(c["show_banner"]), jal(modseg_symbol("ee_charge_banner_hook"))),
+            (c["cheats_enter"], c["cheats_builder"], modseg_symbol(f"ee_cheats_enter_{at.level:02d}"))] + \
         [(entry + 4 * k, 0, struct.unpack_from("<I", seq, 4 * k)[0]) for k in range(4)]
 
 

@@ -56,3 +56,86 @@ ee_charge_banner_hook:
 ee_boots_pose_item_hook:
     j     ee_boots_pose_item_c
     addu  $5, $31, $0
+
+/* The Goodies Cheats page's list widget "enter" callback (the row list's
+ * builder, func_0021B138), one stub per level: the callback is reached
+ * through a data pointer, so the return address does not name the level;
+ * the level goes in $8, past the callback's four arguments
+ * (src/charge_boots.c). */
+.extern ee_cheats_enter_c
+.globl ee_cheats_enter_00
+ee_cheats_enter_00:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 0
+.globl ee_cheats_enter_01
+ee_cheats_enter_01:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 1
+.globl ee_cheats_enter_02
+ee_cheats_enter_02:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 2
+.globl ee_cheats_enter_03
+ee_cheats_enter_03:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 3
+.globl ee_cheats_enter_04
+ee_cheats_enter_04:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 4
+.globl ee_cheats_enter_05
+ee_cheats_enter_05:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 5
+.globl ee_cheats_enter_06
+ee_cheats_enter_06:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 6
+.globl ee_cheats_enter_07
+ee_cheats_enter_07:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 7
+.globl ee_cheats_enter_08
+ee_cheats_enter_08:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 8
+.globl ee_cheats_enter_09
+ee_cheats_enter_09:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 9
+.globl ee_cheats_enter_10
+ee_cheats_enter_10:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 10
+.globl ee_cheats_enter_11
+ee_cheats_enter_11:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 11
+.globl ee_cheats_enter_12
+ee_cheats_enter_12:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 12
+.globl ee_cheats_enter_13
+ee_cheats_enter_13:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 13
+.globl ee_cheats_enter_14
+ee_cheats_enter_14:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 14
+.globl ee_cheats_enter_15
+ee_cheats_enter_15:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 15
+.globl ee_cheats_enter_16
+ee_cheats_enter_16:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 16
+.globl ee_cheats_enter_17
+ee_cheats_enter_17:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 17
+.globl ee_cheats_enter_18
+ee_cheats_enter_18:
+    j     ee_cheats_enter_c
+    addiu $8, $0, 18

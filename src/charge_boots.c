@@ -29,11 +29,14 @@
  * back flip (3) twice, Comet-Strike (4), Hyper-Strike (6) twice; the move
  * ids as the retail codes use them (entry 0, 1 2 3 3 4 5 4 6, is Big Head
  * Ratchet: side flip left, right, back flip twice, Comet-Strike, double
- * jump, Comet-Strike, Hyper-Strike). Every frame (ee_charge_cheat_frame)
- * the boots are owned when gCheats[8] is set and taken away otherwise, and
- * once set, entry 8 of the level's table is blanked so a second entry of
- * the sequence does nothing (no "cheat off"); the banner of the unlock is
- * the edition's own text. */
+ * jump, Comet-Strike, Hyper-Strike). A match also marks the cheat seen
+ * (0x15EEC0 + 8, saved: chunk 37), which is what the Goodies Cheats page
+ * lists; the edition adds the Charge Boots row there (ee_cheats_enter_c),
+ * an On/Off toggle of gCheats[8] like the retail rows (owner's request,
+ * 2026-10-18). Every frame the boots are owned while gCheats[8] is on and
+ * taken away while it is off; once seen, entry 8 of the level's table is
+ * blanked (ee_charge_cheat_frame) so the sequence only unlocks, and the
+ * unlock's banner is the edition's own text. */
 #include "modseg.h"
 
 #define ITEM_OWNED(id)     (*(volatile u8 *)(0x0013D5C8 + (id)))   /* D_0013D5C8: owned items, by id */
@@ -105,16 +108,17 @@ static void panel_sequence(s32 L)
     }
 }
 
-#define CHEAT_UNLOCKED       (*(volatile u8 *)EE_CHEAT_CHARGE_BOOTS)
+#define CHEAT_ON             (*(volatile u8 *)EE_CHEAT_CHARGE_BOOTS)           /* gCheats[8]: the toggle */
+#define CHEAT_SEEN           (*(volatile u8 *)(0x0015EEC0 + EE_CHEAT_ENTRY))   /* unlocked: listed on the Cheats page */
 #define ITEM_NONE            0x26        /* hero_switch_item's "no item": what it makes pending to take boots off */
 #define HERO_ITEM(slot)      (*(volatile s32 *)(0x0013F450 + 0x1090 + 0x50 * (slot) + 0x28))   /* hero.items[slot].item_id */
 
 void ee_charge_boots_frame(s32 L)
 {
     panel_sequence(L);
-    if (!CHEAT_UNLOCKED) {
-        /* Locked: not owned, not worn (saves from earlier builds own and
-         * wear them). */
+    if (!CHEAT_ON) {
+        /* Locked or switched off: not owned, not worn (saves from earlier
+         * builds own and wear them). */
         ITEM_OWNED(ITEM_CHARGE_BOOTS) = 0;
         if (EQUIPPED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
             EQUIPPED(SLOT_BOOTS) = 0;
@@ -132,20 +136,21 @@ void ee_charge_boots_frame(s32 L)
 }
 
 /* The cheat, at the start of every gameplay frame (before the hero update
- * and its detector): once unlocked, entry 8 of this level's table (each
- * level loads its own, gen_charge's cheat_table) is blanked, so the
- * sequence cannot switch the cheat off; and the state at the frame's start
- * tells the banner hook whether this frame's "cheat on" is the unlock. */
+ * and its detector): once seen, entry 8 of this level's table (each level
+ * loads its own, gen_charge's cheat_table) is blanked, so the sequence
+ * cannot switch the cheat off (the Cheats page does that); and the state at
+ * the frame's start tells the banner hook whether this frame's "cheat on"
+ * is the unlock. */
 extern const u32 ee_charge_cheat_table[19], ee_charge_banner_site[19], ee_charge_show_banner[19];
 #define TEXT_CHEAT_ON          0x4FBE
 #define TEXT_BOOTS_UNLOCKED    0x5409   /* text/strings.tsv */
 typedef void (*ShowBanner)(s32 text, s32 time);
-static u8 unlocked_at_frame_start;
+static u8 seen_at_frame_start;
 
 void ee_charge_cheat_frame(s32 L)
 {
-    unlocked_at_frame_start = CHEAT_UNLOCKED;
-    if (CHEAT_UNLOCKED) {
+    seen_at_frame_start = CHEAT_SEEN;
+    if (CHEAT_SEEN) {
         *(volatile u8 *)(ee_charge_cheat_table[L] + 16 * EE_CHEAT_ENTRY) = 0;
     }
 }
@@ -155,7 +160,7 @@ void ee_charge_cheat_frame(s32 L)
 void ee_charge_banner_c(s32 text, s32 time, u32 ra)
 {
     s32 L = ee_level_of_call(ra, ee_charge_banner_site, 0);
-    if (text == TEXT_CHEAT_ON && CHEAT_UNLOCKED && !unlocked_at_frame_start) {
+    if (text == TEXT_CHEAT_ON && CHEAT_SEEN && !seen_at_frame_start) {
         text = TEXT_BOOTS_UNLOCKED;
     }
     ((ShowBanner)ee_charge_show_banner[L])(text, time);
@@ -186,4 +191,48 @@ s32 ee_boots_pose_item_c(s32 slot, u32 ra)
     s32 L = ee_level_of_call(ra, lvl_func_L00_0020DBD8, EE_SITE_BOOTS_POSE);
     s32 item = LVL(L, func_L00_0020DB30, SlotItem)(slot);
     return item == ITEM_CHARGE_BOOTS ? ITEM_MAGNEBOOTS : item;
+}
+
+/* The Goodies Cheats page: its list widget's "enter" callback is the row
+ * builder (func_0021B138; NTSC decomp rebuild_configured_text_label_list),
+ * which writes a row {name, &gCheats[id], "On", "Off", 0} for each seen
+ * cheat of its id list {1, 3, 0, 7, 4, 6, 2} into the widget's list (13
+ * rows of 0x14 bytes, gen_charge's cheats_list) and ends it with a zero
+ * name. Each level's callback slot points at a stub that passes the level
+ * (src/charge_hooks.s); the builder runs, then the Charge Boots row is
+ * added once the cheat is seen. The page has no other per-row table (its
+ * other widgets are the title and the button prompts). */
+extern const u32 ee_charge_cheats_builder[19], ee_charge_cheats_list[19];
+#define TEXT_ON              0x4F5A
+#define TEXT_OFF             0x4F5B
+#define TEXT_CHARGE_BOOTS    0x5406   /* text/strings.tsv: "Charge Boots" */
+#define CHEAT_ROWS           13
+struct cheat_row {
+    s32 text;
+    u8 *flag;
+    s32 on, off;
+    s32 value;
+};
+typedef s32 (*CheatsBuilder)(s32 a0, s32 a1, s32 a2, s32 a3);
+
+s32 ee_cheats_enter_c(s32 a0, s32 a1, s32 a2, s32 a3, s32 L)
+{
+    s32 result = ((CheatsBuilder)ee_charge_cheats_builder[L])(a0, a1, a2, a3);
+    struct cheat_row *row = (struct cheat_row *)ee_charge_cheats_list[L];
+    s32 n = 0;
+    if (!CHEAT_SEEN) {
+        return result;
+    }
+    while (n < CHEAT_ROWS - 1 && row[n].text != 0) {
+        n++;
+    }
+    if (n < CHEAT_ROWS - 1) {
+        row[n].text = TEXT_CHARGE_BOOTS;
+        row[n].flag = (u8 *)EE_CHEAT_CHARGE_BOOTS;
+        row[n].on = TEXT_ON;
+        row[n].off = TEXT_OFF;
+        row[n].value = 0;
+        row[n + 1].text = 0;
+    }
+    return result;
 }

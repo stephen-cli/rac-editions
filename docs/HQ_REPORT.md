@@ -25,6 +25,29 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
 
+### 🥾 Charge Boots (x2) — On the Cheats page, and Challenge Mode only (owner's requests); verified in PCSX2, awaiting owner test
+
+**What changed.** Once unlocked, the Charge Boots get their own row on the Goodies → Cheats page, "Charge Boots on/off", alongside the game's cheats. Switching it off takes the boots away, and takes them off Ratchet if he's wearing them. Switching it on gives them back. The unlock itself stays permanent: the row stays listed either way, and entering the move sequence again does nothing. Applied to all 19 levels. Saves that already unlocked the boots on the previous build get the row, with the boots on.
+
+**Challenge Mode only.** The game's cheat detector, which this cheat uses, ignores every move unless the save is in Challenge Mode, so the sequence can't unlock the boots in a normal game, and nothing in the edition gets around that. It only looked possible because the previous round's test switched the game's Challenge Mode flag on in the emulator's memory, on a normal save. This round was tested without that: on a normal save the moves aren't even recorded, and on a real Challenge Mode save the sequence unlocks the boots.
+
+**Decisions taken.**
+- Only the page switches the boots off; the sequence can't.
+- The row uses the boots' name and the game's own "on"/"off" text, so it shows in all five languages.
+
+**Verification.** In PCSX2 on this build:
+- Normal save (Novalis, slot 1): the six moves do nothing, and the boots stay locked.
+- Challenge Mode save (Batalia, slot 4): the sequence, entered by hand in the emulator window, unlocked the boots. Switching them off on the page then removed them.
+- The page shows "Charge Boots on". Cross switches it to "off", and back in the game the boots are gone.
+
+Switching back on wasn't exercised separately; it runs the same code that gives the boots at the unlock.
+
+Owner test: on a Challenge Mode save, enter the sequence (crouch for a second, back flip, back flip, Comet-Strike, Hyper-Strike, Hyper-Strike), then open Goodies → Cheats. Switch the row off and on, checking the Items menu each time. On a normal save the sequence should do nothing.
+
+**Findings.**
+- Each cheat has two saved flags: on/off, and "seen", which lists it on the page. The boots use their seen flag as the permanent unlock and their on/off flag as the switch.
+- Goodies is missing from the pause menu until the game is in Challenge Mode.
+
 ### 🥾 Charge Boots (x2) — Locked behind a new cheat; pause freeze and Veldin 1 fixed (owner's reports); verified in PCSX2, awaiting owner test
 
 **What was wrong.** Pausing in the middle of a charge froze the game once it resumed. The charge still never started on Veldin's first visit.

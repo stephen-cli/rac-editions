@@ -38,6 +38,12 @@ levels, so the catalogue does not name these.
              The Charge Boots cheat goes in entry 8 (src/charge_boots.c)
   banner_site the detector's one call of ShowBanner (func_L00_00264DB8)
   show_banner that call's target
+  cheats_enter the Goodies Cheats page's toggle-list widget's "enter"
+             callback slot (widget + 8, in the level's data): the one data
+             word holding the list builder func_0021B138's address
+  cheats_builder that builder (rebuild_configured_text_label_list in the NTSC
+             decomp: a row per unlocked cheat)
+  cheats_list the widget's row list (widget + 0x34), 13 rows of 0x14 bytes
 
 Writes build/modseg/gen_charge.c (19-entry tables) and
 build/modseg/charge_sites.json (for tools/overlay_patch.py).
@@ -62,6 +68,7 @@ COLLECT = "func_L00_001F2BE8"
 DETECTOR = "func_L00_00207418"
 DETECTOR_SIZE = 720
 SHOW_BANNER = "func_L00_00264DB8"
+CHEATS_BUILDER = "func_0021B138"
 RETAIL_CHEAT_0 = bytes([1, 2, 3, 3, 4, 5, 4, 6, 0])
 CHEAT_ENTRY = 8
 FADE_TYPE = 27
@@ -70,7 +77,8 @@ STATE_COMET = 0x15
 STATE_RUN = 2
 STATE_THRUSTER = 0x81
 NAMES = ("trigger", "slot_item", "scale", "set_state", "move_site", "move_fn", "part_frames", "camera_site",
-         "collect", "collect_list", "cheat_table", "banner_site", "show_banner")
+         "collect", "collect_list", "cheat_table", "banner_site", "show_banner", "cheats_enter",
+         "cheats_builder", "cheats_list")
 
 
 def jal(target: int) -> int:
@@ -83,7 +91,8 @@ def catalogue(openrac: Path) -> dict:
         if line.startswith("#"):
             continue
         p = line.split("\t")
-        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE, CAMERA_FN, COLLECT, DETECTOR, SHOW_BANNER):
+        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE, CAMERA_FN, COLLECT, DETECTOR, SHOW_BANNER,
+                    CHEATS_BUILDER):
             lv = {}
             for pl in p[5].split(","):
                 L, a = pl.split(":")
@@ -223,10 +232,23 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
     banners = [tbase + 4 * j for j in range(d, d + DETECTOR_SIZE // 4) if w[j] == jal(banner)]
     if len(banners) != 1:
         raise SystemExit(f"level {level}: ShowBanner called {len(banners)} times in the cheat detector")
+
+    # The Cheats page's list widget: the data word holding the builder's
+    # address is its "enter" slot (widget + 8); its row list is at + 0x34.
+    builder = one(CHEATS_BUILDER)
+    dbase, dbody = recs["data"]
+    slots = [dbase + i for i in range(0, len(dbody) - 3, 4) if struct.unpack_from("<I", dbody, i)[0] == builder]
+    if len(slots) != 1:
+        raise SystemExit(f"level {level}: the cheats builder {builder:#x} is referenced {len(slots)} times in the data")
+    widget = slots[0] - 8
+    rows = word_at(widget + 0x34)
+    if not (dbase <= rows < widget and widget - rows >= 13 * 0x14):
+        raise SystemExit(f"level {level}: the cheats widget at {widget:#x} has rows at {rows:#x}")
     return {"trigger": tbase + 4 * k0, "slot_item": slot_item, "scale": scale, "set_state": set_state,
             "move_site": calls[0], "move_fn": move_fn, "part_frames": part_frames,
             "camera_site": cams[0], "collect": collect, "collect_list": lists[0],
-            "cheat_table": table, "banner_site": banners[0], "show_banner": banner}
+            "cheat_table": table, "banner_site": banners[0], "show_banner": banner,
+            "cheats_enter": slots[0], "cheats_builder": builder, "cheats_list": rows}
 
 
 def main() -> int:

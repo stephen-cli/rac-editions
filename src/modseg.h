@@ -55,11 +55,12 @@ typedef float f32;
  * control.) tools/gen_menu.py reads this name from here. */
 #define EE_SETTING_QS_PAUSE     0x0015EEBB
 
-/* x2: the Charge Boots cheat's flag, gCheats[8], saved in the same block.
+/* x2: the Charge Boots cheat's toggle, gCheats[8], saved in the same block.
  * The game's move-combo cheat detector (func_L00_00207418, NTSC decomp
- * FUN_L00_00206e00) matches 12 entries of a per-level sequence table and
- * toggles gCheats[i]; retail fills entries 0-4, 6 and 7, and the edition
- * adds entry 8 (src/charge_boots.c). */
+ * FUN_L00_00206e00) matches 12 entries of a per-level sequence table,
+ * toggles gCheats[i] and marks the cheat seen at 0x15EEC0 + i (saved too),
+ * which lists it on the Goodies Cheats page; retail fills entries 0-4, 6
+ * and 7, and the edition adds entry 8 (src/charge_boots.c). */
 #define EE_CHEAT_CHARGE_BOOTS   0x0015EEB8
 #define EE_CHEAT_ENTRY          8
 
