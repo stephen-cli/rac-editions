@@ -4,6 +4,39 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-18 (q2: three quick-select pages)
+
+### 📑 Quick select pages (q2) — Implemented and verified in PCSX2; awaiting owner test
+
+**What changed.** The quick-select ring has three pages. With the ring open (Triangle held), R1 goes to the next page and L1 to the previous one, in a loop (1 → 2 → 3 → 1 with R1, the other way with L1). L1 and R1 button prompts sit left and right of the ring. The ring reopens on the page you last used. In the pause menu's Quick Select tab, Square switches between the three rings, the ring's centre reads "Page 1", "Page 2" or "Page 3", and the button box lists "[X] Equip", "[square] Next ring", "[triangle] Exit". Applied to all 19 levels.
+
+**Decisions taken.**
+- Pages are saved inside the existing save file, in 24 bytes of a saved statistics block that no game code reads or writes. No new save block, so the save file's size and layout are unchanged. Page 1's eight slots stay where the retail game keeps its ring.
+- Backwards compatibility: the retail game loads an edition save normally, shows the page that was active when it was saved, and carries the other two pages along untouched. The edition loads retail saves with pages 2 and 3 empty.
+- The ring reopens on the last page used (owner's choice). The same weapon may sit on more than one page (owner's choice); within one page the game's own rule (one slot per weapon) still applies.
+- A newly acquired weapon takes the first empty slot of the active page as in retail; if that page is full, the next page, then the previous one (owner's choice).
+- While the ring is open, L1 and R1 don't reach Ratchet, so turning a page doesn't also crouch.
+- The pause prompt reads "Next ring" instead of "Switch rings": the retail prompt box is a fixed width and clipped the longer label to "Switch rin" (owner's choice). The prompt box is shared with the Weapons and Gadgets tabs, so Quick Select gets its own copy; Weapons and Gadgets still read "Equip / Exit".
+- Challenge Mode's carry-over keeps all three pages, as it keeps the ring.
+
+**Verification.** On the owner's Novalis save (slot 1), on a copy of the memory card; the owner's card was not touched:
+- R1/L1 cycle the pages in game, and the stored pages rotate correctly.
+- Square cycles Page 1/2/3 in the pause tab. Weapons equipped onto page 2 there showed up in the in-game ring, which reopened on page 2, and equipping from page 2 worked.
+- Saved with three different pages, wiped them in RAM (test tool only), and reloaded the save: all three pages and the page number came back.
+
+Not yet tested:
+- Loading an edition save in the retail game (the owner's test; the retail image can't be driven by script).
+- The overflow of a new weapon to the next page.
+- The Challenge Mode carry-over.
+
+**Owner test.**
+1. Hold Triangle: tap R1 and L1 and watch the pages change; equip something from page 2.
+2. In Pause > Quick Select, press Square to reach page 3 and put a weapon there with Cross.
+3. Save, reload, and check all three pages.
+4. Optionally load that save on the original disc: the ring should show the page that was active.
+
+**Stretch goal (ghost rings).** Drafted, not built yet. Planned after the owner confirms the core feature: faint, shrunken previews of the neighbouring pages left and right, showing their five outer icons.
+
 ## 2026-10-18 (x5: Going Commando's landing jump back; guns held up on the backpedal)
 
 ### 🎯 Strafing on L2/R2 (x5) — Landing press back to Going Commando's plain jump (owner's call), verified in PCSX2

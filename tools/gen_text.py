@@ -28,9 +28,16 @@ COLUMN_TO_LANGUAGE = {1: 0, 2: 2, 3: 3, 4: 4, 5: 5}
 def c_string(s: str) -> str:
     # The game's font has its own codes for accented letters; until that
     # code page is mapped, non-ASCII becomes its closest ASCII letter.
+    # `\xNN` in the table is a font control code (button glyphs: 0x10 Cross,
+    # 0x11 Circle, 0x12 Triangle, 0x13 Square, 0x14 L1, 0x15 R1, 0x18/0x19
+    # the sticks), written as an octal escape so the letter after it is
+    # never read as part of the escape.
+    import re
     import unicodedata
     plain = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
-    return '"' + plain.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    plain = plain.replace("\\\\", "\0").replace('"', '\\"')
+    plain = re.sub(r"\\x([0-9A-Fa-f]{2})", lambda m: "\\%03o" % int(m.group(1), 16), plain)
+    return '"' + plain.replace("\0", "\\\\") + '"'
 
 
 def main() -> int:

@@ -72,6 +72,25 @@ typedef float f32;
 #define EE_OPTIONS_SS           0x00138140
 #define EE_HELP_SS              0x00138108
 
+/* q2: three quick-select pages (src/quick_select_pages.c). The active page is
+ * the game's own eight saved words (D_00141FA0, save block 0xD); the other
+ * two and the page number live in the last three records of the saved
+ * statistics block (D_00141948, 0x120 bytes of {u16 count, u16 time, u32
+ * level bits} event counters, save block 0x11): retail code reads and writes
+ * the records up to 0x141A4C by constant offsets, never these 24 bytes, so a
+ * retail game loads, keeps and re-saves them blindly. Both blocks are zeroed
+ * by the new-game reset; the challenge-mode carry-over keeps the ring but
+ * resets the statistics, so its reset call is hooked (EE_SITE_QS_CARRY). */
+#define EE_QS_PAGE_NEXT      0x00141A50   /* 8 item ids: the page R1 brings up */
+#define EE_QS_PAGE_PREV      0x00141A58   /* 8 item ids: the page L1 brings up */
+#define EE_QS_PAGE_INDEX     0x00141A60   /* which of the three pages is active, 0-2 */
+#define EE_SITE_QS_CARRY     0x140        /* func_00227DB0 + 0x140: jal func_00209DC0 (the save-state reset) */
+#define EE_SITE_QS_AUTOSLOT  0x1EC        /* func_L00_002618D8 + 0x1EC: the empty-slot test and store, 6 words */
+#define EE_TEXT_QS_SWITCH    0x5409       /* "[square] Next ring" (the retail box is too narrow for "Switch rings") */
+#define EE_TEXT_QS_PAGE      0x540A       /* "Page 1"; + 1 "Page 2"; + 2 "Page 3" */
+/* The ring is open in LEVEL (HUD slot 3's update callback is the edition's). */
+s32 ee_qs_ring_open(s32 level);
+
 /* The level whose program made the call that returns to RA, given the hooked
  * function's 19 addresses and the call site's offset in it (src/level.c). */
 s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);

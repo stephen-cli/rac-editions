@@ -1550,3 +1550,148 @@ back):
 - The pause menu mid-backpedal, and the Weapons screen (which wrote slot
   140 and zeroed 134-161 on close): the backpedal arm and the alias came
   back on their next use; no crash.
+
+## q2: Quick select pages — verified in PCSX2 (2026-10-18), awaiting owner test
+
+**What the player gets.** The quick-select ring has three pages. With the
+ring open (Triangle held), R1 shows the next page and L1 the previous, in a
+loop: page 1, R1, page 2, R1, page 3, R1, page 1; L1 goes the other way. L1
+and R1 glyphs sit left and right of the ring. The ring reopens on the page
+it was left on, and that page is what the pause menu's Quick Select tab
+shows first. On that tab, Square switches between the three rings ("Page 1",
+"Page 2", "Page 3" in the ring's centre) and the button box reads "[X]
+Equip", "[square] Next ring", "[triangle] Exit" (the owner's "Switch
+rings" does not fit the retail box, which clipped it to "Switch rin";
+the owner chose a shorter label). A weapon may sit on
+more than one page; within a page the game's own rule (one slot per item)
+still applies. A newly acquired weapon takes the first empty slot of the
+active page as in retail; when that page is full it goes to the next page,
+then the previous. L1 and R1 do not reach the hero while the ring is open,
+so a page flip is not also a crouch or a look.
+
+**The game's ring.** HUD slot 3, shown by the hero's input handler
+(`func_L00_0022A340` in level 0; `HeroStateTransitions` in others) with
+`HudShow(3, 0, QuickSelectInit, QuickSelectUpdate, QuickSelectDraw, 0, 0)`
+(`func_L00_00238478`, `func_L00_00238530`, `func_L00_00238C30`). Init
+copies the eight saved item words `D_00141FA0` (save block 0xD, 0x20 bytes)
+into the level's eight slot records (level data, `0x17DBC0` in level 0,
+0x1C each: +0 icon id from the item table's record +0x38, +8..+0x14 the
+d-pad neighbours, +0x18 item id) and sets the count `0x15FB48` = 8 and the
+set pointer `0x15FB78` -> `gp-0x74E8`, a table of slot arrays indexed by
+`gp-0x74F4` (0; Giant Clank's ring, `func_L00_002394A8`/`00239510`, has
+its own four-slot array right after). Update: a 30-frame wait until the
+stick is centred or the d-pad is pressed, then the stick (> 0.9 deflection,
+angle -> slot, 0.2 hysteresis) or the d-pad neighbours pick slot +0x74; an
+empty slot is skipped in the direction of travel; on Triangle's release the
+slot's item becomes the hero's pending item (hero + 0x20B8; 0x18 sets hero
++ 0x1FF5 instead), the use statistics at `0x141948 + 0xA0` are bumped, and
+the slot fades out over 8 frames (+0x70). Draw: a four-quadrant darkening
+disc (icon 0xE934) over the 210x200 box whose origin `func_L00_00236400`
+derives from the slot's anchor flags, the icons (helper
+`func_L00_0023BAB8`: centred, natural size 32) on a circle of radius 74 x
+1.05 about (origin + 105, + 100), the highlight box 0xE99C pulsing with
+`0x15F6B0` mod 30, and the selected item's name (split at '-' or ' ' into
+two lines) and ammo in the centre. Its constants are gp-relative level
+data at two different offsets across the levels (`-0x74F4` in 17 levels,
+`-0x74E4` in 5 and 16), which the edition does not read: the slot records
+and the item table come from Init's own lui/addiu pairs
+(`tools/modseg.py` LEVEL_DATA `qs_slots`, `item_table`). The pad's
+unmasked words are what the ring reads: held `D_0013CA40 + 0x1C0`, pressed
+`+0x1C4`; L1 is 0x4, R1 0x8, Square 0x80 (NTSC decomp `pad_state.h`).
+
+**The pause tab.** The pause menu's tabs are Weapons, Gadgets, Quick
+Select, Items, Help, Options (rows of the list at level 0 `0x1B2990`, 24
+bytes apart). The Quick Select page (`0x1CF538` in the executable's data,
+kind 5) has ten widgets; the ring's is `{update func_0021D7A0, draw
+func_00221B58 (draw_pause_ring, NTSC decomp), enter func_0021D9C8, leave
+func_0021DA60}`. Enter copies the eight words into the widget state (+0x30)
+and puts the highlight (+0x50) on the first empty slot; leave copies the
+state back; update steps the highlight with R1/L1, and on Cross takes the
+item grid's item (the focused grid's `+0x3C` index into its `+0x48` rows
+of 10 bytes, id at +6), removes it from any slot it already had, puts it in
+the highlighted slot and advances. Draw puts the icons on a circle of
+radius min(w, h)/2 - 40 about the widget's centre (+0x20/+0x24), with the
+L1 and R1 glyphs (`lit.rodata 0x1603D8`/`0x1603E0`: codes 0x14, 0x15) at
+the top corners. The button box is the widget `{draw func_0021C1B0, +0x30
+0x4002, +0x34 -> rows}`, rows of 12 bytes `{s16 string id, ...}` ending in
+0: `{0x4EEC "[X] Equip", 0x4EE0 "[triangle] Exit"}`. Font control codes:
+0x10 Cross, 0x11 Circle, 0x12 Triangle, 0x13 Square, 0x14 L1, 0x15 R1,
+0x18/0x19 the sticks (from the game's own strings).
+
+**Where the pages are saved.** Retail code reads the eight words whole, as
+item ids, so they cannot carry more (an edition save with packed bytes
+would send a retail game's ring reading item records far past the table).
+The save file is a header with the two block tables' total sizes
+(`func_00209CE8` rejects any other) and id-tagged blocks (`D_001A05C0`, 47
+global blocks of `{address, size, id}`; `D_001A08C0`, 11 per-level blocks
+saved 20 times; `func_0020BAD8` sizes a table, `func_0020BD70` unpacks by
+id), so a new block changes the file size and the retail game would refuse
+the save. Instead the two stored pages and the page number live in the
+saved statistics block `D_00141948` (save block 0x11, 0x120 bytes): a fixed
+table of event counters `{u16 count (capped 0xFFFE), u16 time, u32 level
+bits}` that nothing displays, every reader and writer of which (696
+references across the executable and the 19 level programs, all by constant
+offset) stays below `0x141A4D`. Its last three records, `0x141A50`-
+`0x141A67`, hold the next page (8 bytes), the previous page (8) and the page
+number (`EE_QS_PAGE_NEXT`, `EE_QS_PAGE_PREV`, `EE_QS_PAGE_INDEX` in
+src/modseg.h). The active page stays in the eight words. A retail game
+loads such a save whole, shows the active page, and keeps and re-saves the
+other two untouched; the edition loads retail saves with the two pages
+empty. The new-game reset zeroes both blocks. The challenge-mode carry-over
+(`func_00227DB0`: copies the ring and the items to the scratchpad, calls the
+reset `func_00209DC0`, copies them back validated) resets the statistics,
+so its reset call (`+ 0x140`, `EE_SITE_QS_CARRY`) goes through
+`ee_qs_carry`, which keeps the 24 bytes across it. Items no longer owned
+leave the stored pages whenever they are about to be shown.
+
+**Code** (`src/quick_select_pages.c`, `src/qs_hooks.s`, `tools/gen_qs.py`,
+feature `quick_select_pages` in `tools/overlay_patch.py`; all 19 levels):
+- The HudShow call's update and draw arguments (the `lui`/`addiu` pairs
+  into $7 and $8; `gen_qs.py` finds the one site per level by the three
+  callbacks' addresses and the call) load `ee_qs_update` and `ee_qs_draw`.
+  They learn the level from the slot record, the fourth of the level's HUD
+  slot table. Update: with Triangle held, R1 or L1 pressed rotates the
+  pages (active <- next <- previous <- active, or the reverse) and refills
+  the slot records as Init does; then the game's update runs. Draw: the
+  game's draw, then the two glyphs at the box's left and right edges, the
+  ring's own fade on their alpha. q3's "ring open" test now compares slot
+  3's update callback with `ee_qs_update` (`ee_qs_ring_open`), and the pad
+  hook (src/strafe.c) clears L1 and R1 from the masked words while it is.
+- The pause tab's ring widget record (found in each level's data by its
+  four callbacks) runs the level's stubs `ee_qs_pause_update_NN` /
+  `ee_qs_pause_draw_NN` (a callback reached through data has no call site to
+  name the level). The update wrapper flips the page on Square, writing the
+  state back to the words as leave would and reloading it as enter does,
+  with the slot-step sound (`func_0022ED80(1, 0x11, moby)`); the draw
+  wrapper prints "Page N" (strings 0x540A-0x540C) centred after the game's
+  draw. The button box widget is shared with the Weapons and Gadgets pages
+  (each page record lists it), so the Quick Select page's entry for it, the
+  one right after the ring widget's, goes to a per-level copy
+  (`build/modseg/gen_qs.c`, `ee_qs_prompt_widget_NN`) whose row pointer is
+  `ee_qs_prompts` (three rows; string 0x5409 "[square] Next ring"). A first
+  build patched the shared widget's row pointer and Weapons showed "Next
+  ring" too.
+- In the acquisition function (`func_L00_002618D8`), the six words after
+  the search for an empty slot (`+ 0x1EC`: the index test and the store into
+  the active page) become a call to `ee_qs_autoslot`, which stores there or,
+  with the page full, in the first empty slot of the next page, then the
+  previous.
+
+**Verified in PCSX2** (the owner's slot 1, Novalis, a retail save, on a copy
+of the memory card; the owner's card untouched):
+- Loaded: page 1 = the save's eight weapons, pages 2 and 3 empty.
+- Ring held: R1, R1 went to pages 2 and 3 (empty rings), L1, L1 back to
+  page 1; the stored bytes rotated as designed each time. L1/R1 glyphs
+  beside the box (the L1 glyph was clipped at the screen's left edge;
+  now kept on screen).
+- Pause > Quick Select: "Page 1" in the ring's centre; Square gave Page
+  2, 3, 1; the prompt box listed the three rows. Bomb Glove and Pyrocitor
+  equipped on page 2 while still on page 1.
+- Back in game the ring opened on page 2 with those two; the stick to
+  the Pyrocitor and release equipped it (0x141760 = 16).
+- Bomb Glove put on page 3; saved to slot 1; the 24 bytes and the active
+  page cleared in RAM over PINE (test only); slot 1 loaded: all three
+  pages and the page number came back from the card.
+Not yet run: a retail game loading an edition save (no scripted input on
+the retail image; the owner's test), the new-weapon overflow to the next
+page (needs a fresh weapon with a full page), Challenge Mode carry-over.

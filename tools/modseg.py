@@ -57,6 +57,10 @@ LEVEL_DATA = {
     "class_resources": ("func_00205270", 0x70, 0x13C),
     # the HUD arena (D_0019A4E8 in the executable: header pointer at +0x18, table pointers at +0x1C..+0x28), from load_hud_banks' lui/addiu
     "hud_arena": ("func_002032D0", 0x84, 0x8C),
+    # the quick-select ring's 8 slot records of 0x1C (D_L00_0017DBC0 in level 0), from QuickSelectInit's lui/addiu
+    "qs_slots": ("func_L00_00238478", 0x54, 0x70),
+    # the item table, 37 records of 0x4C (D_L00_00179BC0 in level 0), from the same function's lui/addiu
+    "item_table": ("func_L00_00238478", 0x5C, 0x6C),
 }
 # Only the resident core is at one address: below 0x15F000 (core text, data,
 # bss, lit). Everything above, the executable's own game text and data

@@ -155,6 +155,39 @@ def quick_select_pause(at):
         (m[k]["site"], m[k]["expect"], modseg_symbol(m[k]["symbol"])) for k in ("items", "desc", "image")]
 
 
+def quick_select_pages(at):
+    """q2: three quick-select pages (src/quick_select_pages.c), at the sites
+    tools/gen_qs.py finds per level: the ring's HudShow call loads
+    ee_qs_update and ee_qs_draw instead of the game's update and draw
+    callbacks; the pause page's ring widget runs the level's stubs; the
+    page's prompt widget is the edition's copy with three rows (the retail
+    widget is shared with Weapons and Gadgets); the acquisition function's
+    empty-slot store becomes a call that tries the other pages; the
+    challenge-mode carry-over's reset call goes through ee_qs_carry."""
+    import json
+    sites = HERE.parent / "build/modseg/qs_sites.json"
+    if not sites.is_file():
+        raise SystemExit(f"missing {sites}: run tools/gen_qs.py first")
+    m = json.loads(sites.read_text())[str(at.level)]
+    out = []
+    for name, sym in (("update", "ee_qs_update"), ("draw", "ee_qs_draw")):
+        hi, lo = hi_lo(modseg_symbol(sym))
+        for part, half in (("lui_", hi), ("addiu_", lo)):
+            s = m["show"][part + name]
+            out.append((s["site"], s["expect"], (s["expect"] & 0xFFFF0000) | half))
+    r = m["ring"]
+    out.append((r["site"], r["expect_update"], modseg_symbol(f"ee_qs_pause_update_{at.level:02d}")))
+    out.append((r["site"] + 4, r["expect_draw"], modseg_symbol(f"ee_qs_pause_draw_{at.level:02d}")))
+    out.append((m["prompt"]["site"], m["prompt"]["expect"], modseg_symbol(m["prompt"]["symbol"])))
+    a = m["autoslot"]
+    words = [jal(modseg_symbol("ee_qs_autoslot")), NOP, NOP, NOP, NOP, NOP]
+    out += [(a["site"] + 4 * i, a["expect"][i], w) for i, w in enumerate(words)]
+    e = a["loop_exit"]
+    out.append((e["site"], e["expect"], e["value"]))      # a full page reaches the hook too, with index 8
+    out.append((m["carry"]["site"], m["carry"]["expect"], jal(modseg_symbol("ee_qs_carry"))))
+    return out
+
+
 def edition_text(at):
     """The edition's strings (src/text_hook.s, src/text.c): every level's
     msg_string (func_001FE540) jumps to ee_msg_string_hook from its first
@@ -384,12 +417,13 @@ FEATURES = {
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
     "quick_select_pause": quick_select_pause,
+    "quick_select_pages": quick_select_pages,
     "commercials": commercials,
     "comet_strike_run": comet_strike_run,
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "commercials", "comet_strike_run", "strafe", "strafe_camera", "charge_boots"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "comet_strike_run", "strafe", "strafe_camera", "charge_boots"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

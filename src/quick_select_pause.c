@@ -121,7 +121,7 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
     refresh_option_images();
 
     gate = (volatile u32 *)(LVL_DATA(L, update_flags, u32) + 8);
-    open = HUD_SLOT_UPDATE(L, 3) == lvl_func_L00_00238530[L];
+    open = ee_qs_ring_open(L);         /* slot 3's update is the edition's wrapper of QuickSelectUpdate (q2) */
     held = open && (PAD_HELD & PAD_TRIANGLE);
     if (held) {
         if (held_frames < 1000) {

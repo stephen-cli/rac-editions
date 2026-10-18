@@ -36,6 +36,7 @@ python "$HERE/tools/gen_hero.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_boots.py" --openrac "$OPENRAC" --wrench "$WRENCH"    # R&C2's Charge Boots as class 2000
 python "$HERE/tools/gen_items.py" --openrac "$OPENRAC" --boots-class 2000
 python "$HERE/tools/gen_charge.py" --openrac "$OPENRAC"                       # the Charge Boots dash's sites (src/charge_dash.c)
+python "$HERE/tools/gen_qs.py" --openrac "$OPENRAC"                           # the quick-select pages' sites (src/quick_select_pages.c)
 python "$HERE/tools/rac2_anim.py" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"

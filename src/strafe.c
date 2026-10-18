@@ -273,6 +273,12 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         TRACE_END();
         return;
     }
+    /* q2: while the quick-select ring is open, L1 and R1 turn its pages (the
+     * ring reads the unmasked words); the hero must not also crouch or look. */
+    if (ee_qs_ring_open(L)) {
+        p[0x1A0 / 4] &= ~0xCu;
+        p[0x1A4 / 4] &= ~0xCu;
+    }
     ee_strafe_held = p[0x1A0 / 4] & PAD_STRAFE;
     if (ee_strafe_held) {
         strafe_grace = STRAFE_GRACE;
