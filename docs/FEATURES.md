@@ -1649,8 +1649,10 @@ feature `quick_select_pages` in `tools/overlay_patch.py`; all 19 levels):
 - The HudShow call's update and draw arguments (the `lui`/`addiu` pairs
   into $7 and $8; `gen_qs.py` finds the one site per level by the three
   callbacks' addresses and the call) load `ee_qs_update` and `ee_qs_draw`.
-  They learn the level from the slot record, the fourth of the level's HUD
-  slot table. Update: with Triangle held, R1 or L1 pressed rotates the
+  They learn the level from their return address (`src/qs_hooks.s`):
+  HudUpdate (`func_L00_0023B610`) and HudDraw (`func_001FFFB8`) call the
+  slot's callbacks from one `jalr` each, at + 0xFC and + 0x5C in all 19
+  levels. Update: with Triangle held, R1 or L1 pressed rotates the
   pages (active <- next <- previous <- active, or the reverse) and refills
   the slot records as Init does; then the game's update runs. Draw: the
   game's draw, then the two glyphs at the box's left and right edges, the
@@ -1676,6 +1678,22 @@ feature `quick_select_pages` in `tools/overlay_patch.py`; all 19 levels):
   the active page) become a call to `ee_qs_autoslot`, which stores there or,
   with the page full, in the first empty slot of the next page, then the
   previous.
+
+**Fix (2026-10-18): the ring froze Batalia.** The owner's Challenge Mode
+save in Batalia froze when the ring was opened. The first build named the
+level from the slot record's address, matched against the 19 levels' HUD
+slot tables, but several levels put that table at the same address
+(`0x17E4D0` in levels 6 and 8; also 0/7, 1/10/12/16, 2/15, 4/9, 11/18),
+so in Batalia (level 8) the hooks took level 6 and called level 6's
+QuickSelectUpdate and Draw addresses inside Batalia's program: slot 3 was
+registered but never faded in, and the game hung. Novalis (level 1, the
+first of its group) happened to work. The hooks now take the return
+address, like the edition's other hooks; every hooked function's address
+is unique per level (only two catalogue functions share one, neither
+used). Verified on a copy of the owner's card: Batalia slot 4 (Challenge
+Mode), the ring fades in with its L1/R1 prompts, R1/L1 turn pages, the
+stick and release equip the Bomb Glove, the game runs on; then Novalis
+slot 1 loaded from Batalia's pause menu, the ring and both pages as before.
 
 **Verified in PCSX2** (the owner's slot 1, Novalis, a retail save, on a copy
 of the memory card; the owner's card untouched):

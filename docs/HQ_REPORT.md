@@ -6,6 +6,18 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (q2: three quick-select pages)
 
+### 📑 Quick select pages (q2) — Fix: opening the ring froze Batalia (owner's report); fixed and verified in PCSX2, awaiting owner test
+
+**What was wrong.** On the owner's Batalia Challenge Mode save, opening quick select froze the game. The edition's ring code worked out which level was running from where the level keeps its HUD data, but several levels keep it at the same address. In Batalia it therefore ran another level's ring code. Novalis happened to be unaffected, so the earlier test missed it.
+
+**What changed.** The ring code now identifies the level from the call that runs it, as every other edition hook does. No other edition hook has this flaw (checked).
+
+**Verification.** On a copy of the owner's memory card:
+- Batalia, slot 4 (Challenge Mode): the ring opens with its L1/R1 prompts, R1 and L1 turn pages, and the stick plus release equips (Bomb Glove). The game keeps running.
+- Novalis, slot 1, loaded from Batalia's pause menu: the ring and its pages work as before.
+
+**Owner test.** On the Batalia save, open quick select, turn the pages, and equip something.
+
 ### 📑 Quick select pages (q2) — Implemented and verified in PCSX2; awaiting owner test
 
 **What changed.** The quick-select ring has three pages. With the ring open (Triangle held), R1 goes to the next page and L1 to the previous one, in a loop (1 → 2 → 3 → 1 with R1, the other way with L1). L1 and R1 button prompts sit left and right of the ring. The ring reopens on the page you last used. In the pause menu's Quick Select tab, Square switches between the three rings, the ring's centre reads "Page 1", "Page 2" or "Page 3", and the button box lists "[X] Equip", "[square] Next ring", "[triangle] Exit". Applied to all 19 levels.

@@ -13,8 +13,9 @@
  * the selected item's name and ammo. The edition's build points the HudShow
  * call's update and draw arguments at ee_qs_update and ee_qs_draw
  * (tools/gen_qs.py finds the site in each level; tools/overlay_patch.py).
- * They learn the level from the slot record itself, which is the fourth
- * record of the level-local HUD slot table.
+ * They learn the level from their return address (src/qs_hooks.s): HudUpdate
+ * and HudDraw call the slot's callbacks from one jalr each, at the same
+ * offset in all 19 levels.
  *
  * Pages. The active page stays in the game's eight words, so everything
  * retail does with them (the ring, the pause page, the first-empty-slot
@@ -111,20 +112,19 @@ const u16 ee_qs_prompts[4 * 6] = {
 static const char glyph_l1[2] = { 0x14, 0 };
 static const char glyph_r1[2] = { 0x15, 0 };
 
+/* The callbacks' entry points (src/qs_hooks.s): they pass the return address,
+ * which names the level. The slot record's address does not: several levels
+ * put their HUD slot table at the same address (0x17E4D0 in levels 6 and 8,
+ * for one), and a first build that matched the record against the 19
+ * tables took Batalia (level 8) for level 6 and called level 6's
+ * QuickSelectUpdate in Batalia's program (owner's Challenge Mode save,
+ * 2026-10-18: the ring never drew and the game froze). */
 void ee_qs_update(void *slot);
 void ee_qs_draw(void *slot);
-
-static s32 level_of_slot(const void *slot)
-{
-    s32 L;
-    for (L = 0; L < 19; L++) {
-        if ((u32)slot == LVL_DATA(L, hud_slots, u32) + 3 * 0x90) {
-            return L;
-        }
-    }
-    L = *(volatile s32 *)0x0015EE84;       /* never expected; see src/level.c */
-    return (L >= 0 && L < 19) ? L : 0;
-}
+DECLARE_LVL(func_L00_0023B610);   /* HudUpdate: calls the slot's update at + EE_SITE_HUD_SLOT_UPDATE */
+DECLARE_LVL(func_001FFFB8);       /* HudDraw: calls the slot's draw at + EE_SITE_HUD_SLOT_DRAW */
+#define EE_SITE_HUD_SLOT_UPDATE 0xFC   /* jalr $2 in all 19 levels' HudUpdate */
+#define EE_SITE_HUD_SLOT_DRAW   0x5C   /* jalr $2 in all 19 levels' HudDraw */
 
 s32 ee_qs_ring_open(s32 L)
 {
@@ -186,9 +186,9 @@ static void refill(s32 L)
     }
 }
 
-void ee_qs_update(void *slot)
+void ee_qs_update_c(void *slot, u32 ra)
 {
-    s32 L = level_of_slot(slot);
+    s32 L = ee_level_of_call(ra, lvl_func_L00_0023B610, EE_SITE_HUD_SLOT_UPDATE);
     u32 pressed = PAD_PRESSED_RAW;
     validate();
     if (PAD_HELD_RAW & BTN_TRIANGLE) {          /* not on the release frame, which equips */
@@ -203,9 +203,9 @@ void ee_qs_update(void *slot)
     LVL(L, func_L00_00238530, SlotFn)(slot);
 }
 
-void ee_qs_draw(void *slot)
+void ee_qs_draw_c(void *slot, u32 ra)
 {
-    s32 L = level_of_slot(slot);
+    s32 L = ee_level_of_call(ra, lvl_func_001FFFB8, EE_SITE_HUD_SLOT_DRAW);
     volatile u8 *s = (volatile u8 *)slot;
     s32 x, y, fade;
     u32 colour;

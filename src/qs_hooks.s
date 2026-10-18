@@ -5,6 +5,21 @@
 .set noreorder
 .text
 
+/* The ring's HUD slot callbacks, update(slot) and draw(slot), called through
+ * the slot record by HudUpdate and HudDraw: one argument, the return address
+ * (which names the level) goes in $5. */
+.globl ee_qs_update
+.extern ee_qs_update_c
+ee_qs_update:
+    j     ee_qs_update_c
+    addu  $5, $31, $0
+
+.globl ee_qs_draw
+.extern ee_qs_draw_c
+ee_qs_draw:
+    j     ee_qs_draw_c
+    addu  $5, $31, $0
+
 /* The item-acquisition function's empty-slot store: the slot index found
  * is in $4, the item in $16; the item goes in $5. The words replaced were
  * the index test and the store, so nothing after the call reads $2-$5. */
