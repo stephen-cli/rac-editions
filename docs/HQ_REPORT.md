@@ -39,7 +39,7 @@ changed, decisions taken, findings that affect other items.
 - The sequence was designed for this (the owner left it open). It uses only moves available everywhere, and it can't be confused with an existing cheat.
 - The boots' menu description now says how to charge, in place of the old placeholder text.
 
-**Findings.** R&C1 has space for 12 cheats and uses 7; the new one takes the ninth place. The pause-menu clearing also affected the strafe's backward step, which is fixed by the same change.
+**Findings.** R&C1 has space for 12 cheats and uses 7; the new one takes the ninth place. The pause-menu clearing also affected the strafe's backward step, which is fixed by the same change; pausing mid-backpedal was tested too and doesn't hang.
 
 ### 🥾 Charge Boots (x2) — Charge works in every level, and is no weapon (owner's reports); implemented, awaiting owner test
 

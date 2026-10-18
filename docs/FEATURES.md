@@ -1197,7 +1197,10 @@ is free. The mode-0 frame's call of `MobyFreeSlotBookkeeping`
 (`func_L00_00299250 + 0x6D4`, every level, just before the moby pass and the
 hero update) now goes to `ee_frame_start_hook`, which puts slot 141 or 140
 back whenever Ratchet's moby plays it (+ 0x52/+ 0x53) and it is empty.
-Verified: charge, pause, unpause; the dash goes on.
+Verified: charge, pause, unpause; the dash goes on. Pausing mid-backpedal
+(tested by the strafe work's session on the same image, twice, once through
+the Weapons page with its animated Ratchet): no hang, the count 134, 162,
+134, and the backpedal playing from slot 140 after the resume.
 
 **Veldin 1 (owner's report).** The dash never started on Veldin's first
 visit. The edition's trigger kept a test of R&C1's Thruster-Pack block,
