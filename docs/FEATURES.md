@@ -1301,6 +1301,42 @@ the edition adds none; nothing in the edition writes either flag.
   Switching back on was not separately exercised; it is the same frame code
   that gives the boots on the unlock.
 
+## x2: the Cheats page toggle shows at once; the retail banner (2026-10-18) — verified in PCSX2, awaiting owner test
+
+**Owner's reports.** Switching the Charge Boots on the Cheats page did not
+change the Gadgets page until the game had been unpaused and paused again.
+And the unlock should show "Cheat Enabled" like every other cheat.
+
+**The Gadgets page.** The grid reads the owned flags as it draws (a kind-0
+cell is drawn only while 0x13D5C8[id] is set; `draw_menu_item_grid` in the
+NTSC decomp) and marks and equips from the menu's own equipped array (menu
+state + 0x30, NTSC `menu_system.equipped`), which the menu hands to the hero
+when it closes: equipped in the menu, the boots read 36 there while the
+hero's array at 0x141760 still held 28. The edition synced the boots with
+`gCheats[8]` only from the HUD update hook, which does not run while
+paused. Now the Cheats widget's "update" callback (widget + 0,
+`func_00221E60`, the option list's update, which flips a row's flag on
+Cross; gen_charge's `cheats_update_slot`, checked to hold it in every
+level) goes through a per-level stub `ee_cheats_update_NN` as well, and
+`ee_cheats_update_c` runs it and then `sync_ownership`, the gameplay
+frame's sync, which now also clears the menu's boots slot when it holds the
+Charge Boots and they are switched off. 19 words.
+
+**The banner.** The detector's ShowBanner hook and text 0x5409 are gone (19
+words fewer); the detector shows its own 0x4FBE, "Cheat Enabled", as for
+every cheat.
+
+**Verified in PCSX2 (slot 4, Batalia, Challenge Mode, no RAM writes).**
+- The sequence unlocked the boots; the banner read "Cheat Enabled".
+- In one pause: Gadgets showed the third boots cell; equipped there (menu
+  slot 36); Cheats, off; Gadgets: the cell empty, the preview without
+  boots, menu slot 0; Cheats, on; Gadgets: the cell back.
+- Worn in the game (hero boots 36), paused, switched off; Gadgets: the cell
+  empty at once; unpaused: the boots slot 0, nothing pending.
+- At that save's start two back flips reset the detector's ring before the
+  Comet-Strike (twice, by script; cause not looked into); walked forward
+  first, the sequence registers.
+
 ## x5: the quick second strafe flip (2026-10-18), awaiting owner test
 
 **Owner's report.** A quick follow-up side flip while strafing often came

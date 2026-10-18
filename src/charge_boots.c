@@ -33,10 +33,11 @@
  * (0x15EEC0 + 8, saved: chunk 37), which is what the Goodies Cheats page
  * lists; the edition adds the Charge Boots row there (ee_cheats_enter_c),
  * an On/Off toggle of gCheats[8] like the retail rows (owner's request,
- * 2026-10-18). Every frame the boots are owned while gCheats[8] is on and
- * taken away while it is off; once seen, entry 8 of the level's table is
- * blanked (ee_charge_cheat_frame) so the sequence only unlocks, and the
- * unlock's banner is the edition's own text. */
+ * 2026-10-18). Every frame, and on the Cheats page as soon as the row is
+ * toggled, the boots are owned while gCheats[8] is on and taken away while
+ * it is off; once seen, entry 8 of the level's table is blanked
+ * (ee_charge_cheat_frame) so the sequence only unlocks. The unlock shows the
+ * game's own "cheat on" banner, like every cheat (owner's request). */
 #include "modseg.h"
 
 #define ITEM_OWNED(id)     (*(volatile u8 *)(0x0013D5C8 + (id)))   /* D_0013D5C8: owned items, by id */
@@ -112,16 +113,24 @@ static void panel_sequence(s32 L)
 #define CHEAT_SEEN           (*(volatile u8 *)(0x0015EEC0 + EE_CHEAT_ENTRY))   /* unlocked: listed on the Cheats page */
 #define ITEM_NONE            0x26        /* hero_switch_item's "no item": what it makes pending to take boots off */
 #define HERO_ITEM(slot)      (*(volatile s32 *)(0x0013F450 + 0x1090 + 0x50 * (slot) + 0x28))   /* hero.items[slot].item_id */
+/* The pause menu's own equipped item per slot (NTSC menu_system.equipped,
+ * menu state + 0x30): what the Gadgets page marks as worn and equips from. */
+#define MENU_EQUIPPED(L, slot) (*(volatile s32 *)(LVL_DATA(L, menu_state, u8 *) + 0x30 + 4 * (slot)))
 
-void ee_charge_boots_frame(s32 L)
+/* The boots follow the cheat's toggle. Called every gameplay frame and, so
+ * that the Gadgets page shows the change at once, every frame the Cheats
+ * page is open (the gameplay frame does not run while paused). */
+static void sync_ownership(s32 L)
 {
-    panel_sequence(L);
     if (!CHEAT_ON) {
         /* Locked or switched off: not owned, not worn (saves from earlier
          * builds own and wear them). */
         ITEM_OWNED(ITEM_CHARGE_BOOTS) = 0;
         if (EQUIPPED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
             EQUIPPED(SLOT_BOOTS) = 0;
+        }
+        if (MENU_EQUIPPED(L, SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
+            MENU_EQUIPPED(L, SLOT_BOOTS) = 0;
         }
         if (HERO_ITEM(SLOT_BOOTS) == ITEM_CHARGE_BOOTS || HERO_SELECTED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS
             || HERO_PENDING(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
@@ -135,35 +144,23 @@ void ee_charge_boots_frame(s32 L)
     }
 }
 
+void ee_charge_boots_frame(s32 L)
+{
+    panel_sequence(L);
+    sync_ownership(L);
+}
+
 /* The cheat, at the start of every gameplay frame (before the hero update
  * and its detector): once seen, entry 8 of this level's table (each level
  * loads its own, gen_charge's cheat_table) is blanked, so the sequence
- * cannot switch the cheat off (the Cheats page does that); and the state at
- * the frame's start tells the banner hook whether this frame's "cheat on"
- * is the unlock. */
-extern const u32 ee_charge_cheat_table[19], ee_charge_banner_site[19], ee_charge_show_banner[19];
-#define TEXT_CHEAT_ON          0x4FBE
-#define TEXT_BOOTS_UNLOCKED    0x5409   /* text/strings.tsv */
-typedef void (*ShowBanner)(s32 text, s32 time);
-static u8 seen_at_frame_start;
+ * cannot switch the cheat off (the Cheats page does that). */
+extern const u32 ee_charge_cheat_table[19];
 
 void ee_charge_cheat_frame(s32 L)
 {
-    seen_at_frame_start = CHEAT_SEEN;
     if (CHEAT_SEEN) {
         *(volatile u8 *)(ee_charge_cheat_table[L] + 16 * EE_CHEAT_ENTRY) = 0;
     }
-}
-
-/* The detector's banner call (func_L00_00207418): the unlock shows the
- * edition's text instead of the generic "cheat on". */
-void ee_charge_banner_c(s32 text, s32 time, u32 ra)
-{
-    s32 L = ee_level_of_call(ra, ee_charge_banner_site, 0);
-    if (text == TEXT_CHEAT_ON && CHEAT_SEEN && !seen_at_frame_start) {
-        text = TEXT_BOOTS_UNLOCKED;
-    }
-    ((ShowBanner)ee_charge_show_banner[L])(text, time);
 }
 
 /* The worn boots' pose. A worn item moby is placed at a joint of Ratchet's
@@ -234,5 +231,19 @@ s32 ee_cheats_enter_c(s32 a0, s32 a1, s32 a2, s32 a3, s32 L)
         row[n].value = 0;
         row[n + 1].text = 0;
     }
+    return result;
+}
+
+/* The page's "update" callback (the option list's, func_00221E60, which
+ * flips a row's flag on Cross), through the per-level stubs ee_cheats_update_NN
+ * (src/charge_hooks.s): the boots follow a toggle at once, so the Gadgets
+ * page shows them, or no longer does, without leaving the pause menu. */
+extern const u32 ee_charge_cheats_update[19];
+typedef s32 (*CheatsUpdate)(s32 screen);
+
+s32 ee_cheats_update_c(s32 screen, s32 L)
+{
+    s32 result = ((CheatsUpdate)ee_charge_cheats_update[L])(screen);
+    sync_ownership(L);
     return result;
 }

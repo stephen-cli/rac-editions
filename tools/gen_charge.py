@@ -36,14 +36,16 @@ levels, so the catalogue does not name these.
              data (its lui $a1 / addiu off $a1 that is not gCheats'); checked:
              entry 0 is retail's Big Head sequence and entry 8 is empty.
              The Charge Boots cheat goes in entry 8 (src/charge_boots.c)
-  banner_site the detector's one call of ShowBanner (func_L00_00264DB8)
-  show_banner that call's target
   cheats_enter the Goodies Cheats page's toggle-list widget's "enter"
              callback slot (widget + 8, in the level's data): the one data
              word holding the list builder func_0021B138's address
   cheats_builder that builder (rebuild_configured_text_label_list in the NTSC
              decomp: a row per unlocked cheat)
   cheats_list the widget's row list (widget + 0x34), 13 rows of 0x14 bytes
+  cheats_update_slot the widget's "update" callback slot (widget + 0), run
+             every frame the page is open (update_menu_option_list,
+             func_00221E60, toggles a row's flag on Cross)
+  cheats_update that function
 
 Writes build/modseg/gen_charge.c (19-entry tables) and
 build/modseg/charge_sites.json (for tools/overlay_patch.py).
@@ -67,8 +69,8 @@ CAMERA_FN_SIZE = 1716
 COLLECT = "func_L00_001F2BE8"
 DETECTOR = "func_L00_00207418"
 DETECTOR_SIZE = 720
-SHOW_BANNER = "func_L00_00264DB8"
 CHEATS_BUILDER = "func_0021B138"
+CHEATS_UPDATE = "func_00221E60"
 RETAIL_CHEAT_0 = bytes([1, 2, 3, 3, 4, 5, 4, 6, 0])
 CHEAT_ENTRY = 8
 FADE_TYPE = 27
@@ -77,8 +79,8 @@ STATE_COMET = 0x15
 STATE_RUN = 2
 STATE_THRUSTER = 0x81
 NAMES = ("trigger", "slot_item", "scale", "set_state", "move_site", "move_fn", "part_frames", "camera_site",
-         "collect", "collect_list", "cheat_table", "banner_site", "show_banner", "cheats_enter",
-         "cheats_builder", "cheats_list")
+         "collect", "collect_list", "cheat_table", "cheats_enter", "cheats_builder", "cheats_list",
+         "cheats_update_slot", "cheats_update")
 
 
 def jal(target: int) -> int:
@@ -91,8 +93,8 @@ def catalogue(openrac: Path) -> dict:
         if line.startswith("#"):
             continue
         p = line.split("\t")
-        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE, CAMERA_FN, COLLECT, DETECTOR, SHOW_BANNER,
-                    CHEATS_BUILDER):
+        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE, CAMERA_FN, COLLECT, DETECTOR, CHEATS_BUILDER,
+                    CHEATS_UPDATE):
             lv = {}
             for pl in p[5].split(","):
                 L, a = pl.split(":")
@@ -212,8 +214,8 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
     if len(lists) != 1:
         raise SystemExit(f"level {level}: {COLLECT}'s result list found {len(lists)} times")
 
-    # The cheat detector: its sequence table and its banner call.
-    det, banner = one(DETECTOR), one(SHOW_BANNER)
+    # The cheat detector's sequence table.
+    det = one(DETECTOR)
     d = (det - tbase) // 4
     tables = set()
     for j in range(d, d + DETECTOR_SIZE // 4):
@@ -229,12 +231,10 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
     entry = lambda i: b"".join(struct.pack("<I", word_at(table + 16 * i + 4 * k)) for k in range(4))
     if not entry(0).startswith(RETAIL_CHEAT_0) or entry(CHEAT_ENTRY) != bytes(16):
         raise SystemExit(f"level {level}: the cheat table at {table:#x} is not retail's ({entry(0).hex()}, entry 8 {entry(CHEAT_ENTRY).hex()})")
-    banners = [tbase + 4 * j for j in range(d, d + DETECTOR_SIZE // 4) if w[j] == jal(banner)]
-    if len(banners) != 1:
-        raise SystemExit(f"level {level}: ShowBanner called {len(banners)} times in the cheat detector")
 
     # The Cheats page's list widget: the data word holding the builder's
-    # address is its "enter" slot (widget + 8); its row list is at + 0x34.
+    # address is its "enter" slot (widget + 8); its "update" slot (+ 0) holds
+    # the option list's update; its row list is at + 0x34.
     builder = one(CHEATS_BUILDER)
     dbase, dbody = recs["data"]
     slots = [dbase + i for i in range(0, len(dbody) - 3, 4) if struct.unpack_from("<I", dbody, i)[0] == builder]
@@ -244,11 +244,14 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
     rows = word_at(widget + 0x34)
     if not (dbase <= rows < widget and widget - rows >= 13 * 0x14):
         raise SystemExit(f"level {level}: the cheats widget at {widget:#x} has rows at {rows:#x}")
+    update = one(CHEATS_UPDATE)
+    if word_at(widget) != update:
+        raise SystemExit(f"level {level}: the cheats widget at {widget:#x} updates with {word_at(widget):#x}, not {update:#x}")
     return {"trigger": tbase + 4 * k0, "slot_item": slot_item, "scale": scale, "set_state": set_state,
             "move_site": calls[0], "move_fn": move_fn, "part_frames": part_frames,
             "camera_site": cams[0], "collect": collect, "collect_list": lists[0],
-            "cheat_table": table, "banner_site": banners[0], "show_banner": banner,
-            "cheats_enter": slots[0], "cheats_builder": builder, "cheats_list": rows}
+            "cheat_table": table, "cheats_enter": slots[0], "cheats_builder": builder, "cheats_list": rows,
+            "cheats_update_slot": widget, "cheats_update": update}
 
 
 def main() -> int:

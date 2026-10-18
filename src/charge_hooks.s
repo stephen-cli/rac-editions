@@ -41,14 +41,6 @@ ee_frame_start_hook:
     j     ee_frame_start_c
     addu  $4, $31, $0
 
-/* ShowBanner(text, time) in the cheat detector: two integer arguments, the
- * return address goes in $6 (src/charge_boots.c). */
-.globl ee_charge_banner_hook
-.extern ee_charge_banner_c
-ee_charge_banner_hook:
-    j     ee_charge_banner_c
-    addu  $6, $31, $0
-
 /* slot_item(slot) in the boots predicate (func_L00_0020DBD8 + 8): one
  * integer argument, the return address goes in $5 (src/charge_boots.c). */
 .globl ee_boots_pose_item_hook
@@ -139,3 +131,84 @@ ee_cheats_enter_17:
 ee_cheats_enter_18:
     j     ee_cheats_enter_c
     addiu $8, $0, 18
+
+/* The same page's "update" callback (update_menu_option_list, func_00221E60,
+ * called every frame the page is open; Cross toggles a row there), one stub
+ * per level: one argument, so the level goes in $5 (src/charge_boots.c). */
+.extern ee_cheats_update_c
+.globl ee_cheats_update_00
+ee_cheats_update_00:
+    j     ee_cheats_update_c
+    addiu $5, $0, 0
+.globl ee_cheats_update_01
+ee_cheats_update_01:
+    j     ee_cheats_update_c
+    addiu $5, $0, 1
+.globl ee_cheats_update_02
+ee_cheats_update_02:
+    j     ee_cheats_update_c
+    addiu $5, $0, 2
+.globl ee_cheats_update_03
+ee_cheats_update_03:
+    j     ee_cheats_update_c
+    addiu $5, $0, 3
+.globl ee_cheats_update_04
+ee_cheats_update_04:
+    j     ee_cheats_update_c
+    addiu $5, $0, 4
+.globl ee_cheats_update_05
+ee_cheats_update_05:
+    j     ee_cheats_update_c
+    addiu $5, $0, 5
+.globl ee_cheats_update_06
+ee_cheats_update_06:
+    j     ee_cheats_update_c
+    addiu $5, $0, 6
+.globl ee_cheats_update_07
+ee_cheats_update_07:
+    j     ee_cheats_update_c
+    addiu $5, $0, 7
+.globl ee_cheats_update_08
+ee_cheats_update_08:
+    j     ee_cheats_update_c
+    addiu $5, $0, 8
+.globl ee_cheats_update_09
+ee_cheats_update_09:
+    j     ee_cheats_update_c
+    addiu $5, $0, 9
+.globl ee_cheats_update_10
+ee_cheats_update_10:
+    j     ee_cheats_update_c
+    addiu $5, $0, 10
+.globl ee_cheats_update_11
+ee_cheats_update_11:
+    j     ee_cheats_update_c
+    addiu $5, $0, 11
+.globl ee_cheats_update_12
+ee_cheats_update_12:
+    j     ee_cheats_update_c
+    addiu $5, $0, 12
+.globl ee_cheats_update_13
+ee_cheats_update_13:
+    j     ee_cheats_update_c
+    addiu $5, $0, 13
+.globl ee_cheats_update_14
+ee_cheats_update_14:
+    j     ee_cheats_update_c
+    addiu $5, $0, 14
+.globl ee_cheats_update_15
+ee_cheats_update_15:
+    j     ee_cheats_update_c
+    addiu $5, $0, 15
+.globl ee_cheats_update_16
+ee_cheats_update_16:
+    j     ee_cheats_update_c
+    addiu $5, $0, 16
+.globl ee_cheats_update_17
+ee_cheats_update_17:
+    j     ee_cheats_update_c
+    addiu $5, $0, 17
+.globl ee_cheats_update_18
+ee_cheats_update_18:
+    j     ee_cheats_update_c
+    addiu $5, $0, 18

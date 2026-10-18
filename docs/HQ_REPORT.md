@@ -25,6 +25,23 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
 
+### 🥾 Charge Boots (x2) — Cheats page switch now updates the Gadgets screen at once; "Cheat Enabled" banner (owner's reports); verified in PCSX2, awaiting owner test
+
+**What was wrong.** Switching the Charge Boots on or off on the Cheats page didn't change the Gadgets screen until you unpaused and paused again. The unlock also showed the edition's own "Charge Boots unlocked" message instead of the game's "Cheat Enabled".
+
+**What changed.**
+- The switch takes effect at once. In the same pause, the boots appear on or disappear from the Gadgets screen. If Ratchet is wearing them when they're switched off, they come off when you unpause.
+- The unlock shows "Cheat Enabled", like every other cheat, and the edition's own message is gone.
+
+**Verification.** In PCSX2 on the Challenge Mode save (Batalia), without memory changes:
+- The sequence unlocked the boots, and "Cheat Enabled" showed.
+- All in one pause: the boots were equipped on the Gadgets screen. Switched off, the Gadgets screen showed their slot empty and the preview Ratchet without boots. Switched on, they were back.
+- Worn in the game, then switched off from the pause menu: gone from the Gadgets screen at once, and off Ratchet's feet after unpausing.
+
+Owner test: on a Challenge Mode save with the boots unlocked, pause and switch the Charge Boots on the Cheats page. Then go straight to Gadgets. Try it off and on, with the boots worn and not worn.
+
+**Findings.** The pause menu keeps its own record of what's equipped and hands it to Ratchet when it closes. Switching the boots off clears them from that record too; otherwise closing the menu would put them back on for a moment.
+
 ### 🥾 Charge Boots (x2) — On the Cheats page, and Challenge Mode only (owner's requests); verified in PCSX2, awaiting owner test
 
 **What changed.** Once unlocked, the Charge Boots get their own row on the Goodies → Cheats page, "Charge Boots on/off", alongside the game's cheats. Switching it off takes the boots away, and takes them off Ratchet if he's wearing them. Switching it on gives them back. The unlock itself stays permanent: the row stays listed either way, and entering the move sequence again does nothing. Applied to all 19 levels. Saves that already unlocked the boots on the previous build get the row, with the boots on.
