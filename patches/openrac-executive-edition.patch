@@ -1,42 +1,9 @@
-From 467a835b73b1215fb7980fe0ba0b7b9151d90c90 Mon Sep 17 00:00:00 2001
-From: Stephen Clinton <stephen_l43@hotmail.co.nz>
-Date: Sat, 17 Oct 2026 01:33:14 +1300
-Subject: [PATCH 1/4] feat(rac1/pal): bootable executable and in-place disc
- image tools
-
-Add two tools for running the build:
-
-- tools/boot_elf.py writes build-sn/SCES_509.16, a bootable executable,
-  by laying the linked image's allocated PROGBITS sections over retail's
-  container. build-sn/rac1.elf alone is not bootable: its entry point is
-  the first .text symbol rather than crt0's _start, it has two PT_LOAD
-  segments, and the VU0 microcode at the front of retail's image is not
-  linked. The output differs from retail only inside the decompiled
-  near-misses, which the tool prints (40 bytes on a clean tree).
-- tools/iso_patch.py writes build-sn/SCES_509.16.iso: the owner's image
-  with that executable (and optionally the sectors of an
-  `editor/extract.py pack` patches.tsv) written in place. The PAL disc
-  addresses everything by absolute sector, so same-size replacement is a
-  complete repack; a larger executable is refused.
-
-Verified: both the executable (pcsx2-qt -elf) and the image boot in
-PCSX2 to the title screen and attract intro, and the image's executable
-sectors differ from retail by the same 40 bytes.
-
-Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
----
- games/rac1/pal/tools/boot_elf.py  |  86 ++++++++++++++++++++
- games/rac1/pal/tools/iso_patch.py | 129 ++++++++++++++++++++++++++++++
- 2 files changed, 215 insertions(+)
- create mode 100644 games/rac1/pal/tools/boot_elf.py
- create mode 100644 games/rac1/pal/tools/iso_patch.py
-
-diff --git a/games/rac1/pal/tools/boot_elf.py b/games/rac1/pal/tools/boot_elf.py
+diff --git a/games/rac1/tools/boot_elf.py b/games/rac1/tools/boot_elf.py
 new file mode 100644
-index 00000000..f725b2c8
+index 00000000..16b765a6
 --- /dev/null
-+++ b/games/rac1/pal/tools/boot_elf.py
-@@ -0,0 +1,86 @@
++++ b/games/rac1/tools/boot_elf.py
+@@ -0,0 +1,120 @@
 +#!/usr/bin/env python3
 +"""
 +Write a bootable executable from the build: retail's container with the
@@ -69,9 +36,36 @@ index 00000000..f725b2c8
 +SHF_ALLOC = 0x2
 +
 +
++def add_segment(image: bytearray, addr: int, data: bytes) -> bytearray:
++    """IMAGE with DATA appended as one more PT_LOAD at ADDR. Retail's program
++    header table (one entry at 0x34) is followed by zeros up to the first
++    segment at 0x1000, so the new entry goes right after it. The data goes
++    after the file's end (the section headers), at an offset congruent to
++    ADDR modulo the page size, as the ELF rules want."""
++    import struct
++    e_phoff, = struct.unpack_from("<I", image, 28)
++    e_phentsize, e_phnum = struct.unpack_from("<HH", image, 42)
++    new_hdr = e_phoff + e_phnum * e_phentsize
++    if any(image[new_hdr:new_hdr + e_phentsize]):
++        raise SystemExit("no room for another program header")
++    page = 0x1000
++    offset = len(image)
++    offset += (addr - offset) % page
++    image = image + bytes(offset - len(image)) + data
++    image += bytes((-len(image)) % 16)
++    # PT_LOAD, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, PF_R|PF_W|PF_X, p_align
++    struct.pack_into("<8I", image, new_hdr, 1, offset, addr, addr, len(data), len(data), 7, page)
++    struct.pack_into("<H", image, 44, e_phnum + 1)
++    return image
++
++
 +def main() -> int:
 +    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
 +    ap.add_argument("-o", "--output", type=Path, default=Path("build-sn/SCES_509.16"))
++    ap.add_argument("--segment", metavar="ADDR:FILE", action="append", default=[],
++                    help="add a loadable segment: FILE's bytes at hex address ADDR (a second PT_LOAD "
++                         "the console's loader places in RAM at boot; for code of your own outside "
++                         "retail's image, e.g. a mod's resident code)")
 +    args = ap.parse_args()
 +
 +    if not RETAIL.is_file():
@@ -110,6 +104,13 @@ index 00000000..f725b2c8
 +            retail[off:off + size] = data
 +            written += size
 +
++    for spec in args.segment:
++        addr_text, _, file_text = spec.partition(":")
++        addr = int(addr_text, 16)
++        data = Path(file_text).read_bytes()
++        retail = add_segment(retail, addr, data)
++        print(f"added segment: {len(data)} bytes at 0x{addr:08X} from {file_text}")
++
 +    args.output.parent.mkdir(parents=True, exist_ok=True)
 +    args.output.write_bytes(retail)
 +    print(f"wrote {args.output}: {len(retail)} bytes, {written} bytes from {LINKED}, "
@@ -123,12 +124,12 @@ index 00000000..f725b2c8
 +
 +if __name__ == "__main__":
 +    sys.exit(main())
-diff --git a/games/rac1/pal/tools/iso_patch.py b/games/rac1/pal/tools/iso_patch.py
+diff --git a/games/rac1/tools/iso_patch.py b/games/rac1/tools/iso_patch.py
 new file mode 100644
-index 00000000..45ffe3cf
+index 00000000..f2c6e4f8
 --- /dev/null
-+++ b/games/rac1/pal/tools/iso_patch.py
-@@ -0,0 +1,129 @@
++++ b/games/rac1/tools/iso_patch.py
+@@ -0,0 +1,191 @@
 +#!/usr/bin/env python3
 +"""
 +Write a bootable disc image: your own image with the rebuilt executable
@@ -161,6 +162,7 @@ index 00000000..45ffe3cf
 +from pathlib import Path
 +
 +SECTOR = 2048
++TAIL_SECTORS = 32
 +IMAGE = Path("baserom/SCES_509.16.iso")
 +EXE_NAME = "SCES_509.16;1"
 +
@@ -202,6 +204,9 @@ index 00000000..45ffe3cf
 +    ap.add_argument("--elf", type=Path, default=Path("build-sn/SCES_509.16"),
 +                    help="bootable executable from tools/boot_elf.py")
 +    ap.add_argument("--patches", type=Path, help="patches.tsv from `editor/extract.py pack`")
++    ap.add_argument("--append", metavar="FILE@OFFSET", action="append", default=[],
++                    help="place FILE in new sectors at the end of the image and write its first sector "
++                         "and sector count (two u32) at byte OFFSET (hex), e.g. a table-of-contents entry")
 +    ap.add_argument("-o", "--output", type=Path, default=Path("build-sn/SCES_509.16.iso"))
 +    args = ap.parse_args()
 +
@@ -216,14 +221,31 @@ index 00000000..45ffe3cf
 +        return 1
 +
 +    writes: list[tuple[int, bytes, str]] = []
++    appended = b""
 +    with IMAGE.open("rb") as f:
 +        lba, size = find_file(f, EXE_NAME)
++        total_sectors = IMAGE.stat().st_size // SECTOR
 +    elf = args.elf.read_bytes()
-+    if len(elf) != size:
-+        print(f"{args.elf} is {len(elf)} bytes, the disc's executable is {size}: a larger "
-+              f"executable needs a re-layout, not an in-place patch", file=sys.stderr)
-+        return 1
-+    writes.append((lba * SECTOR, elf, f"{EXE_NAME} (sector {lba}, {size} bytes)"))
++    if len(elf) <= size:
++        writes.append((lba * SECTOR, elf.ljust(size, b"\0"), f"{EXE_NAME} (sector {lba}, {len(elf)} bytes)"))
++    else:
++        # A larger executable goes in new sectors after the end of the image
++        # (nothing else moves: the disc addresses everything else by sector),
++        # and the directory record and the volume size follow it there.
++        new_lba = total_sectors
++        appended = elf.ljust(-(-len(elf) // SECTOR) * SECTOR, b"\0")
++        writes += directory_updates(IMAGE, EXE_NAME, new_lba, len(elf))
++        print(f"{EXE_NAME} grows from {size} to {len(elf)} bytes: placed at sector {new_lba}, "
++              f"image grows by {len(appended) // SECTOR} sectors")
++
++    for spec in args.append:
++        file_text, _, off_text = spec.rpartition("@")
++        blob = Path(file_text).read_bytes()
++        padded = blob.ljust(-(-len(blob) // SECTOR) * SECTOR, b"\0")
++        first = total_sectors + len(appended) // SECTOR
++        appended += padded
++        writes.append((int(off_text, 16), struct.pack("<2I", first, len(padded) // SECTOR),
++                       f"{Path(file_text).name}: {len(blob)} bytes at sector {first}, entry at 0x{int(off_text, 16):X}"))
 +
 +    if args.patches:
 +        base = args.patches.parent
@@ -239,6 +261,15 @@ index 00000000..45ffe3cf
 +            blob = blob.ljust(count * SECTOR, b"\0")
 +            writes.append((first * SECTOR, blob, f"{name} (sectors {first}-{first + count - 1})"))
 +
++    if appended:
++        # The game's stream reader reads past the end of a file by up to a few
++        # sectors (seen: one sector past the text table). In the middle of the disc
++        # that lands on the next file; at the end of the image it is an error, so
++        # keep a margin of blank sectors after the last appended file.
++        appended += bytes(TAIL_SECTORS * SECTOR)
++        writes.append((16 * SECTOR + 80, both_endian(total_sectors + len(appended) // SECTOR),
++                       "primary volume descriptor: volume space size"))
++
 +    args.output.parent.mkdir(parents=True, exist_ok=True)
 +    print(f"copying {IMAGE} -> {args.output} ({IMAGE.stat().st_size} bytes)")
 +    shutil.copyfile(IMAGE, args.output)
@@ -252,12 +283,41 @@ index 00000000..45ffe3cf
 +            out.seek(offset)
 +            out.write(blob)
 +            print(f"  wrote {what}: {changed} byte(s) changed")
-+    print(f"done: {changed_total} byte(s) differ from the original image")
++        if appended:
++            out.seek(0, 2)
++            out.write(appended)
++            print(f"  appended {len(appended)} bytes ({len(appended) // SECTOR} sectors)")
++    print(f"done: {changed_total} byte(s) differ from the original image"
++          + (f", plus {len(appended)} appended" if appended else ""))
 +    return 0
++
++
++def both_endian(value: int) -> bytes:
++    """A 32-bit field as ISO 9660 stores it: little-endian, then big-endian."""
++    return struct.pack("<I", value) + struct.pack(">I", value)
++
++
++def directory_updates(image: Path, name: str, new_lba: int, new_size: int) -> list[tuple[int, bytes, str]]:
++    """Writes that move NAME's root directory record to NEW_LBA/NEW_SIZE
++    (both byte orders, as ISO 9660 stores them)."""
++    with image.open("rb") as f:
++        extent, size = root_directory(f)
++        f.seek(extent * SECTOR)
++        data = f.read(size)
++    pos = 0
++    while pos < len(data):
++        length = data[pos]
++        if length == 0:
++            pos = (pos // SECTOR + 1) * SECTOR
++            continue
++        rec = data[pos:pos + length]
++        if rec[33:33 + rec[32]].decode("ascii", "replace") == name:
++            base = extent * SECTOR + pos
++            return [(base + 2, both_endian(new_lba), f"directory record of {name}: extent"),
++                    (base + 10, both_endian(new_size), f"directory record of {name}: size")]
++        pos += length
++    raise SystemExit(f"{name} not found in the root directory")
 +
 +
 +if __name__ == "__main__":
 +    sys.exit(main())
--- 
-2.30.0.windows.2
-

@@ -1,54 +1,129 @@
 # Ratchet & Clank: Executive Edition (PAL)
 
-A definitive-style edition of Ratchet & Clank (2002, PS2, SCES_509.16) within
-PS2 hardware limits, built on the [OpenRAC](https://github.com/OpenRAC/OpenRAC)
-decompilation and shipped as a PS2 disc image made from the player's own disc.
-No game data is distributed: this repository holds the mod bank, the
-pipeline, the design notes and the game code changes as patches.
+A definitive-style edition of Ratchet & Clank (2002, PS2) within PS2
+hardware limits, built on the [OpenRAC](https://github.com/OpenRAC/OpenRAC)
+decompilation. You build it yourself from your own discs: this repository
+holds only the edition's code, tools and notes, never game data.
+
+What it changes: [docs/FEATURES.md](docs/FEATURES.md).
+
+## What you need
+
+**Discs** (your own rips, as `.iso`):
+
+| Disc | Serial | Used for |
+|---|---|---|
+| Ratchet & Clank, PAL | SCES-50916 | the game itself |
+| Ratchet & Clank: Going Commando, NTSC-U | SCUS-97268 | the Charge Boots model and Ratchet's strafe animations, taken from R&C2 |
+
+**Software** (Windows is the tested platform):
+
+| Dependency | Why |
+|---|---|
+| [Git for Windows](https://git-scm.com/download/win) (Git Bash) | all commands below run in Git Bash |
+| [Python](https://www.python.org/) 3.10 or newer | every pipeline step |
+| [OpenRAC](https://github.com/OpenRAC/OpenRAC) | builds the game's executable from source |
+| The SN ProDG toolchain mirrors: [SN-Systems-ProDG_for_PS2_3.01](https://github.com/AngheloAlf/SN-Systems-ProDG_for_PS2_3.01) and [sce_ps2_sdk_24](https://github.com/AngheloAlf/sce_ps2_sdk_24) | the PS2 compiler, assembler and linker the game was built with |
+| The edition's fork of [wrench](https://github.com/chaoticgd/wrench), branch `executive-edition` (not yet published) | unpacks the discs, converts the R&C2 boots to R&C1's format, compresses level data |
+| [CMake](https://cmake.org/), [Ninja](https://ninja-build.org/) and a C++20 compiler ([MinGW-w64 GCC](https://winlibs.com/)) | to build wrench |
+| [PCSX2](https://pcsx2.net/) (optional) | to play the result |
+
+## Build the edition, step by step
+
+Put the three repositories side by side, in a short path (the PS2 toolchain's
+`make` fails on long paths):
+
+```
+C:\rac\OpenRAC
+C:\rac\wrench
+C:\rac\rac1-executive-edition
+```
+
+**1. Get the code.**
+
+```sh
+cd /c/rac
+git clone -c core.autocrlf=false https://github.com/OpenRAC/OpenRAC.git
+git clone -c core.autocrlf=false -b executive-edition <wrench fork URL> wrench
+git clone <this repository's URL> rac1-executive-edition
+git -C OpenRAC apply ../rac1-executive-edition/patches/openrac-executive-edition.patch
+```
+
+`core.autocrlf=false` matters: Windows line endings break OpenRAC's linker
+script. Neither this repository nor the wrench fork is published yet; the two
+URLs are placeholders until they are.
+
+**2. Give OpenRAC your discs and the toolchain.**
+
+```sh
+cp "/path/to/Ratchet & Clank (PAL).iso" OpenRAC/baserom/
+mkdir -p OpenRAC/games/rac2/ntsc/baserom
+cp "/path/to/Going Commando (NTSC-U).iso" OpenRAC/games/rac2/ntsc/baserom/SCUS_972.68.iso
+git clone https://github.com/AngheloAlf/SN-Systems-ProDG_for_PS2_3.01 OpenRAC/toolchains/sn-prodg-3.01
+git clone https://github.com/AngheloAlf/sce_ps2_sdk_24 OpenRAC/toolchains/sn-prodg-24
+cd OpenRAC
+python tools/openrac.py discs              # should name your PAL disc
+python tools/openrac.py setup rac1/pal     # places the disc, its executable and the toolchain (a symbolic link: turn on Windows Developer Mode)
+cd games/rac1
+pip install -r requirements.txt
+bash tools/setup_asm.sh                    # disassembles your executable
+python tools/overlays.py dump              # extracts each level's code from your disc
+cd /c/rac
+```
+
+**3. Build wrench and unpack both discs with it.**
+
+```sh
+git -C wrench submodule update --init --recursive
+cmake -S wrench -B wrench/bin -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build wrench/bin
+wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac1/baserom/SCES_509.16.iso -o OpenRAC/assets/wrench/rac1-pal
+wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac2/ntsc/baserom/SCUS_972.68.iso -o OpenRAC/assets/wrench/rac2-ntsc
+```
+
+**4. Build the edition.**
+
+```sh
+cd rac1-executive-edition
+bash tools/pack.sh --quick
+```
+
+This takes about five minutes. It compiles the game from source, checks it
+against your disc, builds the edition's code, and writes the disc image:
+
+```
+OpenRAC/games/rac1/build-sn/executive-edition.iso
+```
+
+**5. Play.** Open `executive-edition.iso` in PCSX2 like any disc (you need
+your own PS2 BIOS), or burn it to a DVD for a real PS2.
+
+## Two ways to build the image
+
+`pack.sh --quick` is the one in use. It takes a copy of your disc and
+changes it in place: the new executable and the Charge Boots data go at the
+end of the image, and each level's code is patched where it is.
+
+`pack.sh` with no option rebuilds the whole disc with wrench instead. It
+has not been used since 2026-10-17, because wrench's texture packer
+regenerates mipmaps wrongly (chaoticgd/wrench#286): textures look wrong at a
+distance and in menus.
 
 ## Layout
 
 ```
-mod/        wrench mod asset bank (gameinfo.txt, build.asset); the rebuilt executable is generated into it
-tools/      pipeline scripts: pack.sh (build -> bootable executable -> level-code patches -> disc image),
-            overlay_patch.py (per-level word patches and call redirects), modseg.py (builds src/ into the
-            resident mod segment), ramscan.py (reads a PCSX2 savestate's RAM), export-patches.sh
-src/        the edition's C, compiled with the game's compiler into the mod segment
-patches/    the game code changes, as `git format-patch` output of OpenRAC's `executive-edition` branch
-docs/       FEATURES.md (what each feature does and how it is patched), HQ_REPORT.md
+src/        the edition's C, compiled with the game's compiler into a resident "mod segment"
+tools/      the pipeline: pack.sh (build -> bootable executable -> level-code patches -> disc image),
+            overlay_patch.py (per-level patches), modseg.py (builds src/), splice_boots.py,
+            gen_*.py (per-level data), export-patches.sh (refreshes patches/)
+patches/    what the edition adds to OpenRAC (two disc tools), as one diff
+mod/        wrench mod bank, used only by the full wrench rebuild
+text/       the edition's new strings, in five languages
+docs/       FEATURES.md (each feature and how it is patched), HQ_REPORT.md, DEBUGGING.md
 ```
-
-## Working copy layout this repository expects
-
-```
-<repos>/OpenRAC                 OpenRAC monorepo, branch `executive-edition` (the code changes live there)
-<repos>/wrench                  wrench, built into wrench/bin (MinGW, see docs/SETUP.md)
-<repos>/rac1-executive-edition  this repository
-```
-
-OpenRAC's `assets/wrench/rac1-pal` is the pristine wrench unpack of the disc
-and `games/rac1/baserom/` holds the disc image and boot executable; both
-are ignored by git there.
-
-## Pipeline
-
-```sh
-bash tools/pack.sh --quick   # OpenRAC build + audits -> bootable SCES_509.16 -> level-code patches -> in-place disc image
-bash tools/pack.sh           # same, then a wrench full re-layout pack (needed once sizes or assets change)
-bash tools/export-patches.sh # refresh patches/ from OpenRAC's executive-edition branch
-```
-
-Outputs: `OpenRAC/games/rac1/build-sn/executive-edition.iso` (in-place) or
-`OpenRAC/build/wrench/executive-edition.iso` (wrench). Boot either in PCSX2 as a
-normal disc.
-
-Known limitation: wrench's texture packer regenerates mipmaps incorrectly
-(chaoticgd/wrench#286), so wrench-built images show texture errors at
-distance and in menus. Use the in-place image for anything that does not
-change sizes or assets until that is fixed in our wrench fork.
 
 ## Rules
 
-Same as OpenRAC's: your own disc is the evidence; no Sony SDK source, samples
-or headers; no leaked material; never commit disc images, executables,
-extracted data or build output.
+Same as OpenRAC's: your own disc is the evidence; no Sony SDK source,
+samples or headers; no leaked material; never commit disc images,
+executables, extracted data or build output.

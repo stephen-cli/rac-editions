@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
-# Refresh patches/ from OpenRAC's executive-edition branch: every commit
-# since it left master, as git format-patch output, plus the base commit.
+# Refresh patches/ from OpenRAC's executive-edition branch: everything the
+# branch adds to master, as one diff against their merge base. One diff rather
+# than per-commit format-patch output, because the branch has merged master
+# since (OpenRAC moved games/rac1/pal to games/rac1), and the early commits'
+# paths no longer exist.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 OPENRAC=${OPENRAC:-$(cd "$HERE/../OpenRAC" && pwd)}
 BRANCH=${BRANCH:-executive-edition}
 base=$(git -C "$OPENRAC" merge-base master "$BRANCH")
 rm -f "$HERE"/patches/*.patch
-git -C "$OPENRAC" format-patch -q -o "$HERE/patches" "$base..$BRANCH"
+git -C "$OPENRAC" diff --binary "$base" "$BRANCH" > "$HERE/patches/openrac-executive-edition.patch"
 {
   echo "# Patches against OpenRAC"
   echo
   echo "Base: OpenRAC master commit $base"
   echo "Branch: $BRANCH"
   echo
-  echo "Apply onto a fresh OpenRAC checkout at the base commit with:"
+  echo "What the edition adds to OpenRAC, as one diff against the base:"
   echo
-  echo '    git -C OpenRAC switch -c executive-edition && git -C OpenRAC am ../rac1-executive-edition/patches/*.patch'
+  git -C "$OPENRAC" diff --stat "$base" "$BRANCH" | sed 's/^/    /'
   echo
-  ls "$HERE"/patches/*.patch 2>/dev/null | xargs -n1 basename | sed 's/^/- /'
+  echo "Apply onto an OpenRAC checkout of master (the base or later) with:"
+  echo
+  echo '    git -C OpenRAC apply ../rac1-executive-edition/patches/openrac-executive-edition.patch'
 } > "$HERE/patches/README.md"
 cat "$HERE/patches/README.md"

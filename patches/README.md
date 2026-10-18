@@ -1,13 +1,14 @@
 # Patches against OpenRAC
 
-Base: OpenRAC master commit 29eaa3c13e6dd231d6bbf107e4c17936ca6d9db9
+Base: OpenRAC master commit 3f30fa97ef1df5b7a8fdd04f8154ba41ff2493d1
 Branch: executive-edition
 
-Apply onto a fresh OpenRAC checkout at the base commit with:
+What the edition adds to OpenRAC, as one diff against the base:
 
-    git -C OpenRAC switch -c executive-edition && git -C OpenRAC am ../rac1-executive-edition/patches/*.patch
+     games/rac1/tools/boot_elf.py  | 120 ++++++++++++++++++++++++++
+     games/rac1/tools/iso_patch.py | 191 ++++++++++++++++++++++++++++++++++++++++++
+     2 files changed, 311 insertions(+)
 
-- 0001-feat-rac1-pal-bootable-executable-and-in-place-disc-.patch
-- 0002-feat-rac1-pal-extra-loadable-segments-and-a-larger-e.patch
-- 0003-feat-rac1-pal-iso_patch.py-append-FILE-OFFSET.patch
-- 0004-fix-rac1-pal-iso_patch.py-keeps-blank-sectors-after-.patch
+Apply onto an OpenRAC checkout of master (the base or later) with:
+
+    git -C OpenRAC apply ../rac1-executive-edition/patches/openrac-executive-edition.patch
