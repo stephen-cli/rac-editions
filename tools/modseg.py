@@ -61,6 +61,15 @@ LEVEL_DATA = {
     "qs_slots": ("func_L00_00238478", 0x54, 0x70),
     # the item table, 37 records of 0x4C (D_L00_00179BC0 in level 0), from the same function's lui/addiu
     "item_table": ("func_L00_00238478", 0x5C, 0x6C),
+    # q4: the view record (D_0018CE00: fov +0xB0, screen half sizes +0x200), from UpdateViewContext's lui/addiu
+    "view": ("func_001F3140", 0x50, 0x60),
+    # q4: the VIF1 chain's write cursor (D_00161000, a pointer), from the letterbox bars' lui/lw
+    "chain_cursor": ("func_001F5148", 0x68, 0x6C),
+    # q4: the letterbox request (D_0015F544) and its 0..24 line counter (D_0015F548), same function
+    "letterbox_on": ("func_001F5148", 0x0, 0x4),
+    "letterbox_lines": ("func_001F5148", 0x24, 0x28),
+    # q4: the game mode (D_0015F6E8: 0 play, 2 cinematic, 3 pause...), from DrawWorld's subtitle test
+    "game_mode": ("func_001F3D78", 0x4D8, 0x4DC),
 }
 # Only the resident core is at one address: below 0x15F000 (core text, data,
 # bss, lit). Everything above, the executable's own game text and data

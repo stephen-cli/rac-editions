@@ -12,9 +12,12 @@ Options list and the Subtitles page, and writes:
                                "Quick Select" row added before Quit Game, a
                                page for it (a copy of the Subtitles page), its
                                toggle widget, entries and title widget
+                               q4: the Camera page's list entries with a
+                               "16:9 (widescreen)" row added
   build/modseg/menu_sites.json per level: the Options list widget's item
                                pointer (the word tools/overlay_patch.py
-                               redirects) and its retail value
+                               redirects) and its retail value, and the
+                               Camera list widget's entries pointer
 
   python tools/gen_menu.py [--openrac DIR]
 """
@@ -54,6 +57,10 @@ def setting_address() -> int:
 
 
 SETTING_FLAG = setting_address()  # the saved byte the toggle writes (gCheats[11])
+WS_FLAG = header_define("EE_SETTING_WIDESCREEN")    # q4: the 16:9 setting's saved byte (gCheats[10])
+LABEL_WIDESCREEN = header_define("EE_TEXT_WIDESCREEN")
+LABEL_ON, LABEL_OFF = 0x4F5A, 0x4F5B                 # "on", "off" (the Subtitles page's)
+CAMERA_ROWS = [0x4FA2, 0x4FA3, 0x5220]              # Left/Right movement, Up/Down movement, rotation speed
 DESC_IDS = [0x4F31, 0x4F32, 0x4F33, 0x4F35, 0x4F36, 0x4F37, 0x4F39]   # the Options rows' descriptions
 IMAGE_TABLE = 0x00138140         # core data: {first frame, frames} per Options row, 8 bytes each
 
@@ -119,7 +126,16 @@ def find_menu(pal: Path, level: int) -> dict:
             image_site = (w + 0x30, IMAGE_TABLE)
     if desc_site is None or image_site is None:
         raise SystemExit(f"level {level}: Options description or image widget not found")
-    return {"items": items, "widget": widget, "rows": rows, "page": page, "toggle_addr": toggle,
+    # q4: the Camera page's list widget (page +0x40) and its entries: 6 words
+    # each, {label, value byte*, names[4]}, the widget showing names[*value].
+    cam_page = rows[OPTION_LABELS.index(0x4F23)][1]
+    cam_widget = u32(cam_page + 0x40)
+    cam_entries = u32(cam_widget + 0x34)
+    cam = [u32(cam_entries + 4 * i) for i in range(6 * (len(CAMERA_ROWS) + 1))]
+    if [cam[6 * i] for i in range(len(CAMERA_ROWS) + 1)] != CAMERA_ROWS + [0]:
+        raise SystemExit(f"level {level}: the Camera page's rows are not where expected")
+    return {"camera_site": (cam_widget + 0x34, cam_entries), "camera": cam[:6 * len(CAMERA_ROWS)],
+            "items": items, "widget": widget, "rows": rows, "page": page, "toggle_addr": toggle,
             "title_addr": title, "toggle": tog, "title": tit, "entry": entry,
             "desc_site": desc_site, "image_site": image_site}
 
@@ -185,10 +201,13 @@ def main() -> int:
         c.append(f"u32 ee_options_items_{s}[27] = {{ {', '.join(words)} }};")
         desc = DESC_IDS[:ROW_INDEX] + [DESC_CONTROLS] + DESC_IDS[ROW_INDEX:] + [0]
         c.append(f"u32 ee_options_desc_{s}[{len(desc)}] = {{ {', '.join(f'0x{x:X}' for x in desc)} }};")
+        cam = m["camera"] + [LABEL_WIDESCREEN, WS_FLAG, LABEL_OFF, LABEL_ON, 0, 0] + [0] * 6
+        c.append(f"u32 ee_camera_entries_{s}[{len(cam)}] = {{ {', '.join(f'0x{x:X}' for x in cam)} }};")
         c.append("")
         sites[L] = {"items": {"site": m["widget"] + 0x34, "expect": m["items"], "symbol": f"ee_options_items_{s}"},
                     "desc": {"site": m["desc_site"][0], "expect": m["desc_site"][1], "symbol": f"ee_options_desc_{s}"},
-                    "image": {"site": m["image_site"][0], "expect": m["image_site"][1], "symbol": "ee_options_images"}}
+                    "image": {"site": m["image_site"][0], "expect": m["image_site"][1], "symbol": "ee_options_images"},
+                    "camera": {"site": m["camera_site"][0], "expect": m["camera_site"][1], "symbol": f"ee_camera_entries_{s}"}}
     (args.out / "gen_menu.c").write_text("\n".join(c) + "\n")
     (args.out / "menu_sites.json").write_text(json.dumps(sites, indent=1))
     print(f"wrote {args.out / 'gen_menu.c'} (19 levels) and menu_sites.json")

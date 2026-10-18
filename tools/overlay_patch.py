@@ -486,7 +486,65 @@ def charge_dash(at):
         [(entry + 4 * k, 0, struct.unpack_from("<I", seq, 4 * k)[0]) for k in range(4)]
 
 
+VIEW_PROLOGUE = (0x27BDFFA0, 0x3C020016)   # UpdateViewContext: addiu $sp,$sp,-0x60; lui $v0,0x16
+VIEW_FOV_READ = 0x68                         # lwc1 $f0,0xB0($v1): the horizontal value the vertical one is made from
+LWC1_FOV, LWC1_FOV_SRC = 0xC46000B0, 0xC46000BC
+PANEL_DRAW_SITE = 0xFC                       # func_L00_002781D8 + 0xFC: jal func_0020E180(panel, 1)
+PANEL_PROJECT_SITE = 0x1EC                   # func_L00_002781D8 + 0x1EC: jal func_00238D90(corners -> rectangle)
+JALR_A2 = 0x00C0F809                         # jalr $a2: the pause renderer's call of a panel that draws itself
+
+
+def widescreen(at):
+    """q4: 16:9 (src/widescreen.c). Every level's UpdateViewContext starts
+    with a jump to ee_view_hook, the level id in the delay slot, and its read
+    of the horizontal field of view for the vertical one reads +0xBC, which
+    the hook fills with the unwidened value. DrawWorld's calls of HudDraw,
+    draw_help, the letterbox bars, the subtitles and the DoGifPaging after
+    them (the pillars) go to the 2D hooks. The pause renderer's panel draw
+    and corner projection, the vendor's monitor projections and its
+    VendorDrawScreens call, and the 2D draws of both (fills, content quads,
+    panels that draw themselves, the vendor screen's HudDraw) go to the
+    hooks and bracketed calls of src/ws_hooks.s. The movie decoder's
+    setImageTag call goes to the pillarboxed movie packet. The Camera page's
+    list widget points at a copy of its entries with the 16:9 row
+    (tools/gen_menu.py)."""
+    import json
+    f = at("func_001F3140")
+    dw = at("func_001F3D78")
+    menu = HERE.parent / "build/modseg/menu_sites.json"
+    if not menu.is_file():
+        raise SystemExit(f"missing {menu}: run tools/gen_menu.py first")
+    cam = json.loads(menu.read_text())[str(at.level)]["camera"]
+    return [(f, VIEW_PROLOGUE[0], j(modseg_symbol("ee_view_hook"))),
+            (f + 4, VIEW_PROLOGUE[1], addiu(AT, ZERO, at.level)),
+            (f + VIEW_FOV_READ, LWC1_FOV, LWC1_FOV_SRC),
+            (dw + site_offset("EE_SITE_WS_HUD"), jal(at("func_001FFFB8")), jal(modseg_symbol("ee_ws_hud"))),
+            (dw + site_offset("EE_SITE_WS_HELP"), jal(at("func_001FF1B0")), jal(modseg_symbol("ee_ws_help"))),
+            (dw + site_offset("EE_SITE_WS_LETTERBOX"), jal(at("func_001F5148")), jal(modseg_symbol("ee_ws_letterbox"))),
+            (dw + site_offset("EE_SITE_WS_SUBTITLES"), jal(at("func_001F4F90")), jal(modseg_symbol("ee_ws_subtitles"))),
+            (dw + site_offset("EE_SITE_WS_PILLARS"), jal(at("func_001F4748")), jal(modseg_symbol("ee_ws_pillars"))),
+            (at("func_L00_002781D8") + PANEL_DRAW_SITE, jal(at("func_0020E180")), jal(modseg_symbol("ee_ws_panel_draw"))),
+            (at("func_L00_002781D8") + PANEL_PROJECT_SITE, jal(at("func_00238D90")), jal(modseg_symbol("ee_ws_panel_project"))),
+            (at("func_L00_002A0F60") + 0x188, jal(at("func_00238D90")), jal(modseg_symbol("ee_ws_vendor_project"))),
+            # bracketed 2D calls (src/widescreen.c WS_SITE_*)
+            (at("func_L00_002781D8") + 0x298, jal(at("func_00201640")), jal(modseg_symbol("ee_ws_br_pause_fill"))),
+            (at("func_L00_002781D8") + 0x388, JALR_A2, jal(modseg_symbol("ee_ws_br_pause_direct"))),
+            (at("func_L00_002781D8") + 0x600, jal(at("func_001F5800")), jal(modseg_symbol("ee_ws_br_pause_quad"))),
+            (at("func_L00_002781D8") + 0x698, jal(at("func_002250B8")), jal(modseg_symbol("ee_ws_br_pause_last"))),
+            (at("func_L00_002A0F60") + 0x258, jal(at("func_001F5800")), jal(modseg_symbol("ee_ws_br_vendor_quad"))),
+            (at("func_L00_002A1540") + 0x400, jal(at("func_001FFFB8")), jal(modseg_symbol("ee_ws_br_vendor_hud"))),
+            # the vendor's six monitor screens (VendorDrawScreens): drawn with the 4:3 view; projections and quads
+            (at("func_L00_002A1540") + 0x3C4, jal(at("func_0023AA38")), jal(modseg_symbol("ee_ws_vendor_screens"))),
+            (at("func_0023AA38") + 0x20C, jal(at("func_00238F98")), jal(modseg_symbol("ee_ws_screens_project"))),
+            (at("func_0023AA38") + 0x374, jal(at("func_00238F98")), jal(modseg_symbol("ee_ws_screens_project"))),
+            (at("func_0023AA38") + 0x50C, jal(at("func_001F5988")), jal(modseg_symbol("ee_ws_br_screens_quad_a"))),
+            (at("func_0023AA38") + 0x568, jal(at("func_001F5988")), jal(modseg_symbol("ee_ws_br_screens_quad_b"))),
+            (at("func_0023E298") + site_offset("EE_SITE_WS_MOVIE"), jal(at("func_0023C5E0")), jal(modseg_symbol("ee_ws_movie_tag"))),
+            (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))]
+
+
 FEATURES = {
+    "widescreen": widescreen,
     "charge_boots": charge_boots,
     "edition_text": edition_text,
     "metal_detector_10x": metal_detector_10x,
@@ -501,7 +559,7 @@ FEATURES = {
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots", "item_preview"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots", "item_preview", "widescreen"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

@@ -64,6 +64,21 @@ typedef float f32;
 #define EE_CHEAT_CHARGE_BOOTS   0x0015EEB8
 #define EE_CHEAT_ENTRY          8
 
+/* q4: the 16:9 (widescreen) setting (src/widescreen.c): gCheats[10], the
+ * third of the cheat bytes retail never touches (see EE_SETTING_QS_PAUSE),
+ * saved with the file, 0 (4:3) in every retail save. A row of the Camera
+ * page (tools/gen_menu.py reads this name from here). */
+#define EE_SETTING_WIDESCREEN   0x0015EEBA
+#define EE_TEXT_WIDESCREEN      0x540D       /* "16:9 (widescreen)" */
+/* DrawWorld (func_001F3D78, every level) calls, as offsets in it: HudDraw,
+ * draw_help, the letterbox bars and the subtitles (the same in all 19). */
+#define EE_SITE_WS_HUD          0x4C0
+#define EE_SITE_WS_HELP         0x4C8
+#define EE_SITE_WS_LETTERBOX    0x4D0
+#define EE_SITE_WS_SUBTITLES    0x4FC
+#define EE_SITE_WS_PILLARS      0x520   /* DrawWorld + 0x520: jal DoGifPaging, after the HUD block */
+#define EE_SITE_WS_MOVIE        0xF8    /* func_0023E298 + 0xF8: jal setImageTag (the movie frame's tags) */
+
 /* The Options list row the edition inserts (q3), shared with tools/gen_menu.py,
  * and the two core tables the game fills at boot from the disc's table of
  * contents: {first sector, sectors} per Options row (options_ss) and per Help
