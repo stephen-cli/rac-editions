@@ -4,6 +4,14 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-18 (x5: Going Commando's landing jump back; guns held up on the backpedal)
+
+### 🎯 Strafing on L2/R2 (x5) — Landing press back to Going Commando's plain jump (owner's call), verified in PCSX2
+
+**What changed.** The previous entry's change is undone at the owner's word, since Going Commando doesn't do it. Pressing Cross in the last few frames before a strafe side flip lands gives the plain jump again, which can double jump, as in Going Commando. Pressing Cross after landing still gives the next flip. Kept from that change: the flip reads its direction from the stick, Going Commando's way.
+
+**Verification.** On the owner's Novalis save, with the trigger and the stick held right, Cross 1 to 5 frames before a side flip lands gives the plain jump on landing. A strafe jump with the stick only partly pushed, and a jump without the trigger, are unchanged.
+
 ## 2026-10-18 (x5: a quick press at the landing flips)
 
 ### 🎯 Strafing on L2/R2 (x5) — Quick follow-up side flips chain (owner's request), verified in PCSX2; awaiting owner test

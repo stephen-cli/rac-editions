@@ -173,7 +173,6 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define hero_stick      (*(volatile f32 *)(HERO + 0x229C))   /* left stick magnitude, 0..1 */
 #define hero_stick_x    (*(volatile f32 *)(HERO + 0x1D20))   /* left stick vector, every frame (stick_target's input) */
 #define hero_stick_y    (*(volatile f32 *)(HERO + 0x1D24))
-#define hero_landed     (*(volatile s32 *)(HERO + 0x418))    /* the jump family's frames since touching down, 0 in the air */
 #define hero_facing     (*(volatile f32 *)(HERO + 0x98))
 #define hero_speed_xy   (*(volatile f32 *)(HERO + 0x160))
 #define hero_ground_speed (*(volatile f32 *)(HERO + 0x194))
@@ -195,7 +194,6 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define STATE_RUN       2
 #define STATE_HOVER     0x81          /* thruster pack hover: reads L2/R2 itself */
 #define STATE_JUMP      7
-#define STATE_RUN_JUMP  9
 #define STATE_STOP      3
 #define ANIM_STOP_SHORT 0x14          /* the stop from frame 7: the game's own low-speed stop */
 #define STATE_HIGH_JUMP 0xB           /* the flips: animation 0x1C + stick class */
@@ -636,42 +634,17 @@ void ee_run_anim_c(u32 ra)
  * keeps a six-frame grace after the release (measured: with the trigger
  * held the stop was already dead; released together it skidded). Outside the strafe both stops are the game's.
  * The high-speed call is a shared tail other paths branch into with other
- * states; those pass through, with one exception.
- *
- * The landing jump. The same tail carries the jump family's landing jump
- * (NTSC 00242930.c, the jump-family case with hero + 0x418 set: Cross
- * within 8 frames and air frames under 4 give RUN_JUMP or JUMP; level 0
- * 0x22FA70), which turns a press in the last frames of any jump into a
- * jump the moment Ratchet touches down. R&C2 has the same branch with no
- * strafe rule (0x2C6A04; measured: a plain jump that can double jump), so
- * a quick follow-up to a strafe flip is a plain side jump there. The owner
- * asked for the flip instead (2026-10-18): strafing with the stick held to
- * the side, a press at the landing flips as a press a frame later from RUN
- * does. So when the game asks for JUMP or RUN_JUMP from a landed
- * jump-family state, the jump-press hook's strafe flip rule (R&C2's
- * 0x2C2498) decides first, reading the stick at the landing. The jumps
- * themselves are untouched: a regular strafe jump (taken with the stick
- * centred or forward, then steered sideways in the air) stays a jump; only
- * a press that is taken at its landing follows the rule, as the same press
- * a frame later in RUN would. */
-static s32 jump_family(s32 s)
-{
-    return s == STATE_JUMP || (s >= 9 && s <= 18) || s == 0x1C || s == 0x3C || s == 0x69;
-}
-
+ * states; those pass through. Among them is the jump family's landing jump
+ * (NTSC 00242930.c: Cross within 8 frames of touching down gives JUMP or
+ * RUN_JUMP; level 0 0x22FA70), which stays the game's plain jump while
+ * strafing too, as in R&C2 (0x2C6A04, measured: a plain jump that can
+ * double jump). A build that made it a strafe flip (7a8f766) was reverted
+ * at the owner's word: Going Commando does not. */
 s32 ee_stop_c(s32 state, s32 with_animation, u32 ra)
 {
     s32 trace_ = (TRACE(12), 0);
     s32 L = level_of_two(ra, ee_stop_site, ee_stop_site_low);
     s32 r;
-    if ((state == STATE_JUMP || state == STATE_RUN_JUMP) && hero_landed && jump_family(hero_state)) {
-        s32 cls = strafe_flip_class();
-        if (cls >= 0) {
-            r = enter_strafe_flip(L, cls);
-            TRACE_END();
-            return r;
-        }
-    }
     if (state == STATE_STOP && (ee_strafe_held || strafe_grace)) {
         r = ((SetState)ee_hero_set_state[L])(STATE_STOP, 0);
         if (r) {

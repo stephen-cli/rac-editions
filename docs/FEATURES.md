@@ -1402,7 +1402,7 @@ jump over plain ground keeps 0.07, strafing or not. One trial's double
 jump fell to 0.02 for that reason alone (measured: + 0x30A = 1 there, 0
 where it kept its speed).
 
-## x5: a press at the landing flips while strafing (2026-10-18), awaiting owner test
+## x5: a press at the landing flips while strafing (2026-10-18) — reverted the same day (next entry)
 
 **Owner's request.** With the trigger and the stick held to the side,
 Cross pressed the moment a side flip lands gave a plain side jump; it
@@ -1446,3 +1446,23 @@ flips (from RUN); a strafe jump with the stick at 0.54 and a press before
 its landing gives the plain landing jump (state 7); forward strafe jumps
 are plain jumps; the backpedal plays (slot 140); without the trigger the
 landing jump is the game's (RUN_JUMP, state 9).
+
+## x5: the landing press back to R&C2's plain jump (2026-10-18), verified in PCSX2
+
+**Owner's word.** "Lets have it back to how Going Commando had it": the
+previous entry departs from R&C2, which the owner had remembered otherwise.
+`ee_stop_c` (`src/strafe.c`) no longer takes the jump family's landing
+requests; JUMP and RUN_JUMP from a landing reach `hero_set_state` as in
+retail R&C1, which is R&C2's behaviour too (its landing branch, `0x2C6A04`,
+has no strafe rule; measured there: a plain jump that can double jump).
+Kept from the previous entry, because they are R&C2's: the flip's stick
+class from the stick vector (Oozla `0x2B4534`, `0x2BEA78`), which the
+jump-press hook uses for every strafe flip, and its one flip-entry helper.
+
+**Verified in PCSX2** (the owner's slot 1, Novalis; a right flip's last
+frame in state 0xB is 46): with R2 and the stick held right, Cross at flip
+frames 42 to 46 gives the plain landing jump (state 7, animation 7) on the
+landing, then the run, each sample read twice to rule out a torn read. With
+the stick at 0.54, and without the trigger, the landing jumps are the
+game's (states 7 and 9). The jump-press hook, which flips a press after the
+landing, is untouched.
