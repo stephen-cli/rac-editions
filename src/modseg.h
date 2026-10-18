@@ -55,6 +55,14 @@ typedef float f32;
  * control.) tools/gen_menu.py reads this name from here. */
 #define EE_SETTING_QS_PAUSE     0x0015EEBB
 
+/* x2: the Charge Boots cheat's flag, gCheats[8], saved in the same block.
+ * The game's move-combo cheat detector (func_L00_00207418, NTSC decomp
+ * FUN_L00_00206e00) matches 12 entries of a per-level sequence table and
+ * toggles gCheats[i]; retail fills entries 0-4, 6 and 7, and the edition
+ * adds entry 8 (src/charge_boots.c). */
+#define EE_CHEAT_CHARGE_BOOTS   0x0015EEB8
+#define EE_CHEAT_ENTRY          8
+
 /* The Options list row the edition inserts (q3), shared with tools/gen_menu.py,
  * and the two core tables the game fills at boot from the disc's table of
  * contents: {first sector, sectors} per Options row (options_ss) and per Help
@@ -67,8 +75,13 @@ typedef float f32;
  * function's 19 addresses and the call site's offset in it (src/level.c). */
 s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);
 
-/* x2: grants the Charge Boots item each frame (src/charge_boots.c). */
+/* x2: the Charge Boots item each frame: owned once the cheat is unlocked (src/charge_boots.c). */
 void ee_charge_boots_frame(s32 level);
+
+/* x2: the Charge Boots cheat, each gameplay frame before the hero update
+ * (src/charge_boots.c, called from src/charge_dash.c's frame hook). */
+void ee_charge_cheat_frame(s32 level);
+
 /* x2: the level loader's HUD header copy, with the edition's icon appended (src/hud_icons.c). */
 void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size);
 #define EE_SITE_HUD_HEADER_COPY 0xB8    /* func_002032D0 + 0xB8: jal FastMemCopy(header, archive, size) */

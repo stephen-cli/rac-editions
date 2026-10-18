@@ -15,9 +15,25 @@
  * with a bank and GetFrameTex fetches them from here on first use
  * (tools/gen_hud.py).
  *
- * Until the Challenge Mode reward exists, the item is simply owned: the
- * flag is set every frame from the HUD update hook. Equipping it attaches
- * the Grindboots model; it grants nothing else yet. */
+ * The item is a cheat (owner's decision, 2026-10-18): locked until the
+ * game's move-combo cheat detector matches the edition's sequence, which
+ * like the retail cheats only registers once the game has been beaten
+ * (Challenge Mode), and then unlocked for good in that save. The detector
+ * (func_L00_00207418; NTSC decomp FUN_L00_00206e00) records a move id 15
+ * ticks into a move (60 for a held crouch or glide) in a 16-entry ring at
+ * hero + 0x21C4, compares the ring's tail with the 12 entries of a per-level
+ * table (16 bytes each, zero-terminated; retail fills 0-4, 6 and 7) and on a
+ * match toggles gCheats[i] (0x15EEB0 + i, saved with the file), sets
+ * 0x15EEC0 + i and shows the cheat banner (text 0x4FBE on, 0x4FBF off). The
+ * edition writes entry 8 (tools/overlay_patch.py): crouch for a second (7),
+ * back flip (3) twice, Comet-Strike (4), Hyper-Strike (6) twice; the move
+ * ids as the retail codes use them (entry 0, 1 2 3 3 4 5 4 6, is Big Head
+ * Ratchet: side flip left, right, back flip twice, Comet-Strike, double
+ * jump, Comet-Strike, Hyper-Strike). Every frame (ee_charge_cheat_frame)
+ * the boots are owned when gCheats[8] is set and taken away otherwise, and
+ * once set, entry 8 of the level's table is blanked so a second entry of
+ * the sequence does nothing (no "cheat off"); the banner of the unlock is
+ * the edition's own text. */
 #include "modseg.h"
 
 #define ITEM_OWNED(id)     (*(volatile u8 *)(0x0013D5C8 + (id)))   /* D_0013D5C8: owned items, by id */
@@ -89,13 +105,60 @@ static void panel_sequence(s32 L)
     }
 }
 
+#define CHEAT_UNLOCKED       (*(volatile u8 *)EE_CHEAT_CHARGE_BOOTS)
+#define ITEM_NONE            0x26        /* hero_switch_item's "no item": what it makes pending to take boots off */
+#define HERO_ITEM(slot)      (*(volatile s32 *)(0x0013F450 + 0x1090 + 0x50 * (slot) + 0x28))   /* hero.items[slot].item_id */
+
 void ee_charge_boots_frame(s32 L)
 {
-    ITEM_OWNED(ITEM_CHARGE_BOOTS) = 1;
     panel_sequence(L);
+    if (!CHEAT_UNLOCKED) {
+        /* Locked: not owned, not worn (saves from earlier builds own and
+         * wear them). */
+        ITEM_OWNED(ITEM_CHARGE_BOOTS) = 0;
+        if (EQUIPPED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
+            EQUIPPED(SLOT_BOOTS) = 0;
+        }
+        if (HERO_ITEM(SLOT_BOOTS) == ITEM_CHARGE_BOOTS || HERO_SELECTED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS
+            || HERO_PENDING(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
+            HERO_PENDING(SLOT_BOOTS) = ITEM_NONE;
+        }
+        return;
+    }
+    ITEM_OWNED(ITEM_CHARGE_BOOTS) = 1;
     if (HERO_PENDING(SLOT_BOOTS) == ITEM_CHARGE_BOOTS || HERO_SELECTED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
         EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
     }
+}
+
+/* The cheat, at the start of every gameplay frame (before the hero update
+ * and its detector): once unlocked, entry 8 of this level's table (each
+ * level loads its own, gen_charge's cheat_table) is blanked, so the
+ * sequence cannot switch the cheat off; and the state at the frame's start
+ * tells the banner hook whether this frame's "cheat on" is the unlock. */
+extern const u32 ee_charge_cheat_table[19], ee_charge_banner_site[19], ee_charge_show_banner[19];
+#define TEXT_CHEAT_ON          0x4FBE
+#define TEXT_BOOTS_UNLOCKED    0x5409   /* text/strings.tsv */
+typedef void (*ShowBanner)(s32 text, s32 time);
+static u8 unlocked_at_frame_start;
+
+void ee_charge_cheat_frame(s32 L)
+{
+    unlocked_at_frame_start = CHEAT_UNLOCKED;
+    if (CHEAT_UNLOCKED) {
+        *(volatile u8 *)(ee_charge_cheat_table[L] + 16 * EE_CHEAT_ENTRY) = 0;
+    }
+}
+
+/* The detector's banner call (func_L00_00207418): the unlock shows the
+ * edition's text instead of the generic "cheat on". */
+void ee_charge_banner_c(s32 text, s32 time, u32 ra)
+{
+    s32 L = ee_level_of_call(ra, ee_charge_banner_site, 0);
+    if (text == TEXT_CHEAT_ON && CHEAT_UNLOCKED && !unlocked_at_frame_start) {
+        text = TEXT_BOOTS_UNLOCKED;
+    }
+    ((ShowBanner)ee_charge_show_banner[L])(text, time);
 }
 
 /* The worn boots' pose. A worn item moby is placed at a joint of Ratchet's

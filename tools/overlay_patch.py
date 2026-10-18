@@ -320,6 +320,14 @@ def charge_boots(at):
     return out + charge_dash(at)
 
 
+# x2: the Charge Boots cheat (src/charge_boots.c): move ids as the game's cheat
+# detector records them; crouch for a second (7), back flip (3) twice,
+# Comet-Strike (4), Hyper-Strike (6) twice. Entry 8 of the detector's table.
+CHARGE_CHEAT = (7, 3, 3, 4, 6, 6)
+CHARGE_CHEAT_ENTRY = 8
+FRAME_START_SITE = 0x6D4   # func_L00_00299250 + 0x6D4: jal MobyFreeSlotBookkeeping
+
+
 def charge_dash(at):
     """x2: the Charge Boots dash on R1's double tap, Going Commando's hero
     state 0x7B, R&C1's state 0x48 (src/charge_dash.c), part of the
@@ -329,16 +337,27 @@ def charge_dash(at):
     they are worn, the call of the per-state movement function goes to
     ee_charge_move_hook, which moves the hero while it dashes, and the
     follow camera overrides' collect_mobies_in_sphere call goes to
-    ee_charge_camera_hook, which adds R&C2's charge camera. Sites from
-    tools/gen_charge.py."""
+    ee_charge_camera_hook, which adds R&C2's charge camera. The mode-0
+    frame's call of MobyFreeSlotBookkeeping (func_L00_00299250 + 0x6D4,
+    every level) goes to ee_frame_start_hook, which keeps the edition's
+    sequences in Ratchet's class after a pause and runs the Charge Boots
+    cheat; the cheat detector's ShowBanner call goes to
+    ee_charge_banner_hook; and entry 8 of the detector's sequence table
+    gets the cheat's moves (CHARGE_CHEAT). Sites from tools/gen_charge.py."""
     import json
     sites = HERE.parent / "build/modseg/charge_sites.json"
     if not sites.is_file():
         raise SystemExit(f"missing {sites}: run tools/gen_charge.py first")
     c = json.loads(sites.read_text())[str(at.level)]
+    seq = bytes(CHARGE_CHEAT) + bytes(16 - len(CHARGE_CHEAT))
+    entry = c["cheat_table"] + 16 * CHARGE_CHEAT_ENTRY
     return [(c["trigger"], jal(c["slot_item"]), jal(modseg_symbol("ee_charge_trigger_hook"))),
             (c["move_site"], jal(c["move_fn"]), jal(modseg_symbol("ee_charge_move_hook"))),
-            (c["camera_site"], jal(c["collect"]), jal(modseg_symbol("ee_charge_camera_hook")))]
+            (c["camera_site"], jal(c["collect"]), jal(modseg_symbol("ee_charge_camera_hook"))),
+            (at("func_L00_00299250") + FRAME_START_SITE, jal(at("func_L00_0024F7E0")),
+             jal(modseg_symbol("ee_frame_start_hook"))),
+            (c["banner_site"], jal(c["show_banner"]), jal(modseg_symbol("ee_charge_banner_hook")))] + \
+        [(entry + 4 * k, 0, struct.unpack_from("<I", seq, 4 * k)[0]) for k in range(4)]
 
 
 FEATURES = {

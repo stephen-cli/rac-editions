@@ -1180,6 +1180,71 @@ stick; letting go of R1 skids to STOP; running into a railing bonks
 Thruster-Pack hover as in retail. Not tested in game: hitting an enemy
 with the charge.
 
+## x2: the Charge Boots cheat, the pause freeze and Veldin 1 (2026-10-18) — verified in PCSX2, awaiting owner test
+
+**The pause freeze (owner's report).** Pausing mid-dash froze the game when
+it resumed. Ratchet's class keeps 162 sequence slots; slots 134 and up are
+the pause menu's: it raises the class's count (class + 0xC) from 134 to 162
+while open and empties them when it closes (measured: count 134, 162, 134;
+slots 131-161 zero after). The dash's sequence (slot 141) and the strafe's
+backpedal (slot 140) live there, so Ratchet resumed playing an empty slot
+and the boots' pose (the item updater's `func_L00_00209940`, NTSC decomp
+`pack_pose`) waited forever in the animation evaluator (`func_L00_00255B90`
+spinning on scratchpad `0x700035F0`; found from a savestate's registers, PC
+`0x26ABA8`, and the stack's return addresses). Every one of Ratchet's ids
+0-133 is used by some level (the levels' `ratchet_seqs`), so no lower slot
+is free. The mode-0 frame's call of `MobyFreeSlotBookkeeping`
+(`func_L00_00299250 + 0x6D4`, every level, just before the moby pass and the
+hero update) now goes to `ee_frame_start_hook`, which puts slot 141 or 140
+back whenever Ratchet's moby plays it (+ 0x52/+ 0x53) and it is empty.
+Verified: charge, pause, unpause; the dash goes on.
+
+**Veldin 1 (owner's report).** The dash never started on Veldin's first
+visit. The edition's trigger kept a test of R&C1's Thruster-Pack block,
+hero + 0x22D8 == 0; that halfword is the game's "no Clank on the back" (read
+by `HeroItemsCreate` and the Clank jumps, written by no level code, 1 on
+Veldin 1 before Clank), and the boots need no Clank. The test is gone.
+Verified on Veldin 1 (loaded from the owner's save through the game's own
+level request, `func_0022F4A0`'s globals): the double tap dashes with the
+flag still 1.
+
+**The cheat (owner's decision, 2026-10-18: post-game only, a permanent
+unlock).** The Charge Boots are locked until the move sequence below is
+done after the game has been beaten, then owned for good in that save. It
+uses the game's own cheat detector (`func_L00_00207418`; NTSC decomp
+`FUN_L00_00206e00`), which only runs when the game has been beaten
+(0x15EF20, the challenge count, or 0x15EFA0). It records a move id 15 ticks
+into a move (60 for a held crouch or glide) in a 16-entry ring at hero +
+0x21C4, compares the ring's tail with 12 zero-terminated sequences of 16
+bytes (a per-level table in the level's data, `cheat_table` from
+`tools/gen_charge.py`), and on a match toggles `gCheats[i]` (0x15EEB0 + i,
+saved with the file), sets 0x15EEC0 + i and shows the cheat banner. Retail
+fills entries 0-4, 6 and 7 (entry 0, `1 2 3 3 4 5 4 6`, is Big Head
+Ratchet: side flip left, side flip right, back flip twice, Comet-Strike,
+double jump, Comet-Strike, Hyper-Strike; ids 1/2 side flips (swapped in the
+mirrored mode), 3 back flip, 4 Comet-Strike, 5 double jump, 6 Hyper-Strike,
+7 crouch held a second, 8 a second of glide, 9 wall jump, 10 long jump,
+12-14 the wrench combo's hits). The edition writes entry 8: **crouch for a
+second, back flip, back flip, Comet-Strike, Hyper-Strike, Hyper-Strike**
+(`7 3 3 4 6 6`; no retail sequence ends it or is ended by it).
+`gCheats[8]` (`EE_CHEAT_CHARGE_BOOTS`, 0x15EEB8) is the unlock; byte 11 stays
+the quick select pause setting. Each frame `ee_charge_boots_frame` owns the
+boots when it is set, and otherwise takes them away (not owned, the
+equipped slot cleared, and 0x26, `hero_switch_item`'s "no item", made
+pending if Ratchet wears them: saves from earlier builds own and wear
+them). Once set, `ee_charge_cheat_frame` blanks entry 8 of the loaded
+level's table at the start of every frame, so the sequence cannot switch
+the cheat off again, and the detector's `ShowBanner` call (`banner_site`)
+goes to `ee_charge_banner_hook`, which shows the edition's text 0x5409,
+"Charge Boots unlocked", for the unlock instead of the generic cheat-on
+banner. Verified (the owner's Novalis save, the detector's gate set in RAM
+as a beaten game sets it): locked on load (item gone, boots taken off);
+the six moves recorded as `7 3 3 4 6 6`; then `gCheats[8]` 1, the boots
+owned, entry 8 blanked and the banner reading "Charge Boots unlocked". A
+back flip by pad needs the direction pressed with Cross while crouched
+(`HeroCrouchJumps` wants a fresh direction press); the stick held alone
+gives a high jump.
+
 ## x5: the quick second strafe flip (2026-10-18), awaiting owner test
 
 **Owner's report.** A quick follow-up side flip while strafing often came

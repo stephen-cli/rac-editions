@@ -137,7 +137,6 @@ extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (bu
 #define HERO_MODE       0x208C        /* control mode */
 #define HERO_2284       0x2284
 #define HERO_STICK      0x229C        /* stick magnitude, 0..1 */
-#define HERO_22D8       0x22D8
 #define PAD_HELD        (*(volatile u32 *)(0x0013CA40 + 0x1A0))
 #define PAD_PRESSED     (*(volatile u32 *)(0x0013CA40 + 0x1A4))
 #define PAD_R1          0x8u
@@ -291,8 +290,12 @@ s32 ee_charge_trigger_c(s32 slot, u32 ra)
     if (WORN_BOOTS != ITEM_CHARGE_BOOTS) {
         return ((SlotItem)ee_charge_slot_item[L])(slot);
     }
+    /* Not R&C1's hero + 0x22D8 test, which its Thruster-Pack block makes:
+     * that is "no Clank on the back" (read by HeroItemsCreate and the Clank
+     * jumps, set on Veldin 1 before Clank), and the boots need no Clank:
+     * it kept the dash from starting on Veldin 1 (owner's report). */
     if (state == STATE_THRUSTER || state == STATE_CHARGE || state == STATE_LOOK || state == STATE_1D || state == STATE_1E
-        || (S16(HERO_SURFACE) != 0 && OWNED_ITEM_1C != 0) || S16(HERO_22D8) != 0) {
+        || (S16(HERO_SURFACE) != 0 && OWNED_ITEM_1C != 0)) {
         return 0;
     }
     if (tap_window > 0) {
@@ -588,4 +591,45 @@ s32 ee_charge_camera_c(f32 radius, void *pos, s32 mask, void *self, void *hit, u
         LVL(L, func_L00_002E9AD0, Void)();
     }
     return found;
+}
+
+/* The start of every gameplay frame (the mode-0 frame's call of
+ * MobyFreeSlotBookkeeping, func_L00_00299250 + 0x6D4, just before the moby
+ * pass and the hero update; the same in all 19 levels): the edition's
+ * sequences kept in Ratchet's class, and the Charge Boots cheat. Slots 134
+ * and up of the class (162 kept) are the pause menu's: it raises the
+ * class's count to 162 while open and empties them when it closes
+ * (measured: count 134, 162, 134; slots 131-161 zero after). The dash's
+ * sequence (141) and the strafe's backpedal (140) live there, so a pause
+ * during either left Ratchet playing an empty slot, and the boots' pose
+ * (func_L00_00209940 from the item updater) then waited forever in the
+ * animation evaluator (func_L00_00255B90, spinning on scratchpad
+ * 0x700035F0): the owner's freeze on pausing mid-dash. Every level's
+ * sequences 0-133 are used by some level, so no lower slot is free; the
+ * slot is put back instead, whenever Ratchet plays it and it is empty. */
+DECLARE_LVL(func_L00_00299250);   /* the mode-0 frame */
+DECLARE_LVL(func_L00_0024F7E0);   /* MobyFreeSlotBookkeeping, the call the hook takes over */
+extern const u32 ee_backpedal_seq[];   /* src/strafe.c's sequence */
+#define BACKPEDAL_SLOT       140
+#define EE_SITE_FRAME_START  0x6D4
+
+static void keep_sequence(u8 *moby, s32 slot, const u32 *seq)
+{
+    u8 *cls = *(u8 **)(moby + 0x24);
+    volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
+    if ((moby[0x52] == slot || moby[0x53] == slot) && 0x48 + 4 * slot < *(u32 *)cls && seqs[slot] == 0) {
+        seqs[slot] = (u32)seq;
+    }
+}
+
+void ee_frame_start_c(u32 ra)
+{
+    s32 L = ee_level_of_call(ra, lvl_func_L00_00299250, EE_SITE_FRAME_START);
+    u8 *moby = *(u8 **)(HERO + HERO_MOBY);
+    if (moby != 0) {
+        keep_sequence(moby, CHARGE_SLOT, ee_charge_seq);
+        keep_sequence(moby, BACKPEDAL_SLOT, ee_backpedal_seq);
+    }
+    ee_charge_cheat_frame(L);
+    LVL(L, func_L00_0024F7E0, Void)();
 }

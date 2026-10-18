@@ -25,6 +25,22 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-18 (x2: the Charge Boots dash, and the boots' ankles)
 
+### 🥾 Charge Boots (x2) — Locked behind a new cheat; pause freeze and Veldin 1 fixed (owner's reports); verified in PCSX2, awaiting owner test
+
+**What was wrong.** Pausing in the middle of a charge froze the game once it resumed. The charge still never started on Veldin's first visit.
+
+**What changed.**
+- **Pause freeze.** The pause menu borrows the top of Ratchet's animation list and clears it on closing, which removed the charge animation (and the strafe's backward step) while Ratchet was still playing it. The edition now puts them back at the start of every frame. Tested: charge, pause, resume; the charge carries on.
+- **Veldin 1.** The charge had kept one condition from the Thruster-Pack's code: Clank must be on Ratchet's back, which he isn't on Veldin 1. The boots don't need Clank, so the condition is gone. Tested on Veldin 1 itself.
+- **The cheat.** The Charge Boots are now locked behind a new cheat, entered like R&C1's own: perform a sequence of moves after beating the game. The sequence is **crouch for a second, back flip, back flip, Comet-Strike, Hyper-Strike, Hyper-Strike**. The unlock is permanent for that save and shows "Charge Boots unlocked"; repeating the sequence does nothing. Saves made with earlier builds lose the boots until the cheat is entered. Tested with the game's beaten flag set in the emulator: locked on load, the six moves unlock them, the banner shows, and the boots can be worn and used.
+
+**Decisions taken.**
+- The owner chose post-game only (like the game's other cheats) and a permanent unlock.
+- The sequence was designed for this (the owner left it open). It uses only moves available everywhere, and it can't be confused with an existing cheat.
+- The boots' menu description now says how to charge, in place of the old placeholder text.
+
+**Findings.** R&C1 has space for 12 cheats and uses 7; the new one takes the ninth place. The pause-menu clearing also affected the strafe's backward step, which is fixed by the same change.
+
 ### 🥾 Charge Boots (x2) — Charge works in every level, and is no weapon (owner's reports); implemented, awaiting owner test
 
 **What was wrong.** The charge did nothing on Veldin's first visit. The cause was wider than Veldin. The charge borrowed Going Commando's internal number for its movement state, and that number is free in Batalia (where it was tested), but in 11 of the 19 levels R&C1 uses it for a state of its own, a kind of stun. There the game's own code fought the charge: Veldin 1, Aridia, Eudora, Rilgar, Umbris, Gaspar, Orxon, Oltanis Orbit, Quartu and both Veldin 2 levels. Separately, the charge damaged enemies.

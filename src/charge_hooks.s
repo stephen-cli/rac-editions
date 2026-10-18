@@ -32,6 +32,23 @@ ee_charge_camera_hook:
     j     ee_charge_camera_c
     addu  $8, $31, $0
 
+/* MobyFreeSlotBookkeeping() at the start of the mode-0 frame (the
+ * edition's sequences kept, the Charge Boots cheat): no arguments, the
+ * return address goes in $4. */
+.globl ee_frame_start_hook
+.extern ee_frame_start_c
+ee_frame_start_hook:
+    j     ee_frame_start_c
+    addu  $4, $31, $0
+
+/* ShowBanner(text, time) in the cheat detector: two integer arguments, the
+ * return address goes in $6 (src/charge_boots.c). */
+.globl ee_charge_banner_hook
+.extern ee_charge_banner_c
+ee_charge_banner_hook:
+    j     ee_charge_banner_c
+    addu  $6, $31, $0
+
 /* slot_item(slot) in the boots predicate (func_L00_0020DBD8 + 8): one
  * integer argument, the return address goes in $5 (src/charge_boots.c). */
 .globl ee_boots_pose_item_hook

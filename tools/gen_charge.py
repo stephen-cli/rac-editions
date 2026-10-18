@@ -31,6 +31,13 @@ levels, so the catalogue does not name these.
   collect_list where it leaves the mobies it found (a null-terminated list
              of moby pointers; lui $s6 / addiu $s6 near its start): the
              dash looks at what it runs into before any hit
+  cheat_table the move-combo cheat detector's (func_L00_00207418) table of
+             12 zero-terminated sequences, 16 bytes each, in the level's
+             data (its lui $a1 / addiu off $a1 that is not gCheats'); checked:
+             entry 0 is retail's Big Head sequence and entry 8 is empty.
+             The Charge Boots cheat goes in entry 8 (src/charge_boots.c)
+  banner_site the detector's one call of ShowBanner (func_L00_00264DB8)
+  show_banner that call's target
 
 Writes build/modseg/gen_charge.c (19-entry tables) and
 build/modseg/charge_sites.json (for tools/overlay_patch.py).
@@ -52,13 +59,18 @@ SPAWN_FADE = "func_L00_0026EBC0"
 CAMERA_FN = "func_L00_002E74B0"
 CAMERA_FN_SIZE = 1716
 COLLECT = "func_L00_001F2BE8"
+DETECTOR = "func_L00_00207418"
+DETECTOR_SIZE = 720
+SHOW_BANNER = "func_L00_00264DB8"
+RETAIL_CHEAT_0 = bytes([1, 2, 3, 3, 4, 5, 4, 6, 0])
+CHEAT_ENTRY = 8
 FADE_TYPE = 27
 STATE_COUNT = 0x83
 STATE_COMET = 0x15
 STATE_RUN = 2
 STATE_THRUSTER = 0x81
 NAMES = ("trigger", "slot_item", "scale", "set_state", "move_site", "move_fn", "part_frames", "camera_site",
-         "collect", "collect_list")
+         "collect", "collect_list", "cheat_table", "banner_site", "show_banner")
 
 
 def jal(target: int) -> int:
@@ -71,7 +83,7 @@ def catalogue(openrac: Path) -> dict:
         if line.startswith("#"):
             continue
         p = line.split("\t")
-        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE, CAMERA_FN, COLLECT):
+        if p[0] in (SLOT_ITEM, SPEED_STEP, TURN_TO, SPAWN_FADE, CAMERA_FN, COLLECT, DETECTOR, SHOW_BANNER):
             lv = {}
             for pl in p[5].split(","):
                 L, a = pl.split(":")
@@ -190,9 +202,31 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
              for j in range(c, c + 0x40) if w[j] >> 16 == 0x3C16 and w[j + 1] >> 16 == 0x26D6]
     if len(lists) != 1:
         raise SystemExit(f"level {level}: {COLLECT}'s result list found {len(lists)} times")
+
+    # The cheat detector: its sequence table and its banner call.
+    det, banner = one(DETECTOR), one(SHOW_BANNER)
+    d = (det - tbase) // 4
+    tables = set()
+    for j in range(d, d + DETECTOR_SIZE // 4):
+        if w[j] >> 16 == 0x3C05 and (w[j] & 0xFFFF) != 0x16:          # lui $a1, hi (0x16: gCheats)
+            for y in w[j + 1:j + 6]:
+                if y >> 26 == 9 and ((y >> 21) & 31) == 5:              # addiu rt, $a1, lo
+                    lo = y & 0xFFFF
+                    tables.add(((w[j] & 0xFFFF) << 16) + (lo - 0x10000 if lo & 0x8000 else lo))
+                    break
+    if len(tables) != 1:
+        raise SystemExit(f"level {level}: the cheat table found {len(tables)} times")
+    table = tables.pop()
+    entry = lambda i: b"".join(struct.pack("<I", word_at(table + 16 * i + 4 * k)) for k in range(4))
+    if not entry(0).startswith(RETAIL_CHEAT_0) or entry(CHEAT_ENTRY) != bytes(16):
+        raise SystemExit(f"level {level}: the cheat table at {table:#x} is not retail's ({entry(0).hex()}, entry 8 {entry(CHEAT_ENTRY).hex()})")
+    banners = [tbase + 4 * j for j in range(d, d + DETECTOR_SIZE // 4) if w[j] == jal(banner)]
+    if len(banners) != 1:
+        raise SystemExit(f"level {level}: ShowBanner called {len(banners)} times in the cheat detector")
     return {"trigger": tbase + 4 * k0, "slot_item": slot_item, "scale": scale, "set_state": set_state,
             "move_site": calls[0], "move_fn": move_fn, "part_frames": part_frames,
-            "camera_site": cams[0], "collect": collect, "collect_list": lists[0]}
+            "camera_site": cams[0], "collect": collect, "collect_list": lists[0],
+            "cheat_table": table, "banner_site": banners[0], "show_banner": banner}
 
 
 def main() -> int:
