@@ -1820,3 +1820,32 @@ with the patch each bar is centred on its row. Then on Veldin 2 (level
 and the patch puts the bar behind the whole lower row; 4 orbs, one row and
 one bar, identical either way (the second bar is skipped). The owner
 confirmed the fix.
+
+## Item preview: no flash of an unowned item on the Gadgets page — fixed (2026-10-18), awaiting owner test
+
+**The bug.** The owner reported it: on the Gadgets page, moving the cursor
+from an empty cell to an owned item showed the empty cell's item model for
+one frame before the new preview loaded. It happened in Head Items, Foot
+Items and when moving up or down between rows, never inside Hand Items or
+Packs. Retail has the same flaw; the owner probably owns every hand item
+and pack, so those rows never had an empty cell to leave. The preview
+binding (`func_0021F238`; NTSC decomp `update_item_preview_binding`)
+builds a preview moby for whatever cell is under the cursor, owned or not.
+The draw (`func_0021F610`; NTSC `draw_available_item_preview_mobys`) hides
+it by testing the owned flag (`D_0013D5C8`) of the cell under the cursor,
+not of the moby's own item. The binding runs before the cursor moves in a
+frame, so on the frame the cursor reaches an owned cell the old moby is
+still there. The draw passes the owned test and shows the unowned item.
+The binding replaces the moby on the next frame. The Weapons page uses the
+same two routines.
+
+**The patch.** `tools/overlay_patch.py` feature `item_preview` (default)
+rewrites `func_0021F610` from +0x44 to +0x78 in all 19 levels (14 words,
+same size, checked word for word against retail before patching; the
+prologue, the cursor-cell lookup and the epilogue stay). The cursor test is
+kept, so leaving an owned item for an unowned one is still hidden at once.
+The primary moby then goes through `ee_preview_shown` (`src/item_preview.c`),
+which returns it only when its own item (moby pvars + 0xC, which the binding
+sets) is owned. Otherwise the draw returns 0, as retail does for an unowned
+cell: nothing drawn and no blit. The secondary moby (two-part previews) is
+drawn as before, only after the primary.

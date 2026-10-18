@@ -368,6 +368,35 @@ def health_backing(at):
     return [(site, load, addiu(2, ZERO, HEALTH_ROW_STEP))]
 
 
+PREVIEW_TAIL = 0x44     # func_0021F610 + 0x44: the branch on the cursor cell's owned flag
+
+
+def item_preview(at):
+    """The Weapons/Gadgets preview never flashes an unowned item
+    (src/item_preview.c). func_0021F610 tests the cursor cell's owned flag,
+    then draws the page's primary and secondary preview mobys. From that
+    test on it is rewritten in place (same size; the prologue, the cell
+    lookup and the epilogue stay): the primary moby goes through
+    ee_preview_shown, which hides a moby whose own item is not owned, and
+    nothing is drawn (result 0, as for an unowned cell) when it does."""
+    f = at("func_0021F610")
+    draw = jal(at("func_0020E180"))
+    retail = [0x54600003, 0x8E040044, 0x1000000B, 0x0000102D,   # bnel $3,.draw; lw $4,0x44($16); b .ret; v0=0
+              0x50800004, 0x8E040048, draw, 0x24050001,         # .draw: beql $4,.second; draw(primary, 1)
+              0x8E040048, 0x10800004, 0x24020008, draw,         # .second: lw $4,0x48($16); beqz $4,.ret; v0=8; draw(secondary, 1)
+              0x24050001, 0x24020008]                           # v0 = 8; .ret at +0x7C
+    patched = [0x1060000D, 0x0000102D,                          # beqz $3,.ret; v0 = 0
+               jal(modseg_symbol("ee_preview_shown")), 0x8E040044,   # v0 = ee_preview_shown(primary)
+               0x10400009, 0x0040202D,                          # beqz $v0,.ret; a0 = v0
+               draw, 0x24050001,                                # draw(primary, 1)
+               0x8E040048, 0x10800004, 0x24020008, draw,        # the secondary as retail
+               0x24050001, 0x24020008]
+    found = at.words(f + PREVIEW_TAIL, len(retail) + 1)
+    if found[:-1] != retail or found[-1] != 0x7BBF0010:         # lq $31,0x10($29) at .ret
+        raise SystemExit(f"level {at.level}: func_0021F610 is not retail's at 0x{f:X}")
+    return [(f + PREVIEW_TAIL + 4 * k, old, new) for k, (old, new) in enumerate(zip(retail, patched))]
+
+
 def charge_boots(at):
     """x2, first step: the Charge Boots item (src/charge_boots.c).
 
@@ -466,12 +495,13 @@ FEATURES = {
     "quick_select_pages": quick_select_pages,
     "commercials": commercials,
     "health_backing": health_backing,
+    "item_preview": item_preview,
     "comet_strike_run": comet_strike_run,
     "comet_strike_jump": comet_strike_jump,
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots", "item_preview"]
 
 
 # --- Disc plumbing ------------------------------------------------------------
