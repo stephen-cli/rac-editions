@@ -30,6 +30,7 @@ bash tools/build_sn.sh
 echo "== 2/5 strings (tools/gen_text.py), menu data (tools/gen_menu.py), hero sites (tools/gen_hero.py), R&C2 backpedal (tools/rac2_anim.py), Charge Boots item and icon (tools/gen_items.py, tools/gen_hud.py), mod segment (tools/modseg.py)"
 python "$HERE/tools/gen_text.py"
 python "$HERE/tools/rac2_anim.py" emit 0x14 -o "$HERE/build/modseg/gen_anim.c"
+python "$HERE/tools/rac2_anim.py" emit-arm 0x14 -o "$HERE/build/modseg/gen_anim_arm.c"   # R&C2's gun arms over the backpedal (src/gun_arm.c)
 python "$HERE/tools/gen_menu.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_hero.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_boots.py" --openrac "$OPENRAC" --wrench "$WRENCH"    # R&C2's Charge Boots as class 2000

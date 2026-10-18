@@ -1466,3 +1466,87 @@ landing, then the run, each sample read twice to rule out a torn read. With
 the stick at 0.54, and without the trigger, the landing jumps are the
 game's (states 7 and 9). The jump-press hook, which flips a press after the
 landing, is untouched.
+
+## x5: R&C2's gun arm over the backpedal (2026-10-18) — verified in PCSX2, awaiting owner test
+
+**Owner's report.** Running backwards while strafing, Ratchet's arm
+animates every held item like a glove or the wrench; R&C2 holds a trigger
+weapon (Blaster, Pyrocitor, Devastator, RYNO...) differently there.
+
+**What both games do.** While a trigger weapon is held, a per-frame
+gun-arm manager (R&C1: NTSC `FUN_L00_0020dd20`, level 0
+`func_L00_0020E3B8`, shared by all 19 levels; R&C2 Oozla `0x2AF820`) keeps
+a layer over each arm the weapon takes (hero + 0xD00 the right arm,
++ 0xD04 the left; R&C2 + 0xE90 and + 0xE94). The weapon type (hero +
+0x20AB) decides: 1 takes the right arm, 2 both, 0 (the gloves and the
+wrench) none. A layer (`func_L00_00250060` on the arm's joint set)
+animates in the arm's own class (moby classes 1 and 2: 20 joints, 23
+sequences; layer + 0x18) and every frame plays the sequence Ratchet's body
+plays, at the body's frame, through a mapper that is the identity
+(`func_L00_0020DC50`, 0xFF meaning the moby's + 0xA5; R&C2 `0x2AEA88`).
+The arm classes hold the gun-held arm for the body's first 23 sequences,
+so the manager enables a layer channel only for a sequence below 0x17
+(`sltiu v0, v0, 0x17`, twice). A disabled channel reads Ratchet's own
+class at the mapped index, so the arm follows the body.
+
+**R&C2, measured.** On the owner's Oozla state, the backpedal frozen at
+frame 8, with a gun and with a glove: the same body sequence (0x14) and
+frames; with the gun the layer holds the forearm up and the gun forward,
+with the glove the arm swings. Compared frame by frame, R&C2's arm classes
+match R&C1's in every sequence but two: 0x14, a 30-frame backpedal arm
+where R&C1's is the 14-frame stop arm (R&C2's body 0x14 is the backpedal,
+R&C1's the stop), and a 24th sequence (0x17, 50 frames). So R&C2 added the
+backpedal arm, and its identity mapper lines it up with the body.
+
+**The edition's gap.** Its backpedal is R&C2's body sequence installed in
+Ratchet's class slot 140 (fourth increment), above 0x17: the channel was
+off and every weapon swung like a glove.
+
+**The port.**
+- `tools/rac2_anim.py emit-arm 0x14` (run by `tools/pack.sh`) reads
+  sequence 0x14 of R&C2's arm classes 1 and 2 from its level 1 archive
+  (index + 0x18: the class count and offset, 32-byte entries) and writes
+  them as `ee_gunarm_seq_1` and `ee_gunarm_seq_2`
+  (`build/modseg/gen_anim_arm.c`; 30 frames each, 5,280 and 6,240 bytes).
+  R&C2 stores them unpacked in R&C1's frame layout, so they go in as they
+  are.
+- `src/gun_arm.c` installs them, on demand, as the arm classes' sequence
+  0x17 (the table has room: entries 0x17 to 0x19 are free before the class
+  data at + 0xB0), and its mapper sends body slot 140 there. Body sequence
+  0x17 has to keep its channel off: it is the wrench combo's first hit
+  (state 0x13 plays 0x17 + hit; NTSC `hero_set_state.c`). Mapped as itself
+  it would now enable the backpedal arm, so it maps to an alias slot of
+  Ratchet's class (142) that holds sequence 0x17's own pointer, and the
+  disabled channel reads the swing from there. Every install checks the
+  slot first and leaves one that holds something else. The pause menu's
+  screens write some of Ratchet's slots 134-161 and zero the range on
+  close; the alias goes back in when next needed. The manager compares the
+  body's sequence, through an identity call, with the layer's mapped one;
+  that call maps the same way.
+- `tools/overlay_patch.py` (feature `strafe`) sends the manager's identity
+  call (+ 0x29C) and its two mapper calls (+ 0x3E0, + 0x4F0) to
+  `ee_arm_ident` and `ee_arm_map`, and makes its two tests (+ 0x478,
+  + 0x5B8) `sltiu v0, v0, 0x18`. `tools/gen_hero.py` places the manager
+  and the mapper from the catalogue in each level and checks every site's
+  retail word, and for the calls the delay slot's load of the sequence,
+  before naming it. Level 0: the identity call `0x20E654`, the mapper calls
+  `0x20E798` and `0x20E8A8`, the tests `0x20E830` and `0x20E970`.
+
+**Verified in PCSX2** (the owner's slot 1, Novalis; R2 with the stick held
+back):
+- Bomb Glove (type 0): no layer; the arm swings as before.
+- Blaster (type 1): the right arm's layer plays sequence 0x17 (ours) with
+  the channel on, at the body's frame (3 to 29 through the cycle). On
+  screen the Blaster is held up and forward through the backpedal, where it
+  swung at the hip before. Firing while backpedalling keeps the layer on
+  that arm and the shots fly; a standing shot (body 56) is the game's.
+- Pyrocitor and Devastator (type 2): both layers, each with its own
+  class's arm; both weapons held up in both hands.
+- Running forward (sequence 4), the stop (0x14) and the idle keep their
+  own arm sequences.
+- A wrench swing with a gun out (body 0x17): on the swing's first frame
+  the layer maps to the alias (142) with the channel off, then the game
+  frees the layers as the wrench comes out, as in retail.
+- The pause menu mid-backpedal, and the Weapons screen (which wrote slot
+  140 and zeroed 134-161 on close): the backpedal arm and the alias came
+  back on their next use; no crash.

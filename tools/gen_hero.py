@@ -44,6 +44,12 @@ level's own program:
                  one whose state 0x15 entry leads, within the block, to a
                  jal to speed_step (func_L00_00212740, shared by all 19)
   speed_step     that call's target
+  arm_*          the gun-arm layer manager's sites (func_L00_0020E3B8, shared
+                 code, so at fixed offsets, each checked): its identity call on
+                 Ratchet's current sequence, its two calls of the body-to-arm
+                 mapper (func_L00_0020DC50) and its two "arm sequence < 0x17"
+                 tests; src/gun_arm.c sends the backpedal to the arm classes'
+                 24th sequence, R&C2's backpedal arm
   hero_set_state among the functions most often called with a small
                  constant state and a 0/1 flag, the one that stores the state
                  at hero + 0x2084; checked against the catalogue where it
@@ -75,6 +81,14 @@ JUMP_PRESS = "func_L00_00229348"
 TWIST = "func_L00_00215A90"
 RUN_ANIM = "func_L00_002293E8"
 APPROACH = "func_00214D28"
+ARM_MANAGER = "func_L00_0020E3B8"   # the gun-arm layer manager (NTSC FUN_L00_0020dd20), shared by all 19
+ARM_MAPPER = "func_L00_0020DC50"    # its body-to-arm sequence mapper (0xFF -> moby + 0xA5, else the id)
+# the manager's sites, at fixed offsets in the shared code: (name, offset, word or None for a jal, delay slot)
+ARM_SITES = [("arm_ident_site", 0x29C, None, 0x90640053),   # identity(moby[0x53]): lbu $a0, 0x53($v1)
+             ("arm_map_0", 0x3E0, None, 0x90850053),        # mapper(moby, moby[0x53]): lbu $a1, 0x53($a0)
+             ("arm_check_0", 0x478, 0x2C420017, None),      # sltiu $v0, $v0, 0x17: the arm sequence test
+             ("arm_map_1", 0x4F0, None, 0x90450052),        # mapper(moby, moby[0x52 + j]): lbu $a1, 0x52($v0)
+             ("arm_check_1", 0x5B8, 0x2C420017, None)]
 RUN_ORDER = ["turn", "pivot", "turn", "speed", "planar", "planar"]
 STATE_JUMP = 7
 
@@ -269,6 +283,25 @@ def find_level(openrac: Path, level: int) -> dict:
                     break
     if len(stops) != 1:
         raise SystemExit(f"level {level}: the run update's high-speed stop found {len(stops)} times: {[hex(a) for a in stops]}")
+    # The gun-arm layer manager: its identity call on Ratchet's current sequence, its two
+    # mapper calls and its two "arm sequence < 0x17" tests (src/gun_arm.c).
+    mgr = catalogue_place(openrac, ARM_MANAGER, level)
+    mapper = catalogue_place(openrac, ARM_MAPPER, level)
+    if mgr is None or mapper is None:
+        raise SystemExit(f"level {level}: {ARM_MANAGER} or {ARM_MAPPER} has no place")
+    arm = {}
+    for name, off, word, delay in ARM_SITES:
+        a = mgr + off
+        x, d = w[(a - tbase) // 4], w[(a - tbase) // 4 + 1]
+        if word is not None:
+            ok = x == word
+        else:
+            ok = x >> 26 == 3 and d == delay and (name == "arm_ident_site" or (x & 0x3FFFFFF) << 2 == mapper)
+        if not ok:
+            raise SystemExit(f"level {level}: the arm manager's {name} at {a:#x} is {x:#010x} {d:#010x}")
+        arm[name] = a
+    arm["arm_mapper"] = mapper
+    arm["arm_ident_fn"] = (w[(arm["arm_ident_site"] - tbase) // 4] & 0x3FFFFFF) << 2
     inv = {v: k for k, v in helpers.items()}
     return {"comet_site": site, "speed_step": speed_step, "hero_set_state": set_state, "set_state_calls": votes,
             "run_turn_a": run[0], "run_pivot": run[1], "run_turn_b": run[2], "run_planar_a": run[4], "run_planar_b": run[5],
@@ -278,7 +311,8 @@ def find_level(openrac: Path, level: int) -> dict:
             "jump_press_fn": jp,
             "twist_0": twist[0], "twist_1": twist[1], "twist_2": twist[2], "twist_3": twist[3], "twist_4": twist[4], "twist_5": twist[5],
             "twist_fn": tw, "runanim_site": runanim[0], "run_anim_fn": ra,
-            "flip_appr_0": appr[0], "flip_appr_1": appr[1], "approach_fn": ap, "stop_site": stops[0][0], "stop_site_low": stops[0][1]}
+            "flip_appr_0": appr[0], "flip_appr_1": appr[1], "approach_fn": ap, "stop_site": stops[0][0], "stop_site_low": stops[0][1],
+            **arm}
 
 
 def main() -> int:
@@ -299,7 +333,8 @@ def main() -> int:
              "run_planar_a", "run_planar_b", "turn_to", "pivot_turn", "set_planar_vel",
              "jump_turn_site", "jump_planar_site", "air_turn_site", "jump_press_0", "jump_press_1", "jump_press_2", "jump_press_3", "jump_press_fn",
              "twist_0", "twist_1", "twist_2", "twist_3", "twist_4", "twist_5", "twist_fn", "runanim_site", "run_anim_fn",
-             "flip_appr_0", "flip_appr_1", "approach_fn", "stop_site", "stop_site_low")
+             "flip_appr_0", "flip_appr_1", "approach_fn", "stop_site", "stop_site_low",
+             "arm_ident_site", "arm_ident_fn", "arm_map_0", "arm_map_1", "arm_mapper", "arm_check_0", "arm_check_1")
     for name in names:
         c.append(f"const u32 ee_{name}[19] = {{ {', '.join(f'0x{found[L][name]:08X}' for L in range(19))} }};")
     (args.out / "gen_hero.c").write_text("\n".join(c) + "\n")

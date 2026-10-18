@@ -12,6 +12,20 @@ changed, decisions taken, findings that affect other items.
 
 **Verification.** On the owner's Novalis save, with the trigger and the stick held right, Cross 1 to 5 frames before a side flip lands gives the plain jump on landing. A strafe jump with the stick only partly pushed, and a jump without the trigger, are unchanged.
 
+### 🎯 Strafing on L2/R2 (x5) — Guns held up when strafing backwards, as in Going Commando (owner's report); verified in PCSX2, awaiting owner test
+
+**What was wrong.** Strafing backwards, Ratchet swung every weapon at his side like a glove, so the Blaster, Pyrocitor, Devastator, RYNO and the other hand-held guns dangled.
+
+**What Going Commando does.** Both games lay a separate arm animation over Ratchet's arms while a gun is held: the right arm for one-handed guns like the Blaster, both arms for two-handed ones like the Pyrocitor and the Devastator. Gloves and the wrench get none. The arm animation follows whatever move Ratchet's body makes, but only for moves that have an arm animation; for any other move the arm just follows the body. Going Commando added an arm animation for its backward step. R&C1 has none, so the edition's backward step (taken from Going Commando) had no gun arm.
+
+**Fix.** The edition now carries Going Commando's own two backward-step arm animations (one per arm), taken from its disc like the backward step itself, and the game uses them while a gun is held. Gloves and the wrench swing as before.
+
+**Findings.** Compared frame by frame, Going Commando's gun-arm animations are R&C1's for every other move, so the backward step was the only one missing. R&C1's data had room for one more arm animation, so nothing else had to move.
+
+**Verification.** In PCSX2 on the owner's Novalis save, strafing backwards: with the Bomb Glove the arm swings as before. With the Blaster the right arm plays Going Commando's backward-step arm, the gun held up and forward, and firing works while backpedalling. With the Pyrocitor and the Devastator both arms hold the weapon up. Running forward is unchanged, a wrench swing with a gun out still swings normally, and pausing or visiting the Weapons screen mid-backpedal causes no problems.
+
+**Owner test.** Strafe backwards (L2/R2, stick back) with the Blaster, Pyrocitor, Devastator and RYNO, and with the Bomb Glove or the wrench for comparison. Also fire while backpedalling, and swing the wrench with a gun out.
+
 ## 2026-10-18 (x5: a quick press at the landing flips)
 
 ### 🎯 Strafing on L2/R2 (x5) — Quick follow-up side flips chain (owner's request), verified in PCSX2; awaiting owner test

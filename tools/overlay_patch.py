@@ -191,7 +191,11 @@ def strafe(at):
     camera and move along the stick; the jump block's turn and planar calls
     and the air control's turn do the same in the air, and the jump-press
     handler's four calls go to a hook that turns a strafe jump into R&C1's
-    own flips (state 0xB) as R&C2 does. Sites from tools/gen_hero.py."""
+    own flips (state 0xB) as R&C2 does. The gun-arm layer manager's
+    identity and mapper calls go to src/gun_arm.c, and its two tests of the
+    arm sequence (< 0x17) admit the arm classes' 24th sequence (< 0x18), so
+    that the backpedal holds a trigger weapon as R&C2's does. Sites from
+    tools/gen_hero.py."""
     import json
     hero = HERE.parent / "build/modseg/hero_sites.json"
     if not hero.is_file():
@@ -218,7 +222,17 @@ def strafe(at):
             (h["flip_appr_1"], jal(h["approach_fn"]), jal(modseg_symbol("ee_flip_approach"))),
             # the run update's high-speed stop: the short stop while strafing
             (h["stop_site"], jal(h["hero_set_state"]), jal(modseg_symbol("ee_stop"))),
-            (h["stop_site_low"], jal(h["hero_set_state"]), jal(modseg_symbol("ee_stop")))]
+            (h["stop_site_low"], jal(h["hero_set_state"]), jal(modseg_symbol("ee_stop"))),
+            # the gun arm over the backpedal (src/gun_arm.c)
+            (h["arm_ident_site"], jal(h["arm_ident_fn"]), jal(modseg_symbol("ee_arm_ident"))),
+            (h["arm_map_0"], jal(h["arm_mapper"]), jal(modseg_symbol("ee_arm_map"))),
+            (h["arm_map_1"], jal(h["arm_mapper"]), jal(modseg_symbol("ee_arm_map"))),
+            (h["arm_check_0"], SLTIU_ARM_RETAIL, SLTIU_ARM_EDITION),
+            (h["arm_check_1"], SLTIU_ARM_RETAIL, SLTIU_ARM_EDITION)]
+
+
+SLTIU_ARM_RETAIL = 0x2C420017    # sltiu $v0, $v0, 0x17: arm sequences 0..0x16 (R&C1's 23)
+SLTIU_ARM_EDITION = 0x2C420018   # sltiu $v0, $v0, 0x18: and 0x17, R&C2's backpedal arm (src/gun_arm.c)
 
 
 def strafe_camera(at):
