@@ -148,7 +148,6 @@ DECLARE_LVL(func_L00_00267BA8);        /* pad_pressed_within(button, window, out
 DECLARE_LVL(func_L00_00222580);        /* stick_direction_vs_facing(): 2 forward, 3 back, 0 and 1 the sides */
 DECLARE_LVL(func_L00_00232C10);        /* set_hero_animation(id, start_frame, blend_frames) */
 DECLARE_LVL(func_001FA790);            /* fast_subtract_rotations(a, b): the level's copy */
-DECLARE_LVL(func_001FA850);            /* fast_difference_between_rotations(a, b): the level's copy */
 DECLARE_LVL(func_001F9850);            /* scale_game_frames(n): the level's copy */
 DECLARE_LVL_DATA(ease_table);          /* the hero's per-joint ease table, per level */
 extern const u32 ee_twist_0[19], ee_twist_1[19], ee_twist_2[19], ee_twist_3[19], ee_twist_4[19], ee_twist_5[19], ee_twist_fn[19];
@@ -172,6 +171,9 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define hero_state      (*(volatile s32 *)(HERO + 0x2084))
 #define hero_move_yaw   (*(volatile f32 *)(HERO + 0x180))
 #define hero_stick      (*(volatile f32 *)(HERO + 0x229C))   /* left stick magnitude, 0..1 */
+#define hero_stick_x    (*(volatile f32 *)(HERO + 0x1D20))   /* left stick vector, every frame (stick_target's input) */
+#define hero_stick_y    (*(volatile f32 *)(HERO + 0x1D24))
+#define hero_landed     (*(volatile s32 *)(HERO + 0x418))    /* the jump family's frames since touching down, 0 in the air */
 #define hero_facing     (*(volatile f32 *)(HERO + 0x98))
 #define hero_speed_xy   (*(volatile f32 *)(HERO + 0x160))
 #define hero_ground_speed (*(volatile f32 *)(HERO + 0x194))
@@ -184,9 +186,6 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define FRAME_TIME_SQ   (*(volatile f32 *)0x0015EE70)
 #define OPT_MIRROR_ANIM (*(volatile u8 *)0x0015EEB5)
 #define EASE(L)         ((volatile f32 *)LVL_DATA(L, ease_table, u32))
-#define PI              3.14159265f
-#define HALF_PI         1.5707964f
-#define QUARTER_PI      0.7853982f
 #define BACKPEDAL_SLOT  140           /* a free slot: the class keeps 162 (its packet table follows at + 0x2D0), 134 used */
 #define CAMERA_YAW(L)   (*(volatile f32 *)LVL_DATA(L, camera_yaw, u32))
 #define PAD_HISTORY     0x1E0         /* 30 words of pressed edges, a ring */
@@ -196,6 +195,7 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define STATE_RUN       2
 #define STATE_HOVER     0x81          /* thruster pack hover: reads L2/R2 itself */
 #define STATE_JUMP      7
+#define STATE_RUN_JUMP  9
 #define STATE_STOP      3
 #define ANIM_STOP_SHORT 0x14          /* the stop from frame 7: the game's own low-speed stop */
 #define STATE_HIGH_JUMP 0xB           /* the flips: animation 0x1C + stick class */
@@ -220,11 +220,10 @@ typedef void (*Void)(void);
 typedef f32 (*Approach)(f32 target, f32 step, f32 *var);
 /* Executable helpers above 0x15F000 are not resident: only the core below
  * it keeps its addresses, and every level carries its own copy of these
- * three at its own address (the catalogue's places). A build that called
+ * at its own address (the catalogue's places). A build that called
  * them at the boot executable's addresses jumped into level data and died
  * ("jump to unmapped recLUT page") the first time a strafe ran. */
 #define sub_rot(L, a, b)      (LVL(L, func_001FA790, Rot2)(a, b))        /* fast_subtract_rotations */
-#define diff_rot(L, a, b)     (LVL(L, func_001FA850, Rot2)(a, b))        /* fast_difference_between_rotations */
 #define scale_frames(L, n)    (LVL(L, func_001F9850, ScaleFrames)(n))    /* frames at 60 Hz -> this build's frames (NTSC FUN_001f96f8) */
 
 u32 ee_strafe_held;           /* L2 or R2 held this frame (pad 0); the camera patch reads it */
@@ -416,27 +415,61 @@ static f32 stick_heading(void)
     return (strafe_active && hero_state == STATE_RUN) ? strafe_heading : hero_move_yaw;
 }
 
-/* R&C2's stick classes, relative to the camera (its raw stick classes;
- * R&C1's stick_direction_vs_facing has the same numbering against the
- * facing): 2 forward, 3 back, 0 left, 1 right. */
-static s32 strafe_class(s32 L)
+/* R&C2's strafe stick classes: 2 forward, 3 back, 0 left, 1 right, 45
+ * degrees either side (R&C1's stick_direction_vs_facing has the same
+ * numbering against the facing). While strafing, R&C2's stick routine
+ * (Oozla 0x2B4534-0x2B45D4) classifies fast_arc_tan(x, y) of the raw stick
+ * vector (hero + 0x1FB0; R&C1's + 0x1D20, refreshed every frame in every
+ * state) against pi/2 (back), 0 (right) and pi (left) and stores the class
+ * at hero + 0x1457, which its flip classifier returns while strafing
+ * (0x2BEA78); the same pass sets its backpedal flag (+ 0x1456) for class 3
+ * past 0.15. The same quadrants here, by comparing the components. A
+ * first build classified the move heading instead, which R&C1's flips
+ * freeze at their take-off heading, so it held only in RUN. */
+static s32 strafe_class(void)
 {
-    f32 a = sub_rot(L, stick_heading(), CAMERA_YAW(L));
-    if (diff_rot(L, a, PI) < QUARTER_PI) {
-        return 3;
+    f32 fwd = -hero_stick_y;
+    f32 left = -hero_stick_x;
+    f32 af = fwd < 0.0f ? -fwd : fwd;
+    f32 al = left < 0.0f ? -left : left;
+    if (al > af) {
+        return left > 0.0f ? 0 : 1;
     }
-    if (diff_rot(L, a, -HALF_PI) < QUARTER_PI) {
-        return 1;
-    }
-    if (diff_rot(L, a, HALF_PI) < QUARTER_PI) {
-        return 0;
-    }
-    return 2;
+    return fwd < 0.0f ? 3 : CLASS_FORWARD;
 }
 
-static s32 backpedalling(s32 L)
+static s32 backpedalling(void)
 {
-    return ee_strafe_held && hero_stick > 0.15f && strafe_class(L) == 3;
+    return ee_strafe_held && hero_stick > 0.15f && strafe_class() == 3;
+}
+
+/* R&C2's strafe flip rule (0x2C2498): strafing with the stick past 0.9 in
+ * any class but forward. The class, or -1 for no flip. */
+static s32 strafe_flip_class(void)
+{
+    s32 cls;
+    if (!ee_strafe_held || hero_stick <= FLIP_STICK) {
+        return -1;
+    }
+    cls = strafe_class();
+    return cls == CLASS_FORWARD ? -1 : cls;
+}
+
+/* Enter the flip (state 0xB) as R&C2's strafe flip: classified against
+ * the camera, moving along the stick from the start. */
+static s32 enter_strafe_flip(s32 L, s32 cls)
+{
+    s32 id = 0x1C + cls;
+    s32 r = ((SetState)ee_hero_set_state[L])(STATE_HIGH_JUMP, 1);
+    hero_flip_class = cls;
+    if (OPT_MIRROR_ANIM && (id == 0x1C || id == 0x1D)) {
+        id ^= 1;
+    }
+    LVL(L, func_L00_00232C10, SetAnim)(id, 0, (f32)scale_frames(L, 5));
+    strafe_flip = 1;
+    hero_flip_speed = FRAME_TIME * 5.0f;
+    hero_flip_speed0 = 0.0f;
+    return r;
 }
 
 /* The jump-press handler with R&C2's strafe rule (0x2C2498): after the
@@ -448,7 +481,7 @@ static s32 backpedalling(s32 L)
 s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
 {
     s32 trace_ = (TRACE(6), 0);
-    s32 L;
+    s32 L, cls;
     for (L = 0; L < 19; L++) {
         if (ee_jump_press_0[L] + 8 == ra || ee_jump_press_1[L] + 8 == ra
             || ee_jump_press_2[L] + 8 == ra || ee_jump_press_3[L] + 8 == ra) {
@@ -466,27 +499,11 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
         TRACE_END();
         return 0;
     }
-    if (ee_strafe_held && hero_stick > FLIP_STICK) {
-        s32 cls = strafe_class(L);
-        if (cls != CLASS_FORWARD) {
-            s32 id = 0x1C + cls;
-            ((SetState)ee_hero_set_state[L])(STATE_HIGH_JUMP, 1);
-            /* R&C2's flip: classified against the camera, moving along the stick from the start */
-            hero_flip_class = cls;
-            if (OPT_MIRROR_ANIM && (id == 0x1C || id == 0x1D)) {
-                id ^= 1;
-            }
-            LVL(L, func_L00_00232C10, SetAnim)(id, 0, (f32)scale_frames(L, 5));
-            if (hero_stick > 0.3f) {
-                strafe_flip = 1;
-                hero_flip_speed = FRAME_TIME * 5.0f;
-                hero_flip_speed0 = 0.0f;
-            } else {
-                strafe_flip = 0;
-            }
-            TRACE_END();
-            return 1;
-        }
+    cls = strafe_flip_class();
+    if (cls >= 0) {
+        enter_strafe_flip(L, cls);
+        TRACE_END();
+        return 1;
     }
     if (crouch_jumps_only) {
         TRACE_END();
@@ -495,7 +512,6 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
     ((SetState)ee_hero_set_state[L])(STATE_JUMP, 1);
     TRACE_END();
     return 1;
-    TRACE_END();
 }
 
 /* The flip's speed approach (two calls in the air control, states 0xB and
@@ -534,7 +550,7 @@ void ee_twist_c(u32 ra)
     }
     L = ee_level_of_call(ra, ee_twist_0, 0);
 found:
-    if (ee_strafe_held && hero_stick > 0.15f && hero_state != STATE_HIGH_JUMP && !backpedalling(L)) {
+    if (ee_strafe_held && hero_stick > 0.15f && hero_state != STATE_HIGH_JUMP && !backpedalling()) {
         volatile f32 *t = EASE(L);
         f32 a = sub_rot(L, stick_heading(), hero_facing);
         t[0x158 / 4] = 0.27f;
@@ -572,7 +588,7 @@ void ee_run_anim_c(u32 ra)
     s32 trace_ = (TRACE(2), 0);
     s32 L = ee_level_of_call(ra, ee_runanim_site, 0);
     u8 *moby = hero_moby;
-    if (backpedalling(L)) {
+    if (backpedalling()) {
         f32 speed;
         install_backpedal();
         if (*(volatile u32 *)(*(u8 **)(moby + 0x24) + 0x48 + 4 * BACKPEDAL_SLOT) != (u32)ee_backpedal_seq) {
@@ -620,12 +636,42 @@ void ee_run_anim_c(u32 ra)
  * keeps a six-frame grace after the release (measured: with the trigger
  * held the stop was already dead; released together it skidded). Outside the strafe both stops are the game's.
  * The high-speed call is a shared tail other paths branch into with other
- * states; those pass through. */
+ * states; those pass through, with one exception.
+ *
+ * The landing jump. The same tail carries the jump family's landing jump
+ * (NTSC 00242930.c, the jump-family case with hero + 0x418 set: Cross
+ * within 8 frames and air frames under 4 give RUN_JUMP or JUMP; level 0
+ * 0x22FA70), which turns a press in the last frames of any jump into a
+ * jump the moment Ratchet touches down. R&C2 has the same branch with no
+ * strafe rule (0x2C6A04; measured: a plain jump that can double jump), so
+ * a quick follow-up to a strafe flip is a plain side jump there. The owner
+ * asked for the flip instead (2026-10-18): strafing with the stick held to
+ * the side, a press at the landing flips as a press a frame later from RUN
+ * does. So when the game asks for JUMP or RUN_JUMP from a landed
+ * jump-family state, the jump-press hook's strafe flip rule (R&C2's
+ * 0x2C2498) decides first, reading the stick at the landing. The jumps
+ * themselves are untouched: a regular strafe jump (taken with the stick
+ * centred or forward, then steered sideways in the air) stays a jump; only
+ * a press that is taken at its landing follows the rule, as the same press
+ * a frame later in RUN would. */
+static s32 jump_family(s32 s)
+{
+    return s == STATE_JUMP || (s >= 9 && s <= 18) || s == 0x1C || s == 0x3C || s == 0x69;
+}
+
 s32 ee_stop_c(s32 state, s32 with_animation, u32 ra)
 {
     s32 trace_ = (TRACE(12), 0);
     s32 L = level_of_two(ra, ee_stop_site, ee_stop_site_low);
     s32 r;
+    if ((state == STATE_JUMP || state == STATE_RUN_JUMP) && hero_landed && jump_family(hero_state)) {
+        s32 cls = strafe_flip_class();
+        if (cls >= 0) {
+            r = enter_strafe_flip(L, cls);
+            TRACE_END();
+            return r;
+        }
+    }
     if (state == STATE_STOP && (ee_strafe_held || strafe_grace)) {
         r = ((SetState)ee_hero_set_state[L])(STATE_STOP, 0);
         if (r) {

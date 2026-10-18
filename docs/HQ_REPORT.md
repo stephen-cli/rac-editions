@@ -4,6 +4,18 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-18 (x5: a quick press at the landing flips)
+
+### 🎯 Strafing on L2/R2 (x5) — Quick follow-up side flips chain (owner's request), verified in PCSX2; awaiting owner test
+
+**What changed.** Holding the strafe trigger with the stick to the side, pressing Cross the moment Ratchet lands from a side flip now gives the next side flip. A slightly early press still counts, as it does for any jump. Back flips chain the same way. Plain strafe jumps are unchanged: jumping with the stick centred or forward, then steering sideways in the air, is still a plain jump.
+
+**Decisions taken.**
+- This is a deliberate difference from Going Commando, at the owner's request. There, a press in the last frames before landing gives a plain jump. Everything else comes from Going Commando's own code: the same rule decides when a strafe jump becomes a flip (stick pushed most of the way, not forward), and the same way of reading the stick's direction.
+- The flip reads the stick itself rather than Ratchet's travel direction, as Going Commando does. The travel direction is frozen during a flip, so the earlier version only judged the direction correctly when Ratchet was running.
+
+**Verification.** Built and tested in PCSX2 on the owner's Novalis save. With the trigger and the stick held right, a press 5, 3 or 1 frames before landing starts the next right flip straight from the landing, and it flies a full flip. Left and back flips chain the same way. Unchanged: a press just after landing still flips; a gentle stick still gives a plain hop; forward strafe jumps are plain jumps; the backward walk still plays; without the trigger, a press at landing is the game's normal running jump. Owner test: strafe sideways and chain side flips with quick presses, including slightly early ones.
+
 ## 2026-10-18 (x5: the quick second strafe flip)
 
 ### 🎯 Strafing on L2/R2 (x5) — Quick follow-up flip fixed (owner's report), verified in PCSX2; awaiting owner test

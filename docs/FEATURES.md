@@ -1401,3 +1401,48 @@ level 1 `func_L01_00234970`: state 0xE with + 0x30A set); the same double
 jump over plain ground keeps 0.07, strafing or not. One trial's double
 jump fell to 0.02 for that reason alone (measured: + 0x30A = 1 there, 0
 where it kept its speed).
+
+## x5: a press at the landing flips while strafing (2026-10-18), awaiting owner test
+
+**Owner's request.** With the trigger and the stick held to the side,
+Cross pressed the moment a side flip lands gave a plain side jump; it
+should be the next flip. Plain strafe jumps (taken with the stick centred
+or forward, steered sideways in the air) stay as they are.
+
+**R&C2.** The plain jump there is R&C2's own (measured, see the previous
+x5 entry): its jump family's landing branch (`0x2C6A04`) has no strafe
+rule, so this is a deliberate change of the owner's. Everything the change
+uses is R&C2's: the flip rule of its jump-press handler (`0x2C2498`:
+strafing, stick past 0.9, any class but forward, state 0xB) and its strafe
+stick classes. While strafing, R&C2's stick routine (Oozla
+`0x2B4534`-`0x2B45D4`) classifies `fast_arc_tan(x, y)` of the raw stick
+vector (hero + 0x1FB0; R&C1's + 0x1D20) against pi/2 (back), 0 (right) and
+pi (left), 45 degrees either side, into hero + 0x1457, which its flip
+classifier returns while strafing (`0x2BEA78`); the same pass sets its
+backpedal flag (+ 0x1456) for class 3 past 0.15, the edition's existing
+rule.
+
+**The port** (`src/strafe.c`). The landing jump's two requests (JUMP and
+RUN_JUMP; level 0 `0x22FA70`-`0x22FB34`) reach `hero_set_state` through the
+shared tail the strafe stop already hooks (`stop_site`, level 0
+`0x23246C`, all 19 levels from `tools/gen_hero.py`), so `ee_stop_c` takes
+them: a JUMP or RUN_JUMP request from a landed (hero + 0x418) jump-family
+state goes through the jump-press hook's flip rule first. The flip entry is
+one helper for both paths. R&C1's flip entry already handles this case: from
+an airborne control mode (4) it starts the animation at frame 1 with a
+1-frame wind-up (`unk420 = scale_game_frames(1)`, NTSC `hero_set_state.c`)
+instead of 4, the way its own crouch flips chain on landing. The stick
+class now comes from the stick vector as R&C2's does; the first port
+classified the move heading, which R&C1's flips freeze at their take-off
+heading (`move_yaw = unk43C`), so it only held in RUN.
+
+**Verified in PCSX2** (the owner's slot 1, Novalis; flips there land at
+frame 47): with R2 and the stick held right, Cross at flip frames 42, 44
+and 46 (5, 3 and 1 frames before the landing) starts the next right flip
+(animation 0x1D, class 1) on the landing frame, which launches on its
+frame 2 (vertical speed 0.245) and flies a full flip; left (0x1C, class 0)
+and back (0x1F, class 3) the same. Unchanged: Cross after the landing
+flips (from RUN); a strafe jump with the stick at 0.54 and a press before
+its landing gives the plain landing jump (state 7); forward strafe jumps
+are plain jumps; the backpedal plays (slot 140); without the trigger the
+landing jump is the game's (RUN_JUMP, state 9).
