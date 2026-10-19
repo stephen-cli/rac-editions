@@ -2121,7 +2121,7 @@ after quitting, the boots back on after a race. Session: records 1 and 36
 read back as Clank's and the boots' off the board; the pause hook patched
 at both sites.
 
-## Controls page: the Strafing toggle, and "Quick Select pause" (2026-10-19), built, awaiting owner test
+## Controls page: the Strafing toggle, and "Quick Select pause" (2026-10-19), page and box confirmed by the owner
 
 **What changed.** The Controls page (Options → Controls) has two toggle rows
 now: **Strafing** (new, id 0x540E) above **Quick Select pause** (0x5403,
