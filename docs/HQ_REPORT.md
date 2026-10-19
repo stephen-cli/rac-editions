@@ -4,6 +4,19 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-20 (the build after OpenRAC's master merge)
+
+### 🏭 Build and repack pipeline — Working again on the merged OpenRAC
+
+**What changed.** `pack.sh` builds from scratch again on this Windows machine with the latest OpenRAC master merged in.
+
+**Findings.**
+- **Master's build needs a newer `make`** than the 3.77 bundled with the toolchain. `pack.sh` now uses the GNU make 4.4.1 already on this machine.
+- **Two objects are now assembled by original Linux assemblers.** One comes from a release archive OpenRAC documents and was checked against its published hash. Both run through WSL with a small helper in the edition repo.
+- **Master itself had a source error** in one game file, left by a partial sync from rac1-decomp. It is fixed to match rac1-decomp on our OpenRAC branch and is included in the edition's OpenRAC patch.
+
+**Verification.** A full build from scratch: all 1,222 decompiled functions byte-identical to retail, image check passed; the edition image built from it loads the Kalebo III save in PCSX2 with the GADGETRON sign.
+
 ## 2026-10-19 (owner's extra item: the GADGETRON sign)
 
 ### 🏢 Kalebo III's sign reads GADGETRON — Done (owner confirmed, near and far)
@@ -16,7 +29,7 @@ changed, decisions taken, findings that affect other items.
 
 **Findings.**
 - **The first builds blanked the top of the screen and stopped drawing frames on Kalebo III.** The cause was a bug in the edition's wrench fork, not the new letters: generated colour data was padded with the wrong value. Found by testing the sign piece by piece in the emulator, and fixed in the fork. The Charge Boots model goes through the same code and now matches retail too.
-- **Merging OpenRAC's master broke step 1 of the build on this machine**; being fixed next.
+- **Merging OpenRAC's master broke step 1 of the build on this machine**; fixed the same night (next entry).
 
 **Verification.** In PCSX2 on the owner's Kalebo III save: the whole word as the ring turns, the sky intact, full frame rate; close up and far away (owner).
 
