@@ -2142,7 +2142,15 @@ existing saves come up with Strafing off.
 retail's Help page (kind 0x13, entries 0x4F9F/0x4FA0 on 0x15EF1C/D) is a
 two-row page on the same widget, with the same panel sequences as
 Subtitles' one-row page, so the panel does not size itself by row count.
-Our page keeps the vibration template's wider panel (sequences 118-123).
+Our page keeps the vibration template's wider panels (sequences 118-123),
+but its list panel (123) ends one row high, half-height 971 against
+Subtitles' 1441, and the owner's first test showed the two rows filling it
+to the edges. Retail uses 123 for the cut vibration page only, so
+`ee_controls_panel` (src/quick_select_pause.c) raises the last key frame's
+corners (joints 1-4, z) to 1441 in the level's class data the first time
+a pause panel draws (called from the panel draw hook in src/widescreen.c,
+in 4:3 too). The opening frames before it already reach 1440-1518, so
+the box now settles the way Subtitles' does.
 
 **Gate.** `ee_pad_parse_c` (src/strafe.c) returns straight after the game's
 parse (and the q2 ring's L1/R1 masking) while the setting is off: L2 and R2
