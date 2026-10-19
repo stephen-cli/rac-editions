@@ -6,10 +6,12 @@
 #
 #   --quick   copy of the owner's image with the level code patched in place, and
 #             the Charge Boots class (R&C2's model) spliced into every level's data
-#             archive, appended at the end of the image (tools/splice_boots.py)
+#             archive, appended at the end of the image (tools/splice_boots.py), and
+#             Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py)
 #             -> OpenRAC/games/rac1/build-sn/executive-edition.iso
 #   default   wrench full re-layout (the edition's wrench fork): game bank + wrench
-#             overlay + mod/ + the Charge Boots bank (R&C2's model, tools/gen_boots.py),
+#             overlay + mod/ + the Charge Boots bank (R&C2's model, tools/gen_boots.py)
+#             + the sign bank (tools/gen_sign.py),
 #             then the level-code patches computed against and written into that image
 #             -> OpenRAC/build/wrench/executive-edition.iso
 #
@@ -34,6 +36,7 @@ python "$HERE/tools/rac2_anim.py" emit-arm 0x14 -o "$HERE/build/modseg/gen_anim_
 python "$HERE/tools/gen_menu.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_hero.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_boots.py" --openrac "$OPENRAC" --wrench "$WRENCH"    # R&C2's Charge Boots as class 2000
+python "$HERE/tools/gen_sign.py" --openrac "$OPENRAC" --wrench "$WRENCH"     # Kalebo III's sign reads GADGETRON (class 1891 rebuilt from the PAL sign)
 python "$HERE/tools/gen_items.py" --openrac "$OPENRAC" --boots-class 2000
 python "$HERE/tools/gen_charge.py" --openrac "$OPENRAC"                       # the Charge Boots dash's sites (src/charge_dash.c)
 python "$HERE/tools/gen_qs.py" --openrac "$OPENRAC"                           # the quick-select pages' sites (src/quick_select_pages.c)
@@ -53,16 +56,18 @@ if [ "$QUICK" = 1 ]; then
   python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv" -o "$out"
   echo "== 5b/5 the Charge Boots class spliced into every level's data (tools/splice_boots.py)"
   python "$HERE/tools/splice_boots.py" "$out" --openrac "$OPENRAC"
+  echo "== 5c/5 Kalebo III's GADGETRON sign spliced into its data (tools/splice_sign.py)"
+  python "$HERE/tools/splice_sign.py" "$out" --openrac "$OPENRAC"
   echo "-> $PAL/$out"
   exit 0
 fi
 
 cp build-sn/SCES_509.16 "$HERE/mod/SCES_509.16"
-echo "== 4/5 wrench pack: game bank + wrench overlay + mod/ + build/boots_bank"
+echo "== 4/5 wrench pack: game bank + wrench overlay + mod/ + build/boots_bank + build/sign_bank"
 mkdir -p "$OPENRAC/build/wrench"
 out=$OPENRAC/build/wrench/executive-edition.iso; n=1
 while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$OPENRAC/build/wrench/executive-edition-$n.iso; done
-"$WRENCH/bin/wrenchbuild.exe" pack "$GAME_BANK" "$WRENCH/data/overlay" "$HERE/mod" "$HERE/build/boots_bank" \
+"$WRENCH/bin/wrenchbuild.exe" pack "$GAME_BANK" "$WRENCH/data/overlay" "$HERE/mod" "$HERE/build/boots_bank" "$HERE/build/sign_bank" \
   -a rac -o "$out" -h release \
   | grep -vE '^Parsing|^\[ *[0-9]+%\]' || true
 echo "== 5/5 level-code patches against the packed image (tools/overlay_patch.py --iso), written in place"
