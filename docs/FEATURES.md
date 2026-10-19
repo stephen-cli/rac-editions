@@ -2065,6 +2065,28 @@ ammo model 130 px wide on a 16:9 output, against 135 expected from 4:3 and
 Visibomb's view (owner). Every item of the original request has now been
 seen in game.
 
+### q4: the Trespasser puzzle (2026-10-20, owner's report)
+
+**Owner's report.** The Trespasser's screen was not adjusted for 16:9.
+
+**Cause.** The puzzle (TrespasserPuzzleUpdate, `func_L02_002D9F08`; in
+levels 2, 4, 6, 8, 11, 13 and 18) draws its three rings, the beams and the
+markers as 2D quads about the screen's centre (DrawEllipticalArc,
+DrawRadarArrow, RingMarker_DrawScroll, through AppendDisplayListEntry into
+the VIF chain at the cursor). It does this from a draw callback
+(RingMarkersDraw, `func_L02_002DA820`) that it registers each frame of the
+puzzle view (+ 0x3B0, AddDrawCallback), the way the ship HUD does. That is
+not HudDraw, so nothing squeezed it, and in 16:9 the circles were a third
+wider than tall.
+
+**Fix.** The registration's `lui`/`addiu $a0` (+ 0x3A8, a `bc1f`'s delay
+slot, and + 0x3B4, the `jal`'s) point at `ee_ws_br_tres_NN`
+(`src/ws_hooks.s`, site 64 + level), which brackets the callback. Its
+drawing is squeezed about the centre (`CHAIN_PLAIN`). The puzzle's camera
+view of the lock gets Hor+ like any frame. The levels' addresses come from
+OpenRAC's catalogue (`trespasser_draw` in `src/widescreen.c`,
+`trespasser_patches` in `tools/overlay_patch.py`).
+
 ## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
 
 **Owner's report.** In the Kalebo III hoverboard race the game froze at the

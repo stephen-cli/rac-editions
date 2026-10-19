@@ -234,6 +234,36 @@ ee_ws_br_ship_17:
     j     ee_ws_bracket
     addiu $25, $0, 49
 
+/* The Trespasser puzzle's ring draw callback: site 64 + the level. */
+.globl ee_ws_br_tres_2
+ee_ws_br_tres_2:
+    j     ee_ws_bracket
+    addiu $25, $0, 66
+.globl ee_ws_br_tres_4
+ee_ws_br_tres_4:
+    j     ee_ws_bracket
+    addiu $25, $0, 68
+.globl ee_ws_br_tres_6
+ee_ws_br_tres_6:
+    j     ee_ws_bracket
+    addiu $25, $0, 70
+.globl ee_ws_br_tres_8
+ee_ws_br_tres_8:
+    j     ee_ws_bracket
+    addiu $25, $0, 72
+.globl ee_ws_br_tres_11
+ee_ws_br_tres_11:
+    j     ee_ws_bracket
+    addiu $25, $0, 75
+.globl ee_ws_br_tres_13
+ee_ws_br_tres_13:
+    j     ee_ws_bracket
+    addiu $25, $0, 77
+.globl ee_ws_br_tres_18
+ee_ws_br_tres_18:
+    j     ee_ws_bracket
+    addiu $25, $0, 82
+
 /* The vendor render's call of VendorDrawScreens(m): the return address goes in $5. */
 .globl ee_ws_vendor_screens
 .extern ee_ws_vendor_screens_c

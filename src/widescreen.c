@@ -1039,6 +1039,7 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_CREDITS_NAME  10    /* func_L00_001F92E8 + 0xC8: a credits name tag (func_L00_001FCC50) */
 #define WS_SITE_PLANET_NAME   11    /* func_002305A0 + 0x140: the flight screen's planet name (func_0022FD20) */
 #define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
+#define WS_SITE_TRESPASSER    64    /* + level: the Trespasser puzzle's rings, a draw callback (trespasser_draw) */
 DECLARE_LVL(func_001F5988);
 DECLARE_LVL(func_L00_001F9248);         /* the frame of game mode 4 (the freeze prompt) */
 DECLARE_LVL(func_001FBE80);             /* its prompt */
@@ -1065,6 +1066,27 @@ static u32 ship_hud(s32 L)
     case 11: return 0x00313218;         /* func_L11_00313218 */
     case 13: return 0x002BAA68;         /* func_L13_002BAA68 */
     case 17: return 0x002ED498;         /* func_L17_002ED498 */
+    }
+    return 0;
+}
+
+/* The Trespasser's puzzle (TrespasserPuzzleUpdate, func_L02_002D9F08) draws
+ * its three rings, beams and markers as 2D quads about the screen's centre
+ * from a draw callback (RingMarkersDraw, func_L02_002DA820) it registers each
+ * frame of the puzzle view (+ 0x3B0, AddDrawCallback), so in 16:9 the circles
+ * came out a third wider than tall. The registration's address is pointed at
+ * ee_ws_br_tres_NN and the drawing squeezed about the centre (CHAIN_PLAIN).
+ * The levels with the puzzle (OpenRAC's catalogue). */
+static u32 trespasser_draw(s32 L)
+{
+    switch (L) {
+    case 2:  return 0x002DA820;         /* func_L02_002DA820 */
+    case 4:  return 0x002D67D8;
+    case 6:  return 0x002E3688;
+    case 8:  return 0x002F3E08;
+    case 11: return 0x002FEA90;
+    case 13: return 0x002F73C8;
+    case 18: return 0x002DACD8;
     }
     return 0;
 }
@@ -1126,9 +1148,14 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         L = ee_level_of_call(ra, lvl_func_L00_002A1540, 0x400);
         target = LVL(L, func_001FFFB8, u32);
         break;
-    default:                                            /* WS_SITE_SHIP + level */
-        L = site - WS_SITE_SHIP;
-        target = ship_hud(L);
+    default:
+        if (site >= WS_SITE_TRESPASSER) {               /* WS_SITE_TRESPASSER + level */
+            L = site - WS_SITE_TRESPASSER;
+            target = trespasser_draw(L);
+        } else {                                        /* WS_SITE_SHIP + level */
+            L = site - WS_SITE_SHIP;
+            target = ship_hud(L);
+        }
         break;
     }
     bracket_level = L;
@@ -1151,7 +1178,8 @@ void ee_ws_bracket_end_c(void)
     if (bracket_site == WS_SITE_VENDOR_HUD) {
         hud_end(bracket_start);
     } else {
-        chain_walk(bracket_start, *cursor_of(bracket_level), bracket_site >= WS_SITE_SHIP ? CHAIN_AUTO
+        chain_walk(bracket_start, *cursor_of(bracket_level),
+                   bracket_site >= WS_SITE_SHIP && bracket_site < WS_SITE_TRESPASSER ? CHAIN_AUTO
                    : bracket_site == WS_SITE_PLANET_NAME ? CHAIN_LEFT : CHAIN_PLAIN);
     }
     bracket_on = 0;

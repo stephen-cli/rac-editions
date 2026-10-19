@@ -552,7 +552,8 @@ def widescreen(at):
             (at("func_L00_001F92E8") + 0x24, jal(at("func_001F7680")), jal(modseg_symbol("ee_ws_credits_picture"))),
             (at("func_L00_001F92E8") + 0xC8, jal(at("func_L00_001FCC50")), jal(modseg_symbol("ee_ws_br_credits_name"))),
             (at("func_002305A0") + 0x140, jal(at("func_0022FD20")), jal(modseg_symbol("ee_ws_br_planet_name"))),
-            (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at)
+            (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at) + \
+        trespasser_patches(at)
 
 
 # The ship levels register their HUD's draw callback each frame with a lui/addiu
@@ -582,6 +583,24 @@ def ship_hud_patches(at):
         raise SystemExit(f"level {at.level}: {fn} + 0x{lo_site:X} is not addiu $a0, $a0")
     out.append((f + lo_site, old, (old & 0xFFFF0000) | lo))
     return out
+
+
+# The Trespasser puzzle (TrespasserPuzzleUpdate) registers its ring draw callback
+# (RingMarkersDraw) with a lui/addiu pair of $a0 around its AddDrawCallback call.
+TRESPASSER_LEVELS = (2, 4, 6, 8, 11, 13, 18)
+TRESPASSER_LUI, TRESPASSER_ADDIU = 0x3A8, 0x3B4   # func_L02_002D9F08 + 0x3A8 (a bc1f's delay slot), + 0x3B4 (the jal's)
+
+
+def trespasser_patches(at):
+    """q4: the Trespasser puzzle's rings go through ee_ws_br_tres_NN (src/widescreen.c trespasser_draw)."""
+    if at.level not in TRESPASSER_LEVELS:
+        return []
+    f = at("func_L02_002D9F08")
+    draw = at("func_L02_002DA820")
+    hi, lo = hi_lo(modseg_symbol(f"ee_ws_br_tres_{at.level}"))
+    old_hi, old_lo = hi_lo(draw)
+    return [(f + TRESPASSER_LUI, 0x3C040000 | old_hi, 0x3C040000 | hi),
+            (f + TRESPASSER_ADDIU, 0x24840000 | old_lo, 0x24840000 | lo)]
 
 
 FEATURES = {
