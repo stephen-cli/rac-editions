@@ -191,6 +191,27 @@ ee_ws_br_quit_prompt:
 ee_ws_br_credits_name:
     j     ee_ws_bracket
     addiu $25, $0, 10
+.globl ee_ws_br_planet_name
+ee_ws_br_planet_name:
+    j     ee_ws_bracket
+    addiu $25, $0, 11
+
+/* The pause renderer's render target, func_001F7A50(a, b, flag, f) at
+ * func_L00_002781D8 + 0x458: the return address goes in $7 ($f12 keeps f). */
+.globl ee_ws_panel_target
+.extern ee_ws_panel_target_c
+ee_ws_panel_target:
+    j     ee_ws_panel_target_c
+    addu  $7, $31, $0
+
+/* The pause renderer's texture pass, jalr $v0 (func_L00_002781D8 + 0x49C):
+ * the panel in $4, its callback in $2; the return address goes in $6. */
+.globl ee_ws_panel_texture
+.extern ee_ws_panel_texture_c
+ee_ws_panel_texture:
+    addu  $5, $2, $0
+    j     ee_ws_panel_texture_c
+    addu  $6, $31, $0
 
 /* The credits' picture, func_001F7680(source): one argument, the return
  * address goes in $5. */

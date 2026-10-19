@@ -212,12 +212,66 @@ static void refresh_view(s32 L)
 #define EDGE_OFFSET 1056
 
 static s32 ws_offset;               /* added to every x after the squeeze, 12.4 */
+static s32 ws_stretch;              /* move each primitive to its half's edge (stretch_flush) */
+static volatile u32 *ws_pend[128];  /* this GIF tag's vertices, in order, while stretching */
+static s32 ws_npend;
+static void squeeze_word(volatile u32 *w);
 static s32 ws_measuring;            /* collect the x range instead of changing anything */
 static s32 ws_minx, ws_maxx;
 
 static s32 squeeze_x(s32 x)
 {
     return GS_CENTRE + ((x - GS_CENTRE) * 3) / 4;
+}
+
+static void shift_word(volatile u32 *w, s32 offset)
+{
+    u32 v = *w;
+    s32 x = squeeze_x((s32)(v & 0xFFFF)) + offset;
+    x = x < 0 ? 0 : x > 0xFFFF ? 0xFFFF : x;
+    *w = (v & 0xFFFF0000u) | (u32)x;
+}
+
+static s32 half_side(s32 x)
+{
+    return x < GS_CENTRE ? -EDGE_OFFSET : EDGE_OFFSET;
+}
+
+/* A layout that spans the screen at fixed places (the hoverboard races'
+ * bottom bar: Lap on the left, Place and Time on the right, a stretchable
+ * bar under them, all from two HUD slots): each primitive (vertex pair)
+ * moves to its half's edge unstretched, and a wide one (the bar's middle,
+ * wider than 64 pixels) has each end moved by its own half, so it
+ * stretches to reach both edges. */
+static void stretch_flush(void)
+{
+    s32 k;
+    for (k = 0; k < ws_npend; k += 2) {
+        s32 x0 = *ws_pend[k] & 0xFFFF, x1;
+        if (k + 1 >= ws_npend) {
+            shift_word(ws_pend[k], half_side(x0));
+            break;
+        }
+        x1 = *ws_pend[k + 1] & 0xFFFF;
+        if (x1 - x0 > 64 * 16 || x0 - x1 > 64 * 16) {
+            shift_word(ws_pend[k], half_side(x0));
+            shift_word(ws_pend[k + 1], half_side(x1));
+        } else {
+            s32 side = half_side((x0 + x1) / 2);
+            shift_word(ws_pend[k], side);
+            shift_word(ws_pend[k + 1], side);
+        }
+    }
+    ws_npend = 0;
+}
+
+static void put_xyz(volatile u32 *w)
+{
+    if (ws_stretch && ws_npend < 128) {
+        ws_pend[ws_npend++] = w;
+    } else {
+        squeeze_word(w);
+    }
 }
 
 static void squeeze_word(volatile u32 *w)
@@ -302,7 +356,7 @@ static void gif_squeeze(volatile u32 *q, s32 n)
                         }
                     } else if (xyz) {
                         if (!keep) {
-                            squeeze_word(d);
+                            put_xyz(d);
                         }
                     } else if (reg == 0xE && (addr == 0x40 || addr == 0x41)) {
                         squeeze_scissor(d);              /* a text window's clip, with or without vertices */
@@ -314,6 +368,7 @@ static void gif_squeeze(volatile u32 *q, s32 n)
                     break;
                 }
             }
+            stretch_flush();
             q += 4 * total;
             n -= total;
         } else if (flg == 1) {                            /* REGLIST: a doubleword a register */
@@ -334,7 +389,7 @@ static void gif_squeeze(volatile u32 *q, s32 n)
                         minx = x < minx ? x : minx;
                         maxx = x > maxx ? x : maxx;
                     } else {
-                        squeeze_word(d);
+                        put_xyz(d);
                     }
                 }
                 if (pass == 0 && ws_measuring) {
@@ -345,6 +400,7 @@ static void gif_squeeze(volatile u32 *q, s32 n)
                     break;
                 }
             }
+            stretch_flush();
             q += 4 * qw;
             n -= qw;
         } else {                                          /* IMAGE: texture data */
@@ -395,8 +451,30 @@ static void vif_squeeze(volatile u32 *w, s32 count)
 #define CHAIN_PLAIN  0              /* nothing: squeezed about the centre */
 #define CHAIN_HUD    1              /* the HUD slot whose draw wrote it (the wrapper's ranges) */
 #define CHAIN_AUTO   2              /* by where it sits: left third out left, right third out right */
+#define CHAIN_LEFT   3              /* all of it out to the left edge, like a left-anchored HUD slot */
 
 static s32 hud_offset_at(volatile u32 *p);
+
+/* A slot drawn with stretch_flush: a packet narrower than half the screen
+ * (a line of text) moves whole to its half's edge; a wider one (the bar)
+ * goes primitive by primitive. */
+#define HUD_STRETCH 0x40000000
+static s32 stretch_setup(volatile u32 *p, s32 qwc)
+{
+    ws_measuring = 1;
+    ws_minx = 0x10000;
+    ws_maxx = -1;
+    vif_squeeze(p + 2, 2 + 4 * qwc);
+    ws_measuring = 0;
+    if (ws_maxx < 0) {
+        return 0;
+    }
+    if (ws_maxx - ws_minx < SCREEN[0] * 16 / 2) {
+        return half_side((ws_minx + ws_maxx) / 2);
+    }
+    ws_stretch = 1;
+    return 0;
+}
 
 static s32 auto_offset(volatile u32 *p, s32 qwc)
 {
@@ -427,9 +505,14 @@ static void chain_walk(volatile u32 *p, volatile u32 *end, s32 mode)
              * paging pair (the "Quit?" prompt) is still laid out in order in
              * the buffer. A first build stopped there and left the prompt
              * stretched. */
-            ws_offset = mode == CHAIN_HUD ? hud_offset_at(p) : mode == CHAIN_AUTO ? auto_offset(p, qwc) : 0;
+            ws_offset = mode == CHAIN_HUD ? hud_offset_at(p) : mode == CHAIN_AUTO ? auto_offset(p, qwc)
+                      : mode == CHAIN_LEFT ? -EDGE_OFFSET : 0;
+            if (ws_offset == HUD_STRETCH) {
+                ws_offset = stretch_setup(p, qwc);
+            }
             vif_squeeze(p + 2, 2 + 4 * qwc);
             ws_offset = 0;
+            ws_stretch = 0;
             p += 4 + 4 * qwc;
         } else if (id == 3 || id == 4) {                  /* REF, REFS: the data is elsewhere (shared, never ours) */
             p += 4;
@@ -506,6 +589,24 @@ static s32 hud_offset_at(volatile u32 *p)
     return 0;
 }
 
+/* The hoverboard races' bottom bar (Rilgar, Kalebo III): func_L05_00266D10
+ * (slot 5: the bar, Lap, Place, at fixed places across the screen) is
+ * stretched to the edges. The time (func_L05_002670A0, slot 7) stays
+ * centred: it is squeezed in place, although its slot is anchored right,
+ * since its pieces would otherwise go to the halves they sit in. */
+#define RACE_BAR  1
+#define RACE_TIME 2
+static s32 race_hud(s32 L, u32 draw)
+{
+    if (L == 5) {
+        return draw == 0x00266D10 ? RACE_BAR : draw == 0x002670A0 ? RACE_TIME : 0;
+    }
+    if (L == 16) {
+        return draw == 0x00239390 ? RACE_BAR : draw == 0x00239720 ? RACE_TIME : 0;
+    }
+    return 0;
+}
+
 static void hud_begin(s32 L)
 {
     s32 i;
@@ -518,8 +619,19 @@ static void hud_begin(s32 L)
         s32 flags = slot[HUD_SLOT_FLAGS / 4];
         u32 draw = (u32)slot[HUD_SLOT_DRAW / 4];
         s32 side = (flags & HUD_LEFT) ? -1 : (flags & HUD_RIGHT) ? 1 : 0;
+        s32 race;
         hud_moved[i] = 0;
         hud_draw[i] = 0;
+        race = draw != 0 ? race_hud(L, draw) : 0;
+        if (race == RACE_TIME) {
+            continue;
+        }
+        if (race == RACE_BAR) {
+            hud_draw[i] = draw;
+            hud_slot_offset[i] = HUD_STRETCH;
+            slot[HUD_SLOT_DRAW / 4] = (s32)(u32)hud_slot_wrapper;
+            continue;
+        }
         if (draw == 0 || side == 0) {
             continue;
         }
@@ -616,6 +728,7 @@ void ee_ws_subtitles_c(u32 ra)
  * func_0020E180 writes the data cache back (func_00118D80(0)) before the
  * walker's DMA reads the frames. */
 DECLARE_LVL(func_L00_002781D8);         /* the pause menu's renderer */
+DECLARE_LVL(func_001F7A50);             /* set up a 2^n render target */
 DECLARE_LVL(func_0020E180);             /* draw a moby */
 #define PANEL_DRAW_SITE    0xFC         /* func_L00_002781D8 + 0xFC: jal func_0020E180(panel, 1) */
 #define PANEL_PROJECT_SITE 0x1EC        /* func_L00_002781D8 + 0x1EC: jal func_00238D90(corners, rectangle) */
@@ -823,6 +936,88 @@ void ee_ws_vendor_screens_c(u32 m, u32 ra)
     LVL(L, func_001F2608, VoidFn)();
 }
 
+/* The pause menu draws each panel's content into a texture: its renderer
+ * (func_L00_002781D8) sets up a 2^n render target (func_001F7A50, + 0x458,
+ * which builds a view of the target's size, field 1.0), calls the panel
+ * (+ 0x49C), puts the frame's view back (func_001F7B40) and draws the
+ * middle of the target over the panel's rectangle with the quad bracketed
+ * at + 0x600, which is squeezed. The Weapons, Gadgets and Quick Select
+ * pages' item previews (FUN_0021e110 in the NTSC decomp) draw their mobys
+ * there, and mobys are projected through the camera block
+ * (func_001F2608: the camera times the view's projection, D_00187040, and
+ * its copy at view + 0x280), which the frame built from the main view, not
+ * the target's. With the widened main view the previews were narrowed
+ * twice, by the view and by the squeeze, and showed three quarters as wide
+ * as in 4:3 (owner, 2026-10-19). So before the target is set up the camera
+ * block is built from the main view as 4:3 (the view record and the
+ * screen are put back as they were; the block lives elsewhere), and after
+ * the panel has drawn it is built from the widened main view again. */
+typedef void (*TargetFn)(s32, s32, s32, f32);
+typedef s32 (*PanelFn)(u32);
+#define PANEL_TARGET_SITE  0x458
+#define PANEL_TEXTURE_SITE 0x49C
+#define VIEW_SAVED_WORDS   (0x280 / 4)     /* the record up to the camera block's copy */
+
+static u32 main_view[VIEW_SAVED_WORDS];
+static s32 main_screen[8];
+static s32 main_saved;
+
+static void swap_view(s32 L, u32 *view, s32 *screen)
+{
+    volatile u32 *rec = (volatile u32 *)LVL_DATA(L, view, u32);
+    s32 k;
+    for (k = 0; k < VIEW_SAVED_WORDS; k++) {
+        u32 t = rec[k];
+        rec[k] = view[k];
+        view[k] = t;
+    }
+    for (k = 0; k < 8; k++) {
+        s32 t = SCREEN[k];
+        SCREEN[k] = screen[k];
+        screen[k] = t;
+    }
+}
+
+void ee_ws_panel_target_c(s32 a, s32 b, s32 flag, u32 ra, f32 f)
+{
+    s32 L = ee_level_of_call(ra, lvl_func_L00_002781D8, PANEL_TARGET_SITE);
+    volatile u32 *rec = (volatile u32 *)LVL_DATA(L, view, u32);
+    s32 k;
+    main_saved = ws_on();
+    if (main_saved) {
+        for (k = 0; k < VIEW_SAVED_WORDS; k++) {
+            main_view[k] = rec[k];
+        }
+        for (k = 0; k < 8; k++) {
+            main_screen[k] = SCREEN[k];
+        }
+        view_suspended = 1;
+        LVL(L, func_001F3140, VoidFn)();
+        LVL(L, func_001F2608, VoidFn)();
+        view_suspended = 0;
+        for (k = 0; k < VIEW_SAVED_WORDS; k++) {
+            rec[k] = main_view[k];
+        }
+        for (k = 0; k < 8; k++) {
+            SCREEN[k] = main_screen[k];
+        }
+    }
+    LVL(L, func_001F7A50, TargetFn)(a, b, flag, f);
+}
+
+s32 ee_ws_panel_texture_c(u32 item, u32 fn, u32 ra)
+{
+    s32 L = ee_level_of_call(ra, lvl_func_L00_002781D8, PANEL_TEXTURE_SITE);
+    s32 r = ((PanelFn)fn)(item);
+    if (main_saved) {
+        swap_view(L, main_view, main_screen);      /* the main view, widened */
+        LVL(L, func_001F2608, VoidFn)();
+        swap_view(L, main_view, main_screen);      /* the target's again */
+        main_saved = 0;
+    }
+    return r;
+}
+
 /* --- bracketed calls (src/ws_hooks.s ee_ws_bracket) ------------------------ */
 
 /* The arguments the bracket stub saved: $4-$11 as doublewords, $f12-$f15,
@@ -839,12 +1034,20 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_SCREENS_QUAD_B 8    /* func_0023AA38 + 0x568: the same at 60 Hz */
 #define WS_SITE_QUIT_PROMPT   9     /* func_L00_001F9248 + 0x60: game mode 4's prompt ("Quit Race?", func_001FBE80) */
 #define WS_SITE_CREDITS_NAME  10    /* func_L00_001F92E8 + 0xC8: a credits name tag (func_L00_001FCC50) */
+#define WS_SITE_PLANET_NAME   11    /* func_002305A0 + 0x140: the flight screen's planet name (func_0022FD20) */
 #define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
 DECLARE_LVL(func_001F5988);
 DECLARE_LVL(func_L00_001F9248);         /* the frame of game mode 4 (the freeze prompt) */
 DECLARE_LVL(func_001FBE80);             /* its prompt */
 DECLARE_LVL(func_L00_001F92E8);         /* game mode 7's frame (the credits) */
 DECLARE_LVL(func_L00_001FCC50);         /* a credits name tag */
+/* The flight to a planet (the level transition, space.c in the decomp) is
+ * drawn by the leaving level's program (func_002305A0); its 3D planet and
+ * stars get the 16:9 view like any frame. The planet's name is a 256 x 32
+ * picture drawn 32 pixels from the left (func_0022FD20): squeezed and moved
+ * out to the left edge as the HUD's left elements are (owner, 2026-10-19). */
+DECLARE_LVL(func_002305A0);
+DECLARE_LVL(func_0022FD20);
 
 /* The ship levels draw their HUD (radar, health, missiles, messages) from a
  * draw callback the ship registers every frame (through the registrar 0x1B8
@@ -912,6 +1115,10 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         L = ee_level_of_call(ra, lvl_func_L00_001F92E8, 0xC8);
         target = LVL(L, func_L00_001FCC50, u32);
         break;
+    case WS_SITE_PLANET_NAME:
+        L = ee_level_of_call(ra, lvl_func_002305A0, 0x140);
+        target = LVL(L, func_0022FD20, u32);
+        break;
     case WS_SITE_VENDOR_HUD:
         L = ee_level_of_call(ra, lvl_func_L00_002A1540, 0x400);
         target = LVL(L, func_001FFFB8, u32);
@@ -941,7 +1148,8 @@ void ee_ws_bracket_end_c(void)
     if (bracket_site == WS_SITE_VENDOR_HUD) {
         hud_end(bracket_start);
     } else {
-        chain_walk(bracket_start, *cursor_of(bracket_level), bracket_site >= WS_SITE_SHIP ? CHAIN_AUTO : CHAIN_PLAIN);
+        chain_walk(bracket_start, *cursor_of(bracket_level), bracket_site >= WS_SITE_SHIP ? CHAIN_AUTO
+                   : bracket_site == WS_SITE_PLANET_NAME ? CHAIN_LEFT : CHAIN_PLAIN);
     }
     bracket_on = 0;
 }

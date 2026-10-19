@@ -495,6 +495,7 @@ LWC1_FOV, LWC1_FOV_SRC = 0xC46000B0, 0xC46000BC
 PANEL_DRAW_SITE = 0xFC                       # func_L00_002781D8 + 0xFC: jal func_0020E180(panel, 1)
 PANEL_PROJECT_SITE = 0x1EC                   # func_L00_002781D8 + 0x1EC: jal func_00238D90(corners -> rectangle)
 JALR_A2 = 0x00C0F809                         # jalr $a2: the pause renderer's call of a panel that draws itself
+JALR_V0 = 0x0040F809                         # jalr $v0: its call of a panel drawing into its texture
 
 
 def widescreen(at):
@@ -532,6 +533,8 @@ def widescreen(at):
             # bracketed 2D calls (src/widescreen.c WS_SITE_*)
             (at("func_L00_002781D8") + 0x298, jal(at("func_00201640")), jal(modseg_symbol("ee_ws_br_pause_fill"))),
             (at("func_L00_002781D8") + 0x388, JALR_A2, jal(modseg_symbol("ee_ws_br_pause_direct"))),
+            (at("func_L00_002781D8") + 0x458, jal(at("func_001F7A50")), jal(modseg_symbol("ee_ws_panel_target"))),
+            (at("func_L00_002781D8") + 0x49C, JALR_V0, jal(modseg_symbol("ee_ws_panel_texture"))),
             (at("func_L00_002781D8") + 0x600, jal(at("func_001F5800")), jal(modseg_symbol("ee_ws_br_pause_quad"))),
             (at("func_L00_002781D8") + 0x698, jal(at("func_002250B8")), jal(modseg_symbol("ee_ws_br_pause_last"))),
             (at("func_L00_002A0F60") + 0x258, jal(at("func_001F5800")), jal(modseg_symbol("ee_ws_br_vendor_quad"))),
@@ -548,6 +551,7 @@ def widescreen(at):
             # the credits (game mode 7): the picture pillarboxed, the name tags squeezed
             (at("func_L00_001F92E8") + 0x24, jal(at("func_001F7680")), jal(modseg_symbol("ee_ws_credits_picture"))),
             (at("func_L00_001F92E8") + 0xC8, jal(at("func_L00_001FCC50")), jal(modseg_symbol("ee_ws_br_credits_name"))),
+            (at("func_002305A0") + 0x140, jal(at("func_0022FD20")), jal(modseg_symbol("ee_ws_br_planet_name"))),
             (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at)
 
 
