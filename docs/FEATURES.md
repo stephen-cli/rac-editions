@@ -2019,6 +2019,6 @@ centred), the Visibomb's camera view, the hoverboard races' HUD.
 **Verified in PCSX2 (owner and session):** the cull field stays at 0.84
 (Orxon pan), the ammo backing, quick select's L1, toggling in the Camera
 page both ways, the Pokitaru jet's HUD against 4:3 and its "Quit?" prompt
-(owner), the credits. **Not watched yet:** the side meters' slide-out after
-the 2-pixel change, boss health bars, the Visibomb's view, the hoverboard
+(owner), the credits, the Suck Cannon meter's slide-out (owner). **Not
+watched yet:** boss health bars, the Visibomb's view, the hoverboard
 races.
