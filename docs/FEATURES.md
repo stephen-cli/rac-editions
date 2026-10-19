@@ -2087,6 +2087,8 @@ view of the lock gets Hor+ like any frame. The levels' addresses come from
 OpenRAC's catalogue (`trespasser_draw` in `src/widescreen.c`,
 `trespasser_patches` in `tools/overlay_patch.py`).
 
+**Verified.** The Trespasser's screen in 16:9 (owner, 2026-10-20).
+
 ### q4: the flight after a title-screen load, and the countdowns (2026-10-20, owner's report)
 
 **Owner's report.** Loading a 16:9 save from the title screen, the ship
@@ -2130,8 +2132,13 @@ rings. The pair points at `ee_ws_br_timer_NN` (site 96 + level) and the
 drawing is squeezed in place (`CHAIN_PLAIN`), so frame and digits stay
 together wherever the timer sits.
 
-**Verified so far.** Built (`pack.sh --quick`); the image's boot executable,
-its frontbin and levels 6 and 15 hold the new words. Not yet seen in game.
+**Verified.** Built (`pack.sh --quick`); the image's boot executable,
+its frontbin and levels 6 and 15 hold the new words. In game (owner,
+2026-10-20): a 16:9 save loaded from the title screen flies in 16:9, and
+the self-destruct countdown has the right proportions. The owner's report
+does not say whether the title-screen load was from a fresh boot (the boot
+executable's copy) or after quitting a level (frontbin's); the other one
+was not reported separately.
 
 ## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
 

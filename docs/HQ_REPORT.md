@@ -6,9 +6,10 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-20 (q4: owner's report on title-screen loads and the warship timer)
 
-### 📺 Proper widescreen (q4) — Two fixes built; awaiting owner test
+### 📺 Proper widescreen (q4) — Three fixes confirmed by the owner
 
 **What changed.**
+- **The Trespasser's screen** (the ring puzzle) keeps its circles round in 16:9.
 - **The flight to the planet after loading from the title screen** is now 16:9 (wider view, planet name out at the left edge), as it already was when loading in game. The title screen and its menus stay 4:3.
 - **The Nebula G34 warship's self-destruct timer** keeps its proportions in 16:9. The timers of the same kind on Quartu and Drek's Fleet get the same fix.
 
@@ -16,7 +17,7 @@ changed, decisions taken, findings that affect other items.
 - **The title screen is two programs.** After power-on it runs from the boot executable; after quitting a level it is reloaded from a separate frontend program on the disc, with the same code at other addresses. The flight after a title-screen load is drawn by whichever of them is running, and the edition had patched neither. Both are now patched.
 - **The timers are drawn outside the HUD**, like the Trespasser's rings, which is why the HUD's 16:9 handling missed them.
 
-**Verification.** Built; the new hooks checked in the image. Not yet seen in game. To check: from a fresh boot, load a save with 16:9 on and watch the flight; quit to the title, load again and watch it again; on Blarg Station, start the self-destruct countdown.
+**Verification.** Tested and working (owner): the Trespasser's screen, the self-destruct countdown, and the flight after loading a 16:9 save from the title screen. Not reported separately: the second title-screen route (after quitting a level), and the Quartu and Drek's Fleet timers.
 
 ## 2026-10-20 (the build after OpenRAC's master merge)
 
