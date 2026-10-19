@@ -149,3 +149,48 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
  * data with pointers between them, so tools/gen_menu.py generates one copy
  * per level into build/modseg/gen_menu.c from each level's own records, and
  * tools/overlay_patch.py points each level's Options list at its copy. */
+
+/* The Controls page's list panel. The page's frame panels are the cut
+ * "Controller vibration" page's (see tools/gen_menu.py), whose list panel,
+ * sequence 123 of the panel class 0x472, ends one row high: half-height 971
+ * against the Subtitles panel's 1441 (sequence 76, the same opening with a
+ * narrower end), so two rows filled it to the edges (owner, 2026-10-19).
+ * Retail uses sequence 123 for that cut page only, so the last key frame's
+ * four corners (joints 1-4, z = +-half-height) are raised to the Subtitles
+ * height in place, in the level's own class data, the first time a panel
+ * draws (src/widescreen.c's panel draw hook calls this for every panel of
+ * the class). The test on the old value makes it a no-op after that, and a
+ * level load brings fresh data that is patched again. */
+#define PANEL_LIST_SEQ   123
+#define PANEL_HALF_OLD   971
+#define PANEL_HALF_NEW   1441
+
+void ee_controls_panel(u32 moby)
+{
+    u32 cls = *(volatile u32 *)(moby + 0x24);
+    u32 seq, frame;
+    u16 at, n;
+    s32 k, count;
+
+    if (cls == 0 || *(volatile u8 *)(cls + 0xC) <= PANEL_LIST_SEQ) {
+        return;
+    }
+    seq = *(volatile u32 *)(cls + 0x48 + 4 * PANEL_LIST_SEQ);
+    if (seq == 0 || (count = *(volatile u8 *)(seq + 0x10)) == 0) {
+        return;
+    }
+    frame = *(volatile u32 *)(seq + 0x1C + 4 * (count - 1));
+    at = ((volatile u16 *)frame)[6];
+    n = ((volatile u16 *)frame)[7];
+    for (k = 0; k < n; k++) {
+        volatile s16 *rec = (volatile s16 *)(frame + 16 + at + 8 * k);
+        u8 joint = ((volatile u8 *)rec)[6];
+        if (joint >= 1 && joint <= 4) {
+            if (rec[2] == PANEL_HALF_OLD) {
+                rec[2] = PANEL_HALF_NEW;
+            } else if (rec[2] == -PANEL_HALF_OLD) {
+                rec[2] = -PANEL_HALF_NEW;
+            }
+        }
+    }
+}

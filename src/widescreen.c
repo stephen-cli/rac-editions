@@ -817,6 +817,9 @@ void ee_ws_panel_draw_c(u32 moby, s32 count, u32 ra)
     u32 (*copies)[4 * (1 + PANEL_FRAME_QWC)];
 
     refresh_view(L);
+    if (moby != 0 && *(volatile u16 *)(moby + 0xA6) == PANEL_CLASS) {
+        ee_controls_panel(moby);   /* in 4:3 too: the Controls page's list panel */
+    }
     if (!ws_on() || count != 1 || moby == 0 || *(volatile u16 *)(moby + 0xA6) != PANEL_CLASS) {
         draw(moby, count);
         return;

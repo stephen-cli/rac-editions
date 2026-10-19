@@ -97,6 +97,8 @@ s32 ee_ws_ring_shift(void);
 #define EE_OPTIONS_ROW          3
 #define EE_OPTIONS_SS           0x00138140
 #define EE_HELP_SS              0x00138108
+/* The Controls page's list panel made two rows high, given a pause panel (src/quick_select_pause.c). */
+void ee_controls_panel(u32 moby);
 
 /* q2: three quick-select pages (src/quick_select_pages.c). The active page is
  * the game's own eight saved words (D_00141FA0, save block 0xD); the other
