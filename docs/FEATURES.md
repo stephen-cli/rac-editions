@@ -2022,3 +2022,7 @@ page both ways, the Pokitaru jet's HUD against 4:3 and its "Quit?" prompt
 (owner), the credits, the Suck Cannon meter's slide-out (owner). **Not
 watched yet:** boss health bars, the Visibomb's view, the hoverboard
 races.
+
+**Ship landings and take-offs stay widescreen (2026-10-19, owner's request).** A level's arrival and departure flights (game mode 6) are no longer
+pillarboxed: they get the Hor+ view like play. Cinematics (game mode 2) and
+letterboxed scenes keep the original framing with pillars.

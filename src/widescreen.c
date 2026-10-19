@@ -116,15 +116,16 @@ static f32 cutscene_zoom(f32 t)
  * (Hor+). In a cinematic (game mode 2) or with the letterbox in, the
  * original framing only: the original horizontal field, which is 3/4 of
  * the zoomed width. The letterbox blend carries the change while the bars
- * grow; a cinematic without bars (a level's arrival) cuts to it. */
+ * grow; a cinematic without bars cuts to it. A level's arrival and
+ * departure flights (game mode 6) stay Hor+ like play (owner, 2026-10-19:
+ * "those ones can stay widescreen"). */
 #define GAME_MODE_CINEMATIC 2      /* a cinematic (the mode the subtitles are drawn in) */
-#define GAME_MODE_ARRIVAL   6      /* a level's arrival or departure flight (set by the level's main loop) */
 static f32 framing(s32 L, f32 *content)
 {
     f32 t = cutscene_t(L);
     f32 zoom = cutscene_zoom(t);
     s32 mode = *LVL_DATA(L, game_mode, volatile s32 *);
-    f32 original = (mode == GAME_MODE_CINEMATIC || mode == GAME_MODE_ARRIVAL) ? 1.0f : t;
+    f32 original = mode == GAME_MODE_CINEMATIC ? 1.0f : t;
     f32 c = zoom * (1.0f - 0.25f * original);
     *content = c < 1.0f ? c : 1.0f;
     return zoom;

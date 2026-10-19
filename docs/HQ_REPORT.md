@@ -15,6 +15,7 @@ changed, decisions taken, findings that affect other items.
 - **Quick select:** L1 sits beside the ring again, like R1.
 - **Ammo display:** its dark backing covers the whole count again, like the bolt counter's.
 - **Toggling 16:9 in the menu:** the menu redraws immediately, with no garbage panels at the sides when turning it off.
+- **Ship landings and take-offs** (owner's request): no pillarbox any more; they show the full 16:9 picture like play. Other in-level movies keep the original framing with side bars. Built; not yet seen in game.
 - **Side meters** (Suck Cannon, O2 mask, Morph-o-Ray): they now hide a little further out, so they no longer peek in at the right edge for a few frames (Suck Cannon confirmed by the owner).
 
 **Findings.**
