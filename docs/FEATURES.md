@@ -2087,6 +2087,52 @@ view of the lock gets Hor+ like any frame. The levels' addresses come from
 OpenRAC's catalogue (`trespasser_draw` in `src/widescreen.c`,
 `trespasser_patches` in `tools/overlay_patch.py`).
 
+### q4: the flight after a title-screen load, and the countdowns (2026-10-20, owner's report)
+
+**Owner's report.** Loading a 16:9 save from the title screen, the ship
+flight was not widescreen; loading in game it was. The Nebula G34 warship's
+self-destruct timer did not adjust its size for 16:9.
+
+**Cause: the flight.** The flight to the planet (DoSpaceTransition, game
+mode 6, drawn by DrawSpaceFlightFrame `func_002305A0`) runs from whichever
+program is running. In game that is the level's, which the edition patches.
+From the title it is the frontend's, which nothing patched. There are two:
+after power-on the title runs the boot executable's own code (every
+function at its own address), and quitting a level to the title loads
+`frontbin` (table of contents + 0x4F8). frontbin is not compressed: it is
+chunks {destination, size, pad, entry} that the core's ParseBin
+(`func_0012DA38`) copies into place, the same functions linked at other
+addresses (UpdateViewContext 0x1F2E58, DrawSpaceFlightFrame 0x22FD48, the
+planet name 0x22F4C8). Its data is at the executable's addresses (view
+0x18CE00, chain cursor 0x161000, game mode 0x15F6E8).
+
+**Fix.** `tools/gen_frontend.py` finds those functions in frontbin by their
+instructions (the executable's, with jump targets and %hi/%lo halves
+masked; one match each) and the data from their lui/addiu pairs. It writes
+`build/modseg/gen_frontend.c` (`ee_fe_*`, boot then frontbin) and patches
+both frontends as a level is patched: UpdateViewContext's entry goes to
+`ee_view_hook` with id 19 (boot) or 20 (frontbin), its +0x68 read reads
++0xBC, and the planet name call goes to `ee_ws_br_planet_name`. The boot
+executable is patched after OpenRAC's `boot_elf.py` (`pack.sh`, `patch-elf`),
+frontbin's sectors by `overlay_patch.py` (feature widescreen). In the
+frontends `ee_view_pre_c` widens the view only in game mode 6, which only
+DoSpaceTransition sets (both frontends start with 0), so the title and its
+menus stay 4:3 as the owner chose. The frontend's view does not change
+`view_applied` (the levels' toggle check).
+
+**Cause and fix: the countdowns.** Blarg Station's self-destruct
+(TimerMobyL06_Draw `func_L06_00303630`) and the timer moby of Quartu and
+Drek's Fleet (TimerMoby_Draw `func_L15_002D8BB0`) draw a UI frame and large
+centred digits from a draw callback registered every frame
+(AddDrawCallback with a lui/addiu of `$a0`: `func_L06_00302FE8` + 0x534 /
++ 0x540, `func_L15_002D7C00` + 0xCA8 / + 0xCB0), like the Trespasser's
+rings. The pair points at `ee_ws_br_timer_NN` (site 96 + level) and the
+drawing is squeezed in place (`CHAIN_PLAIN`), so frame and digits stay
+together wherever the timer sits.
+
+**Verified so far.** Built (`pack.sh --quick`); the image's boot executable,
+its frontbin and levels 6 and 15 hold the new words. Not yet seen in game.
+
 ## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
 
 **Owner's report.** In the Kalebo III hoverboard race the game froze at the

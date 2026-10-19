@@ -60,9 +60,11 @@ python "$HERE/tools/gen_charge.py" --openrac "$OPENRAC"                       # 
 python "$HERE/tools/gen_qs.py" --openrac "$OPENRAC"                           # the quick-select pages' sites (src/quick_select_pages.c)
 python "$HERE/tools/rac2_anim.py" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
+python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" emit                # the frontends' flight in 16:9 (src/widescreen.c FE_BOOT/FE_BIN)
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"
 echo "== 3/5 bootable executable with the mod segment"
 python tools/boot_elf.py --segment "A0000:$(cygpath -w "$HERE/build/modseg/modseg.bin" 2>/dev/null || echo "$HERE/build/modseg/modseg.bin")"
+python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" patch-elf build-sn/SCES_509.16   # the boot frontend's flight hooks (frontbin's: overlay_patch.py)
 
 if [ "$QUICK" = 1 ]; then
   echo "== 4/5 level-code patches (tools/overlay_patch.py)"

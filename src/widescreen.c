@@ -63,6 +63,37 @@ DECLARE_LVL_DATA(hud_slots);
 
 typedef void (*VoidFn)(void);
 
+/* The frontends. Loading a save from the title plays the flight to the
+ * planet (game mode 6) from the frontend's program, which no level patch
+ * reaches: after power-on the boot executable's own code, after quitting a
+ * level frontbin's (the same functions linked elsewhere). Their
+ * UpdateViewContext and planet name call are patched like a level's, with
+ * ids 19 and 20 after the 19 levels (tools/gen_frontend.py, which finds
+ * their addresses), and the view is widened there only in game mode 6, so
+ * the title and its menus stay 4:3 (owner, 2026-10-20: the flight after a
+ * title-screen load was stretched). */
+#define FE_BOOT         19
+#define FE_BIN          20
+#define FE(L)           ((L) - FE_BOOT)
+#define GAME_MODE_FLIGHT 6         /* DoSpaceTransition: a level's arrival and departure, the flight between */
+extern const u32 ee_fe_update_view[2], ee_fe_flight[2], ee_fe_planet_name[2];
+extern const u32 ee_fe_view[2], ee_fe_chain_cursor[2], ee_fe_letterbox_lines[2], ee_fe_game_mode[2];
+
+static u32 view_record(s32 L)
+{
+    return L >= FE_BOOT ? ee_fe_view[FE(L)] : LVL_DATA(L, view, u32);
+}
+
+static u32 update_view_fn(s32 L)
+{
+    return L >= FE_BOOT ? ee_fe_update_view[FE(L)] : LVL(L, func_001F3140, u32);
+}
+
+static s32 game_mode_of(s32 L)
+{
+    return *(L >= FE_BOOT ? (volatile s32 *)ee_fe_game_mode[FE(L)] : LVL_DATA(L, game_mode, volatile s32 *));
+}
+
 #define WS_SETTING      (*(volatile u8 *)EE_SETTING_WIDESCREEN)
 /* The GS viewport record (core): width, height, half width, half height,
  * then the screen's left, top, right and bottom edges in 12.4 around 2048. */
@@ -92,7 +123,8 @@ static s32 ws_on(void)
 /* The letterbox blend, 0 without bars to 1 with the bars fully in. */
 static f32 cutscene_t(s32 L)
 {
-    s32 lines = *LVL_DATA(L, letterbox_lines, volatile s32 *);
+    s32 lines = *(L >= FE_BOOT ? (volatile s32 *)ee_fe_letterbox_lines[FE(L)]
+                               : LVL_DATA(L, letterbox_lines, volatile s32 *));
     if (lines <= 0) {
         return 0.0f;
     }
@@ -124,7 +156,7 @@ static f32 framing(s32 L, f32 *content)
 {
     f32 t = cutscene_t(L);
     f32 zoom = cutscene_zoom(t);
-    s32 mode = *LVL_DATA(L, game_mode, volatile s32 *);
+    s32 mode = game_mode_of(L);
     f32 original = mode == GAME_MODE_CINEMATIC ? 1.0f : t;
     f32 c = zoom * (1.0f - 0.25f * original);
     *content = c < 1.0f ? c : 1.0f;
@@ -151,20 +183,21 @@ typedef union { f32 f; u32 u; } FloatBits;
 
 u32 ee_view_pre_c(s32 L)
 {
-    volatile f32 *fov = (volatile f32 *)(LVL_DATA(L, view, u32) + VIEW_FOV);
-    volatile f32 *src = (volatile f32 *)(LVL_DATA(L, view, u32) + VIEW_FOV_SRC);
+    volatile f32 *fov = (volatile f32 *)(view_record(L) + VIEW_FOV);
+    volatile f32 *src = (volatile f32 *)(view_record(L) + VIEW_FOV_SRC);
     FloatBits cur;
     f32 orig;
     s32 full = SCREEN[0] == RES_W && SCREEN[1] == RES_H;
+    s32 frontend = L >= FE_BOOT;
 
     cur.f = *fov;
     orig = (L == view_level && cur.u == view_written) ? view_orig : cur.f;
     *src = orig;
     *fov = orig;
-    if (full && !view_suspended) {
+    if (full && !view_suspended && !frontend) {
         view_applied = WS_SETTING != 0;
     }
-    if (ws_on() && !view_suspended) {
+    if (ws_on() && !view_suspended && (!frontend || game_mode_of(L) == GAME_MODE_FLIGHT)) {
         f32 content;
         f32 zoom = framing(L, &content);
         FloatBits wide;
@@ -178,7 +211,7 @@ u32 ee_view_pre_c(s32 L)
         view_written = wide.u;
         view_orig = orig;
     }
-    return LVL(L, func_001F3140, u32) + 8;
+    return update_view_fn(L) + 8;
 }
 
 void ee_view_post_c(void)
@@ -529,7 +562,7 @@ static void chain_squeeze(volatile u32 *p, volatile u32 *end)
 
 static volatile u32 **cursor_of(s32 L)
 {
-    return LVL_DATA(L, chain_cursor, volatile u32 **);
+    return L >= FE_BOOT ? (volatile u32 **)ee_fe_chain_cursor[FE(L)] : LVL_DATA(L, chain_cursor, volatile u32 **);
 }
 
 /* --- the HUD, help, subtitles ---------------------------------------------- */
@@ -1040,6 +1073,7 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_PLANET_NAME   11    /* func_002305A0 + 0x140: the flight screen's planet name (func_0022FD20) */
 #define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
 #define WS_SITE_TRESPASSER    64    /* + level: the Trespasser puzzle's rings, a draw callback (trespasser_draw) */
+#define WS_SITE_TIMER         96    /* + level: a countdown's frame and digits, a draw callback (timer_draw) */
 DECLARE_LVL(func_001F5988);
 DECLARE_LVL(func_L00_001F9248);         /* the frame of game mode 4 (the freeze prompt) */
 DECLARE_LVL(func_001FBE80);             /* its prompt */
@@ -1087,6 +1121,23 @@ static u32 trespasser_draw(s32 L)
     case 11: return 0x002FEA90;
     case 13: return 0x002F73C8;
     case 18: return 0x002DACD8;
+    }
+    return 0;
+}
+
+/* The countdowns: the Nebula G34 warship's self-destruct (Blarg Station,
+ * TimerMobyL06_Draw func_L06_00303630) and the timer moby of Quartu and
+ * Drek's Fleet (TimerMoby_Draw, func_L15_002D8BB0) draw a UI frame and
+ * large centred digits from a draw callback their moby registers each frame
+ * (AddDrawCallback, a lui/addiu pair of $a0 around the jal), not from a HUD
+ * slot, so in 16:9 they came out a third too wide (owner, 2026-10-20).
+ * Squeezed in place (CHAIN_PLAIN), frame and digits together. */
+static u32 timer_draw(s32 L)
+{
+    switch (L) {
+    case 6:  return 0x00303630;         /* func_L06_00303630 */
+    case 15: return 0x002D8BB0;         /* func_L15_002D8BB0 */
+    case 17: return 0x002D7310;
     }
     return 0;
 }
@@ -1141,6 +1192,11 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         target = LVL(L, func_L00_001FCC50, u32);
         break;
     case WS_SITE_PLANET_NAME:
+        if (ra == ee_fe_flight[0] + 0x140 + 8 || ra == ee_fe_flight[1] + 0x140 + 8) {
+            L = ra == ee_fe_flight[0] + 0x140 + 8 ? FE_BOOT : FE_BIN;   /* a frontend's flight */
+            target = ee_fe_planet_name[FE(L)];
+            break;
+        }
         L = ee_level_of_call(ra, lvl_func_002305A0, 0x140);
         target = LVL(L, func_0022FD20, u32);
         break;
@@ -1149,7 +1205,10 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         target = LVL(L, func_001FFFB8, u32);
         break;
     default:
-        if (site >= WS_SITE_TRESPASSER) {               /* WS_SITE_TRESPASSER + level */
+        if (site >= WS_SITE_TIMER) {                    /* WS_SITE_TIMER + level */
+            L = site - WS_SITE_TIMER;
+            target = timer_draw(L);
+        } else if (site >= WS_SITE_TRESPASSER) {        /* WS_SITE_TRESPASSER + level */
             L = site - WS_SITE_TRESPASSER;
             target = trespasser_draw(L);
         } else {                                        /* WS_SITE_SHIP + level */

@@ -553,7 +553,7 @@ def widescreen(at):
             (at("func_L00_001F92E8") + 0xC8, jal(at("func_L00_001FCC50")), jal(modseg_symbol("ee_ws_br_credits_name"))),
             (at("func_002305A0") + 0x140, jal(at("func_0022FD20")), jal(modseg_symbol("ee_ws_br_planet_name"))),
             (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at) + \
-        trespasser_patches(at)
+        trespasser_patches(at) + timer_patches(at)
 
 
 # The ship levels register their HUD's draw callback each frame with a lui/addiu
@@ -601,6 +601,27 @@ def trespasser_patches(at):
     old_hi, old_lo = hi_lo(draw)
     return [(f + TRESPASSER_LUI, 0x3C040000 | old_hi, 0x3C040000 | hi),
             (f + TRESPASSER_ADDIU, 0x24840000 | old_lo, 0x24840000 | lo)]
+
+
+# The countdowns (src/widescreen.c timer_draw) register their draw callback with a
+# lui/addiu pair of $a0 around AddDrawCallback: {level: (function, lui, addiu, callback)}.
+TIMER_SITES = {
+    6: ("func_L06_00302FE8", 0x534, 0x540, "func_L06_00303630"),    # Blarg Station's self-destruct
+    15: ("func_L15_002D7C00", 0xCA8, 0xCB0, "func_L15_002D8BB0"),   # TimerMoby_Draw (Quartu)
+    17: ("func_L15_002D7C00", 0xCA8, 0xCB0, "func_L15_002D8BB0"),   # TimerMoby_Draw (Drek's Fleet)
+}
+
+
+def timer_patches(at):
+    """q4: a countdown's frame and digits go through ee_ws_br_timer_NN (squeezed in place)."""
+    if at.level not in TIMER_SITES:
+        return []
+    fn, lui_off, lo_off, draw = TIMER_SITES[at.level]
+    f = at(fn)
+    hi, lo = hi_lo(modseg_symbol(f"ee_ws_br_timer_{at.level}"))
+    old_hi, old_lo = hi_lo(at(draw))
+    return [(f + lui_off, 0x3C040000 | old_hi, 0x3C040000 | hi),
+            (f + lo_off, 0x24840000 | old_lo, 0x24840000 | lo)]
 
 
 FEATURES = {
@@ -741,6 +762,19 @@ def main() -> int:
                                          f"is this the PAL v2.00 image, unpatched?")
                     struct.pack_into("<I", buf, i, word)
                     total += 1
+
+        if "widescreen" in args.features:
+            # the frontend's flight after a title-screen load: frontbin's copy (tools/gen_frontend.py;
+            # the boot executable's copy is patched by its patch-elf step)
+            from gen_frontend import frontbin_patches
+            for off, expect, word in frontbin_patches(args.openrac, iso, modseg_symbol):
+                s, i = divmod(off, SECTOR)
+                buf = sector(s)
+                old, = struct.unpack_from("<I", buf, i)
+                if old != expect:
+                    raise SystemExit(f"frontbin widescreen: at image byte 0x{off:X} found {old:08X}, expected {expect:08X}")
+                struct.pack_into("<I", buf, i, word)
+                total += 1
         print(f"{total} words patched across {len(sectors)} sectors in 19 levels "
               f"({', '.join(args.features)})")
 
