@@ -80,7 +80,6 @@ typedef void (*VoidFn)(void);
 #define HUD_SLOT_FLAGS  0x60
 #define HUD_LEFT        4
 #define HUD_RIGHT       8
-#define HUD_SLOT_QUICK_SELECT 3    /* the quick-select ring (src/quick_select_pause.c) */
 #define LETTERBOX_MAX   24         /* lines each bar grows to */
 
 /* Whether the frame being drawn is in 16:9: the setting, and the screen at
@@ -133,45 +132,87 @@ static f32 framing(s32 L, f32 *content)
 
 /* --- the view ------------------------------------------------------------ */
 
-static s32 view_level;
-static s32 view_widened;
-static f32 view_saved;
 static s32 view_suspended;      /* the vendor's monitor screens are drawn with the 4:3 view (below) */
+static s32 view_level = -1;     /* the level whose view record holds view_written */
+static u32 view_written;        /* the bits of the widened value this hook left in +0xB0 */
+static f32 view_orig;           /* and the game's own value it stands for */
+static s32 view_applied;        /* the setting the full-screen view was last built with */
+
+/* The widened field of view stays in the record: the renderers' culling
+ * (TfragProc, TieProc, ShrubProc, MobyProc) loads +0xA0..+0xBF itself every
+ * frame for its side planes, so a value put back after the projection was
+ * built culled at the old 4:3 edges (objects popped in at the sides, owner
+ * 2026-10-19). On the next call the hook recognises its own value by its
+ * bits and starts again from the game's; any other value is the game's new
+ * one. A view built in 4:3 (setting off, a render to a texture, the vendor's
+ * monitors) gets the game's value back. */
+typedef union { f32 f; u32 u; } FloatBits;
 
 u32 ee_view_pre_c(s32 L)
 {
     volatile f32 *fov = (volatile f32 *)(LVL_DATA(L, view, u32) + VIEW_FOV);
     volatile f32 *src = (volatile f32 *)(LVL_DATA(L, view, u32) + VIEW_FOV_SRC);
-    f32 orig = *fov;
+    FloatBits cur;
+    f32 orig;
+    s32 full = SCREEN[0] == RES_W && SCREEN[1] == RES_H;
 
-    view_level = L;
-    view_widened = 0;
+    cur.f = *fov;
+    orig = (L == view_level && cur.u == view_written) ? view_orig : cur.f;
     *src = orig;
+    *fov = orig;
+    if (full && !view_suspended) {
+        view_applied = WS_SETTING != 0;
+    }
     if (ws_on() && !view_suspended) {
         f32 content;
         f32 zoom = framing(L, &content);
+        FloatBits wide;
         /* Square pixels on the stretched screen: the horizontal scale is 3/4
          * of the 4:3 one at the same vertical scale, so the horizontal field
          * is 4/3 of the original divided by the zoom. */
+        wide.f = orig * (4.0f / 3.0f) / zoom;
         *src = orig / zoom;
-        *fov = orig * (4.0f / 3.0f) / zoom;
-        view_saved = orig;
-        view_widened = 1;
+        *fov = wide.f;
+        view_level = L;
+        view_written = wide.u;
+        view_orig = orig;
     }
     return LVL(L, func_001F3140, u32) + 8;
 }
 
 void ee_view_post_c(void)
 {
-    if (view_widened) {
-        *(volatile f32 *)(LVL_DATA(view_level, view, u32) + VIEW_FOV) = view_saved;
-        view_widened = 0;
+}
+
+/* The setting changed since the full-screen view was built (toggled on the
+ * Camera page): the pause menu does not rebuild the view while it is open,
+ * so the panels and the world behind them kept the old projection until the
+ * game was unpaused (owner, 2026-10-19). Rebuilt here, with the frame's
+ * camera transform. */
+DECLARE_LVL(func_001F2608);             /* the frame's camera-and-view transform */
+
+static void refresh_view(s32 L)
+{
+    if ((WS_SETTING != 0) != view_applied && SCREEN[0] == RES_W && SCREEN[1] == RES_H) {
+        LVL(L, func_001F3140, VoidFn)();
+        LVL(L, func_001F2608, VoidFn)();
     }
 }
 
 /* --- squeezing 2D packets ------------------------------------------------ */
 
 #define GS_CENTRE   0x8000         /* 2048 in 12.4 */
+/* An anchored element's move out to the 16:9 edge, after the squeeze, in
+ * 12.4: a third of the half width before the 3/4 squeeze is exactly 64
+ * pixels after it (1024), plus 2 so that an element parked just past the
+ * 4:3 edge (the slides park them at 512 - 0.5) clears the 16:9 edge at any
+ * rendering resolution. At 85 pixels before the squeeze (the first build)
+ * a parked meter's left column sat at 511.4 and showed. */
+#define EDGE_OFFSET 1056
+
+static s32 ws_offset;               /* added to every x after the squeeze, 12.4 */
+static s32 ws_measuring;            /* collect the x range instead of changing anything */
+static s32 ws_minx, ws_maxx;
 
 static s32 squeeze_x(s32 x)
 {
@@ -181,7 +222,9 @@ static s32 squeeze_x(s32 x)
 static void squeeze_word(volatile u32 *w)
 {
     u32 v = *w;
-    *w = (v & 0xFFFF0000u) | ((u32)squeeze_x((s32)(v & 0xFFFF)) & 0xFFFF);
+    s32 x = squeeze_x((s32)(v & 0xFFFF)) + ws_offset;
+    x = x < 0 ? 0 : x > 0xFFFF ? 0xFFFF : x;
+    *w = (v & 0xFFFF0000u) | (u32)x;
 }
 
 /* SCISSOR_1/2 in pixels of the frame: SCAX0 bits 0-10, SCAX1 bits 16-26. */
@@ -193,8 +236,10 @@ static void squeeze_scissor(volatile u32 *w)
     if (x0 <= 0 && x1 >= SCREEN[0] - 1) {
         return;                                   /* the whole screen */
     }
-    x0 = hw + ((x0 - hw) * 3) / 4;
-    x1 = hw + ((x1 - hw) * 3 + 3) / 4;
+    x0 = hw + ((x0 - hw) * 3) / 4 + ws_offset / 16;
+    x1 = hw + ((x1 - hw) * 3 + 3) / 4 + ws_offset / 16;
+    x0 = x0 < 0 ? 0 : x0;
+    x1 = x1 < 0 ? 0 : x1;
     *w = (v & 0xF800F800u) | (u32)(x0 & 0x7FF) | ((u32)(x1 & 0x7FF) << 16);
 }
 
@@ -212,6 +257,14 @@ static u32 tag_reg(u32 r0, u32 r1, s32 i)
 static s32 full_width(s32 minx, s32 maxx)
 {
     return minx <= SCREEN[4] + 16 && maxx >= SCREEN[6] - 16;
+}
+
+static void measured(s32 minx, s32 maxx)
+{
+    if (maxx >= 0 && !full_width(minx, maxx)) {
+        ws_minx = minx < ws_minx ? minx : ws_minx;
+        ws_maxx = maxx > ws_maxx ? maxx : ws_maxx;
+    }
 }
 
 /* The GIF packets in N quadwords at Q. */
@@ -255,6 +308,10 @@ static void gif_squeeze(volatile u32 *q, s32 n)
                     }
                 }
                 keep = maxx >= 0 && full_width(minx, maxx);   /* the whole screen: leave its vertices */
+                if (ws_measuring) {
+                    measured(minx, maxx);
+                    break;
+                }
             }
             q += 4 * total;
             n -= total;
@@ -278,6 +335,10 @@ static void gif_squeeze(volatile u32 *q, s32 n)
                     } else {
                         squeeze_word(d);
                     }
+                }
+                if (pass == 0 && ws_measuring) {
+                    measured(minx, maxx);
+                    break;
                 }
                 if (pass == 0 && (maxx < 0 || full_width(minx, maxx))) {
                     break;
@@ -329,18 +390,45 @@ static void vif_squeeze(volatile u32 *w, s32 count)
     }
 }
 
+/* What a DMA packet's vertices are moved by after the squeeze. */
+#define CHAIN_PLAIN  0              /* nothing: squeezed about the centre */
+#define CHAIN_HUD    1              /* the HUD slot whose draw wrote it (the wrapper's ranges) */
+#define CHAIN_AUTO   2              /* by where it sits: left third out left, right third out right */
+
+static s32 hud_offset_at(volatile u32 *p);
+
+static s32 auto_offset(volatile u32 *p, s32 qwc)
+{
+    s32 third = SCREEN[0] * 16 / 3, cx;
+    ws_measuring = 1;
+    ws_minx = 0x10000;
+    ws_maxx = -1;
+    vif_squeeze(p + 2, 2 + 4 * qwc);
+    ws_measuring = 0;
+    if (ws_maxx < 0) {
+        return 0;
+    }
+    cx = (ws_minx + ws_maxx) / 2 - SCREEN[4];
+    return cx < third ? -EDGE_OFFSET : cx > 2 * third ? EDGE_OFFSET : 0;
+}
+
 /* Every 2D vertex the chain received between START and END. */
-static void chain_squeeze(volatile u32 *p, volatile u32 *end)
+static void chain_walk(volatile u32 *p, volatile u32 *end, s32 mode)
 {
     while (p < end) {
         u32 tag = p[0];
         s32 qwc = tag & 0xFFFF;
         u32 id = (tag >> 28) & 7;
-        if (id == 1 || id == 2) {                         /* CNT, NEXT: the data follows the tag */
+        if (id == 1 || id == 2 || id == 5) {              /* CNT, NEXT, CALL: the data follows the tag */
+            /* A NEXT does not end the walk: SetupGifPaging leaves a hole that
+             * DoGifPaging fills with a NEXT out to the texture uploads, which
+             * NEXT back to the packets after the hole, so a draw with its own
+             * paging pair (the "Quit?" prompt) is still laid out in order in
+             * the buffer. A first build stopped there and left the prompt
+             * stretched. */
+            ws_offset = mode == CHAIN_HUD ? hud_offset_at(p) : mode == CHAIN_AUTO ? auto_offset(p, qwc) : 0;
             vif_squeeze(p + 2, 2 + 4 * qwc);
-            if (id == 2) {
-                return;                                   /* the chain goes on elsewhere */
-            }
+            ws_offset = 0;
             p += 4 + 4 * qwc;
         } else if (id == 3 || id == 4) {                  /* REF, REFS: the data is elsewhere (shared, never ours) */
             p += 4;
@@ -350,6 +438,11 @@ static void chain_squeeze(volatile u32 *p, volatile u32 *end)
     }
 }
 
+static void chain_squeeze(volatile u32 *p, volatile u32 *end)
+{
+    chain_walk(p, end, CHAIN_PLAIN);
+}
+
 static volatile u32 **cursor_of(s32 L)
 {
     return LVL_DATA(L, chain_cursor, volatile u32 **);
@@ -357,48 +450,123 @@ static volatile u32 **cursor_of(s32 L)
 
 /* --- the HUD, help, subtitles ---------------------------------------------- */
 
-#define HUD_SHIFT (SCREEN[2] / 3)      /* a third of the half width: 85 of 256 */
+/* The HUD's 13 slots have fixed places and anchor flags (+0x60). An element
+ * anchored left or right is moved out to the 16:9 edge after it is drawn:
+ * HudDraw calls each slot's draw callback (+0x18) through a wrapper that
+ * notes the stretch of the chain the slot wrote, and those vertices get
+ * EDGE_OFFSET with the squeeze. Moving the slot's x before the draw instead
+ * (the first build) broke the ammo display: its draw (func_L00_0023B140)
+ * passes x + width as its backing's width, a slip in the original that is
+ * harmless at x = 20, so the backing lost what x lost.
+ *
+ * The quick-select ring's draw is the edition's (src/quick_select_pages.c),
+ * which names its level from its return address inside HudDraw, so it is
+ * not wrapped: its slot's x moves half the way out instead (owner: "maybe
+ * an in-between"), and its L1 glyph's clamp moves with it
+ * (ee_ws_ring_shift). */
+extern void ee_qs_draw(void *slot);
+typedef s32 (*SlotDrawFn)(void *);
+#define HUD_SLOT_DRAW   0x18
+#define HUD_RANGES      48
 
-/* Move the anchored HUD slots out (by MOVED, which this fills) or back. */
-static void hud_shift(s32 L, s32 *moved)
+static s32 hud_level;
+static u32 hud_base;
+static u32 hud_draw[HUD_SLOTS];
+static s32 hud_slot_offset[HUD_SLOTS];
+static s32 hud_moved[HUD_SLOTS];
+static s32 ring_moved;
+static volatile u32 *hud_from[HUD_RANGES];
+static volatile u32 *hud_to[HUD_RANGES];
+static s32 hud_off[HUD_RANGES];
+static s32 hud_count;
+
+static s32 hud_slot_wrapper(void *slot)
 {
-    u32 slots = LVL_DATA(L, hud_slots, u32);
-    s32 i;
-    for (i = 0; i < HUD_SLOTS; i++) {
-        volatile s32 *slot = (volatile s32 *)(slots + i * HUD_SLOT_BYTES);
-        s32 flags = slot[HUD_SLOT_FLAGS / 4];
-        moved[i] = (flags & HUD_LEFT) ? -HUD_SHIFT : (flags & HUD_RIGHT) ? HUD_SHIFT : 0;
-        if (i == HUD_SLOT_QUICK_SELECT) {
-            moved[i] /= 2;            /* the ring: halfway out (owner left it to us: "maybe an in-between") */
+    s32 i = ((u32)slot - hud_base) / HUD_SLOT_BYTES;
+    volatile u32 *from = *cursor_of(hud_level);
+    s32 r = ((SlotDrawFn)hud_draw[i])(slot);
+    if (hud_count < HUD_RANGES) {
+        hud_from[hud_count] = from;
+        hud_to[hud_count] = *cursor_of(hud_level);
+        hud_off[hud_count] = hud_slot_offset[i];
+        hud_count++;
+    }
+    return r;
+}
+
+static s32 hud_offset_at(volatile u32 *p)
+{
+    s32 k;
+    for (k = 0; k < hud_count; k++) {
+        if (p >= hud_from[k] && p < hud_to[k]) {
+            return hud_off[k];
         }
-        slot[HUD_SLOT_X / 4] += moved[i];
+    }
+    return 0;
+}
+
+static void hud_begin(s32 L)
+{
+    s32 i;
+    hud_level = L;
+    hud_base = LVL_DATA(L, hud_slots, u32);
+    hud_count = 0;
+    ring_moved = 0;
+    for (i = 0; i < HUD_SLOTS; i++) {
+        volatile s32 *slot = (volatile s32 *)(hud_base + i * HUD_SLOT_BYTES);
+        s32 flags = slot[HUD_SLOT_FLAGS / 4];
+        u32 draw = (u32)slot[HUD_SLOT_DRAW / 4];
+        s32 side = (flags & HUD_LEFT) ? -1 : (flags & HUD_RIGHT) ? 1 : 0;
+        hud_moved[i] = 0;
+        hud_draw[i] = 0;
+        if (draw == 0 || side == 0) {
+            continue;
+        }
+        if (draw == (u32)ee_qs_draw) {
+            hud_moved[i] = side * (SCREEN[2] / 3) / 2;
+            ring_moved = hud_moved[i];
+            slot[HUD_SLOT_X / 4] += hud_moved[i];
+            continue;
+        }
+        hud_draw[i] = draw;
+        hud_slot_offset[i] = side * EDGE_OFFSET;
+        slot[HUD_SLOT_DRAW / 4] = (s32)(u32)hud_slot_wrapper;
     }
 }
 
-static void hud_unshift(s32 L, const s32 *moved)
+static void hud_end(volatile u32 *start)
 {
-    u32 slots = LVL_DATA(L, hud_slots, u32);
     s32 i;
     for (i = 0; i < HUD_SLOTS; i++) {
-        ((volatile s32 *)(slots + i * HUD_SLOT_BYTES))[HUD_SLOT_X / 4] -= moved[i];
+        volatile s32 *slot = (volatile s32 *)(hud_base + i * HUD_SLOT_BYTES);
+        if (hud_draw[i] != 0 && (u32)slot[HUD_SLOT_DRAW / 4] == (u32)hud_slot_wrapper) {
+            slot[HUD_SLOT_DRAW / 4] = (s32)hud_draw[i];  /* unless the draw changed it itself */
+        }
+        slot[HUD_SLOT_X / 4] -= hud_moved[i];
     }
+    chain_walk(start, *cursor_of(hud_level), CHAIN_HUD);
+    ring_moved = 0;
+}
+
+s32 ee_ws_ring_shift(void)
+{
+    return ring_moved;
 }
 
 void ee_ws_hud_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_001F3D78, EE_SITE_WS_HUD);
-    s32 moved[HUD_SLOTS];
     volatile u32 *start;
 
+    refresh_view(L);
     if (!ws_on()) {
         LVL(L, func_001FFFB8, VoidFn)();
         return;
     }
-    hud_shift(L, moved);
     start = *cursor_of(L);
+    hud_begin(L);
     LVL(L, func_001FFFB8, VoidFn)();
-    chain_squeeze(start, *cursor_of(L));
-    hud_unshift(L, moved);
+    hud_end(start);
 }
 
 static void bracketed(s32 L, u32 fn)
@@ -534,6 +702,7 @@ void ee_ws_panel_draw_c(u32 moby, s32 count, u32 ra)
 
     u32 (*copies)[4 * (1 + PANEL_FRAME_QWC)];
 
+    refresh_view(L);
     if (!ws_on() || count != 1 || moby == 0 || *(volatile u16 *)(moby + 0xA6) != PANEL_CLASS) {
         draw(moby, count);
         return;
@@ -634,7 +803,6 @@ void ee_ws_screens_project_c(void *a, void *b, f32 *w, f32 *h, f32 *x, f32 *y, u
  * 0x3C4) runs with the view and the transform rebuilt as in 4:3, and both
  * are rebuilt widened after it; its projections then come back as 4:3
  * already (no conversion), and its quads are still squeezed. */
-DECLARE_LVL(func_001F2608);             /* the frame's camera-and-view transform */
 typedef void (*ScreensFn)(u32);
 #define VENDOR_SCREENS_SITE 0x3C4
 
@@ -668,7 +836,31 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_VENDOR_HUD    6     /* func_L00_002A1540 + 0x400: the vendor screen's HudDraw (bolts) */
 #define WS_SITE_SCREENS_QUAD_A 7    /* func_0023AA38 + 0x50C: a monitor screen's quad (func_001F5988) */
 #define WS_SITE_SCREENS_QUAD_B 8    /* func_0023AA38 + 0x568: the same at 60 Hz */
+#define WS_SITE_QUIT_PROMPT   9     /* func_L00_001F9248 + 0x60: game mode 4's prompt ("Quit Race?", func_001FBE80) */
+#define WS_SITE_CREDITS_NAME  10    /* func_L00_001F92E8 + 0xC8: a credits name tag (func_L00_001FCC50) */
+#define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
 DECLARE_LVL(func_001F5988);
+DECLARE_LVL(func_L00_001F9248);         /* the frame of game mode 4 (the freeze prompt) */
+DECLARE_LVL(func_001FBE80);             /* its prompt */
+DECLARE_LVL(func_L00_001F92E8);         /* game mode 7's frame (the credits) */
+DECLARE_LVL(func_L00_001FCC50);         /* a credits name tag */
+
+/* The ship levels draw their HUD (radar, health, missiles, messages) from a
+ * draw callback the ship registers every frame (through the registrar 0x1B8
+ * before AddDrawCallback), not through HudDraw. The registration's address
+ * is pointed at ee_ws_br_ship_NN, and the callback's drawing is squeezed
+ * with each draw call moved by where it sits (CHAIN_AUTO): the corners'
+ * elements go out to the 16:9 corners as the HUD slots do, messages in the
+ * middle stay centred. Pokitaru, Gemlik, Drek's fleet. */
+static u32 ship_hud(s32 L)
+{
+    switch (L) {
+    case 11: return 0x00313218;         /* func_L11_00313218 */
+    case 13: return 0x002BAA68;         /* func_L13_002BAA68 */
+    case 17: return 0x002ED498;         /* func_L17_002ED498 */
+    }
+    return 0;
+}
 DECLARE_LVL(func_00201640);
 DECLARE_LVL(func_001F5800);
 DECLARE_LVL(func_002250B8);
@@ -677,7 +869,6 @@ static s32 bracket_level;
 static s32 bracket_site;
 static s32 bracket_on;
 static volatile u32 *bracket_start;
-static s32 bracket_moved[HUD_SLOTS];
 
 u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
 {
@@ -712,19 +903,31 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         L = ee_level_of_call(ra, lvl_func_0023AA38, 0x568);
         target = LVL(L, func_001F5988, u32);
         break;
-    default:                                            /* WS_SITE_VENDOR_HUD */
+    case WS_SITE_QUIT_PROMPT:
+        L = ee_level_of_call(ra, lvl_func_L00_001F9248, 0x60);
+        target = LVL(L, func_001FBE80, u32);
+        break;
+    case WS_SITE_CREDITS_NAME:
+        L = ee_level_of_call(ra, lvl_func_L00_001F92E8, 0xC8);
+        target = LVL(L, func_L00_001FCC50, u32);
+        break;
+    case WS_SITE_VENDOR_HUD:
         L = ee_level_of_call(ra, lvl_func_L00_002A1540, 0x400);
         target = LVL(L, func_001FFFB8, u32);
+        break;
+    default:                                            /* WS_SITE_SHIP + level */
+        L = site - WS_SITE_SHIP;
+        target = ship_hud(L);
         break;
     }
     bracket_level = L;
     bracket_site = site;
     bracket_on = ws_on();
     if (bracket_on) {
-        if (site == WS_SITE_VENDOR_HUD) {
-            hud_shift(L, bracket_moved);
-        }
         bracket_start = *cursor_of(L);
+        if (site == WS_SITE_VENDOR_HUD) {
+            hud_begin(L);
+        }
     }
     return target;
 }
@@ -734,9 +937,10 @@ void ee_ws_bracket_end_c(void)
     if (!bracket_on) {
         return;
     }
-    chain_squeeze(bracket_start, *cursor_of(bracket_level));
     if (bracket_site == WS_SITE_VENDOR_HUD) {
-        hud_unshift(bracket_level, bracket_moved);
+        hud_end(bracket_start);
+    } else {
+        chain_walk(bracket_start, *cursor_of(bracket_level), bracket_site >= WS_SITE_SHIP ? CHAIN_AUTO : CHAIN_PLAIN);
     }
     bracket_on = 0;
 }
@@ -882,4 +1086,145 @@ void ee_ws_movie_tag_c(u32 tags, u32 frame, s32 width, s32 height, u32 ra)
     tail[4] = 0x30000000u | (MOVIE_QWC + MOVIE_BARS_QWC);
     tail[5] = (u32)movie_packet;
     tail[7] = 0x50000000u | (MOVIE_QWC + MOVIE_BARS_QWC);
+}
+
+/* --- the credits ------------------------------------------------------------- */
+
+/* Game mode 7 (Goodies > Credits, and the ending) draws no 3D world: its
+ * frame (func_L00_001F92E8) copies a full-screen picture straight into the
+ * draw buffer with an IMAGE transfer (func_001F7680(source), at + 0x24;
+ * the buffer's byte address is D_0015EF84), fades it, and draws the name
+ * tags (func_L00_001FCC50, at + 0xC8, inside a paging pair). A copy into
+ * the frame cannot be drawn narrower, so in 16:9 the picture goes into the
+ * Z buffer's memory instead (nothing in this mode draws in 3D), is drawn
+ * from there as a texture into the middle 3/4 of the frame with Z writes
+ * masked and black bars at the sides, and the Z memory is zeroed again
+ * with an IMAGE transfer of zeros, so the name tags' depth test finds what
+ * a cleared buffer holds. The name tags are squeezed like any 2D. The
+ * frame's ResetGsRegisters (+ 0x94) puts TEST back before the name tags. */
+DECLARE_LVL(func_001F7680);             /* the credits' picture: IMAGE copy into the draw buffer */
+typedef void (*PictureFn)(u32);
+#define CREDITS_PICTURE_SITE 0x24
+#define DRAW_BUFFER         (*(volatile u32 *)0x0015EF84)
+#define FRAME_ZPSM          (*(volatile u16 *)(0x00151880 + 0x16C))   /* the frame setup (framebuf.c FrameCfg) */
+#define FRAME_ZBP           (*(volatile u16 *)(0x00151880 + 0x16E))
+#define ZERO_QWC            1024                                       /* a 16 KB block of zeros */
+#define ZERO_PER_TAG        28                                         /* REFs per IMAGE GIF tag: 28672 quadwords */
+
+static u32 zero_block[4 * ZERO_QWC] __attribute__((aligned(64)));
+
+/* One A+D quadword: register ADDR = HI:LO. */
+static volatile u32 *ad(volatile u32 *p, u32 addr, u32 lo, u32 hi)
+{
+    p[0] = lo;
+    p[1] = hi;
+    p[2] = addr;
+    p[3] = 0;
+    return p + 4;
+}
+
+void ee_ws_credits_picture_c(u32 source, u32 ra)
+{
+    s32 L = ee_level_of_call(ra, lvl_func_L00_001F92E8, CREDITS_PICTURE_SITE);
+    volatile u32 **cursor;
+    volatile u32 *p, *tag;
+    u32 saved, zbp, zbuf, zblock;
+    s32 left, right, top, bottom, h, qw, done, k, n;
+
+    if (!ws_on()) {
+        LVL(L, func_001F7680, PictureFn)(source);
+        return;
+    }
+    zbp = FRAME_ZBP;
+    zbuf = zbp | ((u32)(FRAME_ZPSM & 0xF) << 24);
+    zblock = zbp * 32;                          /* 8 KB pages, 256-byte blocks */
+    saved = DRAW_BUFFER;
+    DRAW_BUFFER = zbp * 8192;
+    LVL(L, func_001F7680, PictureFn)(source);   /* the picture into the Z memory */
+    DRAW_BUFFER = saved;
+
+    cursor = cursor_of(L);
+    left = SCREEN[4];
+    right = SCREEN[6];
+    top = SCREEN[5];
+    bottom = SCREEN[7];
+    h = SCREEN[1];
+
+    /* The picture, squeezed, and the bars. */
+    tag = *cursor;
+    p = tag + 4;
+    p[0] = 0x8000 | 18;                         /* GIF tag: NLOOP 18, EOP, PACKED, NREG 1: A+D */
+    p[1] = 1u << 28;
+    p[2] = 0xE;
+    p[3] = 0;
+    p += 4;
+    p = ad(p, 0x4E, zbuf, 1);                   /* ZBUF_1, Z writes masked */
+    p = ad(p, 0x47, 0x30000, 0);                /* TEST_1: Z test always, no alpha test */
+    p = ad(p, 0x06, zblock | (8u << 14) | (9u << 26) | (1u << 30), 2u | (1u << 3));   /* TEX0_1: 512 x 512 CT32, DECAL */
+    p = ad(p, 0x14, (1u << 5) | (1u << 6), 0);  /* TEX1_1: bilinear */
+    p = ad(p, 0x08, 1u | (1u << 2), 0);         /* CLAMP_1: clamp */
+    p = ad(p, 0x3F, 0, 0);                      /* TEXFLUSH */
+    p = ad(p, 0x00, 0x116, 0);                  /* PRIM: sprite, textured, UV */
+    p = ad(p, 0x01, 0x80808080u, 0x3F800000u);  /* RGBAQ */
+    p = ad(p, 0x03, 0, 0);                      /* UV 0, 0 */
+    p = ad(p, 0x05, (u32)squeeze_x(left) | ((u32)top << 16), 0);
+    p = ad(p, 0x03, (512u << 4) | (((u32)h << 4) << 16), 0);
+    p = ad(p, 0x05, (u32)squeeze_x(right) | ((u32)bottom << 16), 0);
+    p = ad(p, 0x00, 0x6, 0);                    /* PRIM: sprite, flat */
+    p = ad(p, 0x01, 0x80000000u, 0x3F800000u);  /* black */
+    p = ad(p, 0x05, (u32)left | ((u32)top << 16), 0);
+    p = ad(p, 0x05, (u32)squeeze_x(left) | ((u32)bottom << 16), 0);
+    p = ad(p, 0x05, (u32)squeeze_x(right) | ((u32)top << 16), 0);
+    p = ad(p, 0x05, (u32)right | ((u32)bottom << 16), 0);
+    qw = (p - tag) / 4 - 1;
+    tag[0] = 0x10000000u | qw;                  /* DMA CNT */
+    tag[1] = 0;
+    tag[2] = 0;
+    tag[3] = 0x50000000u | qw;                  /* VIF DIRECT */
+
+    /* The Z memory zeroed, and ZBUF_1 back. */
+    tag = p;
+    p = tag + 4;
+    p[0] = 0x8000 | 6;
+    p[1] = 1u << 28;
+    p[2] = 0xE;
+    p[3] = 0;
+    p += 4;
+    p = ad(p, 0x4E, zbuf, 0);                                      /* ZBUF_1 as the game set it */
+    p = ad(p, 0x50, 0, zblock | (8u << 16));                       /* BITBLTBUF: DBP, DBW 8, CT32 */
+    p = ad(p, 0x51, 0, 0);                                         /* TRXPOS 0, 0 */
+    p = ad(p, 0x52, 512, (u32)h);                                  /* TRXREG 512 x h */
+    p = ad(p, 0x53, 0, 0);                                         /* TRXDIR: host to local */
+    p = ad(p, 0x3F, 0, 0);                                         /* TEXFLUSH */
+    qw = (p - tag) / 4 - 1;
+    tag[0] = 0x10000000u | qw;
+    tag[1] = 0;
+    tag[2] = 0;
+    tag[3] = 0x50000000u | qw;
+    n = 512 * h / 4;                                               /* quadwords to send */
+    for (done = 0; done < n; ) {
+        s32 chunk = n - done;
+        if (chunk > ZERO_PER_TAG * ZERO_QWC) {
+            chunk = ZERO_PER_TAG * ZERO_QWC;
+        }
+        p[0] = 0x10000001;                                         /* CNT 1: the IMAGE GIF tag */
+        p[1] = 0;
+        p[2] = 0;
+        p[3] = 0x50000001;
+        p[4] = (u32)chunk | (done + chunk >= n ? 0x8000u : 0);
+        p[5] = 2u << 26;                                           /* FLG IMAGE */
+        p[6] = 0;
+        p[7] = 0;
+        p += 8;
+        for (k = 0; k < chunk; k += ZERO_QWC) {
+            s32 q = chunk - k < ZERO_QWC ? chunk - k : ZERO_QWC;
+            p[0] = 0x30000000u | (u32)q;                           /* REF to the zeros */
+            p[1] = (u32)zero_block & 0x0FFFFFFF;
+            p[2] = 0;
+            p[3] = 0x50000000u | (u32)q;
+            p += 4;
+        }
+        done += chunk;
+    }
+    *cursor = p;
 }

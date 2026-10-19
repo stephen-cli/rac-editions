@@ -77,7 +77,10 @@ typedef float f32;
 #define EE_SITE_WS_LETTERBOX    0x4D0
 #define EE_SITE_WS_SUBTITLES    0x4FC
 #define EE_SITE_WS_PILLARS      0x520   /* DrawWorld + 0x520: jal DoGifPaging, after the HUD block */
-#define EE_SITE_WS_MOVIE        0xF8    /* func_0023E298 + 0xF8: jal setImageTag (the movie frame's tags) */
+/* How far the quick-select ring's slot is moved while the HUD draws: 0 in
+ * 4:3, half the way out to the 16:9 edge in 16:9 (src/widescreen.c). */
+s32 ee_ws_ring_shift(void);
+#define EE_SITE_WS_MOVIE       0xF8    /* func_0023E298 + 0xF8: jal setImageTag (the movie frame's tags) */
 
 /* The Options list row the edition inserts (q3), shared with tools/gen_menu.py,
  * and the two core tables the game fills at boot from the disc's table of

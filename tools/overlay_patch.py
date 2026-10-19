@@ -540,7 +540,41 @@ def widescreen(at):
             (at("func_0023AA38") + 0x50C, jal(at("func_001F5988")), jal(modseg_symbol("ee_ws_br_screens_quad_a"))),
             (at("func_0023AA38") + 0x568, jal(at("func_001F5988")), jal(modseg_symbol("ee_ws_br_screens_quad_b"))),
             (at("func_0023E298") + site_offset("EE_SITE_WS_MOVIE"), jal(at("func_0023C5E0")), jal(modseg_symbol("ee_ws_movie_tag"))),
-            (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))]
+            # game mode 4's prompt ("Quit Race?" in the ships and races)
+            (at("func_L00_001F9248") + 0x60, jal(at("func_001FBE80")), jal(modseg_symbol("ee_ws_br_quit_prompt"))),
+            # the credits (game mode 7): the picture pillarboxed, the name tags squeezed
+            (at("func_L00_001F92E8") + 0x24, jal(at("func_001F7680")), jal(modseg_symbol("ee_ws_credits_picture"))),
+            (at("func_L00_001F92E8") + 0xC8, jal(at("func_L00_001FCC50")), jal(modseg_symbol("ee_ws_br_credits_name"))),
+            (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at)
+
+
+# The ship levels register their HUD's draw callback each frame with a lui/addiu
+# pair of $a0: {level: (function, lui offsets, addiu offset)}.
+SHIP_HUD_SITES = {
+    11: ("func_L11_00313D00", (0x924, 0x934), 0x948),   # func_L11_00313218 (a bnel's delay slot holds one lui)
+    13: ("func_L13_002BB3E8", (0xE34,), 0xE48),         # func_L13_002BAA68
+    17: ("func_L17_002EDE50", (0xC00,), 0xC14),         # func_L17_002ED498
+}
+
+
+def ship_hud_patches(at):
+    """q4: the ship's HUD callback goes through ee_ws_br_ship_NN (src/widescreen.c ship_hud)."""
+    if at.level not in SHIP_HUD_SITES:
+        return []
+    fn, luis, lo_site = SHIP_HUD_SITES[at.level]
+    f = at(fn)
+    hi, lo = hi_lo(modseg_symbol(f"ee_ws_br_ship_{at.level}"))
+    out = []
+    for o in luis:
+        old, = at.words(f + o, 1)
+        if old >> 16 != 0x3C04:
+            raise SystemExit(f"level {at.level}: {fn} + 0x{o:X} is not lui $a0")
+        out.append((f + o, old, (old & 0xFFFF0000) | hi))
+    old, = at.words(f + lo_site, 1)
+    if old >> 16 != 0x2484:
+        raise SystemExit(f"level {at.level}: {fn} + 0x{lo_site:X} is not addiu $a0, $a0")
+    out.append((f + lo_site, old, (old & 0xFFFF0000) | lo))
+    return out
 
 
 FEATURES = {

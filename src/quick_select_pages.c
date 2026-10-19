@@ -215,7 +215,7 @@ void ee_qs_draw_c(void *slot, u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_001FFFB8, EE_SITE_HUD_SLOT_DRAW);
     volatile u8 *s = (volatile u8 *)slot;
-    s32 x, y, fade;
+    s32 x, y, fade, min_x;
     u32 colour;
     LVL(L, func_L00_00238C30, SlotFn)(slot);
     fade = s[0x70];
@@ -230,8 +230,11 @@ void ee_qs_draw_c(void *slot, u32 ra)
     y = *(volatile s32 *)(s + 0x54);
     LVL(L, func_L00_00236400, OriginFn)(slot, &x, &y);
     /* The ring sits at the screen's left edge (box x ~18): the L1 glyph is
-     * kept on screen, which still clears the left icon (box x + 11). */
-    LVL(L, func_001F68E8, FontFn)(x - 26 < GLYPH_MIN_X ? GLYPH_MIN_X : x - 26, y + BOX_CY - 8, colour, glyph_l1, -1);
+     * kept on screen, which still clears the left icon (box x + 11). In 16:9
+     * the ring's slot is moved out while it draws (src/widescreen.c), and the
+     * clamp with it, so that L1 keeps its place beside the ring. */
+    min_x = GLYPH_MIN_X + ee_ws_ring_shift();
+    LVL(L, func_001F68E8, FontFn)(x - 26 < min_x ? min_x : x - 26, y + BOX_CY - 8, colour, glyph_l1, -1);
     LVL(L, func_001F68E8, FontFn)(x + R1_GLYPH_X, y + BOX_CY - 8, colour, glyph_r1, -1);
 }
 

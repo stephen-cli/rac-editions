@@ -183,6 +183,35 @@ ee_ws_br_screens_quad_a:
 ee_ws_br_screens_quad_b:
     j     ee_ws_bracket
     addiu $25, $0, 8
+.globl ee_ws_br_quit_prompt
+ee_ws_br_quit_prompt:
+    j     ee_ws_bracket
+    addiu $25, $0, 9
+.globl ee_ws_br_credits_name
+ee_ws_br_credits_name:
+    j     ee_ws_bracket
+    addiu $25, $0, 10
+
+/* The credits' picture, func_001F7680(source): one argument, the return
+ * address goes in $5. */
+.globl ee_ws_credits_picture
+.extern ee_ws_credits_picture_c
+ee_ws_credits_picture:
+    j     ee_ws_credits_picture_c
+    addu  $5, $31, $0
+/* The ship levels' HUD callbacks: site 32 + the level. */
+.globl ee_ws_br_ship_11
+ee_ws_br_ship_11:
+    j     ee_ws_bracket
+    addiu $25, $0, 43
+.globl ee_ws_br_ship_13
+ee_ws_br_ship_13:
+    j     ee_ws_bracket
+    addiu $25, $0, 45
+.globl ee_ws_br_ship_17
+ee_ws_br_ship_17:
+    j     ee_ws_bracket
+    addiu $25, $0, 49
 
 /* The vendor render's call of VendorDrawScreens(m): the return address goes in $5. */
 .globl ee_ws_vendor_screens
