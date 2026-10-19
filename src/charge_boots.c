@@ -179,7 +179,7 @@ void ee_charge_cheat_frame(s32 L)
  * pickup (owner's report, 2026-10-19). No record is free (0 is "nothing",
  * 1 is Clank on the back), so while Ratchet is on the hoverboard (control
  * mode 0x16), or item 36 is in his hand, the record holds retail's words;
- * otherwise the Charge Boots'. Checked at the start of every gameplay
+ * otherwise the Charge Boots' (worn boots: below). Checked at the start of every gameplay
  * frame, before the hero update in which a pickup equips. */
 extern const u32 ee_item36_at[19];
 extern const u32 ee_item36_words[19][2][19];
@@ -187,19 +187,97 @@ extern const u32 ee_item36_words[19][2][19];
 #define CONTROL_HOVERBOARD 0x16
 #define SLOT_HAND          0
 
+/* Worn boots on the board. Item 36 in the boots slot reads the same record
+ * as the hand's: with retail's words in it the worn boots were attached as
+ * the Devastator is, near Ratchet's hand, during the race (owner,
+ * 2026-10-19), and nothing is worn on the feet on the hoverboard. So on
+ * the board the boots are taken off (made pending as "no item", as the
+ * cheat's toggle does) and the record switches only once they are off,
+ * unless a pickup has already put item 36 in the hand. They are put back
+ * on (unless other boots have been put on meanwhile) once Ratchet is in
+ * normal control, item 36 is out of his hand and the record holds the
+ * boots' words again: the first build put them back the frame he left the
+ * board, with the race's Devastator still in his hand and the record still
+ * retail's, so the boots slot loaded a second Devastator into the hand
+ * gadget's buffer; a second Ratchet appeared on the track and threw the
+ * real one across the level (owner, 2026-10-19). Retail takes item 36 out
+ * of the hand when the game is paused (func_00219C70).
+ *
+ * The pause menu shows the boots from the record (their preview, their
+ * equip), and a pause can open before any gameplay frame has run since the
+ * board was left (quitting the race): it showed the Devastator as the
+ * Charge Boots (owner, 2026-10-19). So the mode-0 frame's two calls of the
+ * pause entry (func_L00_00299250 + 0x36C, + 0x434) put the boots' words
+ * back first; the next gameplay frame chooses again. */
+#define ITEM_MAGNEBOOTS_ID 0x1C
+#define ITEM_GRINDBOOTS_ID 0x1D
+#define CONTROL_NORMAL     0
+static s32 boots_parked;
+
+static s32 boots_worn(void)
+{
+    return HERO_ITEM(SLOT_BOOTS) == ITEM_CHARGE_BOOTS || HERO_SELECTED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS
+        || HERO_PENDING(SLOT_BOOTS) == ITEM_CHARGE_BOOTS;
+}
+
 void ee_race_item_frame(s32 L)
 {
     volatile u32 *rec = (volatile u32 *)ee_item36_at[L];
-    s32 race = HERO_CONTROL_MODE == CONTROL_HOVERBOARD || EQUIPPED(SLOT_HAND) == ITEM_CHARGE_BOOTS
+    s32 board = HERO_CONTROL_MODE == CONTROL_HOVERBOARD;
+    s32 hand = EQUIPPED(SLOT_HAND) == ITEM_CHARGE_BOOTS
         || HERO_ITEM(SLOT_HAND) == ITEM_CHARGE_BOOTS || HERO_PENDING(SLOT_HAND) == ITEM_CHARGE_BOOTS
         || HERO_SELECTED(SLOT_HAND) == ITEM_CHARGE_BOOTS;
-    const u32 *want = ee_item36_words[L][race ? 0 : 1];
+    s32 race = board || hand;
+    const u32 *want;
     s32 i;
+    if (board && boots_worn()) {
+        HERO_PENDING(SLOT_BOOTS) = ITEM_NONE;
+        boots_parked = 1;
+        race = hand;
+    } else if (boots_parked && !board && !hand && HERO_CONTROL_MODE == CONTROL_NORMAL
+               && HERO_PENDING(SLOT_BOOTS) == 0 && rec[0] == ee_item36_words[L][1][0]) {
+        if (ITEM_OWNED(ITEM_CHARGE_BOOTS) && HERO_ITEM(SLOT_BOOTS) != ITEM_MAGNEBOOTS_ID
+            && HERO_ITEM(SLOT_BOOTS) != ITEM_GRINDBOOTS_ID) {
+            HERO_PENDING(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+        }
+        boots_parked = 0;
+    }
+    want = ee_item36_words[L][race ? 0 : 1];
     if (rec[0] != want[0]) {
         for (i = 0; i < 19; i++) {
             rec[i] = want[i];
         }
     }
+}
+
+DECLARE_LVL(func_L00_00299250);        /* the mode-0 frame */
+DECLARE_LVL(func_00219C70);            /* the pause entry */
+#define PAUSE_SITE_A 0x36C
+#define PAUSE_SITE_B 0x434
+typedef void (*PauseFn)(s32);
+
+void ee_pause_entry_c(s32 arg, u32 ra)
+{
+    s32 L;
+    volatile u32 *rec;
+    s32 i;
+    for (L = 0; L < 19; L++) {
+        u32 f = lvl_func_L00_00299250[L];
+        if (ra == f + PAUSE_SITE_A + 8 || ra == f + PAUSE_SITE_B + 8) {
+            break;
+        }
+    }
+    if (L == 19) {
+        L = ee_level_of_call(ra, lvl_func_L00_00299250, PAUSE_SITE_A);   /* never expected */
+    }
+    rec = (volatile u32 *)ee_item36_at[L];
+    if (HERO_ITEM(SLOT_HAND) != ITEM_CHARGE_BOOTS && HERO_PENDING(SLOT_HAND) != ITEM_CHARGE_BOOTS
+        && HERO_SELECTED(SLOT_HAND) != ITEM_CHARGE_BOOTS) {   /* never under a race Devastator in the hand */
+        for (i = 0; i < 19; i++) {
+            rec[i] = ee_item36_words[L][1][i];
+        }
+    }
+    LVL(L, func_00219C70, PauseFn)(arg);
 }
 
 /* The worn boots' pose. A worn item moby is placed at a joint of Ratchet's

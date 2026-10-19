@@ -32,6 +32,15 @@ ee_charge_camera_hook:
     j     ee_charge_camera_c
     addu  $8, $31, $0
 
+/* The mode-0 frame's pause entry, func_00219C70(arg) at func_L00_00299250
+ * + 0x36C and + 0x434 (record 36 back to the Charge Boots first): the
+ * return address goes in $5. */
+.globl ee_pause_entry_hook
+.extern ee_pause_entry_c
+ee_pause_entry_hook:
+    j     ee_pause_entry_c
+    addu  $5, $31, $0
+
 /* MobyFreeSlotBookkeeping() at the start of the mode-0 frame (the
  * edition's sequences kept, the Charge Boots cheat): no arguments, the
  * return address goes in $4. */

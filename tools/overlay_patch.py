@@ -448,6 +448,7 @@ def charge_boots(at):
 CHARGE_CHEAT = (7, 3, 3, 4, 6, 6)
 CHARGE_CHEAT_ENTRY = 8
 FRAME_START_SITE = 0x6D4   # func_L00_00299250 + 0x6D4: jal MobyFreeSlotBookkeeping
+PAUSE_ENTRY_SITES = (0x36C, 0x434)   # func_L00_00299250: its two calls of the pause entry, func_00219C70
 
 
 def charge_dash(at):
@@ -481,6 +482,8 @@ def charge_dash(at):
             (c["camera_site"], jal(c["collect"]), jal(modseg_symbol("ee_charge_camera_hook"))),
             (at("func_L00_00299250") + FRAME_START_SITE, jal(at("func_L00_0024F7E0")),
              jal(modseg_symbol("ee_frame_start_hook"))),
+            (at("func_L00_00299250") + PAUSE_ENTRY_SITES[0], jal(at("func_00219C70")), jal(modseg_symbol("ee_pause_entry_hook"))),
+            (at("func_L00_00299250") + PAUSE_ENTRY_SITES[1], jal(at("func_00219C70")), jal(modseg_symbol("ee_pause_entry_hook"))),
             (c["cheats_enter"], c["cheats_builder"], modseg_symbol(f"ee_cheats_enter_{at.level:02d}")),
             (c["cheats_update_slot"], c["cheats_update"], modseg_symbol(f"ee_cheats_update_{at.level:02d}"))] + \
         [(entry + 4 * k, 0, struct.unpack_from("<I", seq, 4 * k)[0]) for k in range(4)]
