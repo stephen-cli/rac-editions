@@ -664,7 +664,7 @@ packet-table guard, the helper's address) and the nine sites in levels 0,
 carries 0xF in its top nibble and the frames are packed; the engine
 expands a frame at animation time into the layout R&C1 stores on disc.
 The expander is a hand-written routine at `0x308B20` in SCUS_972.68,
-transcribed in `tools/rac2_anim.py`:
+transcribed in `common/rac2_anim.py`:
 - after the triggers, the sequence's packed data: a u32 of three
   bit-fields giving the frame parts' offsets, a base pose of three s16 per
   joint, the scale and translation record counts and their base records;
@@ -677,7 +677,7 @@ transcribed in `tools/rac2_anim.py`:
 - each record component starts from its base record and two flag bits
   choose keep, add s8 * 4, or replace with 16 bits.
 
-**Proof.** `python tools/rac2_anim.py validate` decodes R&C2's run, walk
+**Proof.** `python common/rac2_anim.py validate` decodes R&C2's run, walk
 and jump sequences (slots 4, 3, 6) and compares them with R&C1's own, which
 both discs carry: rates and header fields identical; quaternion components
 within 6/32768, the packed format's 2-bit quantization (deltas are
@@ -977,7 +977,7 @@ now packs the game bank, wrench's overlay, `mod/` and the boots bank with the
 fork, then runs `overlay_patch.py --iso` against the packed image (level
 locations read through the table of contents and level headers, which works
 on wrench's layout where the editor's disc reader does not) and writes the
-sectors in place with `tools/apply_patches.py`. The Options page previews,
+sectors in place with `common/apply_patches.py`. The Options page previews,
 which are streamed by sector, are refreshed at runtime from the tables the
 game fills at boot from the table of contents (`EE_OPTIONS_SS`, `EE_HELP_SS`),
 so each image streams its own. `--quick` stays as it was, with the
@@ -1227,7 +1227,7 @@ and keep those offsets through a 90-degree turn: rigid, as the port's
 port drew the jets with `spawn_glow_particle` (`func_L00_002ADBB0`), which
 spawns a 3D moby (class 112, random orientation), not a sprite: it read as
 blue bubbles. The animation is R&C2's own: sequence 0x8B
-(15 frames) expanded by `tools/rac2_anim.py` into
+(15 frames) expanded by `common/rac2_anim.py` into
 `build/modseg/gen_anim_charge.c` and installed in slot 141 of Ratchet's
 class, as the strafe's backpedal is in 140.
 
@@ -1566,7 +1566,7 @@ Ratchet's class slot 140 (fourth increment), above 0x17: the channel was
 off and every weapon swung like a glove.
 
 **The port.**
-- `tools/rac2_anim.py emit-arm 0x14` (run by `tools/pack.sh`) reads
+- `common/rac2_anim.py emit-arm 0x14` (run by `tools/pack.sh`) reads
   sequence 0x14 of R&C2's arm classes 1 and 2 from its level 1 archive
   (index + 0x18: the class count and offset, 32-byte entries) and writes
   them as `ee_gunarm_seq_1` and `ee_gunarm_seq_2`

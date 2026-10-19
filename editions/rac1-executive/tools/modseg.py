@@ -148,7 +148,7 @@ def exported(elf_path: Path) -> dict[str, int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--base", type=lambda s: int(s, 16), default=DEFAULT_BASE)
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/modseg")
     args = ap.parse_args()

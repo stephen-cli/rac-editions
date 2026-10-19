@@ -70,7 +70,7 @@ has every change in full detail, with its status.
 | [Python](https://www.python.org/) 3.10 or newer | every pipeline step |
 | [OpenRAC](https://github.com/OpenRAC/OpenRAC) | builds the game's executable from source |
 | The SN ProDG toolchain mirrors: [SN-Systems-ProDG_for_PS2_3.01](https://github.com/AngheloAlf/SN-Systems-ProDG_for_PS2_3.01) and [sce_ps2_sdk_24](https://github.com/AngheloAlf/sce_ps2_sdk_24) | the PS2 compiler, assembler and linker the game was built with |
-| The edition's fork of [wrench](https://github.com/chaoticgd/wrench), branch `executive-edition` (not yet published) | unpacks the discs, converts the R&C2 boots to R&C1's format, compresses level data |
+| The edition's fork of [wrench](https://github.com/chaoticgd/wrench): [stephen-cli/wrench](https://github.com/stephen-cli/wrench), branch `executive-edition` | unpacks the discs, converts the R&C2 boots to R&C1's format, compresses level data |
 | [CMake](https://cmake.org/), [Ninja](https://ninja-build.org/) and a C++20 compiler ([MinGW-w64 GCC](https://winlibs.com/)) | to build wrench |
 | [PCSX2](https://pcsx2.net/) (optional) | to play the result |
 
@@ -90,14 +90,14 @@ C:\rac\rac1-executive-edition
 ```sh
 cd /c/rac
 git clone -c core.autocrlf=false https://github.com/OpenRAC/OpenRAC.git
-git clone -c core.autocrlf=false -b executive-edition <wrench fork URL> wrench
+git clone -c core.autocrlf=false -b executive-edition https://github.com/stephen-cli/wrench.git wrench
 git clone <this repository's URL> rac1-executive-edition
-git -C OpenRAC apply ../rac1-executive-edition/patches/openrac-executive-edition.patch
+git -C OpenRAC apply ../rac1-executive-edition/editions/rac1-executive/patches/openrac-executive-edition.patch
 ```
 
 `core.autocrlf=false` matters: Windows line endings break OpenRAC's linker
-script. Neither this repository nor the wrench fork is published yet; the two
-URLs are placeholders until they are.
+script. This repository is not published yet; its URL is a placeholder until
+it is.
 
 **2. Give OpenRAC your discs and the toolchain.**
 
@@ -131,7 +131,7 @@ wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac2/ntsc/baserom/SCUS_972.68.is
 
 ```sh
 cd rac1-executive-edition
-bash tools/pack.sh --quick
+bash editions/rac1-executive/tools/pack.sh --quick
 ```
 
 This takes about five minutes. It compiles the game from source, checks it
@@ -157,11 +157,15 @@ distance and in menus.
 
 ## Layout
 
+This edition's folder (`editions/rac1-executive/`) in the editions repository;
+tools shared with the other editions are in the repository's `common/`.
+
 ```
 src/        the edition's C, compiled with the game's compiler into a resident "mod segment"
 tools/      the pipeline: pack.sh (build -> bootable executable -> level-code patches -> disc image),
             overlay_patch.py (per-level patches), modseg.py (builds src/), splice_boots.py,
-            gen_*.py (per-level data), export-patches.sh (refreshes patches/)
+            gen_*.py (per-level data), gen_frontend.py (the title screen's programs),
+            export-patches.sh (refreshes patches/)
 patches/    what the edition adds to OpenRAC (two disc tools), as one diff
 mod/        wrench mod bank, used only by the full wrench rebuild
 text/       the edition's new strings, in five languages

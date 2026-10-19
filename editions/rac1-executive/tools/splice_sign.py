@@ -92,10 +92,10 @@ def replace_class(archive: bytes, names, blob: bytes, wad, wrench: Path, work: P
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("image", type=Path)
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--class-core", type=Path, default=ROOT / "build/sign_bank/moby_classes/1891_gadgetron_sign/core.bin")
     ap.add_argument("--retail", type=Path, default=None, help="the retail image, for its archive size (default OpenRAC's PAL baserom)")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parent / "wrench/bin/wrenchbuild.exe")
+    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
     args = ap.parse_args()
     sys.path.insert(0, str(args.openrac / "editor"))
     from formats import wad

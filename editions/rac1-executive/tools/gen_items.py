@@ -162,7 +162,7 @@ def panel_sequence(openrac: Path) -> tuple[bytes, list[int], list[bytes]]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/modseg")
     ap.add_argument("--boots-class", type=int, default=None,
                     help="moby class of the Charge Boots model (tools/gen_boots.py's, wrench route); "

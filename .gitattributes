@@ -1,1 +1,1 @@
-tools/wsl_linux_run.sh text eol=lf
+common/wsl_linux_run.sh text eol=lf

@@ -2,7 +2,7 @@
 # Executive Edition pipeline: OpenRAC build + audits, bootable executable,
 # disc image. Run from anywhere in Git Bash.
 #
-#   bash tools/pack.sh [--quick]
+#   bash editions/rac1-executive/tools/pack.sh [--quick]
 #
 #   --quick   copy of the owner's image with the level code patched in place, and
 #             the Charge Boots class (R&C2's model) spliced into every level's data
@@ -18,8 +18,9 @@
 # OPENRAC, WRENCH and GAME_BANK override the defaults.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-OPENRAC=${OPENRAC:-$(cd "$HERE/../OpenRAC" && pwd)}
-WRENCH=${WRENCH:-$(cd "$HERE/../wrench" && pwd)}
+COMMON=$(cd "$HERE/../../common" && pwd)                      # tools shared by the editions
+OPENRAC=${OPENRAC:-$(cd "$HERE/../../../OpenRAC" && pwd)}
+WRENCH=${WRENCH:-$(cd "$HERE/../../../wrench" && pwd)}
 GAME_BANK=${GAME_BANK:-$OPENRAC/assets/wrench/rac1-pal}   # unpacked with the edition's wrench fork (stash_textures on carried items)
 PAL=$OPENRAC/games/rac1
 QUICK=0
@@ -30,7 +31,7 @@ cd "$PAL"
 # Native Windows (Git Bash): OpenRAC's Makefile.sn needs a GNU make newer than the
 # toolchain's 3.77 ($(if), since the 2026-10-19 master merge), and two objects are
 # assembled by Linux assemblers (tools/gas210.py, tools/dtls29_as.py), run through
-# WSL with tools/wsl_linux_run.sh. Set only when unset and present.
+# WSL with common/wsl_linux_run.sh. Set only when unset and present.
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
     TCS=$OPENRAC/toolchains
@@ -39,7 +40,7 @@ case "$(uname -s)" in
     fi
     if command -v wsl >/dev/null 2>&1; then
       W=$(MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e wslpath -a "$(cygpath -w "$TCS")" | tr -d '\r')
-      R="wsl -d Ubuntu -e sh $(MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e wslpath -a "$(cygpath -w "$HERE/tools/wsl_linux_run.sh")" | tr -d '\r')"
+      R="wsl -d Ubuntu -e sh $(MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e wslpath -a "$(cygpath -w "$COMMON/wsl_linux_run.sh")" | tr -d '\r')"
       [ -n "${EE_GAS210:-}" ] || export EE_GAS210="$R $W/sn-prodg-24/local/sce/ee/gcc/bin/ee-as"
       [ -n "${EE_DTLS29_AS:-}" ] || [ ! -f "$TCS/ee-as-dtls13010/as.bin" ] ||
         export EE_DTLS29_AS="$R $W/ee-as-dtls13010/lib/ld-2.3.6.so --library-path $W/ee-as-dtls13010/lib $W/ee-as-dtls13010/as.bin"
@@ -47,10 +48,10 @@ case "$(uname -s)" in
 esac
 echo "== 1/5 build"
 bash tools/build_sn.sh
-echo "== 2/5 strings (tools/gen_text.py), menu data (tools/gen_menu.py), hero sites (tools/gen_hero.py), R&C2 backpedal (tools/rac2_anim.py), Charge Boots item and icon (tools/gen_items.py, tools/gen_hud.py), mod segment (tools/modseg.py)"
+echo "== 2/5 strings (tools/gen_text.py), menu data (tools/gen_menu.py), hero sites (tools/gen_hero.py), R&C2 backpedal (common/rac2_anim.py), Charge Boots item and icon (tools/gen_items.py, tools/gen_hud.py), mod segment (tools/modseg.py)"
 python "$HERE/tools/gen_text.py"
-python "$HERE/tools/rac2_anim.py" emit 0x14 -o "$HERE/build/modseg/gen_anim.c"
-python "$HERE/tools/rac2_anim.py" emit-arm 0x14 -o "$HERE/build/modseg/gen_anim_arm.c"   # R&C2's gun arms over the backpedal (src/gun_arm.c)
+python "$COMMON/rac2_anim.py" emit 0x14 -o "$HERE/build/modseg/gen_anim.c"
+python "$COMMON/rac2_anim.py" emit-arm 0x14 -o "$HERE/build/modseg/gen_anim_arm.c"   # R&C2's gun arms over the backpedal (src/gun_arm.c)
 python "$HERE/tools/gen_menu.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_hero.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_boots.py" --openrac "$OPENRAC" --wrench "$WRENCH"    # R&C2's Charge Boots as class 2000
@@ -58,7 +59,7 @@ python "$HERE/tools/gen_sign.py" --openrac "$OPENRAC" --wrench "$WRENCH"     # K
 python "$HERE/tools/gen_items.py" --openrac "$OPENRAC" --boots-class 2000
 python "$HERE/tools/gen_charge.py" --openrac "$OPENRAC"                       # the Charge Boots dash's sites (src/charge_dash.c)
 python "$HERE/tools/gen_qs.py" --openrac "$OPENRAC"                           # the quick-select pages' sites (src/quick_select_pages.c)
-python "$HERE/tools/rac2_anim.py" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
+python "$COMMON/rac2_anim.py" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" emit                # the frontends' flight in 16:9 (src/widescreen.c FE_BOOT/FE_BIN)
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"
@@ -92,5 +93,5 @@ while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$OPENRA
   | grep -vE '^Parsing|^\[ *[0-9]+%\]' || true
 echo "== 5/5 level-code patches against the packed image (tools/overlay_patch.py --iso), written in place"
 python "$HERE/tools/overlay_patch.py" --iso "$out" -o "$HERE/build/patches-wrench"
-python "$HERE/tools/apply_patches.py" "$out" "$HERE/build/patches-wrench/patches.tsv"
+python "$COMMON/apply_patches.py" "$out" "$HERE/build/patches-wrench/patches.tsv"
 echo "-> $out"

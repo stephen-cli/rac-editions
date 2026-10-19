@@ -54,8 +54,8 @@ REBIND = ("0", "1", "-950", "-1250")
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parent / "wrench")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
+    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/boots_bank")
     args = ap.parse_args()
 

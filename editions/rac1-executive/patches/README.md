@@ -12,4 +12,4 @@ What the edition adds to OpenRAC, as one diff against the base:
 
 Apply onto an OpenRAC checkout of master (the base or later) with:
 
-    git -C OpenRAC apply ../rac1-executive-edition/patches/openrac-executive-edition.patch
+    git -C OpenRAC apply ../rac1-executive-edition/editions/rac1-executive/patches/openrac-executive-edition.patch

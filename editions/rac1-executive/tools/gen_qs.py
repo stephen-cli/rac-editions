@@ -175,7 +175,7 @@ def find_level(openrac: Path, level: int, cat: dict, carry_site: int, autoslot_s
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/modseg")
     args = ap.parse_args()
     cat = catalogue(args.openrac)

@@ -702,7 +702,7 @@ def level_text_locations(openrac: Path, iso: Path | None = None):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("features", nargs="*", default=DEFAULT_FEATURES)
-    ap.add_argument("--openrac", type=Path, default=HERE.parent.parent / "OpenRAC")
+    ap.add_argument("--openrac", type=Path, default=HERE.parents[3] / "OpenRAC")
     ap.add_argument("-o", "--output", type=Path, default=HERE.parent / "build/patches")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--iso", type=Path, default=None,

@@ -79,7 +79,7 @@ def build(tables) -> bytes:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--strings", type=Path, default=ROOT / "text/strings.tsv")
     ap.add_argument("-o", "--output", type=Path, default=ROOT / "build/all_text.bin")
     ap.add_argument("--check", action="store_true", help="only verify the original rebuilds byte for byte")

@@ -190,7 +190,7 @@ def emit(args) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--png", type=Path, default=ROOT / "art/charge_boots.png")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/modseg")
     args = ap.parse_args()

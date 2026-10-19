@@ -387,8 +387,8 @@ def enclosing_sphere(points):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parent / "wrench")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
+    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
     ap.add_argument("--bank", type=Path, default=None, help="wrench unpack of the PAL disc (default OpenRAC/assets/wrench/rac1-pal)")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/sign_bank")
     args = ap.parse_args()

@@ -303,10 +303,10 @@ def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palett
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("image", type=Path)
-    ap.add_argument("--openrac", type=Path, default=ROOT.parent / "OpenRAC")
+    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--class-core", type=Path, default=ROOT / f"build/boots_bank/moby_classes/{CLASS_ID}_charge_boots/core.bin")
     ap.add_argument("--texture", type=Path, default=None, help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parent / "wrench/bin/wrenchbuild.exe")
+    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
     args = ap.parse_args()
     sys.path.insert(0, str(args.openrac / "editor"))
     from formats import wad
