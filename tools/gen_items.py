@@ -5,13 +5,18 @@ Generate the Charge Boots item, per level, from each level's own data.
 The game's item records (0x4C bytes each, 37 of them: text ids, equip slot,
 attach bone, moby class, icon, description) and the pause menu's Gadgets
 grids are level-local data: every level program carries its own copy at its
-own addresses. Record 36 is an unused duplicate of the Devastator in retail
-(no grid shows it, no vendor sells it), so it becomes the Charge Boots: a
-copy of the Grindboots record (slot 1, class 0xC3 on both feet) with its own
-name, description and icon. The boots grid (Grindboots, Magneboots) becomes
+own addresses. Record 36 is a duplicate of the Devastator that no grid shows
+and no vendor sells, so it becomes the Charge Boots: a copy of the
+Grindboots record (slot 1, class 0xC3 on both feet) with its own name,
+description and icon. It is the hoverboard races' weapon, though, so the
+resident segment puts retail's words back while Ratchet is on the board
+(src/charge_boots.c, ee_race_item_frame); both versions are written to
+gen_items.c. The boots grid (Grindboots, Magneboots) becomes
 a three-cell grid. This reads each level's data record and writes:
 
-  build/modseg/gen_items.c       19 copies of the three-cell boots grid
+  build/modseg/gen_items.c       19 copies of the three-cell boots grid, and
+                                 per level record 36's address and its
+                                 retail and Charge Boots words
   build/modseg/items_sites.json  per level: the grid widget's cell pointer
                                  and column count, and the 19 words of
                                  record 36 (site, retail value, new value)
@@ -203,6 +208,17 @@ def main() -> int:
     c.append("};")
     words = [f"0x{w:08X}" for w in struct.unpack("<7I", header)] + [f"(unsigned int)(ee_panel_frames + 0x{o:X})" for o in starts]
     c.append(f"const unsigned int ee_panel_seq[{len(words)}] __attribute__((aligned(16))) = {{ {', '.join(words)} }};")
+    # Record 36 per level: its address, retail's words (the races' Devastator) and the Charge Boots'.
+    c.append("")
+    c.append("const unsigned int ee_item36_at[19] = { "
+             + ", ".join(f"0x{sites[L]['record'][0][0]:08X}" for L in range(19)) + " };")
+    c.append(f"const unsigned int ee_item36_words[19][2][{RECORD_WORDS}] = {{")
+    for L in range(19):
+        rec = sites[L]["record"]
+        retail = ", ".join(f"0x{w[1]:X}" for w in rec)
+        boots = ", ".join(f"0x{w[2]:X}" for w in rec)
+        c.append(f"  {{ {{ {retail} }},\n    {{ {boots} }} }},  /* level {L} */")
+    c.append("};")
     (args.out / "gen_items.c").write_text("\n".join(c) + "\n")
     (args.out / "items_sites.json").write_text(json.dumps(sites, indent=1))
     print(f"wrote {args.out / 'gen_items.c'} (19 levels) and items_sites.json")

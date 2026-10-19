@@ -631,5 +631,6 @@ void ee_frame_start_c(u32 ra)
         keep_sequence(moby, BACKPEDAL_SLOT, ee_backpedal_seq);
     }
     ee_charge_cheat_frame(L);
+    ee_race_item_frame(L);
     LVL(L, func_L00_0024F7E0, Void)();
 }

@@ -120,6 +120,10 @@ void ee_charge_boots_frame(s32 level);
  * (src/charge_boots.c, called from src/charge_dash.c's frame hook). */
 void ee_charge_cheat_frame(s32 level);
 
+/* x2: item record 36, the Charge Boots' and the hoverboard races' Devastator:
+ * retail's words while Ratchet is on the board (src/charge_boots.c). */
+void ee_race_item_frame(s32 level);
+
 /* x2: the level loader's HUD header copy, with the edition's icon appended (src/hud_icons.c). */
 void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size);
 #define EE_SITE_HUD_HEADER_COPY 0xB8    /* func_002032D0 + 0xB8: jal FastMemCopy(header, archive, size) */

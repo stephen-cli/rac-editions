@@ -42,6 +42,7 @@
 
 #define ITEM_OWNED(id)     (*(volatile u8 *)(0x0013D5C8 + (id)))   /* D_0013D5C8: owned items, by id */
 #define ITEM_CHARGE_BOOTS  36
+#define ITEM_CLANK         1           /* the back slot's "no pack" item */
 #define SLOT_BOOTS         1
 #define EQUIPPED(slot)       (*(volatile s32 *)(0x00141760 + 4 * (slot)))   /* D_00141760: the hero's equipped item per slot, saved */
 #define HERO_PENDING(slot)   (*(volatile s32 *)(0x0013F450 + 0x20B8 + 4 * (slot)))   /* hero.pending_item */
@@ -122,6 +123,11 @@ static void panel_sequence(s32 L)
  * page is open (the gameplay frame does not run while paused). */
 static void sync_ownership(s32 L)
 {
+    /* A save from the one test build (2026-10-19) that made the boots item
+     * 1, which is Clank; retail puts only 0, 28 or 29 in the boots slot. */
+    if (EQUIPPED(SLOT_BOOTS) == ITEM_CLANK) {
+        EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+    }
     if (!CHEAT_ON) {
         /* Locked or switched off: not owned, not worn (saves from earlier
          * builds own and wear them). */
@@ -160,6 +166,39 @@ void ee_charge_cheat_frame(s32 L)
 {
     if (CHEAT_SEEN) {
         *(volatile u8 *)(ee_charge_cheat_table[L] + 16 * EE_CHEAT_ENTRY) = 0;
+    }
+}
+
+/* Record 36 in the hoverboard races. The record the Charge Boots took is
+ * not unused: it is the races' Devastator. The races' ammo pickup (class
+ * 0x1D6; NTSC decomp ui/help/00237488.c) puts item 36 in Ratchet's hand
+ * and adds to its ammo, and the hero then loads the record's class as the
+ * gun (func_00205270). With the boots' class there, the loader found no
+ * such gun among the level's, unpacked from address 0 and the game stopped
+ * in the retail halt routine (func_L00_0024EC20, a trap) at the first
+ * pickup (owner's report, 2026-10-19). No record is free (0 is "nothing",
+ * 1 is Clank on the back), so while Ratchet is on the hoverboard (control
+ * mode 0x16), or item 36 is in his hand, the record holds retail's words;
+ * otherwise the Charge Boots'. Checked at the start of every gameplay
+ * frame, before the hero update in which a pickup equips. */
+extern const u32 ee_item36_at[19];
+extern const u32 ee_item36_words[19][2][19];
+#define HERO_CONTROL_MODE  (*(volatile s32 *)(0x0013F450 + 0x208C))
+#define CONTROL_HOVERBOARD 0x16
+#define SLOT_HAND          0
+
+void ee_race_item_frame(s32 L)
+{
+    volatile u32 *rec = (volatile u32 *)ee_item36_at[L];
+    s32 race = HERO_CONTROL_MODE == CONTROL_HOVERBOARD || EQUIPPED(SLOT_HAND) == ITEM_CHARGE_BOOTS
+        || HERO_ITEM(SLOT_HAND) == ITEM_CHARGE_BOOTS || HERO_PENDING(SLOT_HAND) == ITEM_CHARGE_BOOTS
+        || HERO_SELECTED(SLOT_HAND) == ITEM_CHARGE_BOOTS;
+    const u32 *want = ee_item36_words[L][race ? 0 : 1];
+    s32 i;
+    if (rec[0] != want[0]) {
+        for (i = 0; i < 19; i++) {
+            rec[i] = want[i];
+        }
     }
 }
 
