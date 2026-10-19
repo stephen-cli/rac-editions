@@ -23,6 +23,6 @@ git -C "$OPENRAC" diff --binary "$base" "$BRANCH" > "$HERE/patches/openrac-execu
   echo
   echo "Apply onto an OpenRAC checkout of master (the base or later) with:"
   echo
-  echo '    git -C OpenRAC apply ../rac1-executive-edition/editions/rac1-executive/patches/openrac-executive-edition.patch'
+  echo '    git -C OpenRAC apply ../rac-editions/editions/rac1-executive/patches/openrac-executive-edition.patch'
 } > "$HERE/patches/README.md"
 cat "$HERE/patches/README.md"

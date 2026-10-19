@@ -82,7 +82,7 @@ Put the three repositories side by side, in a short path (the PS2 toolchain's
 ```
 C:\rac\OpenRAC
 C:\rac\wrench
-C:\rac\rac1-executive-edition
+C:\rac\rac-editions
 ```
 
 **1. Get the code.**
@@ -91,8 +91,8 @@ C:\rac\rac1-executive-edition
 cd /c/rac
 git clone -c core.autocrlf=false https://github.com/OpenRAC/OpenRAC.git
 git clone -c core.autocrlf=false -b executive-edition https://github.com/stephen-cli/wrench.git wrench
-git clone <this repository's URL> rac1-executive-edition
-git -C OpenRAC apply ../rac1-executive-edition/editions/rac1-executive/patches/openrac-executive-edition.patch
+git clone <this repository's URL> rac-editions
+git -C OpenRAC apply ../rac-editions/editions/rac1-executive/patches/openrac-executive-edition.patch
 ```
 
 `core.autocrlf=false` matters: Windows line endings break OpenRAC's linker
@@ -130,7 +130,7 @@ wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac2/ntsc/baserom/SCUS_972.68.is
 **4. Build the edition.**
 
 ```sh
-cd rac1-executive-edition
+cd rac-editions
 bash editions/rac1-executive/tools/pack.sh --quick
 ```
 
@@ -157,7 +157,7 @@ distance and in menus.
 
 ## Layout
 
-This edition's folder (`editions/rac1-executive/`) in the editions repository;
+This edition's folder (`editions/rac1-executive/`) in the rac-editions repository;
 tools shared with the other editions are in the repository's `common/`.
 
 ```
