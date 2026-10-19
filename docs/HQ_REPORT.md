@@ -4,6 +4,22 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-19 (owner's extra item: the GADGETRON sign)
+
+### 🏢 Kalebo III's sign reads GADGETRON — Done (owner confirmed, near and far)
+
+**What changed.** The rotating ring on Kalebo III's main building reads GADGETRON, as in the American release, instead of GALACTRON.
+
+**Decisions taken.**
+- **Built from the PAL disc only.** The PAL disc has no GADGETRON ring to switch back on (unlike the Commercials), and asking players for a second disc was ruled out. The six shared letters are the PAL letters moved to where the American sign has them, the second G is a copy of the first, and the D and E are built from the L's own parts, with the D's curve made new. The few measurements the PAL disc can't supply were taken from the American sign and kept as numbers.
+- **Packed with wrench's builder**, through the edition's fork, matching retail's conventions.
+
+**Findings.**
+- **The first builds blanked the top of the screen and stopped drawing frames on Kalebo III.** The cause was a bug in the edition's wrench fork, not the new letters: generated colour data was padded with the wrong value. Found by testing the sign piece by piece in the emulator, and fixed in the fork. The Charge Boots model goes through the same code and now matches retail too.
+- **Merging OpenRAC's master broke step 1 of the build on this machine**; being fixed next.
+
+**Verification.** In PCSX2 on the owner's Kalebo III save: the whole word as the ring turns, the sky intact, full frame rate; close up and far away (owner).
+
 ## 2026-10-19 (q4: second round; the hoverboard race freeze)
 
 ### 🥾 Charge Boots (x2) — Hoverboard race freeze fixed; the boots come off for races; verified by the owner

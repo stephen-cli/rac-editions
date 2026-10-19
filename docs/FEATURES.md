@@ -2164,3 +2164,61 @@ are right in all 19 levels. Not run in PCSX2 (owner's machine had been in
 use); owner test: the Controls page shows both rows without clipping, each
 toggles on its own, strafing works only with its row on, L2/R2 crouch and
 look with it off, and the setting survives a save and load.
+
+## Kalebo III's sign reads GADGETRON (owner's extra item, 2026-10-19) — confirmed by the owner, near and far
+
+**What the discs have.** The rotating ring on Kalebo III's main building is
+moby class 1891, which only that level holds: a half ring of nine 3D letters,
+placed twice back to back. The NTSC disc spells GADGETRON; the PAL disc
+spells GALACTRON and carries no other copy of the ring (its two gameplay
+files, NTSC and PAL, place the same class; the flat GADGETRON card, class
+1871, is a different shared class). So nothing can be switched back on, as
+the Commercials were: the class has to be rebuilt.
+
+**How it is rebuilt, from the PAL disc only** (`tools/gen_sign.py`, input
+wrench's unpack of the owner's PAL disc). Each letter is a flat plate,
+extruded radially: a front face (texture 1), back and walls (texture 0),
+flat-shaded. GALACTRON and GADGETRON share G A _ _ _ T R O N:
+- the six shared letters are the PAL letters turned about the ring's axis to
+  where the NTSC letters stand (T R O N by -1.3623 degrees, G A by +0.7377;
+  measured on the NTSC sign, where they match to 0.0003 units), and the
+  second G is the first one turned by -51.5149 degrees;
+- the D and the E are built from the L: its stem, its foot's height (0.184
+  of the letter), the T's top bar height (0.831), and the L's front and back
+  planes, cut where the strokes meet as the NTSC letters are. The E is the
+  stem with three bars, the D the stem with two bars and a bowl of ten
+  18-degree segments between two half ellipses. The few shapes the PAL disc
+  lacks (the E's bar lengths and middle bar, the D's curve) are measurements
+  of the NTSC letters, kept as numbers in the tool.
+
+Read back with OpenRAC's moby reader: 968 triangles (as the NTSC class),
+every vertex within 0.012 units of an NTSC vertex (the E's plate is tilted
+0.005 differently), 954 of 968 normals within 1 degree.
+
+**Packing.** The edition's wrench fork, `mobyconvert --mesh`, packs the mesh
+into both LODs with wrench's own builder and keeps the rest of the class,
+giving the packets the conventions every retail R&C1 moby has (one matrix
+transfer, vertex IDs 0xff, the class's texture registers, index streams
+padded to whole quadwords). The class's bounding spheres (header +0x30 and
+its sequence's) are recomputed as the smallest sphere around the vertices.
+`gen_sign.py` refuses a class with more than two texture blocks in a packet
+or with colour multipliers not padded with zeros.
+
+**In the image.** Quick route: `tools/splice_sign.py` replaces the class's
+blob in Kalebo III's core data in place (its space grows by whole 0x100
+steps, +0x3300; every core offset past it moves), recompresses, and appends
+the archive (still 0x72800 bytes smaller than retail's). Wrench route: the
+bank `build/sign_bank` overrides class 1891.
+
+**The black band (found and fixed on the way).** The first builds drew a
+black band over the top of the screen on Kalebo III and stopped presenting
+frames. Bisected in PCSX2: retail's class and a plain wrench rewrite of it
+draw; any single packet from wrench's mesh builder stalled the frame; the
+same class with only its colour multipliers' padding zeroed draws. The
+fork's writer filled that padding with 0x80 (retail: zeros), and R&C1's
+vertex pipeline also runs the trailing records, which read it. Fixed in the
+fork's writer (wrench commit 6f245a34), which also gives the Charge Boots
+class retail-style padding.
+
+**Verified.** In PCSX2 on the owner's Kalebo III save: GADGETRON all the way
+round as the ring turns, sky intact, 50 FPS; close up and far away (owner).

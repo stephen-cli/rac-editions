@@ -39,6 +39,8 @@ holds only the edition's code, tools and notes, never game data.
   for the RYNO and the Gold Weapons, rather than farming bolts.
 - **Commercials.** The three TV ads from the American release, in Goodies.
   They unlock with all ten Gold Weapons, along with the 'Making Of' video.
+- **GADGETRON.** Kalebo III's rotating sign reads GADGETRON, as in the
+  American release, instead of the PAL release's GALACTRON.
 
 ### Fixes to the original game
 
