@@ -4,6 +4,37 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-19 (q4: second round; the hoverboard race freeze)
+
+### 🥾 Charge Boots (x2) — Hoverboard race freeze fixed; the boots come off for races; verified by the owner
+
+**What changed.**
+- **The Kalebo III race no longer freezes** at the first Devastator ammo pickup. The freeze happened in 4:3 and 16:9 alike.
+- **The Charge Boots come off while Ratchet is on the hoverboard** and go back on as soon as he is off it and the race weapon has left his hand.
+- **The Gadgets page shows the Charge Boots right after quitting a race**, not the Devastator.
+
+**Findings.**
+- **The "unused" item the Charge Boots were built on is the hoverboard races' Devastator.** Picking up race ammo puts that item in Ratchet's hand, and the game then loaded the boots' model as a gun and stopped. Found from a saved state of the frozen game.
+- **There is no free item slot.** The only other empty-looking one is Clank on Ratchet's back; one test build used it and turned Clank into a boot.
+- **So the item has two identities.** It holds the race weapon during races and the Charge Boots everywhere else, switched at moments the game can't trip over. Putting the boots back on too early, while the race weapon was still in hand, made a second Ratchet appear and launched him across the level; that is fixed.
+
+**Verification.** In PCSX2 on Kalebo III (owner): races with and without the boots on, finishing and quitting, the Devastator pickup, the Gadgets page after quitting, the boots back on after a race.
+
+### 🖥️ Proper widescreen (q4) — Owner's second round fixed; verified by the owner
+
+**What changed** (each of the owner's notes):
+- **Hoverboard race HUD:** Lap and Place sit at the 16:9 edges, the bottom bar reaches both sides, and the time stays whole in the middle.
+- **Flying to a planet:** the planet's name keeps its shape and sits at the left edge.
+- **Pause menu 3D models** (Weapons, Gadgets, Quick Select): they have their proper width again.
+
+**Findings.**
+- **The race HUD draws its whole bottom bar from one place**, so it is stretched to the edges rather than moved like the other HUD elements.
+- **Pause menu panels are drawn into small pictures first**, and the models in them were narrowed twice: once by the wide camera and once by the squeeze that keeps panels in shape. The models are now drawn with the 4:3 camera.
+
+**Verification.** In PCSX2 (owner): the race HUD, the pause menu models, the planet name. Measured in the session: a menu model's width matches 4:3 to within 4%.
+
+**Not yet watched:** boss health bars, the Visibomb's camera view.
+
 ## 2026-10-19 (q4: owner's first round of 16:9 notes)
 
 ### 🖥️ Proper widescreen (q4) — Owner's first round fixed; awaiting owner re-test

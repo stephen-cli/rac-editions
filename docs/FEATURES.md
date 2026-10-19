@@ -2026,3 +2026,96 @@ races.
 **Ship landings and take-offs stay widescreen (2026-10-19, owner's request).** A level's arrival and departure flights (game mode 6) are no longer
 pillarboxed: they get the Hor+ view like play. Cinematics (game mode 2) and
 letterboxed scenes keep the original framing with pillars.
+
+### q4, owner's second round (2026-10-19, commit db4a9ac)
+
+- **Hoverboard races** (Rilgar, Kalebo III). The bottom bar's slot
+  (`func_L05_00266D10`, slot 5: the bar, Lap, Place) draws at fixed places
+  across the whole screen, so moving it whole put Place on top of the
+  time. It is stretched instead (`HUD_STRETCH`): a draw narrower than half
+  the screen goes to its half's edge; the bar's wide pairs of vertices
+  (more than 64 pixels apart) move each end by its own half, so the bar
+  reaches both edges. The time (`func_L05_002670A0`, slot 7, anchored
+  right) is squeezed in place: moved whole, its minutes and seconds were
+  pieces in different halves and parted.
+- **The flight to a planet.** The transition (`func_002305A0`, space.c in
+  the decomp) runs from the leaving level's program; its planet and stars
+  get the 16:9 view like any frame. The planet's name is a 256 x 32
+  picture 32 pixels from the left (`func_0022FD20`), bracketed at + 0x140
+  and squeezed out to the left edge like the HUD's left elements (walker
+  mode `CHAIN_LEFT`).
+- **The pause menu's item previews** (Weapons, Gadgets, Quick Select) were
+  three quarters as wide as in 4:3. Each panel draws into a render target
+  (`func_001F7A50` at `func_L00_002781D8` + 0x458, which builds a view of
+  the target's size with a field of 1.0; the panel at + 0x49C), drawn back
+  as a quad that the edition squeezes. Mobys are projected through the
+  frame's camera block (`func_001F2608`: the camera times the view's
+  projection, `D_00187040` and its copy at view + 0x280), which the frame
+  built from the widened main view: narrowed by the view and again by the
+  squeeze. Before the target is set up the block is now built from the
+  main view as 4:3 (the view record up to + 0x280 and the screen record
+  are put back as they were), and after the panel has drawn it is built
+  from the widened view again. A first attempt rebuilt the view inside the
+  target and changed nothing: the target's own view was already the same
+  in 4:3 and 16:9 (both records captured mid-pass).
+
+**Verified in PCSX2:** the race HUD (owner); the previews (the bomb-glove
+ammo model 130 px wide on a 16:9 output, against 135 expected from 4:3 and
+105 before; owner); the planet name (owner). **Not watched yet:** boss
+health bars, the Visibomb's view.
+
+## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
+
+**Owner's report.** In the Kalebo III hoverboard race the game froze at the
+first Devastator ammo pickup, in 4:3 and 16:9 alike.
+
+**Cause.** Record 36 is not unused. The races' ammo pickup (class 0x1D6;
+NTSC decomp `ui/help/00237488.c`) puts item 36 in Ratchet's hand
+(hero + 0x20B8) and adds to its ammo (`weapon_ammo_counts[36]`); the hero
+then loads the record's class as the gun (`func_00205270`, the hand
+gadget loader: hero code at `func_L00_0020F118` + 0xB0 even tests for 0x24).
+With the Charge Boots' class (2000) in the record, the loader found no such
+gun among the level's 21 (`0x1B0340`, count at `0x1600C8`), unpacked from
+`D_001CBEA0[21]` = 0 and the game ran into the retail halt routine
+`func_L00_0024EC20` (two `teq $zero, $zero`). Read from a PCSX2 state of
+the frozen game: Cause 0x34 (trap), EPC `0x24A260`, the thread's ra
+(kernel save area) in `func_00205270`, $s2 = 0x7D0. Retail also clears a
+hand item 0x24 at the pause entry (`func_00219C70`), and the item switch
+treats 0x24 as its temporary item.
+
+**No free record.** Record 0 is "nothing" and record 1 is Clank on the back
+(the back slot's "no pack": no name, no icon); a test build that moved the
+boots to 1 turned Clank into a boot. Relocating the 37-record table would
+mean about 47 code sites per level.
+
+**The swap** (`ee_race_item_frame`, at the start of every gameplay frame,
+before the hero update; `tools/gen_items.py` writes record 36's address and
+both versions per level). Record 36 holds retail's words while Ratchet is
+on the hoverboard (control mode 0x16) or item 36 is in his hand, and the
+Charge Boots' otherwise.
+
+- **Worn boots read the same record.** With retail's words in it they were
+  attached as the Devastator is, near Ratchet's hand (owner). On the board
+  the boots are taken off (pending "no item", 0x26), and the record
+  switches only once they are off, unless a pickup has put item 36 in the
+  hand. They go back on once Ratchet is in normal control, item 36 is out
+  of his hand and the record holds the boots' words again. Putting them
+  back the frame he left the board (the race's Devastator still in his
+  hand, the record still retail's) loaded a second Devastator into the
+  hand gadget's buffer: a second Ratchet appeared and threw the real one
+  across the level (owner). A one-second idle wait fixed that but felt
+  clumsy (owner); the record test is what makes it safe.
+- **The pause menu.** Quitting a race can open the pause menu before any
+  gameplay frame has run off the board, and the Gadgets page showed the
+  Devastator as the Charge Boots (owner). The mode-0 frame's two calls of
+  the pause entry (`func_L00_00299250` + 0x36C, + 0x434) go to
+  `ee_pause_entry_c`, which puts the boots' words back first, unless item
+  36 is in the hand.
+- A boots slot holding 1 (a save from the Clank build) is turned back into
+  the boots.
+
+**Verified in PCSX2 (owner, Kalebo III):** races with and without the boots
+worn, finishing and quitting, the Devastator pickup, the Gadgets page right
+after quitting, the boots back on after a race. Session: records 1 and 36
+read back as Clank's and the boots' off the board; the pause hook patched
+at both sites.
