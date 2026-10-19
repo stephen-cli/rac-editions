@@ -91,13 +91,12 @@ C:\rac\rac-editions
 cd /c/rac
 git clone -c core.autocrlf=false https://github.com/OpenRAC/OpenRAC.git
 git clone -c core.autocrlf=false -b executive-edition https://github.com/stephen-cli/wrench.git wrench
-git clone <this repository's URL> rac-editions
+git clone https://github.com/stephen-cli/rac-editions.git rac-editions
 git -C OpenRAC apply ../rac-editions/editions/rac1-executive/patches/openrac-executive-edition.patch
 ```
 
 `core.autocrlf=false` matters: Windows line endings break OpenRAC's linker
-script. This repository is not published yet; its URL is a placeholder until
-it is.
+script.
 
 **2. Give OpenRAC your discs and the toolchain.**
 
