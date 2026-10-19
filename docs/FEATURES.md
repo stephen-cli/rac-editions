@@ -1966,3 +1966,59 @@ switches live from the Camera page; 4:3 is unchanged with it off.
 **Not seen yet.** The Suck Cannon meter, the ship HUD, boss health bars
 (they use the same slots: right-anchored slots go to the edge, slot 12 is
 centred), the Visibomb's camera view, the hoverboard races' HUD.
+
+### q4, owner's first round (2026-10-19, commit cce4e1a)
+
+- **Pop-in at the sides.** The first build put the field of view back after
+  UpdateViewContext ran. But TfragProc, TieProc, ShrubProc and MobyProc load
+  the view record's +0xA0..+0xBF themselves every frame for their side
+  planes, so they culled at the 4:3 edges. The widened value now stays in
+  the record. On the next call the hook recognises its own value by its
+  bits (it keeps the bits it wrote and the game's value they stand for), so
+  the widening never compounds. A view built in 4:3 (setting off, a render
+  to a texture, the vendor's monitors) gets the game's value back.
+- **The HUD's anchored elements move after they draw.** HudDraw calls
+  each slot's draw callback (+0x18) through a wrapper that notes the
+  stretch of the chain the slot wrote. The squeeze then adds the edge
+  offset to those vertices. Moving the slot's x before the draw (the first
+  build) broke the ammo display: its draw (`func_L00_0023B140`) passes
+  x + width as its backing's width, a slip in the original that is
+  harmless at x = 20. The edge offset is 64 + 2 pixels after the squeeze.
+  The parked meters (the Suck Cannon, O2 and Morph-o-Ray gauges) sat with
+  their left column on the screen's last pixel and showed for a few
+  frames. The quick-select ring (the edition's own draw) still moves by
+  its slot's x, half the way out, and its L1 glyph's clamp moves with it
+  (`ee_ws_ring_shift`).
+- **Toggling the setting in the menu.** The pause menu does not rebuild
+  the view while it is open. The view is now rebuilt (UpdateViewContext,
+  then the frame transform) when the setting differs from the one the
+  full-screen view was built with.
+- **The fighter jet's HUD** (Pokitaru `func_L11_00313218`, Gemlik
+  `func_L13_002BAA68`, Drek's fleet `func_L17_002ED498`). It is a draw
+  callback the ship registers every frame, not a HUD slot. Its
+  registration's address is pointed at a bracket stub, and each of its
+  draws is moved by where it sits (left third out left, right third out
+  right, the middle squeezed in place).
+- **Paging pairs.** SetupGifPaging leaves a hole that DoGifPaging fills
+  with a NEXT out to the texture uploads, which NEXT back. The chain
+  walker stopped at the first NEXT, so a draw with its own paging pair
+  (the jet's "Quit?" prompt, `func_001FBE80`, called from game mode 4's
+  frame at `func_L00_001F9248` + 0x60) stayed stretched. The packets are
+  laid out in order in the buffer, so the walk now goes on.
+- **The credits** (game mode 7, `func_L00_001F92E8`). The frame copies a
+  full-screen picture straight into the draw buffer with an IMAGE transfer
+  (`func_001F7680`, + 0x24). A copy cannot be narrowed, so in 16:9 the
+  picture is copied into the Z buffer's memory instead (byte 0x1E0000;
+  nothing in this mode draws in 3D). It is drawn from there as a texture
+  into the middle 3/4 of the frame, with Z writes masked, the Z test set
+  to always and black bars at the sides. The Z memory is then zeroed with
+  an IMAGE transfer that REFs a 16 KB block of zeros 56 times. The name
+  tags (`func_L00_001FCC50`, + 0xC8) are squeezed. The vertical stripes
+  between slides are the credits' own transition.
+
+**Verified in PCSX2 (owner and session):** the cull field stays at 0.84
+(Orxon pan), the ammo backing, quick select's L1, toggling in the Camera
+page both ways, the Pokitaru jet's HUD against 4:3 and its "Quit?" prompt
+(owner), the credits. **Not watched yet:** the side meters' slide-out after
+the 2-pixel change, boss health bars, the Visibomb's view, the hoverboard
+races.

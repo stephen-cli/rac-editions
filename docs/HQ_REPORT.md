@@ -4,6 +4,33 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-19 (q4: owner's first round of 16:9 notes)
+
+### 🖥️ Proper widescreen (q4) — Owner's first round fixed; awaiting owner re-test
+
+**What changed** (each of the owner's notes):
+- **Objects popping in at the sides:** fixed. The game's culling was still using the 4:3 field of view. It now uses the wide one, so everything in the 16:9 picture is drawn.
+- **Fighter jet HUD:** the radar, health and missiles go to the 16:9 corners without stretching. The "Quit?" prompt keeps its shape (confirmed working by the owner).
+- **Credits:** the pictures are shown at 4:3 with black bars at the sides, and the name tags keep their shape.
+- **Quick select:** L1 sits beside the ring again, like R1.
+- **Ammo display:** its dark backing covers the whole count again, like the bolt counter's.
+- **Toggling 16:9 in the menu:** the menu redraws immediately, with no garbage panels at the sides when turning it off.
+- **Side meters** (Suck Cannon, O2 mask, Morph-o-Ray): they now hide a little further out, so they no longer peek in at the right edge for a few frames.
+
+**Findings.**
+- **The culling reads the camera's field of view directly:** the game's culling code takes it from the view record every frame. Any change to the view has to stay in place, not be restored afterwards.
+- **The ammo display sizes its backing from the element's own position:** a slip in the original game that only shows when the element moves. HUD elements are now moved after they are drawn, which suits all of them.
+- **The credits copy whole pictures straight to the screen:** they can't be drawn narrower in place, so in 16:9 each picture is staged in the depth buffer's memory and drawn from there.
+- **The jet's HUD is drawn by the ship, not by the HUD system:** Pokitaru, Gemlik and Drek's fleet are handled one by one.
+
+**Verification.** In PCSX2 at 16:9:
+- **Pop-in:** the culling field stays wide every frame (panning on Orxon).
+- **HUD:** the ammo backing, quick select's L1, and the Camera page toggle in both directions.
+- **Pokitaru jet:** its HUD compared against 4:3, and its "Quit?" prompt (owner).
+- **Credits:** pictures and name tags.
+
+**Not yet watched:** the side meters leaving the screen, boss health bars, the Visibomb's camera view, the hoverboard races.
+
 ## 2026-10-19 (q4: proper widescreen)
 
 ### 🖥️ Proper widescreen (q4) — Implemented; verified in PCSX2, awaiting owner test
