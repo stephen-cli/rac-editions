@@ -35,7 +35,7 @@ OPTION_LABELS = [0x4F1E, 0x4F1F, 0x4F20, 0x4F22, 0x4F23, 0x4F24, 0x4F26]   # Hel
 LABEL_SUBTITLES = 0x4F24
 LABEL_QUIT = 0x4F26
 LABEL_CONTROLS = 0x5402          # "Controls" (text/strings.tsv, added by tools/text_table.py)
-LABEL_QS_PAUSE = 0x5403          # "Quick Select Pause"
+LABEL_QS_PAUSE = 0x5403          # "Quick Select pause"
 DESC_CONTROLS = 0x5404           # "Adjust controls settings"
 TITLE_CONTROLS = 0x5405          # "Control Options"
 def header_define(name: str) -> int:
@@ -57,6 +57,8 @@ def setting_address() -> int:
 
 
 SETTING_FLAG = setting_address()  # the saved byte the toggle writes (gCheats[11])
+STRAFE_FLAG = header_define("EE_SETTING_STRAFE")    # x5: the strafing setting's saved byte (gCheats[9])
+LABEL_STRAFE = header_define("EE_TEXT_STRAFE")
 WS_FLAG = header_define("EE_SETTING_WIDESCREEN")    # q4: the 16:9 setting's saved byte (gCheats[10])
 LABEL_WIDESCREEN = header_define("EE_TEXT_WIDESCREEN")
 LABEL_ON, LABEL_OFF = 0x4F5A, 0x4F5B                 # "on", "off" (the Subtitles page's)
@@ -90,7 +92,7 @@ def find_menu(pal: Path, level: int) -> dict:
     # The template is the cut "Controller vibration" page (kind 0x1C, under
     # Options, never reachable in retail): a toggle page like Subtitles, but its
     # frame-moby sequences (118, 119, 120, 123, 122) give a panel wide enough for
-    # a twenty-character row label; Subtitles' (73..77) cut "Quick Select Pause".
+    # a twenty-character row label; Subtitles' (73..77) cut "Quick Select pause".
     template = None
     for off in range(0, len(d) - 0x88, 4):
         a = base + off
@@ -176,7 +178,10 @@ def main() -> int:
         m = find_menu(pal, L)
         s = f"{L:02d}"
         on, off = m["entry"][2], m["entry"][3]
-        c.append(f"u32 ee_qs_entries_{s}[10] = {{ 0x{LABEL_QS_PAUSE:X}, 0x{SETTING_FLAG:08X}, 0x{on:X}, 0x{off:X}, 0, 0, 0, 0, 0, 0 }};")
+        # The Controls page's toggle rows, {label, &flag, on, off, 0} each and a
+        # zero row: Strafing (movement) above Quick Select pause (items).
+        entries = [LABEL_STRAFE, STRAFE_FLAG, on, off, 0, LABEL_QS_PAUSE, SETTING_FLAG, on, off, 0] + [0] * 5
+        c.append(f"u32 ee_qs_entries_{s}[{len(entries)}] = {{ {', '.join(f'0x{x:X}' for x in entries)} }};")
         tog = [f"0x{w:08X}" for w in m["toggle"]]
         tog[13] = f"(u32)ee_qs_entries_{s}"
         c.append(f"u32 ee_qs_toggle_{s}[16] = {{ {', '.join(tog)} }};")

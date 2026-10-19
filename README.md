@@ -17,11 +17,12 @@ holds only the edition's code, tools and notes, never game data.
 - **Strafing on L2 and R2.** Hold either trigger and Ratchet keeps facing
   where the camera looks, as in Going Commando. He side-flips, strafe-jumps,
   backpedals with his gun held up and stops on the spot. L1 and R1 still
-  look and crouch.
+  look and crouch. Switch it on in Options → Controls (off by default, so L2
+  and R2 work as in the original game).
 - **Three quick-select pages.** With the ring open, R1 and L1 turn between
   three pages of eight slots. In the pause menu's Quick Select tab, Square
   changes the page. Your saves still load in the original game.
-- **Quick Select Pause.** A new Controls row in Options. Turned on, the game
+- **Quick Select pause.** A new row on the Controls page in Options. Turned on, the game
   stops while the quick-select ring is open, as in the sequels. Off by
   default.
 - **16:9 widescreen.** A new row on the Camera page (Options → Camera).

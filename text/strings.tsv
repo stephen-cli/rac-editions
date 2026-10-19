@@ -1,7 +1,7 @@
 # Executive Edition strings added to the game's text table (tools/text_table.py).
 # id (hex)	English	French	German	Spanish	Italian   (missing languages fall back to English)
 5402	Controls	Commandes	Steuerung	Controles	Comandi
-5403	Quick Select Pause	Pause de la sélection rapide	Schnellauswahl-Pause	Pausa de selección rápida	Pausa selezione rapida
+5403	Quick Select pause	Pause de la sélection rapide	Schnellauswahl-Pause	Pausa de selección rápida	Pausa selezione rapida
 5404	Adjust controls settings	Régler les commandes	Steuerung einstellen	Ajustar los controles	Regola i comandi
 5405	Controls Options	Options des commandes	Steuerungsoptionen	Opciones de controles	Opzioni comandi
 5406	Charge Boots	Bottes de charge	Turbostiefel	Botas de carga	Stivali di carica
@@ -12,3 +12,4 @@
 540B	Page 2	Page 2	Seite 2	Página 2	Pagina 2
 540C	Page 3	Page 3	Seite 3	Página 3	Pagina 3
 540D	16:9 (widescreen)	16:9 (écran large)	16:9 (Breitbild)	16:9 (panorámico)	16:9 (widescreen)
+540E	Strafing	Déplacement latéral	Seitwärtsbewegung	Movimiento lateral	Movimento laterale

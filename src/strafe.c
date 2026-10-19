@@ -201,6 +201,7 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define CLASS_FORWARD   2
 #define PAD_CROSS       0x40u
 #define PAD_STRAFE      0x3u          /* L2 | R2 in the game's button layout */
+#define STRAFE_SETTING  (*(volatile u8 *)EE_SETTING_STRAFE)   /* the Controls page's Strafing row */
 #define EE_SITE_PAD_PARSE 0x1C4       /* func_00217F68 + 0x1C4: jal func_002181F0 */
 
 typedef void (*PadParse)(void *pad, u8 *report, s32 length);
@@ -278,6 +279,16 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     if (ee_qs_ring_open(L)) {
         p[0x1A0 / 4] &= ~0xCu;
         p[0x1A4 / 4] &= ~0xCu;
+    }
+    /* The Controls page's Strafing row, off by default: off, L2 and R2 reach
+     * the game as in retail and nothing below runs (every strafe hook keys
+     * on ee_strafe_held or strafe_grace, the camera patch included). */
+    if (!STRAFE_SETTING) {
+        ee_strafe_held = 0;
+        strafe_grace = 0;
+        strafe_flip = 0;
+        TRACE_END();
+        return;
     }
     ee_strafe_held = p[0x1A0 / 4] & PAD_STRAFE;
     if (ee_strafe_held) {

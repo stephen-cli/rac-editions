@@ -70,6 +70,14 @@ typedef float f32;
  * page (tools/gen_menu.py reads this name from here). */
 #define EE_SETTING_WIDESCREEN   0x0015EEBA
 #define EE_TEXT_WIDESCREEN      0x540D       /* "16:9 (widescreen)" */
+
+/* x5: the strafing setting (src/strafe.c): gCheats[9], the last of the
+ * cheat bytes retail never touches (see EE_SETTING_QS_PAUSE), saved with
+ * the file, 0 (off: L2 and R2 as in retail) in every retail save and new
+ * game. A row of the Controls page, above Quick Select pause
+ * (tools/gen_menu.py reads both names from here). */
+#define EE_SETTING_STRAFE       0x0015EEB9
+#define EE_TEXT_STRAFE          0x540E       /* "Strafing" */
 /* DrawWorld (func_001F3D78, every level) calls, as offsets in it: HudDraw,
  * draw_help, the letterbox bars and the subtitles (the same in all 19). */
 #define EE_SITE_WS_HUD          0x4C0

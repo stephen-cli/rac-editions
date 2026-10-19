@@ -252,7 +252,7 @@ per-level offset, so every game string came back null: the lesson is that
 even gp-relative data is not at one address across levels, and the safe
 pattern for a hook is to re-enter the original function. q3 uses
 "Controls" (0x5402) for the row, "Controls Options" (0x5405) for the page
-title, "Quick Select Pause" (0x5403) for the toggle row and "Adjust
+title, "Quick Select pause" (0x5403) for the toggle row and "Adjust
 controls settings" (0x5404) for the description. Accented letters are flattened to ASCII until the font's code
 page is mapped.
 
@@ -2120,3 +2120,39 @@ worn, finishing and quitting, the Devastator pickup, the Gadgets page right
 after quitting, the boots back on after a race. Session: records 1 and 36
 read back as Clank's and the boots' off the board; the pause hook patched
 at both sites.
+
+## Controls page: the Strafing toggle, and "Quick Select pause" (2026-10-19), built, awaiting owner test
+
+**What changed.** The Controls page (Options → Controls) has two toggle rows
+now: **Strafing** (new, id 0x540E) above **Quick Select pause** (0x5403,
+relabelled from "Quick Select Pause" at the owner's request). Movement
+comes before items, so Strafing goes first. Strafing is **off by default**
+(owner's request): until a player turns it on, L2 and R2 work as in retail
+(they mirror L1 look and R1 crouch).
+
+**Setting.** `EE_SETTING_STRAFE` in src/modseg.h = `0x15EEB9`, `gCheats[9]`:
+the last free one of the cheat bytes retail never touches (8 Charge Boots,
+10 16:9, 11 quick select pause). It is saved with the file, 0 in every
+retail save and new game, and no earlier edition build wrote it, so
+existing saves come up with Strafing off.
+
+**Menu.** `tools/gen_menu.py` writes the page's toggle entries as two rows,
+`{label, &flag, on, off, 0}` each, plus a zero row. The toggle list widget
+(update `func_L00_0027FA68` in level 0) walks entries until the zero label;
+retail's Help page (kind 0x13, entries 0x4F9F/0x4FA0 on 0x15EF1C/D) is a
+two-row page on the same widget, with the same panel sequences as
+Subtitles' one-row page, so the panel does not size itself by row count.
+Our page keeps the vibration template's wider panel (sequences 118-123).
+
+**Gate.** `ee_pad_parse_c` (src/strafe.c) returns straight after the game's
+parse (and the q2 ring's L1/R1 masking) while the setting is off: L2 and R2
+stay in the pad, and `ee_strafe_held`, `strafe_grace` and `strafe_flip`
+are zeroed. Every strafe hook keys on `ee_strafe_held` or `strafe_grace`,
+the camera patch (`strafe_camera`) included, so they all fall back to the
+game's own code.
+
+**Verification.** `bash tools/pack.sh --quick` built; the generated entries
+are right in all 19 levels. Not run in PCSX2 (owner's machine had been in
+use); owner test: the Controls page shows both rows without clipping, each
+toggles on its own, strafing works only with its row on, L2/R2 crouch and
+look with it off, and the setting survives a save and load.
