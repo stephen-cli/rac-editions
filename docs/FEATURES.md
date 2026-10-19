@@ -2061,8 +2061,9 @@ letterboxed scenes keep the original framing with pillars.
 
 **Verified in PCSX2:** the race HUD (owner); the previews (the bomb-glove
 ammo model 130 px wide on a 16:9 output, against 135 expected from 4:3 and
-105 before; owner); the planet name (owner). **Not watched yet:** boss
-health bars, the Visibomb's view.
+105 before; owner); the planet name (owner); boss health bars and the
+Visibomb's view (owner). Every item of the original request has now been
+seen in game.
 
 ## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
 

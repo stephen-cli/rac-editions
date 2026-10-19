@@ -20,7 +20,7 @@ changed, decisions taken, findings that affect other items.
 
 **Verification.** In PCSX2 on Kalebo III (owner): races with and without the boots on, finishing and quitting, the Devastator pickup, the Gadgets page after quitting, the boots back on after a race.
 
-### 🖥️ Proper widescreen (q4) — Owner's second round fixed; verified by the owner
+### 🖥️ Proper widescreen (q4) — Owner's second round fixed; every part of the request verified by the owner
 
 **What changed** (each of the owner's notes):
 - **Hoverboard race HUD:** Lap and Place sit at the 16:9 edges, the bottom bar reaches both sides, and the time stays whole in the middle.
@@ -33,7 +33,7 @@ changed, decisions taken, findings that affect other items.
 
 **Verification.** In PCSX2 (owner): the race HUD, the pause menu models, the planet name. Measured in the session: a menu model's width matches 4:3 to within 4%.
 
-**Not yet watched:** boss health bars, the Visibomb's camera view.
+**Also confirmed by the owner:** boss health bars and the Visibomb's camera view, the last two items not yet seen. Every part of the original request has now been seen in game.
 
 ## 2026-10-19 (q4: owner's first round of 16:9 notes)
 
