@@ -4,3 +4,7 @@ mod/SCES_509.16
 *.elf
 *.bin
 build/
+
+# Python bytecode caches, rewritten by every run of the tools
+__pycache__/
+*.pyc
