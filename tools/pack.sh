@@ -27,6 +27,24 @@ QUICK=0
 
 echo "== OpenRAC branch: $(git -C "$OPENRAC" branch --show-current)"
 cd "$PAL"
+# Native Windows (Git Bash): OpenRAC's Makefile.sn needs a GNU make newer than the
+# toolchain's 3.77 ($(if), since the 2026-10-19 master merge), and two objects are
+# assembled by Linux assemblers (tools/gas210.py, tools/dtls29_as.py), run through
+# WSL with tools/wsl_linux_run.sh. Set only when unset and present.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    TCS=$OPENRAC/toolchains
+    if [ -z "${MAKE_SN:-}" ] && [ -x "$TCS/mingw64-dl/mingw64/bin/mingw32-make.exe" ]; then
+      export MAKE_SN="$TCS/mingw64-dl/mingw64/bin/mingw32-make.exe"
+    fi
+    if command -v wsl >/dev/null 2>&1; then
+      W=$(MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e wslpath -a "$(cygpath -w "$TCS")" | tr -d '\r')
+      R="wsl -d Ubuntu -e sh $(MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e wslpath -a "$(cygpath -w "$HERE/tools/wsl_linux_run.sh")" | tr -d '\r')"
+      [ -n "${EE_GAS210:-}" ] || export EE_GAS210="$R $W/sn-prodg-24/local/sce/ee/gcc/bin/ee-as"
+      [ -n "${EE_DTLS29_AS:-}" ] || [ ! -f "$TCS/ee-as-dtls13010/as.bin" ] ||
+        export EE_DTLS29_AS="$R $W/ee-as-dtls13010/lib/ld-2.3.6.so --library-path $W/ee-as-dtls13010/lib $W/ee-as-dtls13010/as.bin"
+    fi ;;
+esac
 echo "== 1/5 build"
 bash tools/build_sn.sh
 echo "== 2/5 strings (tools/gen_text.py), menu data (tools/gen_menu.py), hero sites (tools/gen_hero.py), R&C2 backpedal (tools/rac2_anim.py), Charge Boots item and icon (tools/gen_items.py, tools/gen_hud.py), mod segment (tools/modseg.py)"
