@@ -4,7 +4,7 @@
 #
 #   bash editions/rac1-executive/tools/pack.sh [--wrench]
 #
-#   default   copy of the owner's image: the executable in new sectors at the end, the
+#   default   the patch route: a copy of the owner's image: the executable in new sectors at the end, the
 #             level code patched in place, the Charge Boots class (R&C2's model)
 #             spliced into every level's data archive in place (tools/splice_boots.py),
 #             and Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py)
@@ -16,7 +16,6 @@
 #             -> editions/rac1-executive/build/iso/executive-edition-wrench.iso
 #             Not a stable build: wrench's texture packer regenerates mipmaps wrongly
 #             (chaoticgd/wrench#286), so textures look wrong at a distance and in menus.
-#   --quick   the default; accepted so older notes and commands keep working
 #
 # OPENRAC, WRENCH and GAME_BANK override the defaults.
 set -euo pipefail
@@ -26,10 +25,10 @@ OPENRAC=${OPENRAC:-$(cd "$HERE/../../../OpenRAC" && pwd)}
 WRENCH=${WRENCH:-$(cd "$HERE/../../../wrench" && pwd)}
 GAME_BANK=${GAME_BANK:-$OPENRAC/assets/wrench/rac1-pal}   # unpacked with the edition's wrench fork (stash_textures on carried items)
 PAL=$OPENRAC/games/rac1
-QUICK=1
+ROUTE=patch
 case "${1:-}" in
-  ""|--quick) ;;
-  --wrench) QUICK=0 ;;
+  "") ;;
+  --wrench) ROUTE=wrench ;;
   *) echo "usage: pack.sh [--wrench]" >&2; exit 2 ;;
 esac
 
@@ -77,7 +76,7 @@ echo "== 3/5 bootable executable with the mod segment"
 python tools/boot_elf.py --segment "A0000:$(cygpath -w "$HERE/build/modseg/modseg.bin" 2>/dev/null || echo "$HERE/build/modseg/modseg.bin")"
 python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" patch-elf build-sn/SCES_509.16   # the boot frontend's flight hooks (frontbin's: overlay_patch.py)
 
-if [ "$QUICK" = 1 ]; then
+if [ "$ROUTE" = patch ]; then
   echo "== 4/5 level-code patches (tools/overlay_patch.py)"
   python "$HERE/tools/overlay_patch.py" -o "$HERE/build/patches"
   echo "== 5/5 image (executable in new sectors at the end, level patches in place)"

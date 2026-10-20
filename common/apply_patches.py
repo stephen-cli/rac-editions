@@ -2,7 +2,7 @@
 """
 Write tools/overlay_patch.py's sector files into an image in place.
 
-The quick route copies the retail image and patches the copy with OpenRAC's
+The patch route (pack.sh's default) copies the retail image and patches the copy with OpenRAC's
 tools/iso_patch.py. The wrench route builds its own image, so the level-code
 patches, computed against that image (overlay_patch.py --iso), are written
 straight into it: patches.tsv lists `first sector<TAB>sectors<TAB>file`.

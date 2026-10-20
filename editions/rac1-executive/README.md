@@ -153,8 +153,7 @@ your own PS2 BIOS), or burn it to a DVD for a real PS2.
 changes it in place: the new executable goes in new sectors at the end of
 the image, each level's code is patched where it is, and the Charge Boots
 and Kalebo III's sign are spliced into the levels' data where it sits. The
-rest of the disc stays byte-for-byte yours. (`--quick`, its old name, still
-works.)
+rest of the disc stays byte-for-byte yours.
 
 `pack.sh --wrench` rebuilds the whole disc with wrench instead, writing
 `executive-edition-wrench.iso`. It is experimental and has not made a

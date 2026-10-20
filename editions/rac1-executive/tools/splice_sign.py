@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Put the rebuilt Gadgetron sign (tools/gen_sign.py) into Kalebo III's data
-archive of an image, without re-laying out the disc: the quick route's way of
+archive of an image, without re-laying out the disc: the patch route's way of
 changing a level's classes (tools/splice_boots.py, whose rules this follows).
 
 Class 1891's blob in the decoded core data is replaced in place. The new blob

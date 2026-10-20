@@ -38,7 +38,7 @@ which is how retail's agree to 0.03%. The result is read back with OpenRAC's
 moby reader and checked.
 
 Writes build/sign_bank (a wrench bank overriding class 1891, for the wrench
-route; tools/splice_sign.py takes its core.bin for the quick route) and
+route; tools/splice_sign.py takes its core.bin for the patch route) and
 build/sign/gadgetron_sign.glb (the mesh, for viewing).
 
   python tools/gen_sign.py [--openrac DIR] [--wrench DIR] [-o build/sign_bank]
