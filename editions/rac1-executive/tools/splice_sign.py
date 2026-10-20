@@ -12,9 +12,12 @@ the engine keeps resident (below +0x7C), where the level had it. The core
 is compressed again with wrench's compressor and checked by decoding it back
 with OpenRAC's decoder; the core index takes the new sizes (+0x88, +0x8C);
 everything else in the archive is copied byte for byte. The archive is
-written at the end of the image, the level header's data range is pointed at
-it and the image's volume size grows. Run it after splice_boots.py, which
-rewrites every level's archive from the one the header names.
+never larger than the retail one, so while the level's archive sits in the
+retail one's sectors (splice_boots.py writes in place) it is written there,
+the sectors it leaves free are zeroed and the image keeps its size; otherwise
+it goes at the end of the image and the volume size grows. The level header's
+data range is pointed at it. Run it after splice_boots.py, which rewrites
+every level's archive from the one the header names.
 
   python tools/splice_sign.py IMAGE [--openrac DIR] [--wrench wrench/bin/wrenchbuild.exe]
                                     [--class-core build/sign_bank/moby_classes/1891_gadgetron_sign/core.bin]
@@ -116,7 +119,7 @@ def main() -> int:
         return (header_lba, *struct.unpack("<2I", f.read(8)))
 
     with retail.open("rb") as f:
-        retail_sectors = level_range(f)[2]
+        _, retail_lba, retail_sectors = level_range(f)
     with args.image.open("r+b") as f:
         f.seek(0, 2)
         image_end = f.tell()
@@ -129,6 +132,15 @@ def main() -> int:
         if len(new) > retail_sectors * SECTOR:
             raise SystemExit(f"the new archive ({len(new):#x} bytes) is larger than the retail one ({retail_sectors * SECTOR:#x})")
         lba = image_end // SECTOR
+        if data_lba == retail_lba:  # in the retail archive's sectors, which the new one fits: overwrite it
+            f.seek(data_lba * SECTOR)
+            f.write(new + bytes(retail_sectors * SECTOR - len(new)))
+            f.seek(header_lba * SECTOR + 8)
+            f.write(struct.pack("<2I", data_lba, len(new) // SECTOR))
+            print(f"level {LEVEL}: class {CLASS_ID} at core {info['at']:#x}, {info['old']:#x} -> {info['new']:#x} bytes "
+                  f"(core +{info['grew']:#x}, {info['shifted']} offsets shifted), archive {len(new):#x} bytes "
+                  f"(retail {retail_sectors * SECTOR:#x}) in place at sector {data_lba}; image still {lba} sectors")
+            return 0
         if data_lba + data_sectors + TAIL_SECTORS == lba and len(new) <= data_sectors * SECTOR:
             lba = data_lba  # the level's archive is the image's last one and the new one fits: overwrite it
         f.seek(lba * SECTOR)

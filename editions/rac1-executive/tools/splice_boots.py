@@ -2,7 +2,7 @@
 """
 Add the Charge Boots class to every level of an image without re-laying out
 the disc: each level's own data archive gets the class and its one texture,
-and is written anew at the end of the image.
+and is written back over the old one, in the sectors it had.
 
 A level's data archive (level header +0x08, read whole by func_00204C60 into
 a buffer sized from it) holds eleven sections listed at its start as
@@ -36,8 +36,11 @@ PCSX2; every other way hung the load at stage 7, waiting for the sound bank):
 The texture is type 1 (one mip level, no mip images), as every texture of an
 item Ratchet carries or wears is on the retail disc. Everything else in the
 archive, the level code with the edition's patches included, is copied
-byte for byte. The level header's data range is then pointed at the new
-archive and the image's volume size grows.
+byte for byte. The new archive is never larger than the old one (the script
+refuses it otherwise), so it is written at the old one's first sector, the
+sectors it leaves free are zeroed, and the level header's sector count takes
+the new size; the image keeps its size. (Until 2026-10-20 each archive was
+appended at the end of the image and the old one left unused: 320 MB more.)
 
 Inputs: the class core (tools/gen_boots.py writes it, converted from R&C2 by
 the wrench fork's mobyconvert) and the class's texture, an indexed PNG from
@@ -328,8 +331,6 @@ def main() -> int:
         image_end = f.tell()
         if image_end % SECTOR:
             raise SystemExit("the image is not a whole number of sectors")
-        # Append after everything already in the image (iso_patch.py leaves a blank tail).
-        lba = image_end // SECTOR
         f.seek(TOC_LBA * SECTOR)
         toc = f.read(6 * SECTOR)
         for level in range(19):
@@ -340,20 +341,15 @@ def main() -> int:
             archive = f.read(data_sectors * SECTOR)
             new, info = splice_level(archive, SECTION_NAMES, core_class, pixels, palette, width, height, wad,
                                      args.wrench, work)
-            f.seek(lba * SECTOR)
-            f.write(new)
+            # In place: splice_level refuses an archive larger than the old one.
+            f.seek(data_lba * SECTOR)
+            f.write(new + bytes(len(archive) - len(new)))
             f.seek(header_lba * SECTOR + 8)
-            f.write(struct.pack("<2I", lba, len(new) // SECTOR))
+            f.write(struct.pack("<2I", data_lba, len(new) // SECTOR))
             print(f"level {level:2d}: {info['classes']} classes, class at {info['insert']:#x} ({info['shifted']} offsets shifted), "
                   f"texture slot {info['texture']}, core +{info['core_grew']:#x}, "
-                  f"stream {info['stream_grew']:+#x}, archive {info['archive']:+#x} against retail, at sector {lba}")
-            lba += len(new) // SECTOR
-        f.seek(lba * SECTOR)
-        f.write(bytes(TAIL_SECTORS * SECTOR))
-        total = lba + TAIL_SECTORS
-        f.seek(16 * SECTOR + 80)
-        f.write(struct.pack("<I", total) + struct.pack(">I", total))
-    print(f"{args.image.name}: 19 levels spliced, image now {total} sectors")
+                  f"stream {info['stream_grew']:+#x}, archive {info['archive']:+#x} against retail, at sector {data_lba}")
+    print(f"{args.image.name}: 19 levels spliced in place, image still {image_end // SECTOR} sectors")
     return 0
 
 
