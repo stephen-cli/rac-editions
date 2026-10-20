@@ -439,7 +439,19 @@ def charge_boots(at):
     # The worn boots' pose: the boots predicate's slot_item call answers 36 as the
     # Magneboots, so the item updater poses them from Ratchet's leg (src/charge_boots.c).
     out.append((at("func_L00_0020DBD8") + 8, jal(at("func_L00_0020DB30")), jal(modseg_symbol("ee_boots_pose_item_hook"))))
+    # Saves a retail game can load: every memcard_MakeWholeSave call writes the
+    # save without the Charge Boots worn or owned (src/charge_boots.c, ee_save_c).
+    save = jal(at("func_0020BA00"))
+    for fn, off in SAVE_SITES:
+        out.append((at(fn) + off, save, jal(modseg_symbol("ee_save_hook"))))
+    if at.level == 18:
+        out.append((at("func_L18_00282F48") + 0x1C, save, jal(modseg_symbol("ee_save_hook_l18"))))
     return out + charge_dash(at)
+
+
+# memcard_MakeWholeSave's callers in every level: the pause menu's two saves and the
+# challenge-mode carry-over's (Veldin 2's ending adds func_L18_00282F48 + 0x1C).
+SAVE_SITES = (("func_00227C78", 0x64), ("func_00227D20", 0x3C), ("func_00227DB0", 0x304))
 
 
 # x2: the Charge Boots cheat (src/charge_boots.c): move ids as the game's cheat

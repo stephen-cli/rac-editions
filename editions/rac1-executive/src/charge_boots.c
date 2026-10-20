@@ -150,9 +150,12 @@ static void sync_ownership(s32 L)
     }
 }
 
+static void rewear_saved_boots(void);
+
 void ee_charge_boots_frame(s32 L)
 {
     panel_sequence(L);
+    rewear_saved_boots();
     sync_ownership(L);
 }
 
@@ -278,6 +281,74 @@ void ee_pause_entry_c(s32 arg, u32 ra)
         }
     }
     LVL(L, func_00219C70, PauseFn)(arg);
+}
+
+/* Saves a retail game can load. The equipped array is saved (block 0x20)
+ * and the hero builds each slot's moby from it: a retail game builds the
+ * boots slot from its own record 36, the race Devastator (weapon slot,
+ * class 157, which no level keeps resident), and stopped at once with an
+ * edition save that wore the Charge Boots (PCSX2: "FQC = 0 on VIF FIFO
+ * READ"; owner, 2026-10-20). So every save call (memcard_MakeWholeSave,
+ * func_0020BA00: the pause menu's two, the challenge-mode carry-over's and
+ * Veldin 2's ending, src/charge_hooks.s) writes the boots slot empty and
+ * item 36 not owned, with EE_SAVE_BOOTS_WORN set in the saved statistics
+ * block, and puts them back after. Ownership follows gCheats[8] every frame
+ * anyway; on a load the flag puts the boots back on (rewear_saved_boots),
+ * the way the race code does, once Ratchet is in normal control. */
+DECLARE_LVL(func_0020BA00);            /* memcard_MakeWholeSave(out) */
+DECLARE_LVL(func_00227C78);            /* its callers: + 0x64 */
+DECLARE_LVL(func_00227D20);            /* + 0x3C */
+DECLARE_LVL(func_00227DB0);            /* the challenge-mode carry-over: + 0x304 */
+#define SAVE_WORN          (*(volatile u8 *)EE_SAVE_BOOTS_WORN)
+#define SAVE_SITE_A        0x64
+#define SAVE_SITE_B        0x3C
+#define SAVE_SITE_CARRY    0x304
+typedef void (*MakeSaveFn)(u8 *out);
+
+void ee_save_c(u8 *out, u32 ra, s32 L)
+{
+    s32 worn = EQUIPPED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS;
+    u8 owned = ITEM_OWNED(ITEM_CHARGE_BOOTS);
+    if (L < 0) {
+        for (L = 0; L < 19; L++) {
+            if (ra == lvl_func_00227C78[L] + SAVE_SITE_A + 8 || ra == lvl_func_00227D20[L] + SAVE_SITE_B + 8
+                || ra == lvl_func_00227DB0[L] + SAVE_SITE_CARRY + 8) {
+                break;
+            }
+        }
+        if (L == 19) {
+            L = ee_level_of_call(ra, lvl_func_00227C78, SAVE_SITE_A);   /* never expected */
+        }
+    }
+    if (worn) {
+        EQUIPPED(SLOT_BOOTS) = 0;
+    }
+    ITEM_OWNED(ITEM_CHARGE_BOOTS) = 0;
+    SAVE_WORN = worn;
+    LVL(L, func_0020BA00, MakeSaveFn)(out);
+    SAVE_WORN = 0;
+    ITEM_OWNED(ITEM_CHARGE_BOOTS) = owned;
+    if (worn) {
+        EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+    }
+}
+
+static void rewear_saved_boots(void)
+{
+    if (!SAVE_WORN) {
+        return;
+    }
+    if (!CHEAT_ON) {
+        SAVE_WORN = 0;
+        return;
+    }
+    if (HERO_CONTROL_MODE != CONTROL_NORMAL) {
+        return;
+    }
+    if (EQUIPPED(SLOT_BOOTS) == 0 && HERO_PENDING(SLOT_BOOTS) == 0) {
+        HERO_PENDING(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+    }
+    SAVE_WORN = 0;
 }
 
 /* The worn boots' pose. A worn item moby is placed at a joint of Ratchet's

@@ -112,6 +112,11 @@ void ee_controls_panel(u32 moby);
 #define EE_QS_PAGE_NEXT      0x00141A50   /* 8 item ids: the page R1 brings up */
 #define EE_QS_PAGE_PREV      0x00141A58   /* 8 item ids: the page L1 brings up */
 #define EE_QS_PAGE_INDEX     0x00141A60   /* which of the three pages is active, 0-2 */
+/* x2: 1 in a save written while the Charge Boots were worn (src/charge_boots.c,
+ * ee_save_c): the save itself holds no boots in the boots slot, which a
+ * retail game would build from its own record 36, the race Devastator. In
+ * the page number's record, after its byte; 0 in RAM except while saving. */
+#define EE_SAVE_BOOTS_WORN   0x00141A61
 #define EE_SITE_QS_CARRY     0x140        /* func_00227DB0 + 0x140: jal func_00209DC0 (the save-state reset) */
 #define EE_SITE_QS_AUTOSLOT  0x1EC        /* func_L00_002618D8 + 0x1EC: the empty-slot test and store, 6 words */
 #define EE_TEXT_QS_SWITCH    0x5409       /* "[square] Next ring" (the retail box is too narrow for "Switch rings") */

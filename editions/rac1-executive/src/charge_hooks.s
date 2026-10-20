@@ -41,6 +41,23 @@ ee_pause_entry_hook:
     j     ee_pause_entry_c
     addu  $5, $31, $0
 
+/* memcard_MakeWholeSave(out) at its callers (src/charge_boots.c, ee_save_c:
+ * the save written without the Charge Boots): the return address goes in
+ * $5 and $6 = -1 (find the level from it); Veldin 2's ending save, a
+ * level-only caller (func_L18_00282F48 + 0x1C), passes its level instead. */
+.globl ee_save_hook
+.extern ee_save_c
+ee_save_hook:
+    addiu $6, $0, -1
+    j     ee_save_c
+    addu  $5, $31, $0
+
+.globl ee_save_hook_l18
+ee_save_hook_l18:
+    addiu $6, $0, 18
+    j     ee_save_c
+    addu  $5, $31, $0
+
 /* MobyFreeSlotBookkeeping() at the start of the mode-0 frame (the
  * edition's sequences kept, the Charge Boots cheat): no arguments, the
  * return address goes in $4. */
