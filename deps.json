@@ -1,0 +1,17 @@
+{
+  "openrac": {
+    "url": "https://github.com/stephen-cli/OpenRAC",
+    "branch": "executive-edition",
+    "commit": "c12e35997f86ac9d6a30d85d675ed6045e416fc3",
+    "vendor": {
+      "from": "editor",
+      "to": "common/openrac_editor",
+      "files": ["LICENSE", "disc.py", "formats.py", "level.py", "mesh.py", "moby_anim.py", "moby_class.py"]
+    }
+  },
+  "wrench": {
+    "url": "https://github.com/stephen-cli/wrench",
+    "branch": "executive-edition",
+    "commit": "92aa2f933d8d43879cbc4850031625b4d4108267"
+  }
+}
