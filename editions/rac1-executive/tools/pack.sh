@@ -2,18 +2,21 @@
 # Executive Edition pipeline: OpenRAC build + audits, bootable executable,
 # disc image. Run from anywhere in Git Bash.
 #
-#   bash editions/rac1-executive/tools/pack.sh [--quick]
+#   bash editions/rac1-executive/tools/pack.sh [--wrench]
 #
-#   --quick   copy of the owner's image with the level code patched in place, and
-#             the Charge Boots class (R&C2's model) spliced into every level's data
-#             archive, appended at the end of the image (tools/splice_boots.py), and
-#             Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py)
+#   default   copy of the owner's image: the executable in new sectors at the end, the
+#             level code patched in place, the Charge Boots class (R&C2's model)
+#             spliced into every level's data archive in place (tools/splice_boots.py),
+#             and Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py)
 #             -> editions/rac1-executive/build/iso/executive-edition.iso
-#   default   wrench full re-layout (the edition's wrench fork): game bank + wrench
-#             overlay + mod/ + the Charge Boots bank (R&C2's model, tools/gen_boots.py)
+#   --wrench  experimental: wrench full re-layout (the edition's wrench fork): game bank +
+#             wrench overlay + mod/ + the Charge Boots bank (R&C2's model, tools/gen_boots.py)
 #             + the sign bank (tools/gen_sign.py),
 #             then the level-code patches computed against and written into that image
 #             -> editions/rac1-executive/build/iso/executive-edition-wrench.iso
+#             Not a stable build: wrench's texture packer regenerates mipmaps wrongly
+#             (chaoticgd/wrench#286), so textures look wrong at a distance and in menus.
+#   --quick   the default; accepted so older notes and commands keep working
 #
 # OPENRAC, WRENCH and GAME_BANK override the defaults.
 set -euo pipefail
@@ -23,8 +26,12 @@ OPENRAC=${OPENRAC:-$(cd "$HERE/../../../OpenRAC" && pwd)}
 WRENCH=${WRENCH:-$(cd "$HERE/../../../wrench" && pwd)}
 GAME_BANK=${GAME_BANK:-$OPENRAC/assets/wrench/rac1-pal}   # unpacked with the edition's wrench fork (stash_textures on carried items)
 PAL=$OPENRAC/games/rac1
-QUICK=0
-[ "${1:-}" = "--quick" ] && QUICK=1
+QUICK=1
+case "${1:-}" in
+  ""|--quick) ;;
+  --wrench) QUICK=0 ;;
+  *) echo "usage: pack.sh [--wrench]" >&2; exit 2 ;;
+esac
 
 echo "== OpenRAC branch: $(git -C "$OPENRAC" branch --show-current)"
 # OpenRAC and wrench against the commits deps.json pins, and the carried
