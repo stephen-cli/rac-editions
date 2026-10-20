@@ -177,6 +177,28 @@ def core_pointers(index: bytes) -> list[tuple[int, int]]:
     return out
 
 
+# The texture tables {count, offset} of 16-byte entries (tfrag, moby, tie, shrub, part, fx),
+# each entry's first word the pixels' offset from textures_base (+0x60).
+TEXTURE_TABLES = (0x30, 0x38, 0x40, 0x48, 0x50, 0x58)
+
+
+def shift_textures(index: bytearray, at: int, delta: int) -> int:
+    """Move up by DELTA every texture whose pixels start at core offset AT or later (offsets
+    count from textures_base, not the core's start, so core_pointers leaves them out). The
+    Charge Boots texture lies past the moby class blobs; a class that grows before it (the
+    Kalebo III sign, tools/splice_sign.py) must move it too. Returns how many moved."""
+    base, = struct.unpack_from("<I", index, 0x60)
+    moved = 0
+    for table_at in TEXTURE_TABLES:
+        count, offset = struct.unpack_from("<II", index, table_at)
+        for i in range(count):
+            v, = struct.unpack_from("<i", index, offset + 16 * i)
+            if base + v >= at:
+                struct.pack_into("<i", index, offset + 16 * i, v + delta)
+                moved += 1
+    return moved
+
+
 def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palette: bytes,
                  width: int, height: int, wad, wrench: Path, work: Path, stage: int = 4) -> tuple[bytes, dict]:
     """STAGE (for isolating a load failure): 1 insert the bytes into the core only, 2 also add
@@ -234,6 +256,7 @@ def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palett
         if offset >= insert_at:
             struct.pack_into("<i", index, where, offset + delta)
             shifted += 1
+    shifted += shift_textures(index, insert_at, delta)    # none on the retail disc
     insert = bytearray(delta)
     insert[:len(core_class)] = core_class
     insert[tex_at - insert_at:tex_at - insert_at + len(pixels)] = pixels

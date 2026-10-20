@@ -7,7 +7,8 @@ changing a level's classes (tools/splice_boots.py, whose rules this follows).
 Class 1891's blob in the decoded core data is replaced in place. The new blob
 is larger, so its space grows by whole 0x100-byte steps (every later block
 keeps its alignment) and every core offset past it moves up by as much
-(splice_boots.core_pointers); the class stays inside the part of the core
+(splice_boots.core_pointers), and every texture whose pixels lie past it,
+the Charge Boots' among them (splice_boots.shift_textures); the class stays inside the part of the core
 the engine keeps resident (below +0x7C), where the level had it. The core
 is compressed again with wrench's compressor and checked by decoding it back
 with OpenRAC's decoder; the core index takes the new sizes (+0x88, +0x8C);
@@ -27,7 +28,7 @@ import struct
 import sys
 from pathlib import Path
 
-from splice_boots import LEVEL_TABLE, SECTOR, TAIL_SECTORS, TOC_LBA, core_pointers, recompress, table
+from splice_boots import LEVEL_TABLE, SECTOR, TAIL_SECTORS, TOC_LBA, core_pointers, recompress, shift_textures, table
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -65,6 +66,7 @@ def replace_class(archive: bytes, names, blob: bytes, wad, wrench: Path, work: P
         if offset >= end:
             struct.pack_into("<i", index, where, offset + delta)
             shifted += 1
+    shifted += shift_textures(index, end, delta)    # the Charge Boots texture (splice_boots.py) lies past the sign
     new_core = core[:start] + blob + bytes(region - len(blob)) + core[end:]
     new_stream = recompress(new_core, wrench, work)
     if wad(new_stream) != new_core:
