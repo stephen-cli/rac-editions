@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 
 ITEM_GRINDBOOTS, ITEM_MAGNEBOOTS, ITEM_CHARGE_BOOTS = 29, 28, 36
@@ -112,7 +113,7 @@ def panel_sequence(openrac: Path) -> tuple[bytes, list[int], list[bytes]]:
     frame. Returns the 0x1C-byte sequence header, the frame offsets within
     the frames blob, and the frames (16-byte header, quaternions, scale and
     translation records; OpenRAC's editor/moby_anim.py has the layout)."""
-    sys.path.insert(0, str(openrac / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from disc import Disc
     from level import load_level
     with Disc(openrac / "games/rac1/baserom/SCES_509.16.iso") as disc:

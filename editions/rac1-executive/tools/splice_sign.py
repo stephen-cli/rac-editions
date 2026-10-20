@@ -31,6 +31,7 @@ from pathlib import Path
 from splice_boots import LEVEL_TABLE, SECTOR, TAIL_SECTORS, TOC_LBA, core_pointers, recompress, shift_textures, table
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 LEVEL = 16            # Kalebo III, the only level with the sign
 CLASS_ID = 1891
@@ -102,7 +103,7 @@ def main() -> int:
     ap.add_argument("--retail", type=Path, default=None, help="the retail image, for its archive size (default OpenRAC's PAL baserom)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
     args = ap.parse_args()
-    sys.path.insert(0, str(args.openrac / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from formats import wad
     from level import SECTION_NAMES
 

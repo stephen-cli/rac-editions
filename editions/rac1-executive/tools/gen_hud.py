@@ -33,6 +33,7 @@ import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 ICON_ID = 0xEA84                 # ICON_BASE + item 36 (tools/gen_items.py)
 ICON_GRINDBOOTS = 0xEA7D
@@ -98,7 +99,7 @@ class HudHeader:
     """The retail HUD header's tables, and the pixels of a frame."""
 
     def __init__(self, openrac: Path):
-        sys.path.insert(0, str(openrac / "editor"))
+        sys.path.insert(0, str(EDITOR))
         from formats import wad
         g = openrac / "assets/wrench/rac1-pal/globals"
         self.raw = (g / "hud_header.bin").read_bytes()

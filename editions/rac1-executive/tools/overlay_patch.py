@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 SECTOR = 2048
 
 # --- MIPS encoders ------------------------------------------------------------
@@ -695,7 +696,7 @@ def level_text_locations(openrac: Path, iso: Path | None = None):
     """level id -> list of (first byte of a record in the image, its load address, its size),
     text record first, then the level's data record (the executable's data, menus included,
     is part of every level's data record at the same addresses)."""
-    sys.path.insert(0, str(openrac / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from formats import unpack, span, overlay_sections
     from level import SECTION_NAMES
     iso = iso or openrac / "games/rac1/baserom/SCES_509.16.iso"

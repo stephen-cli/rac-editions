@@ -27,6 +27,9 @@ QUICK=0
 [ "${1:-}" = "--quick" ] && QUICK=1
 
 echo "== OpenRAC branch: $(git -C "$OPENRAC" branch --show-current)"
+# OpenRAC and wrench against the commits deps.json pins, and the carried
+# OpenRAC modules (common/openrac_editor) against the pinned commit: reported, never fatal.
+python "$COMMON/deps.py" check --openrac "$OPENRAC" --wrench "$WRENCH" || echo "!! common/openrac_editor differs from the pinned OpenRAC: python common/deps.py vendor"
 cd "$PAL"
 # Native Windows (Git Bash): OpenRAC's Makefile.sn needs a GNU make newer than the
 # toolchain's 3.77 ($(if), since the 2026-10-19 master merge), and two objects are
@@ -50,8 +53,8 @@ echo "== 1/5 build"
 bash tools/build_sn.sh
 echo "== 2/5 strings (tools/gen_text.py), menu data (tools/gen_menu.py), hero sites (tools/gen_hero.py), R&C2 backpedal (common/rac2_anim.py), Charge Boots item and icon (tools/gen_items.py, tools/gen_hud.py), mod segment (tools/modseg.py)"
 python "$HERE/tools/gen_text.py"
-python "$COMMON/rac2_anim.py" emit 0x14 -o "$HERE/build/modseg/gen_anim.c"
-python "$COMMON/rac2_anim.py" emit-arm 0x14 -o "$HERE/build/modseg/gen_anim_arm.c"   # R&C2's gun arms over the backpedal (src/gun_arm.c)
+python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit 0x14 -o "$HERE/build/modseg/gen_anim.c"
+python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit-arm 0x14 -o "$HERE/build/modseg/gen_anim_arm.c"   # R&C2's gun arms over the backpedal (src/gun_arm.c)
 python "$HERE/tools/gen_menu.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_hero.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_boots.py" --openrac "$OPENRAC" --wrench "$WRENCH"    # R&C2's Charge Boots as class 2000
@@ -59,7 +62,7 @@ python "$HERE/tools/gen_sign.py" --openrac "$OPENRAC" --wrench "$WRENCH"     # K
 python "$HERE/tools/gen_items.py" --openrac "$OPENRAC" --boots-class 2000
 python "$HERE/tools/gen_charge.py" --openrac "$OPENRAC"                       # the Charge Boots dash's sites (src/charge_dash.c)
 python "$HERE/tools/gen_qs.py" --openrac "$OPENRAC"                           # the quick-select pages' sites (src/quick_select_pages.c)
-python "$COMMON/rac2_anim.py" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
+python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" emit                # the frontends' flight in 16:9 (src/widescreen.c FE_BOOT/FE_BIN)
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"

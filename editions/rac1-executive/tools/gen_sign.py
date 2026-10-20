@@ -55,6 +55,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 CLASS_ID = 1891
 CLASS_DIR = "moby_classes/prop/1891_gadgetron_sign"
@@ -422,7 +423,7 @@ def main() -> int:
 
     # Bounding spheres: the class's (+0x30) and its sequences' (each sequence starts with one),
     # in vertex units, from OpenRAC's reading of the new class.
-    sys.path.insert(0, str(args.openrac / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from moby_class import moby_class
     data = bytearray(core.read_bytes())
     mesh = moby_class(bytes(data), bytes(range(16)), "sign").mesh

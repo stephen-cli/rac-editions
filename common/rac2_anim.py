@@ -31,20 +31,24 @@ the executable; this is a transcription of it):
              offset, u16 translation count), 4 x s16 per joint, 8-byte scale
              records, 8-byte translation records (editor/moby_anim.py keys())
 
-  python tools/rac2_anim.py validate [--rac2 ISO] [--rac1 ISO]   # R&C2 slot 4 (run) against R&C1's slot 4
-  python tools/rac2_anim.py emit SLOT -o build/modseg/gen_anim.c  # one sequence as C data for the mod segment
+  python common/rac2_anim.py [--openrac DIR] validate [--rac2 ISO] [--rac1 ISO]   # R&C2 slot 4 (run) against R&C1's slot 4
+  python common/rac2_anim.py [--openrac DIR] emit SLOT -o build/modseg/gen_anim.c  # one sequence as C data for the mod segment
+
+The images default to the baseroms of the OpenRAC checkout (--openrac, else
+OPENRAC, else ../OpenRAC); the disc readers are common/openrac_editor's.
 """
 import argparse
 import math
+import os
 import struct
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-OPENRAC = ROOT.parent / "OpenRAC"
-RAC2_ISO = OPENRAC / "games/rac2/ntsc/baserom/SCUS_972.68.iso"
-RAC1_ISO = OPENRAC / "games/rac1/baserom/SCES_509.16.iso"
+EDITOR = HERE / "openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
+RAC2_ISO = "games/rac2/ntsc/baserom/SCUS_972.68.iso"   # in the OpenRAC checkout
+RAC1_ISO = "games/rac1/baserom/SCES_509.16.iso"
 SECTOR = 2048
 
 
@@ -94,7 +98,7 @@ class Iso9660:
 
 def rac2_ratchet(iso_path: Path, level: int = 1):
     """(joint count, {slot: sequence bytes}) of R&C2's Ratchet from level LEVEL's archive."""
-    sys.path.insert(0, str(OPENRAC / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from level import decoded
     iso = Iso9660(iso_path)
     lba, _ = iso.find(f"G/LEVEL{level}.WAD")
@@ -221,7 +225,7 @@ def unpack_sequence(seq: bytes, joints: int):
 # --- R&C1 reference ----------------------------------------------------------------
 
 def rac1_ratchet(iso_path: Path, level: int = 0):
-    sys.path.insert(0, str(OPENRAC / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from disc import Disc
     from level import load_level
     from formats import unpack
@@ -309,7 +313,7 @@ def rac2_class(iso_path: Path, class_id: int, level: int = 1) -> bytes:
     """Moby class CLASS_ID's blob from R&C2 level LEVEL: the core index's moby class
     table (+0x18: count, offset; 32-byte entries, core offset then class id), the blob
     ending where the next class starts."""
-    sys.path.insert(0, str(OPENRAC / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from level import decoded
     iso = Iso9660(iso_path)
     lba, _ = iso.find(f"G/LEVEL{level}.WAD")
@@ -375,24 +379,28 @@ def emit_arm(args) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--openrac", type=Path, default=Path(os.environ.get("OPENRAC") or ROOT.parent / "OpenRAC"))
     sub = ap.add_subparsers(dest="cmd", required=True)
     v = sub.add_parser("validate")
-    v.add_argument("--rac2", type=Path, default=RAC2_ISO)
-    v.add_argument("--rac1", type=Path, default=RAC1_ISO)
+    v.add_argument("--rac2", type=Path)
+    v.add_argument("--rac1", type=Path)
     v.set_defaults(fn=validate)
     e = sub.add_parser("emit")
     e.add_argument("slot", type=lambda s: int(s, 0))
-    e.add_argument("--rac2", type=Path, default=RAC2_ISO)
+    e.add_argument("--rac2", type=Path)
     e.add_argument("--name", default="ee_backpedal_seq")
     e.add_argument("-o", "--output", type=Path, required=True)
     e.set_defaults(fn=emit)
     a = sub.add_parser("emit-arm")
     a.add_argument("slot", type=lambda s: int(s, 0))
-    a.add_argument("--rac2", type=Path, default=RAC2_ISO)
+    a.add_argument("--rac2", type=Path)
     a.add_argument("--name", default="ee_gunarm_seq")
     a.add_argument("-o", "--output", type=Path, required=True)
     a.set_defaults(fn=emit_arm)
     args = ap.parse_args()
+    args.rac2 = args.rac2 or args.openrac / RAC2_ISO
+    if args.cmd == "validate":
+        args.rac1 = args.rac1 or args.openrac / RAC1_ISO
     return args.fn(args)
 
 

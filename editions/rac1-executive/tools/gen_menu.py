@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 SECTOR_BYTES = 2048
 
@@ -160,7 +161,7 @@ def main() -> int:
     # come from the disc's table of contents here; our row shows the Help page's
     # "Controls" preview, help_ss[1] (the table right before, at 0x138108; its
     # rows are Help Log, Controls, Moves, Weapons, Gadgets).
-    sys.path.insert(0, str(args.openrac / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from disc import Disc
     with Disc(pal / "baserom/SCES_509.16.iso") as disc:
         refs = disc.survey()["global_references"]

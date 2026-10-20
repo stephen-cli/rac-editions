@@ -55,6 +55,7 @@ import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 SECTOR = 2048
 TOC_LBA, LEVEL_TABLE = 1500, 0x28C8
@@ -334,7 +335,7 @@ def main() -> int:
     ap.add_argument("--texture", type=Path, default=None, help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
     args = ap.parse_args()
-    sys.path.insert(0, str(args.openrac / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from formats import wad
     from level import SECTION_NAMES
 

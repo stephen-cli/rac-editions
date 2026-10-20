@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 GAME_SYM = re.compile(r"^(func|D)_([0-9A-F]{8})$")
 LEVEL_SYM = re.compile(r"^lvl_(func_(?:L\d\d_)?[0-9A-F]{8})$")
@@ -102,7 +103,7 @@ def catalogue(openrac: Path) -> dict[str, dict[int, int]]:
 def level_data_addresses(openrac: Path, places: dict, spec: tuple) -> list[int]:
     """The address a shared function's %hi/%lo pair resolves to, per level, read from the disc."""
     import struct
-    sys.path.insert(0, str(openrac / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from disc import Disc, SECTOR
     from formats import unpack, span, overlay_sections
     from level import SECTION_NAMES

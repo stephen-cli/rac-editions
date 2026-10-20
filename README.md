@@ -17,8 +17,10 @@ holds only the editions' code, tools and notes, never game data.
 editions/    one folder per edition: its code (src/), pipeline (tools/), data, docs
 common/      tools the editions share: apply_patches.py (writes sector patches into an image),
              rac2_anim.py (Going Commando's packed animations), wsl_linux_run.sh (runs Linux
-             assemblers through WSL)
+             assemblers through WSL), deps.py (the pinned dependencies, below),
+             openrac_editor/ (OpenRAC's disc readers, carried unchanged)
 installer/   the end-user tool that makes an edition from your disc images (planned)
+deps.json    the OpenRAC and wrench commits the editions build against
 ```
 
 ## The installer
@@ -37,14 +39,23 @@ out entirely; give it Going Commando as well and they are built in.
 ## Building an edition (development)
 
 Each edition's README lists the discs and software it needs and the steps.
-OpenRAC and the editions' fork of [wrench](https://github.com/stephen-cli/wrench)
-sit beside this repository:
+The editions' forks of [OpenRAC](https://github.com/stephen-cli/OpenRAC) and
+[wrench](https://github.com/stephen-cli/wrench) sit beside this repository
+(`OPENRAC` and `WRENCH` point elsewhere), checked out at the commits
+[deps.json](deps.json) pins:
 
 ```
 C:\rac\OpenRAC
 C:\rac\wrench
 C:\rac\rac-editions
 ```
+
+`python common/deps.py check` says whether the checkouts are at the pins and
+the pins are pushed; each edition's build runs it first. Only building needs
+these checkouts. The OpenRAC modules that read the discs are carried in
+[common/openrac_editor](common/openrac_editor/README.md), copied unchanged
+from the pinned commit (MIT), so the installer needs no OpenRAC. To move to
+newer OpenRAC: `python common/deps.py lock`, then `python common/deps.py vendor`.
 
 ## Rules
 

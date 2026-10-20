@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 TOC_LBA, ALL_TEXT_TOC_OFFSET = 1500, 0x1528
 LANGUAGE_TABLES = {0: 1, 2: 2, 3: 3, 4: 4, 5: 5}     # sub-table -> column in strings.tsv (1 = English)
@@ -35,7 +36,7 @@ SECTOR = 2048
 
 
 def read_table(openrac: Path) -> bytes:
-    sys.path.insert(0, str(openrac / "editor"))
+    sys.path.insert(0, str(EDITOR))
     from disc import Disc
     iso = openrac / "games/rac1/baserom/SCES_509.16.iso"
     with Disc(iso) as disc:
