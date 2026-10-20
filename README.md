@@ -63,3 +63,8 @@ Same as OpenRAC's: your own disc is the evidence; no Sony SDK source,
 samples or headers; no leaked material; never commit disc images,
 executables, extracted data or build output. Nothing the installer ships
 may contain any game's data.
+
+## License
+
+GPL-3.0-or-later, except the carried OpenRAC modules (MIT); see
+[LICENSE.md](LICENSE.md). The games are not covered: you supply your own discs.
