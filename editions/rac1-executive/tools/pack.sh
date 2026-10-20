@@ -8,12 +8,12 @@
 #             the Charge Boots class (R&C2's model) spliced into every level's data
 #             archive, appended at the end of the image (tools/splice_boots.py), and
 #             Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py)
-#             -> OpenRAC/games/rac1/build-sn/executive-edition.iso
+#             -> editions/rac1-executive/build/iso/executive-edition.iso
 #   default   wrench full re-layout (the edition's wrench fork): game bank + wrench
 #             overlay + mod/ + the Charge Boots bank (R&C2's model, tools/gen_boots.py)
 #             + the sign bank (tools/gen_sign.py),
 #             then the level-code patches computed against and written into that image
-#             -> OpenRAC/build/wrench/executive-edition.iso
+#             -> editions/rac1-executive/build/iso/executive-edition-wrench.iso
 #
 # OPENRAC, WRENCH and GAME_BANK override the defaults.
 set -euo pipefail
@@ -75,22 +75,23 @@ if [ "$QUICK" = 1 ]; then
   python "$HERE/tools/overlay_patch.py" -o "$HERE/build/patches"
   echo "== 5/5 image (executable in new sectors at the end, level patches in place)"
   # An image an emulator has open cannot be overwritten: fall back to a numbered name.
-  out=build-sn/executive-edition.iso; n=1
-  while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=build-sn/executive-edition-$n.iso; done
+  mkdir -p "$HERE/build/iso"
+  out=$HERE/build/iso/executive-edition.iso; n=1
+  while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$HERE/build/iso/executive-edition-$n.iso; done
   python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv" -o "$out"
   echo "== 5b/5 the Charge Boots class spliced into every level's data (tools/splice_boots.py)"
   python "$HERE/tools/splice_boots.py" "$out" --openrac "$OPENRAC"
   echo "== 5c/5 Kalebo III's GADGETRON sign spliced into its data (tools/splice_sign.py)"
   python "$HERE/tools/splice_sign.py" "$out" --openrac "$OPENRAC"
-  echo "-> $PAL/$out"
+  echo "-> $out"
   exit 0
 fi
 
 cp build-sn/SCES_509.16 "$HERE/mod/SCES_509.16"
 echo "== 4/5 wrench pack: game bank + wrench overlay + mod/ + build/boots_bank + build/sign_bank"
-mkdir -p "$OPENRAC/build/wrench"
-out=$OPENRAC/build/wrench/executive-edition.iso; n=1
-while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$OPENRAC/build/wrench/executive-edition-$n.iso; done
+mkdir -p "$HERE/build/iso"
+out=$HERE/build/iso/executive-edition-wrench.iso; n=1
+while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$HERE/build/iso/executive-edition-wrench-$n.iso; done
 "$WRENCH/bin/wrenchbuild.exe" pack "$GAME_BANK" "$WRENCH/data/overlay" "$HERE/mod" "$HERE/build/boots_bank" "$HERE/build/sign_bank" \
   -a rac -o "$out" -h release \
   | grep -vE '^Parsing|^\[ *[0-9]+%\]' || true

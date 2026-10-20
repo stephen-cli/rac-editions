@@ -68,7 +68,7 @@ has every change in full detail, with its status.
 |---|---|
 | [Git for Windows](https://git-scm.com/download/win) (Git Bash) | all commands below run in Git Bash |
 | [Python](https://www.python.org/) 3.10 or newer | every pipeline step |
-| [OpenRAC](https://github.com/OpenRAC/OpenRAC) | builds the game's executable from source |
+| The edition's fork of [OpenRAC](https://github.com/OpenRAC/OpenRAC): [stephen-cli/OpenRAC](https://github.com/stephen-cli/OpenRAC), branch `executive-edition` | builds the game's executable from source |
 | The SN ProDG toolchain mirrors: [SN-Systems-ProDG_for_PS2_3.01](https://github.com/AngheloAlf/SN-Systems-ProDG_for_PS2_3.01) and [sce_ps2_sdk_24](https://github.com/AngheloAlf/sce_ps2_sdk_24) | the PS2 compiler, assembler and linker the game was built with |
 | The edition's fork of [wrench](https://github.com/chaoticgd/wrench): [stephen-cli/wrench](https://github.com/stephen-cli/wrench), branch `executive-edition` | unpacks the discs, converts the R&C2 boots to R&C1's format, compresses level data |
 | [CMake](https://cmake.org/), [Ninja](https://ninja-build.org/) and a C++20 compiler ([MinGW-w64 GCC](https://winlibs.com/)) | to build wrench |
@@ -89,14 +89,15 @@ C:\rac\rac-editions
 
 ```sh
 cd /c/rac
-git clone -c core.autocrlf=false https://github.com/OpenRAC/OpenRAC.git
+git clone -c core.autocrlf=false -b executive-edition https://github.com/stephen-cli/OpenRAC.git OpenRAC
 git clone -c core.autocrlf=false -b executive-edition https://github.com/stephen-cli/wrench.git wrench
 git clone https://github.com/stephen-cli/rac-editions.git rac-editions
-git -C OpenRAC apply ../rac-editions/editions/rac1-executive/patches/openrac-executive-edition.patch
+python rac-editions/common/deps.py check   # both at the commits rac-editions/deps.json pins?
 ```
 
 `core.autocrlf=false` matters: Windows line endings break OpenRAC's linker
-script.
+script. If `check` names a different commit, check it out:
+`git -C OpenRAC checkout <commit>` (or `wrench`).
 
 **2. Give OpenRAC your discs and the toolchain.**
 
@@ -137,8 +138,11 @@ This takes about five minutes. It compiles the game from source, checks it
 against your disc, builds the edition's code, and writes the disc image:
 
 ```
-OpenRAC/games/rac1/build-sn/executive-edition.iso
+rac-editions/editions/rac1-executive/build/iso/executive-edition.iso
 ```
+
+If PCSX2 has that image open, the build writes `executive-edition-2.iso`
+(and so on) beside it instead.
 
 **5. Play.** Open `executive-edition.iso` in PCSX2 like any disc (you need
 your own PS2 BIOS), or burn it to a DVD for a real PS2.
