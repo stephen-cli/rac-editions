@@ -2250,7 +2250,7 @@ centred and 460 pixels wide in the 960-pixel frame where unsqueezed it
 would be 613. Not run: the cards between planets (the same function and
 hooks in the levels), and a 4:3 comparison of the title logo's place.
 
-### q4: the title cards, the title logo and PRESS START, measured (2026-10-21, owner's second report), verified in PCSX2, awaiting owner test
+### q4: the title cards, the title logo and PRESS START, measured (2026-10-21, owner's second report) — confirmed fixed by the owner
 
 **The owner's report.** Screenshots of retail at 4:3 next to the edition at
 16:9: the title cards were still stretched, and the title screen's logo and

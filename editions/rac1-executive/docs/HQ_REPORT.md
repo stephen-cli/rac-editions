@@ -6,7 +6,7 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-21 (16:9: the title cards, logo and PRESS START, owner's second report)
 
-### 📺 Proper widescreen (q4) — Title cards, logo and PRESS START fixed and measured against 4:3, awaiting owner test
+### 📺 Proper widescreen (q4) — Title cards, logo and PRESS START fixed; confirmed by the owner (all reported issues)
 
 **What changed.**
 - **The story's title cards** now keep their retail shape in 16:9, with black at the sides. The previous build's fix did nothing to them, so the owner's report was right.
@@ -40,7 +40,7 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-21 (16:9 on the title screen, owner's request)
 
-### 📺 Proper widescreen (q4) — 16:9 row added to the title screen's Video page, verified in PCSX2, awaiting owner test
+### 📺 Proper widescreen (q4) — 16:9 row added to the title screen's Video page; working per the owner
 
 **What changed.** The title screen's Options → Video page has a second row, **16:9 (widescreen)**, under the 50Hz/60Hz setting. It is the same setting as the in-game Camera page's row. Turning it on there and starting a New Game starts the game in 16:9. The title screen itself stays 4:3, as decided before.
 
