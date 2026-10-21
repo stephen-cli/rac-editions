@@ -25,6 +25,10 @@ holds only the edition's code, tools and notes, never game data.
 - **Quick Select pause.** A new row on the Controls page in Options. Turned on, the game
   stops while the quick-select ring is open, as in the sequels. Off by
   default.
+- **Movie volume.** A new orange slider on the Sound page (Options → Sound)
+  for the sound of movies and prerendered cutscenes, which the original
+  game ties to the Sound effects volume. Saved with your game; until you
+  set it, it matches your Sound effects volume.
 - **16:9 widescreen.** A new row on the Camera page (Options → Camera).
   Turned on, the game fills a widescreen TV (set your TV, or PCSX2's aspect
   ratio, to 16:9): you see more to the sides, nothing is cut off at the top

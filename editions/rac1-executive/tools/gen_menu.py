@@ -16,8 +16,11 @@ Options list and the Subtitles page, and writes:
                                "16:9 (widescreen)" row added
   build/modseg/menu_sites.json per level: the Options list widget's item
                                pointer (the word tools/overlay_patch.py
-                               redirects) and its retail value, and the
-                               Camera list widget's entries pointer
+                               redirects) and its retail value, the
+                               Camera list widget's entries pointer, and
+                               the Sound page's slider widget's input and
+                               draw words (the Movie volume row,
+                               src/movie_volume.c)
 
   python tools/gen_menu.py [--openrac DIR]
 """
@@ -66,6 +69,21 @@ LABEL_ON, LABEL_OFF = 0x4F5A, 0x4F5B                 # "on", "off" (the Subtitle
 CAMERA_ROWS = [0x4FA2, 0x4FA3, 0x5220]              # Left/Right movement, Up/Down movement, rotation speed
 DESC_IDS = [0x4F31, 0x4F32, 0x4F33, 0x4F35, 0x4F36, 0x4F37, 0x4F39]   # the Options rows' descriptions
 IMAGE_TABLE = 0x00138140         # core data: {first frame, frames} per Options row, 8 bytes each
+
+
+LABEL_SOUND = 0x4F22             # "Sound"
+SOUND_FUNCTIONS = ("func_0021DB30", "func_0021DE08")   # Pause_SoundOptionsInput, DrawSoundMenu
+_PLACES: dict[str, dict[int, int]] = {}
+
+
+def catalogue_place(pal: Path, name: str, level: int) -> int:
+    """A function's address in a level, from OpenRAC's overlay catalogue."""
+    if not _PLACES:
+        for line in (pal / "config/overlays/functions.tsv").read_text().splitlines():
+            if line.strip() and not line.startswith("#"):
+                cols = line.split("\t")
+                _PLACES[cols[0]] = {int(p.split(":")[0]): int(p.split(":")[1], 16) for p in cols[5].split(",")}
+    return _PLACES[name][level]
 
 
 def level_record(pal: Path, level: int):
@@ -137,7 +155,16 @@ def find_menu(pal: Path, level: int) -> dict:
     cam = [u32(cam_entries + 4 * i) for i in range(6 * (len(CAMERA_ROWS) + 1))]
     if [cam[6 * i] for i in range(len(CAMERA_ROWS) + 1)] != CAMERA_ROWS + [0]:
         raise SystemExit(f"level {level}: the Camera page's rows are not where expected")
-    return {"camera_site": (cam_widget + 0x34, cam_entries), "camera": cam[:6 * len(CAMERA_ROWS)],
+    # The Sound page's slider widget: the page's widget whose input and draw are
+    # this level's Pause_SoundOptionsInput and DrawSoundMenu (src/movie_volume.c).
+    sound_page = rows[OPTION_LABELS.index(LABEL_SOUND)][1]
+    sound_input, sound_draw = (catalogue_place(pal, name, level) for name in SOUND_FUNCTIONS)
+    sound = {u32(sound_page + 0x40 + 4 * i) for i in range(18)} - {0}
+    sound = [w for w in sound if 0 <= w - base < len(d) - 8 and (u32(w), u32(w + 4)) == (sound_input, sound_draw)]
+    if len(sound) != 1:
+        raise SystemExit(f"level {level}: {len(sound)} Sound slider widgets on the Sound page")
+    return {"sound_widget": (sound[0], sound_input, sound_draw),
+            "camera_site": (cam_widget + 0x34, cam_entries), "camera": cam[:6 * len(CAMERA_ROWS)],
             "items": items, "widget": widget, "rows": rows, "page": page, "toggle_addr": toggle,
             "title_addr": title, "toggle": tog, "title": tit, "entry": entry,
             "desc_site": desc_site, "image_site": image_site}
@@ -213,7 +240,9 @@ def main() -> int:
         sites[L] = {"items": {"site": m["widget"] + 0x34, "expect": m["items"], "symbol": f"ee_options_items_{s}"},
                     "desc": {"site": m["desc_site"][0], "expect": m["desc_site"][1], "symbol": f"ee_options_desc_{s}"},
                     "image": {"site": m["image_site"][0], "expect": m["image_site"][1], "symbol": "ee_options_images"},
-                    "camera": {"site": m["camera_site"][0], "expect": m["camera_site"][1], "symbol": f"ee_camera_entries_{s}"}}
+                    "camera": {"site": m["camera_site"][0], "expect": m["camera_site"][1], "symbol": f"ee_camera_entries_{s}"},
+                    "sound_input": {"site": m["sound_widget"][0], "expect": m["sound_widget"][1], "symbol": f"ee_sound_input_{s}"},
+                    "sound_draw": {"site": m["sound_widget"][0] + 4, "expect": m["sound_widget"][2], "symbol": f"ee_sound_draw_{s}"}}
     (args.out / "gen_menu.c").write_text("\n".join(c) + "\n")
     (args.out / "menu_sites.json").write_text(json.dumps(sites, indent=1))
     print(f"wrote {args.out / 'gen_menu.c'} (19 levels) and menu_sites.json")

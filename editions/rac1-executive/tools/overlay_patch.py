@@ -369,7 +369,35 @@ def health_backing(at):
     return [(site, load, addiu(2, ZERO, HEALTH_ROW_STEP))]
 
 
-OLTANIS_SEEN_BRANCH = 0x2EE780 - 0x2EE6E0   # bnel $3, $zero, .L_out (the intro-seen flag); lq $22 in its slot
+def movie_volume(at):
+    """A Movie volume row on the pause menu's Sound page (src/movie_volume.c).
+    The three snd_SetMasterVolume calls for volume group 5, the group movies'
+    sound plays in, go to ee_movie_group_volume (Sound_InitState, the
+    per-frame sound_update and the end of the movie loop; offsets
+    EE_SITE_MOVIE_* in src/modseg.h). The Sound page's slider widget (level
+    data, found by tools/gen_menu.py) runs the level's stubs in
+    src/movie_hooks.s instead of Pause_SoundOptionsInput and DrawSoundMenu.
+    Each call site is checked to load group 5 next to it."""
+    import json
+    snd_set_master_volume = 0x0012E348            # core
+    hook = jal(modseg_symbol("ee_movie_group_volume"))
+    out = []
+    for func, site_name, group_word in (("func_0022DBE8", "EE_SITE_MOVIE_INIT", +4),
+                                        ("func_0022DD68", "EE_SITE_MOVIE_UPDATE", +4),
+                                        ("func_0023B740", "EE_SITE_MOVIE_END", -4)):
+        site = at(func) + site_offset(site_name)
+        group, = at.words(site + group_word, 1)
+        if group != addiu(4, ZERO, 5):
+            raise SystemExit(f"level {at.level}: {func}'s volume call at 0x{site:X} is not for group 5 ({group:08X})")
+        out.append((site, jal(snd_set_master_volume), hook))
+    menu = HERE.parent / "build/modseg/menu_sites.json"
+    if not menu.is_file():
+        raise SystemExit(f"missing {menu}: run tools/gen_menu.py first")
+    m = json.loads(menu.read_text())[str(at.level)]
+    return out + [(m[k]["site"], m[k]["expect"], modseg_symbol(m[k]["symbol"])) for k in ("sound_input", "sound_draw")]
+
+
+OLTANIS_SEEN_BRANCH =0x2EE780 - 0x2EE6E0   # bnel $3, $zero, .L_out (the intro-seen flag); lq $22 in its slot
 OLTANIS_SET_STATE = 0x2EE79C - 0x2EE6E0     # sb $2, 0x20($22) (state = 2), then b .L_epilogue
 
 
@@ -682,13 +710,14 @@ FEATURES = {
     "commercials": commercials,
     "health_backing": health_backing,
     "oltanis_lightning": oltanis_lightning,
+    "movie_volume": movie_volume,
     "item_preview": item_preview,
     "comet_strike_run": comet_strike_run,
     "comet_strike_jump": comet_strike_jump,
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "oltanis_lightning", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots", "item_preview", "widescreen"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "oltanis_lightning", "movie_volume", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots", "item_preview", "widescreen"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

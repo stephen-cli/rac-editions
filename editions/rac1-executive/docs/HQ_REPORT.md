@@ -4,6 +4,25 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-21 (owner's extra item: Movie volume)
+
+### 🎬 Movie volume — Implemented and verified in PCSX2, awaiting owner test
+
+**What changed.** The Sound page (Options → Sound) has a fourth row, **Movie volume**, between Music volume and the stereo/mono toggle, with an orange bar. It sets the volume of in-level movies, prerendered cutscenes and the Goodies movies, which the original game ties to the Sound effects volume. Sound effects no longer affect movies.
+
+**Decisions taken.**
+- **Orange**, the owner's pick of four candidates previewed beside the original green and blue bars. It is the green bar's own texture with an orange palette, so it has the same white centre line.
+- **Saved with the game**, like the other volumes. Until it is set, it matches the save's Sound effects volume, so movies start exactly as loud as before. Original-game saves still load in the edition, and edition saves in the original game.
+- The title screen's attract movie still follows Sound effects (the title screen is a separate program the edition leaves alone).
+
+**Findings.**
+- Movies play their sound in an audio group of their own that nothing else uses. That is why a separate volume works cleanly: only three places in the game set that group's level, and they now use the movie volume.
+- The original game applies a save's volumes when loading from the title screen, and keeps the current ones when starting a new game.
+
+**Verification.** In PCSX2 on the owner's Veldin save (nothing saved to the card): the page shows the four rows with the orange bar, and holding right on Movie volume raises only that bar. The sound chip's own volume table showed the movie group at the movie volume, not the sound effects one. Not yet tested: hearing a movie at the new volume, and saving then reloading the setting.
+
+**Owner test.** Turn Movie volume down and Sound effects up (or the other way round), then play a movie from Goodies → In-Level Movies (or reach a prerendered cutscene). Save, reload the save from the title screen, and check the slider kept its place.
+
 ## 2026-10-21 (owner's extra item: Oltanis's lightning)
 
 ### ⛈️ Oltanis keeps its lightning — Fixed; working per the owner

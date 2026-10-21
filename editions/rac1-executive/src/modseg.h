@@ -26,6 +26,7 @@ typedef short s16;
 typedef unsigned short u16;
 typedef int s32;
 typedef unsigned int u32;
+typedef unsigned long u64;      /* 64-bit with the game's compiler, as in OpenRAC's common.h */
 typedef float f32;
 
 /* Save globals the executable keeps resident (ReRAC game_state.md, US + 0x100 for PAL).
@@ -117,6 +118,11 @@ void ee_controls_panel(u32 moby);
  * retail game would build from its own record 36, the race Devastator. In
  * the page number's record, after its byte; 0 in RAM except while saving. */
 #define EE_SAVE_BOOTS_WORN   0x00141A61
+/* The Movie volume (src/movie_volume.c), u16, saved with the game like
+ * retail's volumes: 0 in a retail save or after the new-game reset, else
+ * the volume + 1. In the page number's record too; kept across the
+ * challenge-mode carry-over with the pages. */
+#define EE_SETTING_MOVIE_VOLUME 0x00141A62
 #define EE_SITE_QS_CARRY     0x140        /* func_00227DB0 + 0x140: jal func_00209DC0 (the save-state reset) */
 #define EE_SITE_QS_AUTOSLOT  0x1EC        /* func_L00_002618D8 + 0x1EC: the empty-slot test and store, 6 words */
 #define EE_TEXT_QS_SWITCH    0x5409       /* "[square] Next ring" (the retail box is too narrow for "Switch rings") */
@@ -138,6 +144,18 @@ void ee_charge_cheat_frame(s32 level);
 /* x2: item record 36, the Charge Boots' and the hoverboard races' Devastator:
  * retail's words while Ratchet is on the board (src/charge_boots.c). */
 void ee_race_item_frame(s32 level);
+
+/* Movie volume (src/movie_volume.c): a fourth row on the pause menu's Sound
+ * page. Movies' sound plays in 989snd volume group 5, which retail sets to
+ * the sound effects volume; the three calls that set that group's level
+ * (sound init, the per-frame sound update, a movie's end) are redirected to
+ * ee_movie_group_volume, as offsets in those functions. */
+#define EE_SITE_MOVIE_INIT      0x164   /* func_0022DBE8 (Sound_InitState) + 0x164: jal snd_SetMasterVolume(5, ...) */
+#define EE_SITE_MOVIE_UPDATE    0x364   /* func_0022DD68 (sound_update) + 0x364: the same, every frame */
+#define EE_SITE_MOVIE_END       0x3B0   /* func_0023B740 (the movie loop) + 0x3B0: the same, as a movie ends */
+#define EE_TEXT_MOVIE_VOLUME    0x540F  /* "Movie volume" */
+#define EE_ICON_MOVIE_BAR       0xE99F  /* the orange bar: icon 0xE99E's green bar frame (8) with an orange palette */
+void ee_movie_group_volume(s32 group, s32 volume);
 
 /* x2: the level loader's HUD header copy, with the edition's icon appended (src/hud_icons.c). */
 void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size);

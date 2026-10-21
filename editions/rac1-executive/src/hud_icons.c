@@ -31,16 +31,29 @@
  * does it, then the two pages are pointed at the pixels in this segment.
  * Every gadget icon's two frames share palette pages 5 (black glyph) and
  * 6 (white, while equipped), tile colour included; the extra levels'
- * palettes come after those. The tables are rebuilt at every level load. */
+ * palettes come after those. The tables are rebuilt at every level load.
+ *
+ * The Sound page's orange Movie volume bar (src/movie_volume.c) is icon
+ * EE_ICON_MOVIE_BAR, one frame: the image of the slider icon's green bar
+ * (icon 0xE99E frame 8; its blue bar, frame 9, is another image under the
+ * same palette page) with a palette of its own, the bar's palette with the
+ * bar's entries turned orange (tools/gen_hud.py). That palette page is
+ * inserted at the end of bank 1's palette range the same way as the icon's
+ * image pages, for the same reasons: later palettes, their frame
+ * references and the range ends shift by one, and LinkHudBank(1) is
+ * followed by pointing the page at the palette in this segment. */
 #include "modseg.h"
 
 extern const unsigned char ee_icon_charge_boots[2048];   /* tools/gen_hud.py: two 32x32 frames */
+extern const unsigned char ee_palette_movie_bar[1024];   /* tools/gen_hud.py: 256 RGBA entries, the game's CSM1 order */
 
 #define ICON_CHARGE_BOOTS   0xEA84
 #define PALETTE_BLACK       5
 #define PALETTE_WHITE       6
 #define ICON_LOG2           5        /* 32x32 */
 #define ICON_BANK           1        /* the menu icon bank */
+#define ICON_SLIDER         0xE99E   /* the Sound page's slider icon */
+#define SLIDER_GREEN_BAR    8        /* its frame for the sound effects bar */
 
 struct IconRow { u16 id, count, start; u8 flags, pad; };
 struct FrameRef { s16 palette, image; };
@@ -68,6 +81,7 @@ DECLARE_LVL_DATA(hud_arena);            /* the arena: header pointer at +0x18, t
 #define TABLES_BYTES 0x1800
 static u8 ee_hud_tables[TABLES_BYTES] __attribute__((aligned(16)));
 static s32 ee_icon_pages;        /* index of the icon's first image page, or -1 */
+static s32 ee_bar_palette;       /* index of the movie bar's palette page, or -1 */
 
 static u8 *copy(u8 *dst, const u8 *src, s32 n)
 {
@@ -86,7 +100,8 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
     const struct IconRow *icons;
     const struct FrameRef *refs;
     const struct Page *pages;
-    s32 n_icons, n_frames, n_pal, n_img, at, need, i;
+    s32 *pal_ends = HEADER_PAL_ENDS(dst);
+    s32 n_icons, n_frames, n_pal, n_img, at, pal_at, bar, need, i;
     u8 *p = ee_hud_tables;
     struct IconRow *row;
     struct FrameRef *ref;
@@ -95,16 +110,22 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
 
     copy(dst, src, size);
     ee_icon_pages = -1;
+    ee_bar_palette = -1;
 
     icons = (const struct IconRow *)(dst + off[0]);
+    bar = -1;                             /* the green bar's frame */
     for (n_icons = 0; icons[n_icons].id != 0xFFFF; n_icons++) {
+        if (icons[n_icons].id == ICON_SLIDER && icons[n_icons].count > SLIDER_GREEN_BAR) {
+            bar = icons[n_icons].start + SLIDER_GREEN_BAR;
+        }
     }
     n_frames = (off[2] - off[1]) / 4;
     n_pal = (off[3] - off[2]) / 8;
     n_img = img_ends[4];
-    at = img_ends[ICON_BANK];             /* the new pages go here */
-    need = 8 * (n_icons + 2) + 4 * (n_frames + 2) + 8 * n_pal + 8 * (n_img + 2);
-    if (need > TABLES_BYTES || at <= 0 || at > n_img) {
+    at = img_ends[ICON_BANK];             /* the new image pages go here */
+    pal_at = pal_ends[ICON_BANK];         /* and the new palette page here */
+    need = 8 * (n_icons + 3) + 4 * (n_frames + 3) + 8 * (n_pal + 1) + 8 * (n_img + 2);
+    if (need > TABLES_BYTES || at <= 0 || at > n_img || pal_at <= 0 || pal_at > n_pal || bar < 0 || bar >= n_frames) {
         return;                           /* keep the retail tables */
     }
 
@@ -114,6 +135,12 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
     row->id = ICON_CHARGE_BOOTS;
     row->count = 2;
     row->start = (u16)n_frames;
+    row->flags = 0;
+    row->pad = 0;
+    row++;
+    row->id = EE_ICON_MOVIE_BAR;
+    row->count = 1;
+    row->start = (u16)(n_frames + 2);
     row->flags = 0;
     row->pad = 0;
     row++;
@@ -128,17 +155,36 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
     refs = (const struct FrameRef *)(dst + off[1]);
     ref = (struct FrameRef *)p;
     for (i = 0; i < n_frames; i++) {
-        ref[i].palette = refs[i].palette;
+        ref[i].palette = refs[i].palette >= pal_at ? refs[i].palette + 1 : refs[i].palette;
         ref[i].image = refs[i].image >= at ? refs[i].image + 2 : refs[i].image;
     }
     ref[n_frames].palette = PALETTE_BLACK;
     ref[n_frames].image = (s16)at;
     ref[n_frames + 1].palette = PALETTE_WHITE;
     ref[n_frames + 1].image = (s16)(at + 1);
-    p = (u8 *)(ref + n_frames + 2);
+    ref[n_frames + 2].palette = (s16)pal_at;
+    ref[n_frames + 2].image = ref[bar].image;
+    p = (u8 *)(ref + n_frames + 3);
 
     o_pal = (u32)p - (u32)dst;
-    p = copy(p, dst + off[2], 8 * n_pal);
+    pages = (const struct Page *)(dst + off[2]);
+    page = (struct Page *)p;
+    for (i = 0; i < pal_at; i++) {
+        page[i] = pages[i];
+    }
+    page[pal_at].source = 0x80000000;      /* unlinked; set to the palette after LinkHudBank(1) */
+    page[pal_at].gs_block = 0;
+    page[pal_at].wlog2 = 0;
+    page[pal_at].hlog2 = 0;
+    for (i = pal_at; i < n_pal; i++) {
+        page[i + 1] = pages[i];
+    }
+    p = (u8 *)(page + n_pal + 1);
+    for (i = ICON_BANK; i < IMG_ENDS; i++) {      /* the palette range ends, 8 words before the image ones */
+        if (pal_ends[i] >= pal_at) {
+            pal_ends[i] += 1;
+        }
+    }
 
     o_img = (u32)p - (u32)dst;
     pages = (const struct Page *)(dst + off[3]);
@@ -164,9 +210,10 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
     off[1] = o_frames;
     off[2] = o_pal;
     off[3] = o_img;
-    counts[0] = (u16)(n_icons + 2);
-    counts[1] = (u16)(n_frames + 2);
+    counts[0] = (u16)(n_icons + 3);
+    counts[1] = (u16)(n_frames + 3);
     ee_icon_pages = at;
+    ee_bar_palette = pal_at;
 }
 
 /* LinkHudBank(bank, address), as retail's func_001FF7F0: records the
@@ -201,5 +248,8 @@ void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra)
     if (bank == ICON_BANK && ee_icon_pages >= 0) {
         img[ee_icon_pages].source = (u32)ee_icon_charge_boots;
         img[ee_icon_pages + 1].source = (u32)ee_icon_charge_boots + 1024;
+    }
+    if (bank == ICON_BANK && ee_bar_palette >= 0) {
+        pal[ee_bar_palette].source = (u32)ee_palette_movie_bar;
     }
 }

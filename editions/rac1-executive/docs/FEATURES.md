@@ -2340,3 +2340,77 @@ tool checks both retail words and the store and branch it jumps to.
 **Verified.** The patch applies to the retail image (2 words, 1 sector) and
 is in the built image at the addresses above. The owner confirmed it
 working in game (2026-10-21).
+
+## Movie volume (owner's extra item, 2026-10-21) — implemented, verified in PCSX2, awaiting owner test
+
+**The request.** Movies (in-level movies, the prerendered cutscenes, the
+Goodies movies) follow the Sound effects volume; the owner wants a slider of
+their own on the Sound page. Bar colour: orange, the owner's pick of four
+previewed (orange, red, purple, gold) next to the retail green and blue.
+
+**Why a separate level is possible.** A movie's sound is a 989snd movie
+stream in volume group 5 (`audioDecCreate`: `snd_InitMovieSound(0x400,
+0x1000, 0x400, 0, 5, 3)`), and nothing else plays in that group: bank sounds
+use groups 0 and 4, music and dialogue streams 1 and 2 (OpenRAC
+`docs/engine/systems/AUDIO.md`). The game keeps six group levels in its mixer
+(`D_0013E650` + 0x48..0x5C: sound effects x 8/10, music, music, x 7/10,
+x 7/10, and sound effects whole for group 5) and sends them with
+`snd_SetMasterVolume` (`func_0012E348`, core) from exactly three places, each
+once for group 5: `Sound_InitState` (`func_0022DBE8` + 0x164), the per-frame
+`sound_update` (`func_0022DD68` + 0x364) and the end of the movie loop
+(`func_0023B740` + 0x3B0). The movie loop itself does not run the sound
+update, so the level a movie plays at is the one the last frame sent.
+
+**The patch.** `tools/overlay_patch.py` feature `movie_volume` (default), 5
+words per level:
+- the three calls go to `ee_movie_group_volume` (`src/movie_volume.c`), which
+  sends the movie volume for group 5; the tool checks each site's
+  `addiu $4, $0, 5`;
+- the Sound page's slider widget (level data; `tools/gen_menu.py` finds it on
+  the page by its input and draw words, `func_0021DB30` and `func_0021DE08`)
+  gets the level's stubs in `src/movie_hooks.s` (`ee_sound_input_NN`,
+  `ee_sound_draw_NN`), which pass the level to `ee_sound_input_c` and
+  `ee_sound_draw_c`: retail's Pause_SoundOptionsInput and DrawSoundMenu
+  (OpenRAC `src/game/pause.c`) with four rows: Sound effects, Music, Movie
+  volume, stereo/mono. Rows sit at fifths of the panel's height instead of
+  quarters; the panel needed no change. Retail's input also copies a per-row
+  description id when the widget has flag 0x20, which the Sound widget does
+  not have; that path is left out.
+
+**The bar.** Icon `0xE99E` (the slider icon) has the green bar as frame 8 and
+the blue as frame 9: two images under one palette page (20). The orange bar
+is a new icon `0xE99F` (`EE_ICON_MOVIE_BAR`) of one frame: the green bar's
+image with a palette of its own, palette 20 with the bar's entries turned
+orange (`tools/gen_hud.py`: each entry keeps its place in the white-to-green
+fade, measured by its red channel, between orange (236, 112, 0) and a warm
+white (234, 228, 214)). `src/hud_icons.c` inserts that palette page at the end
+of bank 1's palette range at every level load, as it does the Charge Boots'
+image pages (later palettes, their frame references and the range ends move
+by one), and points it at the palette after `LinkHudBank(1)`.
+
+**Saving.** Retail saves the three sound settings in every save file (save
+blocks 0x22-0x24); loading a save applies them, and the new-game reset
+(`func_00209DC0`, which rebuilds the state from the disc's initial state)
+keeps the current ones. The movie volume is a u16 at `0x141A62`
+(`EE_SETTING_MOVIE_VOLUME`), in the saved statistics block's spare bytes
+after the quick-select pages (see q2: retail never touches them, so a retail
+game keeps and re-saves it), as volume + 1, 0 meaning none. The segment keeps
+the session's value: a save's replaces it; where the save has none (a retail
+save, or the reset just zeroed the block) the session's is written back, as
+the reset keeps retail's volumes. Before any is known (power on, then a save
+without one) it is the save's Sound effects volume, so movies start as loud
+as they were. The challenge-mode carry-over keeps it with the pages
+(`ee_qs_carry`).
+
+**Not covered.** The title screen's own program (the frontends, see q4) is not
+patched: its movies (the attract movie) follow the Sound effects volume, as
+in retail.
+
+**Verified in PCSX2** (owner's Mcd003 slot 1, Veldin, 16:9 on; nothing saved):
+the Sound page shows four rows with the orange bar, laid out inside the
+retail panel; the save had no movie volume, so it took the save's Sound
+effects volume (0x199, written as 0x19A); holding right on the Movie row
+raised only it (0x3F1; Sound effects stayed 0x199); in a savestate the IOP's
+989snd group table (IOP 0xD6DA0) read 0x147, 0x400, 0x147, 0x11E, 0x11E,
+0x3F1: group 5 at the movie volume. Not run: a movie playing (heard by the
+owner), saving and loading the setting.
