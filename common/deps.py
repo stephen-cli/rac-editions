@@ -67,14 +67,16 @@ def check(deps: dict, dirs: dict[str, Path]) -> int:
 
 
 def lock(deps: dict, dirs: dict[str, Path]) -> int:
+    # Swap the hashes in the text, so deps.json keeps its layout and line endings.
+    text = DEPS.read_bytes().decode()
     for name, dep in deps.items():
         at = head(dirs[name])
         if at is None:
             print(f"{name}: no checkout at {dirs[name]}", file=sys.stderr)
             return 1
-        dep["commit"] = at
+        text = text.replace(f'"{dep["commit"]}"', f'"{at}"')
         print(f"{name}: pinned {at}")
-    DEPS.write_text(json.dumps(deps, indent=2) + "\n")
+    DEPS.write_bytes(text.encode())
     return 0
 
 
