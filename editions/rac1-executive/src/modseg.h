@@ -34,6 +34,14 @@ typedef float f32;
 #define g_bolts      (*(volatile s32 *)0x0015EE98)
 #define g_completes  (*(volatile s32 *)0x0015EF20)   /* times completed; > 0 in a challenge-mode run */
 
+/* The title screen's two programs, numbered after the 19 levels: the boot
+ * executable's own code after power-on, and frontbin after quitting a level
+ * (tools/gen_frontend.py finds what the hooks need in each; its tables are
+ * indexed by FE(L)). */
+#define FE_BOOT         19
+#define FE_BIN          20
+#define FE(L)           ((L) - FE_BOOT)
+
 /* Level tables, indexed by the running level (from ee_level_of_call). */
 #define LVL(level, name, type) ((type)(lvl_##name[level]))
 #define DECLARE_LVL(name) extern const u32 lvl_##name[19]
@@ -145,17 +153,25 @@ void ee_charge_cheat_frame(s32 level);
  * retail's words while Ratchet is on the board (src/charge_boots.c). */
 void ee_race_item_frame(s32 level);
 
-/* Movie volume (src/movie_volume.c): a fourth row on the pause menu's Sound
- * page. Movies' sound plays in 989snd volume group 5, which retail sets to
- * the sound effects volume; the three calls that set that group's level
- * (sound init, the per-frame sound update, a movie's end) are redirected to
- * ee_movie_group_volume, as offsets in those functions. */
-#define EE_SITE_MOVIE_INIT      0x164   /* func_0022DBE8 (Sound_InitState) + 0x164: jal snd_SetMasterVolume(5, ...) */
-#define EE_SITE_MOVIE_UPDATE    0x364   /* func_0022DD68 (sound_update) + 0x364: the same, every frame */
-#define EE_SITE_MOVIE_END       0x3B0   /* func_0023B740 (the movie loop) + 0x3B0: the same, as a movie ends */
+/* Movie volume (src/movie_volume.c): a fourth row on the Sound page, in the
+ * pause menu and the title screen's. Its calls of snd_SetMasterVolume
+ * (func_0012E348), as offsets in their functions, go to the hooks named:
+ * the movie group (5) at all three of its calls, and the per-frame sound
+ * update's other groups that follow the sound effects volume, whose
+ * cutscene branch (game mode 2) marks the frame as a cutscene's. */
+#define EE_SITE_MOVIE_INIT      0x164   /* func_0022DBE8 (Sound_InitState): group 5 -> ee_movie_group_volume */
+#define EE_SITE_MOVIE_END       0x3B0   /* func_0023B740 (the movie loop), as a movie ends: group 5 -> the same */
+#define EE_SITE_VOL_CUT_SFX     0x2A0   /* func_0022DD68 (sound_update), cutscene branch: group 0, halved -> ee_volume_cutscene */
+#define EE_SITE_VOL_CUT_SFX3    0x2B8   /* the same branch: group 3, halved -> ee_volume_cutscene */
+#define EE_SITE_VOL_PLAY        0x304   /* the other branch: group 0 -> ee_volume_play */
+#define EE_SITE_VOL_DIALOGUE    0x334   /* both: group 2, the dialogue streams -> ee_movie_group_volume */
+#define EE_SITE_VOL_SFX4        0x358   /* both: group 4 -> ee_movie_group_volume */
+#define EE_SITE_MOVIE_UPDATE    0x364   /* both: group 5 -> ee_movie_group_volume */
 #define EE_TEXT_MOVIE_VOLUME    0x540F  /* "Movie volume" */
 #define EE_ICON_MOVIE_BAR       0xE99F  /* the orange bar: icon 0xE99E's green bar frame (8) with an orange palette */
 void ee_movie_group_volume(s32 group, s32 volume);
+void ee_volume_cutscene(s32 group, s32 volume);
+void ee_volume_play(s32 group, s32 volume);
 
 /* x2: the level loader's HUD header copy, with the edition's icon appended (src/hud_icons.c). */
 void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size);

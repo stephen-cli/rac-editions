@@ -72,7 +72,23 @@ struct HudArena {
  * (tools/modseg.py LEVEL_DATA hud_arena, from the loader's own lui/addiu). */
 DECLARE_LVL(func_002032D0);             /* load_hud_banks: the hooked call sites are in it */
 DECLARE_LVL_DATA(hud_arena);            /* the arena: header pointer at +0x18, tables at +0x1C.. */
-#define ARENA_OF(L) (*(volatile struct HudArena *)LVL_DATA(L, hud_arena, u8 *))
+/* The title screen's two programs load their HUD with their own copies of the
+ * loader, hooked the same way (tools/gen_frontend.py), so the Sound page's
+ * movie bar is there too. */
+extern const u32 ee_fe_load_hud[2], ee_fe_hud_arena[2];
+#define ARENA_OF(L) (*(volatile struct HudArena *)((L) >= FE_BOOT ? ee_fe_hud_arena[FE(L)] \
+                                                                  : LVL_DATA(L, hud_arena, u32)))
+
+static s32 loader_of(u32 ra)
+{
+    s32 f;
+    for (f = 0; f < 2; f++) {
+        if (ra == ee_fe_load_hud[f] + EE_SITE_HUD_LINK_BANK + 8) {
+            return FE_BOOT + f;
+        }
+    }
+    return ee_level_of_call(ra, lvl_func_002032D0, EE_SITE_HUD_LINK_BANK);
+}
 #define HEADER_PAL_ENDS(h)   ((s32 *)((h) + 0x14))   /* palette page range ends per bank */
 #define HEADER_IMG_ENDS(h)   ((s32 *)((h) + 0x34))   /* image page range ends per bank: 8 words, then the bank sizes and flags at +0x54 */
 #define IMG_ENDS             8
@@ -221,7 +237,7 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
  * and image pages, once. Then the edition's pages get their real source. */
 void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_002032D0, EE_SITE_HUD_LINK_BANK);
+    s32 L = loader_of(ra);
     u8 *header = ARENA_OF(L).header;
     u32 *slot = HEADER_BANKS(header) + bank;
     s32 *pal_ends = HEADER_PAL_ENDS(header);

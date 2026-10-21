@@ -369,27 +369,51 @@ def health_backing(at):
     return [(site, load, addiu(2, ZERO, HEALTH_ROW_STEP))]
 
 
+SND_SET_MASTER_VOLUME = 0x0012E348     # core: the same address in every program
+DADDU_A0_ZERO = 0x0000202D             # daddu $4, $0, $0: group 0
+# The snd_SetMasterVolume calls the Movie volume takes over (src/movie_volume.c,
+# EE_SITE_* in src/modseg.h): function, site, hook, and where the group is
+# loaded into $4 relative to the call, with that instruction. Also used for the
+# title screen's programs by tools/gen_frontend.py.
+VOLUME_SITES = (
+    ("func_0022DBE8", "EE_SITE_MOVIE_INIT", "ee_movie_group_volume", +4, addiu(4, ZERO, 5)),
+    ("func_0022DD68", "EE_SITE_VOL_CUT_SFX", "ee_volume_cutscene", -0x14, DADDU_A0_ZERO),
+    ("func_0022DD68", "EE_SITE_VOL_CUT_SFX3", "ee_volume_cutscene", -0xC, addiu(4, ZERO, 3)),
+    ("func_0022DD68", "EE_SITE_VOL_PLAY", "ee_volume_play", +4, DADDU_A0_ZERO),
+    ("func_0022DD68", "EE_SITE_VOL_DIALOGUE", "ee_movie_group_volume", -0x10, addiu(4, ZERO, 2)),
+    ("func_0022DD68", "EE_SITE_VOL_SFX4", "ee_movie_group_volume", -0x10, addiu(4, ZERO, 4)),
+    ("func_0022DD68", "EE_SITE_MOVIE_UPDATE", "ee_movie_group_volume", +4, addiu(4, ZERO, 5)),
+    ("func_0023B740", "EE_SITE_MOVIE_END", "ee_movie_group_volume", -4, addiu(4, ZERO, 5)),
+)
+
+
+def volume_patches(place, words, where: str):
+    """(address, retail word, new word) for VOLUME_SITES; PLACE(name) gives a
+    function's address, WORDS(addr, n) the program's words."""
+    out = []
+    for func, site_name, hook, group_at, group_word in VOLUME_SITES:
+        site = place(func) + site_offset(site_name)
+        group, = words(site + group_at, 1)
+        if group != group_word:
+            raise SystemExit(f"{where}: {func}'s volume call at 0x{site:X} does not load its group "
+                             f"(0x{site + group_at:X}: {group:08X}, expected {group_word:08X})")
+        out.append((site, jal(SND_SET_MASTER_VOLUME), jal(modseg_symbol(hook))))
+    return out
+
+
 def movie_volume(at):
     """A Movie volume row on the pause menu's Sound page (src/movie_volume.c).
-    The three snd_SetMasterVolume calls for volume group 5, the group movies'
-    sound plays in, go to ee_movie_group_volume (Sound_InitState, the
-    per-frame sound_update and the end of the movie loop; offsets
-    EE_SITE_MOVIE_* in src/modseg.h). The Sound page's slider widget (level
-    data, found by tools/gen_menu.py) runs the level's stubs in
-    src/movie_hooks.s instead of Pause_SoundOptionsInput and DrawSoundMenu.
-    Each call site is checked to load group 5 next to it."""
+    The snd_SetMasterVolume calls in VOLUME_SITES go to the hooks: group 5,
+    the movies' group, at its three calls (Sound_InitState, the per-frame
+    sound_update and the end of the movie loop), and the sound update's
+    other sound-effects groups, which follow the movie volume during an
+    in-level cutscene. Each call is checked to load its group. The Sound
+    page's slider widget (level data, found by tools/gen_menu.py) runs the
+    level's stubs in src/movie_hooks.s instead of Pause_SoundOptionsInput
+    and DrawSoundMenu. The title screen's programs get the same from
+    tools/gen_frontend.py."""
     import json
-    snd_set_master_volume = 0x0012E348            # core
-    hook = jal(modseg_symbol("ee_movie_group_volume"))
-    out = []
-    for func, site_name, group_word in (("func_0022DBE8", "EE_SITE_MOVIE_INIT", +4),
-                                        ("func_0022DD68", "EE_SITE_MOVIE_UPDATE", +4),
-                                        ("func_0023B740", "EE_SITE_MOVIE_END", -4)):
-        site = at(func) + site_offset(site_name)
-        group, = at.words(site + group_word, 1)
-        if group != addiu(4, ZERO, 5):
-            raise SystemExit(f"level {at.level}: {func}'s volume call at 0x{site:X} is not for group 5 ({group:08X})")
-        out.append((site, jal(snd_set_master_volume), hook))
+    out = volume_patches(at, at.words, f"level {at.level}")
     menu = HERE.parent / "build/modseg/menu_sites.json"
     if not menu.is_file():
         raise SystemExit(f"missing {menu}: run tools/gen_menu.py first")
@@ -840,16 +864,18 @@ def main() -> int:
                     struct.pack_into("<I", buf, i, word)
                     total += 1
 
-        if "widescreen" in args.features:
-            # the frontend's flight after a title-screen load: frontbin's copy (tools/gen_frontend.py;
-            # the boot executable's copy is patched by its patch-elf step)
+        frontend = [f for f in args.features if f in ("widescreen", "movie_volume")]
+        if frontend:
+            # the title screen after quitting a level: frontbin's copies (tools/gen_frontend.py;
+            # the boot executable's are patched by its patch-elf step): the flight after a
+            # title-screen load (widescreen), the Sound page and the volume calls (movie_volume)
             from gen_frontend import frontbin_patches
-            for off, expect, word in frontbin_patches(args.openrac, iso, modseg_symbol):
+            for off, expect, word in frontbin_patches(args.openrac, iso, modseg_symbol, frontend):
                 s, i = divmod(off, SECTOR)
                 buf = sector(s)
                 old, = struct.unpack_from("<I", buf, i)
                 if old != expect:
-                    raise SystemExit(f"frontbin widescreen: at image byte 0x{off:X} found {old:08X}, expected {expect:08X}")
+                    raise SystemExit(f"frontbin: at image byte 0x{off:X} found {old:08X}, expected {expect:08X}")
                 struct.pack_into("<I", buf, i, word)
                 total += 1
         print(f"{total} words patched across {len(sectors)} sectors in 19 levels "

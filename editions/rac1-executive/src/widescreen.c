@@ -72,9 +72,6 @@ typedef void (*VoidFn)(void);
  * their addresses), and the view is widened there only in game mode 6, so
  * the title and its menus stay 4:3 (owner, 2026-10-20: the flight after a
  * title-screen load was stretched). */
-#define FE_BOOT         19
-#define FE_BIN          20
-#define FE(L)           ((L) - FE_BOOT)
 #define GAME_MODE_FLIGHT 6         /* DoSpaceTransition: a level's arrival and departure, the flight between */
 extern const u32 ee_fe_update_view[2], ee_fe_flight[2], ee_fe_planet_name[2];
 extern const u32 ee_fe_view[2], ee_fe_chain_cursor[2], ee_fe_letterbox_lines[2], ee_fe_game_mode[2];

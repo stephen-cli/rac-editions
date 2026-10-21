@@ -4,6 +4,22 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-21 (Movie volume: owner's first round)
+
+### 🎬 Movie volume — Prerendered cutscenes working per the owner; in-level cutscenes and the title screen's slider added, verified in PCSX2, awaiting owner test
+
+**What changed.**
+- **In-level cutscenes** (the ones Goodies → In-Level Movies replays) now follow Movie volume too: their speech, music and effects, and the world sounds under them. When the scene ends, everything is back on Sound effects.
+- **The title screen's Options → Sound** has the Movie volume row and orange bar too, after power-on and after quitting a level. The title screen's attract movie follows it as well.
+
+**Findings.**
+- In-level cutscenes aren't movies. They run in the game engine, and their sound is one recorded track per scene, played on the same channel the game uses for the HelpDesk voice, the vendor and NPC dialogue. So that channel follows Movie volume only while a cutscene is playing, and those voices stay on Sound effects.
+- A Movie volume set on the title screen behaves like the other volumes there: loading a save brings back the save's own setting, and starting a new game keeps it.
+
+**Verification.** In PCSX2 on the owner's Veldin save (nothing saved to the card), reading the sound chip's volume table each time: on the title screen the new row moved only the movie level. After loading, the save's own Movie volume applied. During a replayed in-level cutscene every channel followed Movie volume, and after the scene they were back on Sound effects. Not heard: the volumes were read from memory, not listened to.
+
+**Owner test.** Set Movie volume and Sound effects far apart, then replay a scene from Goodies → In-Level Movies, and check normal play afterwards (HelpDesk voice and vendor speech should still follow Sound effects). Then try the slider on the title screen.
+
 ## 2026-10-21 (owner's extra item: Movie volume)
 
 ### 🎬 Movie volume — Implemented and verified in PCSX2, awaiting owner test

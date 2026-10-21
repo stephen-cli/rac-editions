@@ -2341,7 +2341,7 @@ tool checks both retail words and the store and branch it jumps to.
 is in the built image at the addresses above. The owner confirmed it
 working in game (2026-10-21).
 
-## Movie volume (owner's extra item, 2026-10-21) — implemented, verified in PCSX2, awaiting owner test
+## Movie volume (owner's extra item, 2026-10-21) — prerendered cutscenes working per the owner; in-level cutscenes and the title screen's page (second round, below) verified in PCSX2, awaiting owner test
 
 **The request.** Movies (in-level movies, the prerendered cutscenes, the
 Goodies movies) follow the Sound effects volume; the owner wants a slider of
@@ -2402,9 +2402,9 @@ without one) it is the save's Sound effects volume, so movies start as loud
 as they were. The challenge-mode carry-over keeps it with the pages
 (`ee_qs_carry`).
 
-**Not covered.** The title screen's own program (the frontends, see q4) is not
-patched: its movies (the attract movie) follow the Sound effects volume, as
-in retail.
+**Not covered (first round; the second round covers it).** The title
+screen's own program (the frontends, see q4) is not patched: its movies (the
+attract movie) follow the Sound effects volume, as in retail.
 
 **Verified in PCSX2** (owner's Mcd003 slot 1, Veldin, 16:9 on; nothing saved):
 the Sound page shows four rows with the orange bar, laid out inside the
@@ -2414,3 +2414,64 @@ raised only it (0x3F1; Sound effects stayed 0x199); in a savestate the IOP's
 989snd group table (IOP 0xD6DA0) read 0x147, 0x400, 0x147, 0x11E, 0x11E,
 0x3F1: group 5 at the movie volume. Not run: a movie playing (heard by the
 owner), saving and loading the setting.
+
+### Movie volume, owner's first round (2026-10-21)
+
+The owner confirmed the prerendered cutscenes follow the slider, and asked
+for two more things: the in-level cutscenes (Goodies > In-Level Movies
+replays them, per level) still followed Sound effects; and the slider should
+be on the title screen's Sound page too.
+
+**In-level cutscenes: where their sound is.** They are not movies: the
+scene runs in the engine in game mode 2, and its sound is one stream on the
+dialogue player (`music_start_track_by_id`, `D_001517D0` + 0x50, 989snd group
+2) carrying the scene's speech, music and effects. `sound_update` has a
+branch for mode 2 that mutes the music group (1) and halves bank groups 0 and
+3 under the scene. Measured on Goodies > In-Level Movies (Veldin 2, "Hey,
+what the...?"): mode 2, the dialogue and music players both streaming, the
+music group at 0. Retail sets group 2 to Sound effects x 8/10. Group 2 also
+carries speech outside cutscenes (the HelpDesk voice, ids 30000+, played only
+with the HelpDesk voice setting `D_0015EF1C` on; the vendor; NPC dialogue),
+so the whole group cannot simply follow the movie volume.
+
+**The rule.** While a cutscene plays, the groups retail derives from the
+Sound effects volume take the movie volume instead: group 0 and 2 at 8/10,
+3 and 4 at 7/10, with retail's halving of 0 and 3 in that branch kept. So
+the scene's stream and the world sounds under it follow Movie volume, and
+everything returns to Sound effects when the scene ends. `sound_update`'s
+calls, as offsets (`EE_SITE_VOL_*` in `src/modseg.h`): the cutscene branch's
+groups 0 and 3 (+ 0x2A0, + 0x2B8) go to `ee_volume_cutscene`, the other
+branch's group 0 (+ 0x304) to `ee_volume_play`; each records which branch
+ran this frame, and groups 2 and 4 (+ 0x334, + 0x358), sent after the
+branches, go to `ee_movie_group_volume`, which reads it. The sites alone say
+which branch ran, so no level lookup is needed. `overlay_patch.VOLUME_SITES`
+lists all eight calls with the instruction that loads each group, which the
+tool checks.
+
+**The title screen.** Its two programs (the boot executable after power-on,
+frontbin after quitting a level; see q4) carry their own copies of the Sound
+page, its widget (`0x1D18F8` in both, executable data), the sound functions
+and the HUD loader. `tools/gen_frontend.py` finds them (frontbin's by masked
+code match, its draw helpers from the jal targets of its own copies of
+Pause_SoundOptionsInput and DrawSoundMenu) and patches, in both: the eight
+volume calls, LoadHudBanks' header copy and bank link (so the orange bar's
+icon is there; `src/hud_icons.c` tells the loaders apart by return address),
+and the widget's input and draw words (stubs 19 and 20 in
+`src/movie_hooks.s`). The C takes the program's number, 0-18 a level, 19/20
+the title screen, and picks the functions from the level tables or
+`ee_fe_sound_fns`. "Movie volume" comes from the edition's string table
+directly (`ee_msg_string_edition`), so it needs no text hook on the title
+screen. 16 words in the boot executable, 12 in frontbin.
+
+A value set on the title screen behaves as retail's volumes do: loading a
+save applies the save's (if it has one), a new game keeps it.
+
+**Verified in PCSX2** (owner's Mcd003 slot 1, Veldin 2; nothing saved, card
+untouched; group levels read from 989snd's table in IOP RAM via savestates
+deleted after): the title screen's Sound page shows the four rows with the
+orange bar; Movie volume lowered there to 0x286 with Sound effects at 0x400,
+groups 0-5 read 0x333, 0x2CC, 0x333, 0x2CC, 0x2CC, 0x286. Loading slot 1
+applied its own values (movie 0x6D, sound effects 0x20E); in play the groups
+were retail's (0x1A4, 0x400, 0x1A4, 0x170, 0x170) with 0x6D for movies;
+during the replayed scene (mode 2) 0x2B, 0, 0x57, 0x26, 0x4C, 0x6D, all from
+the movie volume; after it, back to retail's. Not run: hearing them.

@@ -1,8 +1,10 @@
 /* Entry points for the Sound page's Movie volume row (src/movie_volume.c). The
  * page's widget calls its input and draw through data pointers, so the return
- * address does not name the level: tools/overlay_patch.py (feature
- * movie_volume) points each level's widget at that level's stubs, which pass
- * the level in $5 after the widget in $4, like src/qs_hooks.s. */
+ * address does not name the program: tools/overlay_patch.py (feature
+ * movie_volume) points each level's widget at that level's stubs, and
+ * tools/gen_frontend.py the title screen's at stubs 19 (the boot executable)
+ * and 20 (frontbin). Each passes its number in $5 after the widget in $4,
+ * like src/qs_hooks.s. */
 .set noreorder
 .text
 
@@ -85,6 +87,14 @@ ee_sound_input_17:
 ee_sound_input_18:
     j     ee_sound_input_c
     addiu $5, $0, 18
+.globl ee_sound_input_19
+ee_sound_input_19:
+    j     ee_sound_input_c
+    addiu $5, $0, 19
+.globl ee_sound_input_20
+ee_sound_input_20:
+    j     ee_sound_input_c
+    addiu $5, $0, 20
 
 .globl ee_sound_draw_00
 ee_sound_draw_00:
@@ -162,3 +172,11 @@ ee_sound_draw_17:
 ee_sound_draw_18:
     j     ee_sound_draw_c
     addiu $5, $0, 18
+.globl ee_sound_draw_19
+ee_sound_draw_19:
+    j     ee_sound_draw_c
+    addiu $5, $0, 19
+.globl ee_sound_draw_20
+ee_sound_draw_20:
+    j     ee_sound_draw_c
+    addiu $5, $0, 20

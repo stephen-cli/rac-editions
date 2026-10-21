@@ -1,18 +1,33 @@
-/* Movie volume: a fourth row on the pause menu's Sound page, between Music
- * volume and the stereo/mono toggle, for the sound of movies (in-level
- * movies, prerendered cutscenes, the Goodies movies), which retail ties to
- * the Sound effects volume.
+/* Movie volume: a fourth row on the Sound page, between Music volume and
+ * the stereo/mono toggle, in the pause menu and in the title screen's
+ * Options, for the sound of movies (the prerendered cutscenes, the Goodies
+ * movies) and of the in-level cutscenes, which retail ties to the Sound
+ * effects volume.
  *
- * Why it can be separate. 989snd plays a movie's sound stream in volume
- * group 5 (audioDecCreate: snd_InitMovieSound(0x400, 0x1000, 0x400, 0, 5, 3)),
- * and nothing else uses that group: bank sounds play in groups 0 and 4,
- * music and dialogue streams in 1 and 2 (OpenRAC docs/engine/systems/
- * AUDIO.md). Retail sets group 5 to the sound effects volume. Only three
- * calls ever set a group's level (snd_SetMasterVolume, func_0012E348):
- * Sound_InitState, the per-frame sound_update and the end of the movie loop,
- * each once for group 5 (EE_SITE_MOVIE_* in modseg.h). Those three go to
- * ee_movie_group_volume, which sets group 5 to the movie volume; the mixer's
- * own copy (D_0013E650 + 0x5C) keeps retail's value and is never used.
+ * Movies. 989snd plays a movie's sound stream in volume group 5
+ * (audioDecCreate: snd_InitMovieSound(0x400, 0x1000, 0x400, 0, 5, 3)), and
+ * nothing else uses that group: bank sounds play in groups 0 and 4, music in
+ * 1, dialogue streams in 2 (OpenRAC docs/engine/systems/AUDIO.md). Retail
+ * sets group 5 to the sound effects volume. Only three calls ever set a
+ * group's level (snd_SetMasterVolume, func_0012E348): Sound_InitState, the
+ * per-frame sound_update and the end of the movie loop, each once for group
+ * 5; those go to ee_movie_group_volume, which sends the movie volume.
+ *
+ * In-level cutscenes. Their sound is one stream on the dialogue player
+ * (music_start_track_by_id, D_001517D0 + 0x50, group 2) carrying the
+ * scene's speech, music and effects: sound_update has a branch for game
+ * mode 2, a cutscene playing, which mutes the music group and halves bank
+ * groups 0 and 3 under it (measured on Goodies > In-Level Movies: mode 2,
+ * the dialogue and music players both streaming). Group 2 also carries
+ * speech outside cutscenes (the HelpDesk voice, the vendor, NPC dialogue),
+ * so it follows the movie volume only during a cutscene. The rule: while a
+ * cutscene plays, the groups retail derives from the sound effects volume
+ * (0 and 2 at 8/10, 3 and 4 at 7/10, 0 and 3 halved there) take the movie
+ * volume instead, so the whole scene follows the Movie volume. The branch's
+ * own calls for groups 0 and 3 go to ee_volume_cutscene, the other branch's
+ * group 0 call to ee_volume_play; each records which branch ran, and the
+ * calls for groups 2 and 4, made after the branches, read it. No level
+ * lookup is needed: the sites alone say which branch ran.
  *
  * Saved like retail's volumes. Those are save blocks 0x22-0x24 (stereo,
  * music, sound effects): loading a save applies them, and the new-game
@@ -25,34 +40,50 @@
  * session's value: a save's value replaces it, and where the save has none
  * (a retail save, or the reset just zeroed the block) the session's goes
  * back in, as the reset keeps retail's volumes. Before any is known (power
- * on, then a retail save) it is the sound effects volume, as movies played
- * in retail. movie_volume() does this whenever the volume is read, which the
- * sound update does every frame.
+ * on) it is the sound effects volume, as movies played in retail.
+ * movie_volume() does this whenever the volume is read, which the sound
+ * update does every frame, on the title screen too.
  *
- * The page. Its widget (one per level, level-local data) calls input
- * func_0021DB30 (Pause_SoundOptionsInput) and draw func_0021DE08
- * (DrawSoundMenu); tools/gen_menu.py finds it and tools/overlay_patch.py
- * points both at the level's stubs in src/movie_hooks.s, which pass the
- * level. These are retail's two functions (OpenRAC src/game/pause.c) with
- * four rows instead of three. Retail's input also copies a per-row
- * description id when the widget has flag 0x20, which the Sound widget
- * never has; that path is left out. The orange bar is icon EE_ICON_MOVIE_BAR
- * (src/hud_icons.c). */
+ * The page. Its widget (level data in every level, the boot executable's
+ * and frontbin's own data on the title screen) calls input func_0021DB30
+ * (Pause_SoundOptionsInput) and draw func_0021DE08 (DrawSoundMenu);
+ * tools/gen_menu.py and tools/gen_frontend.py find it and point both at the
+ * program's stubs in src/movie_hooks.s, which pass the program's number
+ * (0-18 a level, FE_BOOT/FE_BIN the title screen). These are retail's two
+ * functions (OpenRAC src/game/pause.c) with four rows instead of three.
+ * Retail's input also copies a per-row description id when the widget has
+ * flag 0x20, which the Sound widget never has; that path is left out. The
+ * orange bar is icon EE_ICON_MOVIE_BAR (src/hud_icons.c). */
 #include "modseg.h"
 
 extern void func_0012E348(s32 group, s32 volume);   /* snd_SetMasterVolume (core) */
 extern void func_0012E380(s32 mono);                /* snd_SetPlaybackMode (core) */
+const char *ee_msg_string_edition(s32 id);          /* src/text.c */
+extern const int ee_text_first;
 
 DECLARE_LVL(func_0022ED80);       /* menu sound(kind, id, moby) */
 DECLARE_LVL(func_001F4630);       /* setup_gif_paging(0) */
 DECLARE_LVL(func_001F4748);       /* do_gif_paging() */
-DECLARE_LVL(func_001FE540);       /* msg_string(id): the edition's hook answers its own ids */
+DECLARE_LVL(func_001FE540);       /* msg_string(id) */
 DECLARE_LVL(func_001F6CF8);       /* font_print_right(x, y, colour, text, limit) */
 DECLARE_LVL(func_001F68E8);       /* font_print_large(x, y, colour, text, limit) */
 DECLARE_LVL(func_00200198);       /* GetIconFrame(icon, sub) */
 DECLARE_LVL(func_00201190);       /* a textured HUD quad, coordinates in 1/16 pixel */
 DECLARE_LVL(func_00201640);       /* a filled rectangle */
 DECLARE_LVL_DATA(menu_state);     /* D_001D5F70: +4 the current page, +8 the next, +0x124 the close lock */
+
+/* The same functions in the title screen's two programs, in this order, and
+ * their menu state (tools/gen_frontend.py). */
+enum { F_SOUND, F_GIF_SETUP, F_GIF_DO, F_MSG, F_FONT_RIGHT, F_FONT_LEFT, F_ICON_FRAME, F_QUAD, F_RECT, F_COUNT };
+extern const u32 ee_fe_sound_fns[2][F_COUNT];
+extern const u32 ee_fe_menu_state[2];
+
+static const u32 *const level_fns[F_COUNT] = {
+    lvl_func_0022ED80, lvl_func_001F4630, lvl_func_001F4748, lvl_func_001FE540, lvl_func_001F6CF8,
+    lvl_func_001F68E8, lvl_func_00200198, lvl_func_00201190, lvl_func_00201640,
+};
+
+#define FN(L, f, type)  ((type)((L) >= FE_BOOT ? ee_fe_sound_fns[FE(L)][f] : level_fns[f][L]))
 
 typedef void (*SoundFn)(s32, s32, u32);
 typedef void (*GifFn)(s32);
@@ -67,6 +98,7 @@ typedef void (*RectFn)(s32, s32, s32, s32, u64, s32);
 #define MUSIC_VOLUME    (*(volatile s32 *)0x0015EEEC)
 #define SFX_VOLUME      (*(volatile s32 *)0x0015EEF0)
 #define MIXER           ((volatile s32 *)0x0013E698)   /* D_0013E650 + 0x48: the six groups' levels */
+#define MOVIE_SAVED     (*(volatile u16 *)EE_SETTING_MOVIE_VOLUME)
 #define PAD             0x0013CA40
 #define PAD_HELD        (*(volatile u32 *)(PAD + 0x1C0))
 #define PAD_PRESSED     (*(volatile u32 *)(PAD + 0x1C4))
@@ -80,7 +112,6 @@ typedef void (*RectFn)(s32, s32, s32, s32, u64, s32);
 
 #define VOLUME_MAX      0x400
 #define VOLUME_STEP     3
-#define MOVIE_GROUP     5
 
 /* The widget: +0x14 the moby its sounds play at, +0x20/+0x24 its size, +0x40 the row. */
 #define W_OWNER(w)      (*(u32 *)((w) + 0x14))
@@ -99,9 +130,8 @@ enum { ROW_SFX, ROW_MUSIC, ROW_MOVIE, ROW_STEREO, ROWS };
 #define COLOUR_ROW      0x80FFA888u
 #define COLOUR_SELECTED 0x8020FFFFu
 
-#define MOVIE_SAVED     (*(volatile u16 *)EE_SETTING_MOVIE_VOLUME)
-
 static s32 ee_movie_volume = -1;        /* the session's; -1 until one is known */
+static s32 cutscene;                    /* this frame's sound update took its cutscene branch */
 
 static s32 movie_volume(void)
 {
@@ -117,9 +147,31 @@ static s32 movie_volume(void)
     return ee_movie_volume;
 }
 
+/* Groups 2 and 4 every frame, and group 5 at all three of its calls. */
 void ee_movie_group_volume(s32 group, s32 volume)
 {
-    func_0012E348(group, group == MOVIE_GROUP ? movie_volume() : volume);
+    if (group == 5) {
+        volume = movie_volume();
+    } else if (cutscene && group == 2) {
+        volume = movie_volume() * 8 / 10;
+    } else if (cutscene && group == 4) {
+        volume = movie_volume() * 7 / 10;
+    }
+    func_0012E348(group, volume);
+}
+
+/* The cutscene branch's groups 0 and 3, which retail halves there. */
+void ee_volume_cutscene(s32 group, s32 volume)
+{
+    cutscene = 1;
+    func_0012E348(group, (movie_volume() * (group == 0 ? 8 : 7) / 10) >> 1);
+}
+
+/* The other branch's group 0, as retail sends it. */
+void ee_volume_play(s32 group, s32 volume)
+{
+    cutscene = 0;
+    func_0012E348(group, volume);
 }
 
 static s32 step(s32 v, s32 d)
@@ -128,11 +180,16 @@ static s32 step(s32 v, s32 d)
     return v < 0 ? 0 : v > VOLUME_MAX ? VOLUME_MAX : v;
 }
 
+static const char *text(s32 L, s32 id)
+{
+    return id >= ee_text_first ? ee_msg_string_edition(id) : FN(L, F_MSG, MsgFn)(id);
+}
+
 /* Pause_SoundOptionsInput with the Movie volume row. 1 closes the menu,
  * -1 closes the page, 0 stays. */
 s32 ee_sound_input_c(u8 *w, s32 L)
 {
-    u8 *ms = LVL_DATA(L, menu_state, u8 *);
+    u8 *ms = L >= FE_BOOT ? (u8 *)ee_fe_menu_state[FE(L)] : LVL_DATA(L, menu_state, u8 *);
     u8 *page = *(u8 **)(ms + 4);
     u32 pressed = PAD_PRESSED;
     u32 held = PAD_HELD;
@@ -160,7 +217,7 @@ s32 ee_sound_input_c(u8 *w, s32 L)
         *row = (*row + 1) % ROWS;
     }
     if (*row != previous || *(s32 *)(page + 0x80) != 0) {
-        LVL(L, func_0022ED80, SoundFn)(1, 0x11, W_OWNER(w));
+        FN(L, F_SOUND, SoundFn)(1, 0x11, W_OWNER(w));
     }
 
     sfx = SFX_VOLUME;
@@ -195,7 +252,7 @@ s32 ee_sound_input_c(u8 *w, s32 L)
             STEREO = !STEREO;
         }
         func_0012E380(!STEREO);
-        LVL(L, func_0022ED80, SoundFn)(0, 0x11, W_OWNER(w));
+        FN(L, F_SOUND, SoundFn)(0, 0x11, W_OWNER(w));
     }
     return 0;
 }
@@ -210,28 +267,27 @@ s32 ee_sound_draw_c(u8 *w, s32 L)
     s32 cx = width >> 1;
     s32 r;
 
-    LVL(L, func_001F4630, GifFn)(0);
+    FN(L, F_GIF_SETUP, GifFn)(0);
     for (r = 0; r < ROWS; r++) {
         static const u16 labels[ROWS] = { TEXT_SFX, TEXT_MUSIC, EE_TEXT_MOVIE_VOLUME, TEXT_STEREO };
         s32 y = height * (r + 1) / (ROWS + 1);
         u64 colour = W_ROW(w) == r ? COLOUR_SELECTED : COLOUR_ROW;
-        LVL(L, func_001F6CF8, FontFn)(cx - 8, y - 8, colour, LVL(L, func_001FE540, MsgFn)(labels[r]), -1);
+        FN(L, F_FONT_RIGHT, FontFn)(cx - 8, y - 8, colour, text(L, labels[r]), -1);
         if (r == ROW_STEREO) {
-            LVL(L, func_001F68E8, FontFn)(cx + 8, y - 8, COLOUR_ROW,
-                                          LVL(L, func_001FE540, MsgFn)(STEREO != 0 ? TEXT_STEREO_ON : TEXT_MONO), -1);
+            FN(L, F_FONT_LEFT, FontFn)(cx + 8, y - 8, COLOUR_ROW, text(L, STEREO != 0 ? TEXT_STEREO_ON : TEXT_MONO), -1);
         } else {
             s32 volume = r == ROW_SFX ? SFX_VOLUME : r == ROW_MUSIC ? MUSIC_VOLUME : movie_volume();
-            s32 frame = r == ROW_MOVIE ? LVL(L, func_00200198, FrameFn)(EE_ICON_MOVIE_BAR, 0) : 0;
+            s32 frame = r == ROW_MOVIE ? FN(L, F_ICON_FRAME, FrameFn)(EE_ICON_MOVIE_BAR, 0) : 0;
             s32 length = (width - (cx + 0x4A)) * volume / 1024;
             if (frame == 0) {          /* the movie bar's icon missing: green, as retail drew this volume */
-                frame = LVL(L, func_00200198, FrameFn)(ICON_SLIDER, r == ROW_MUSIC ? 9 : 8);
+                frame = FN(L, F_ICON_FRAME, FrameFn)(ICON_SLIDER, r == ROW_MUSIC ? 9 : 8);
             }
-            LVL(L, func_00201640, RectFn)(cx + 7, y - 8, width - 0x3F, y + 8, 0x80696969u, 0);
-            LVL(L, func_00201640, RectFn)(cx + 9, y - 6, width - 0x41, y + 6, 0x80383838u, 0);
-            LVL(L, func_00201190, QuadFn)(frame, (cx + 9) << 4, (y - 6) << 4, (cx + 8 + length) << 4, (y + 5) << 4,
-                                          0, 0xA0, 0x1F0, 0x150, 0x80);
+            FN(L, F_RECT, RectFn)(cx + 7, y - 8, width - 0x3F, y + 8, 0x80696969u, 0);
+            FN(L, F_RECT, RectFn)(cx + 9, y - 6, width - 0x41, y + 6, 0x80383838u, 0);
+            FN(L, F_QUAD, QuadFn)(frame, (cx + 9) << 4, (y - 6) << 4, (cx + 8 + length) << 4, (y + 5) << 4,
+                                  0, 0xA0, 0x1F0, 0x150, 0x80);
         }
     }
-    LVL(L, func_001F4748, VoidFn)();
+    FN(L, F_GIF_DO, VoidFn)();
     return 2;
 }
