@@ -20,6 +20,7 @@ import math
 import struct
 
 from formats import wad, FormatError, Texture, span, unpack
+import games
 from mesh import Mesh
 from moby_anim import Skeleton, class_sequences, ratchet_sequences, skeleton
 
@@ -133,10 +134,18 @@ class ListState:
 
 
 def packet(data: bytes, entry: bytes, state: ListState, mesh: Mesh, remap: bytes,
-           skins: list, glow: bool = False) -> None:
+           skins: list, glow: bool = False, compact: bool = False, empty_slots: bool = False) -> None:
     """Add one regular packet's vertices and drawn triangles to mesh. A glow packet's
     vertices get light slot -2 (the others -1): with the moby's mode bit 0x10 the game draws
-    them unlit in its glow colour (MobyProc's glow list, ReRAC moby_skinning_lighting.md 10)."""
+    them unlit in its glow colour (MobyProc's glow list, ReRAC moby_skinning_lighting.md 10).
+
+    COMPACT: the vertex table header is eight u16 (Going Commando on; Wrench's
+    GcUyaDlVertexTableHeader), not eight u32, and the vertex data ends with the epilogue: there
+    is no colour multiplier block after it, so the mesh gets no vertex colours.
+
+    EMPTY_SLOTS: a face whose texture slot the class leaves empty (0xff) is drawn untextured
+    instead of refused. Some of the later games' classes have no textures of their own (their
+    pictures come from elsewhere at run time, not traced yet)."""
     list_offset, list_size, _, table, data_size, positions_qwc, colours_qwc, transfer = unpack("<IHHIBBBB", entry)
     commands = unpacks(span(data, list_offset, list_size * 16))
     if [c[0] for c in commands] not in ([ST, INDICES], [ST, INDICES, GS_BLOCKS]):
@@ -155,20 +164,27 @@ def packet(data: bytes, entry: bytes, state: ListState, mesh: Mesh, remap: bytes
     if positions_qwc != (transfer * 6 + 15) // 16 or colours_qwc != (transfer + 3) // 4:
         raise FormatError("moby packet entry sizes disagree")
 
-    transfers, two, three, single, duplicates, total, vertex_offset, multipliers = unpack("<8I", data, table)
+    header_size = 0x10 if compact else 0x20
+    transfers, two, three, single, duplicates, total, vertex_offset, multipliers = \
+        unpack("<8H" if compact else "<8I", data, table)
     in_file = two + three + single
     if total != in_file + duplicates or total != transfer:
         raise FormatError("moby vertex counts disagree")
-    pairs = span(data, table + 0x20, transfers * 2)
-    at = table + 0x20 + transfers * 2
+    pairs = span(data, table + header_size, transfers * 2)
+    at = table + header_size + transfers * 2
     at += 2 if at % 4 else 0
     at += 4 if at % 8 else 0
     copies = struct.unpack(f"<{duplicates}H", span(data, at, duplicates * 2))
-    epilogue = (multipliers - vertex_offset) // 16 - in_file if multipliers >= vertex_offset else -1
-    if not 1 <= epilogue <= 6 or (multipliers - vertex_offset) % 16:
-        raise FormatError("invalid moby epilogue vertex count")
-    if data_size * 16 - multipliers != (transfer * 4 + 15) // 16 * 16:
-        raise FormatError("moby colour multipliers do not fit the vertex data")
+    if compact:
+        epilogue = data_size - vertex_offset // 16 - in_file
+        if not 1 <= epilogue <= 6 or vertex_offset % 16:
+            raise FormatError("invalid moby epilogue vertex count")
+    else:
+        epilogue = (multipliers - vertex_offset) // 16 - in_file if multipliers >= vertex_offset else -1
+        if not 1 <= epilogue <= 6 or (multipliers - vertex_offset) % 16:
+            raise FormatError("invalid moby epilogue vertex count")
+        if data_size * 16 - multipliers != (transfer * 4 + 15) // 16 * 16:
+            raise FormatError("moby colour multipliers do not fit the vertex data")
     records = span(data, table + vertex_offset, (in_file + epilogue) * 16)
     # Each record carries the 9-bit cache ID of the vertex seven places earlier;
     # the last ones continue in the six halfwords at +4 of the final record.
@@ -197,14 +213,14 @@ def packet(data: bytes, entry: bytes, state: ListState, mesh: Mesh, remap: bytes
 
     # Each transferred vertex's RGBA multiplier (0x80 = 1.0), which the game's lighting pass
     # scales its lit colour by (ReRAC's moby_light.rs); as the vertex colour, / 128.
-    multiplier = span(data, table + multipliers, transfer * 4)
+    multiplier = None if compact else span(data, table + multipliers, transfer * 4)
     base = len(mesh.positions)
     for i, (position, n, skin) in enumerate(vertices):
         s, t = unpack("<2h", st, i * 4)
         mesh.positions.append(position)
         mesh.uvs.append((s / 4096, t / 4096))
         mesh.normals.append(n)
-        if mesh.colours is not None:
+        if mesh.colours is not None and multiplier is not None:
             mesh.colours.append(tuple(b / 128 for b in multiplier[i * 4:i * 4 + 4]))
         if mesh.light_slots is not None:
             mesh.light_slots.append(-2 if glow else -1)
@@ -213,9 +229,9 @@ def packet(data: bytes, entry: bytes, state: ListState, mesh: Mesh, remap: bytes
     def key(texture: int):
         if texture < -1:  # chrome and glass belong to the metal packets
             raise FormatError(f"invalid moby texture index {texture}")
-        return UNTEXTURED if texture < 0 else ("moby", remap[texture])
+        return UNTEXTURED if texture < 0 or remap[texture] == 255 else ("moby", remap[texture])
 
-    faces(index_data, secrets, textures, state, len(vertices), base, mesh, key, remap)
+    faces(index_data, secrets, textures, state, len(vertices), base, mesh, key, None if empty_slots else remap)
 
 
 def faces(index_data: bytes, secrets: list, textures: list, state: ListState, count: int, base: int,
@@ -315,10 +331,14 @@ def orient(mesh: Mesh, a: int, b: int, c: int) -> tuple[int, int, int]:
     return (c, b, a) if dot < 0 else (a, b, c)
 
 
-def moby_class(data: bytes, remap: bytes, name: str, sequences: list | None = None) -> MobyClass:
+def moby_class(data: bytes, remap: bytes, name: str, sequences: list | None = None,
+               fmt: games.Format = games.RAC1, joints: bool = True) -> MobyClass:
     """Decode a class blob's header, high-LOD packets (low LOD and metal are
     not read), skeleton and sequences: the class's own unless sequences
-    lists others, as moby_anim.skeleton takes them."""
+    lists others, as moby_anim.skeleton takes them. FMT: the game's format (games.py): the
+    packets' vertex table header, Deadlocked's 3x4 skeleton, and whether its animations are
+    read (games.Format.moby_animations; without them the class keeps its skeleton only).
+    JOINTS: False leaves the skeleton out (the mesh in its bind pose, unskinned)."""
     header = span(data, 0, HEADER_SIZE)
     packet_table, = unpack("<i", header)
     high, low, metal, metal_begin, joint_count = header[4:9]
@@ -329,11 +349,16 @@ def moby_class(data: bytes, remap: bytes, name: str, sequences: list | None = No
         return MobyClass(scale, None, joint_count)
     if metal and metal_begin != high + low:
         raise FormatError("unexpected moby metal packet position")
-    mesh, skins, state = Mesh(name, normals=[], colours=[], light_slots=[]), [], ListState()
-    glow_from = header[0xa]  # the high LOD's first glow packet
+    # Going Commando's classes mostly have the compact vertex tables; one whose byte 0xb is set
+    # keeps Ratchet & Clank's (Wrench's read_class, force_rac1_format).
+    compact = fmt.compact_vertex_table and not (fmt.game == "rac2" and header[0xb])
+    mesh, skins, state = Mesh(name, normals=[], colours=None if compact else [], light_slots=[]), [], ListState()
+    # The high LOD's first glow packet (Ratchet & Clank's byte 0xa; not read for the others yet).
+    glow_from = header[0xa] if fmt.moby_glow else high
     for i in range(high):
         try:
-            packet(data, span(data, packet_table + i * 16, 16), state, mesh, remap, skins, i >= glow_from)
+            packet(data, span(data, packet_table + i * 16, 16), state, mesh, remap, skins, i >= glow_from, compact,
+                   fmt.moby_empty_slots)
         except FormatError as exc:
             raise FormatError(f"packet {i}: {exc}") from exc
     if not mesh.triangles:
@@ -348,7 +373,9 @@ def moby_class(data: bytes, remap: bytes, name: str, sequences: list | None = No
     for skin in skins:
         if any(j >= max(joint_count, 1) for j, _ in skin):
             raise FormatError("moby vertex uses a joint past the class's joint count")
-    bones = skeleton(data, class_sequences(data) if sequences is None else sequences)
+    if sequences is None:
+        sequences = class_sequences(data) if fmt.moby_animations else []
+    bones = skeleton(data, sequences, fmt.skeleton_3x4) if joints else None
     if bones is not None:
         mesh.skins = skins
         metal_mesh.skins = metal_skins
@@ -364,8 +391,9 @@ def moby_classes(level) -> dict[int, MobyClass | None]:
     # (index +0x80: offset of a WAD stream in the core data, o_class, compressed size, pad); each
     # stream is an ordinary class blob, and its texture slots are its moby class table entry's
     # (ReRAC's rc-formats gadget.rs; ISC License, Copyright (c) 2026 ReRAC contributors).
+    fmt = games.of(level)
     gadgets = {}
-    for g in level.table(0x80, 16):
+    for g in level.table(0x80, 16) if fmt.gadgets else ():
         offset, class_id, size, _pad = unpack("<iiii", g)
         if offset > 0 and size > 0 and offset + size <= len(level.core):
             gadgets[class_id] = level.core[offset:offset + size]
@@ -384,7 +412,25 @@ def moby_classes(level) -> dict[int, MobyClass | None]:
             continue
         try:
             result[class_id] = moby_class(level.block(start), entry[16:32], f"moby_{class_id}",
-                                          ratchet_sequences(level) if class_id == 0 else None)
+                                          ratchet_sequences(level) if class_id == 0 and fmt.moby_animations else None,
+                                          fmt)
         except FormatError as exc:
-            raise FormatError(f"moby class {class_id}: {exc}") from exc
+            if not fmt.lenient:
+                raise FormatError(f"moby class {class_id}: {exc}") from exc
+            result[class_id] = fallback(level, start, entry, class_id, fmt, exc)
     return result
+
+
+def fallback(level, start: int, entry: bytes, class_id: int, fmt: games.Format, exc: FormatError) -> MobyClass | None:
+    """A later game's class that did not decode whole (games.Format.lenient): its mesh and
+    skeleton without the animations, else its mesh alone, else nothing; what was left out goes
+    into level.problems, which the export lists."""
+    for what, kwargs in (("animations", {"sequences": []}), ("skeleton", {"sequences": [], "joints": False})):
+        try:
+            moby = moby_class(level.block(start), entry[16:32], f"moby_{class_id}", fmt=fmt, **kwargs)
+        except FormatError:
+            continue
+        level.problems.append(f"moby class {class_id}: {what} left out ({exc})")
+        return moby
+    level.problems.append(f"moby class {class_id}: not extracted ({exc})")
+    return None

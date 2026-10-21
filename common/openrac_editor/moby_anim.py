@@ -131,16 +131,29 @@ def decompose(a, t) -> tuple[Vec3, Quat, Vec3]:
     return tuple(t), quaternion(rotation), tuple(scale)
 
 
-def bind_pose(data: bytes, joint_count: int, skeleton: int, common: int) -> tuple[list[Joint], list[Vec3]]:
+def bind_pose(data: bytes, joint_count: int, skeleton: int, common: int,
+              three_rows: bool = False) -> tuple[list[Joint], list[Vec3]]:
     """Joints in the bind pose the skeleton matrices invert, and each joint's
-    rest translation from common_trans, in model units."""
+    rest translation from common_trans, in model units. THREE_ROWS: Deadlocked's matrices, three
+    rows of four floats whose fourth column is the translation (Wrench's read_class)."""
     joints, matrices, rest = [], [], []
     for j in range(joint_count):
-        rows = [unpack("<3f", data, skeleton + j * 64 + r * 16) for r in range(4)]
+        if three_rows:
+            stored = [unpack("<4f", data, skeleton + j * 48 + r * 16) for r in range(3)]
+            rows = [row[:3] for row in stored] + [tuple(row[3] for row in stored)]
+        else:
+            rows = [unpack("<3f", data, skeleton + j * 64 + r * 16) for r in range(4)]
         if not all(math.isfinite(v) for row in rows for v in row):
             raise FormatError("invalid moby skeleton matrix")
         x, y, z, word = unpack("<3fI", data, common + j * 16)
-        if word == 0:
+        if three_rows:
+            # Deadlocked names the parent by its number, with bit 7 sometimes set; 0x7f is none
+            # (Wrench's recover_moby_joints).
+            number = word & 0xff7f
+            parent = None if number == 0x7f or j == 0 else number
+            if parent is not None and parent >= j:
+                raise FormatError("invalid moby joint parent")
+        elif word == 0:
             parent = None
         elif word >= SCRATCHPAD and (word - SCRATCHPAD) % 0x40 == 0 and (word - SCRATCHPAD) // 0x40 < j:
             parent = (word - SCRATCHPAD) // 0x40
@@ -217,17 +230,18 @@ def keys(base: bytes, at: int, joint_count: int, rest: list[Vec3]) -> tuple[list
     return times, values, loop
 
 
-def skeleton(data: bytes, sequences: list[tuple[str, bytes, int]]) -> Skeleton | None:
+def skeleton(data: bytes, sequences: list[tuple[str, bytes, int]], three_rows: bool = False) -> Skeleton | None:
     """The class's joints in their bind pose and its animations, or None for
     a class without joints, skeleton matrices or sequences.
 
-    sequences lists (name, data the frame offsets are relative to, offset).
+    sequences lists (name, data the frame offsets are relative to, offset). THREE_ROWS: the
+    skeleton's matrices are 3x4 (Deadlocked; bind_pose).
     """
     joint_count = data[8]
     matrices, common = unpack("<2i", data, 0x14)
     if not joint_count or not matrices or not common:
         return None
-    joints, rest = bind_pose(data, joint_count, matrices, common)
+    joints, rest = bind_pose(data, joint_count, matrices, common, three_rows)
     if not sequences:
         # No sequences of its own (Ratchet's come from ratchet_seq, or the game fills the slots at
         # run time): the skin still matters, the port poses it from the game's memory.

@@ -1,4 +1,9 @@
-"""Load one level from the disc: its data sections, core assets and textures."""
+"""Load one level from the disc: its data sections, core assets and textures.
+
+Ratchet & Clank's levels come through load_level (disc.py's table of contents); Going Commando's,
+Up Your Arsenal's and Deadlocked's through load_wad_level (wads.py). Both give the same Level: the
+core index and core data the four games share (games.py), the gameplay file, and the textures.
+"""
 
 from bisect import bisect_right
 from dataclasses import dataclass, field
@@ -6,6 +11,7 @@ import struct
 
 from disc import LEVEL_HEADER_SIZE, SECTOR, Disc
 from formats import FormatError, Texture, overlay_sections, span, unpack, wad
+import games
 
 # The level data header: eleven (offset, size) pairs, names from Wrench's
 # RacLevelDataHeader. The first feeds ParseBin through D_0015EF4C.
@@ -34,6 +40,20 @@ class Level:
     textures: dict[tuple[str, int], Texture] = field(default_factory=dict)
     boundaries: list[int] = field(default_factory=list)
     version: str = "pal"          # The disc's version (disc.Version.key).
+    game: str = "rac1"            # The game (games.FORMATS): which of the readers' per-game values apply.
+    # The file the ties, shrubs and directional lights are read from when it is not the gameplay
+    # file: Deadlocked keeps them in a file of their own (its art instances).
+    art: bytes | None = None
+    # What a later game's level could not decode and left out (games.Format.lenient), in words.
+    problems: list[str] = field(default_factory=list)
+    # A later game's streamed chunks past the core's (wads.chunk_ranges): (chunk, tfrag block,
+    # collision block), each decoded, or None where the chunk has none.
+    chunks: list[tuple[int, bytes | None, bytes | None]] = field(default_factory=list)
+
+    @property
+    def instances(self) -> bytes:
+        """The file the tie and shrub instances are in (art, or else the gameplay file)."""
+        return self.gameplay if self.art is None else self.art
 
     def table(self, at: int, size: int) -> list[bytes]:
         count, offset = unpack("<II", self.index, at)
@@ -79,14 +99,20 @@ def load_level(disc: Disc, info: dict) -> Level:
 
 
 def core_boundaries(level: Level) -> list[int]:
+    """Where each core block starts (Wrench's enumerate_level_core_block_boundaries): a block ends
+    where the next one starts."""
+    fmt = games.of(level)
     words = [unpack("<I", level.index, at)[0] for at in (0x08, 0x0c, 0x10, 0x14, 0x60)]
     bounds = {len(level.core), *words}
     for at, size in CLASS_TABLES.values():
         bounds.update(unpack("<I", entry)[0] for entry in level.table(at, size))
     sequences, = unpack("<I", level.index, 0x78)
-    if sequences:  # 256 ratchet sequence offsets, stored in the index.
+    if sequences and fmt.ratchet_sequences:  # 256 ratchet sequence offsets, stored in the index.
         bounds.update(o for o in unpack("<256i", level.index, sequences) if o > 0)
-    bounds.update(unpack("<I", entry)[0] for entry in level.table(0x80, 16))  # Gadgets.
+    if fmt.gadgets:
+        bounds.update(unpack("<I", entry)[0] for entry in level.table(0x80, 16))  # Gadgets.
+    if fmt.moby_sound_remap:
+        bounds.add(unpack("<I", level.index, 0xb4)[0])
     return sorted(b for b in bounds if 0 < b <= len(level.core))
 
 
@@ -97,8 +123,27 @@ def textures(level: Level, gs: bytes) -> dict[tuple[str, int], Texture]:
     palette in 256-byte units, mips, pad). Palettes must be RGBA32 CLUTs
     (PSM 0) that the level's GS RAM table uploads.
     """
+    fmt = games.of(level)
     base, = unpack("<I", level.index, 0x60)
-    clut32 = {unpack("<I", e, 8)[0] for e in level.table(0x00, 16) if unpack("<I", e)[0] == 0}
+    gs_table, stashed, stash = level.table(0x00, 16), set(), 0
+    if fmt.stash:
+        # From Going Commando on, the GS RAM table goes on past its count with one entry per
+        # permanently stashed moby texture block (index +0x84 of them): the textures of the moby
+        # classes listed at +0xac (s16, ending at a negative one) keep their pixels in the GS RAM
+        # lump, from the first such entry's address (Wrench's unpack_level_core).
+        extra, = unpack("<i", level.index, 0x84)
+        count, offset = unpack("<II", level.index, 0x00)
+        gs_table = [span(level.index, offset + i * 16, 16) for i in range(count + max(extra, 0))]
+        if extra > 0:
+            stash, = unpack("<i", gs_table[count], 8)
+            classes, at = set(), unpack("<I", level.index, 0xac)[0]
+            while (class_id := unpack("<h", level.index, at)[0]) >= 0:
+                classes.add(class_id)
+                at += 2
+            for entry in level.table(0x18, 32):
+                if unpack("<i", entry, 4)[0] in classes:
+                    stashed.update(slot for slot in entry[16:32] if slot != 0xff)
+    clut32 = {unpack("<I", e, 8)[0] for e in gs_table if unpack("<I", e)[0] == 0}
     result = {}
     for group, at in TEXTURE_TABLES.items():
         for i, entry in enumerate(level.table(at, 16)):
@@ -107,8 +152,13 @@ def textures(level: Level, gs: bytes) -> dict[tuple[str, int], Texture]:
                 continue
             if palette * 256 not in clut32:
                 raise FormatError(f"{group} texture {i} uses an unknown palette")
-            result[(group, i)] = Texture(width, height, span(level.core, base + pixels, width * height),
-                                         span(gs, palette * 256, 1024))
+            if group == "moby" and i in stashed:
+                data = span(gs, stash + pixels, width * height)
+            else:
+                data = span(level.core, base + pixels, width * height)
+            if fmt.swizzled_textures:
+                data = unswizzle(data, width)
+            result[(group, i)] = Texture(width, height, data, span(gs, palette * 256, 1024))
     # The chrome (128 x 128) and glass (64 x 64) maps the metal packets are drawn with: byte offsets
     # into the GS RAM lump of their PSMT8 pixels and CLUT, at core index 0x90 / 0x94 and 0x98 / 0x9C
     # (ReRAC moby_skinning_lighting.md 9, "Texture"). Blurry environment pictures, alpha 13..0x80.
@@ -117,6 +167,80 @@ def textures(level: Level, gs: bytes) -> dict[tuple[str, int], Texture]:
         if pixels and pixels + size * size <= len(gs) and palette + 1024 <= len(gs):
             result[key] = Texture(size, size, span(gs, pixels, size * size), span(gs, palette, 1024))
     return result
+
+
+def unswizzle(pixels: bytes, width: int, inverse: bool = False) -> bytes:
+    """Deadlocked's 8-bit textures in row order. They are stored as the GS lays a PSMT8 texture
+    out in its memory: each 32-byte run of a pair of rows holds blocks of four columns by four
+    rows, every other run turned by one byte. The mapping is Wrench's map_pixel_index_rac4
+    (src/core/texture.cpp, GPL-3.0-or-later), written out again: stored byte i is pixel (x, y).
+    INVERSE: pixel i is stored byte (x, y), the way Wrench reads Deadlocked's sky textures."""
+    out = bytearray(len(pixels))
+    for i, value in enumerate(pixels):
+        pair = i // (width * 2)
+        row = pair * 2 if pair % 2 == 0 else (pair - 1) * 2 + 1
+        column_block = (i % (width * 2)) // 32
+        lane, quad, odd = i % 4, (i // 4) % 4, i % 2
+        turn = (i // 16) % 2
+        if (pair // 2) % 2:
+            turn = 1 - turn
+        lane = (lane + turn) % 4 if odd == 0 else (lane - turn + 4) % 4
+        x = quad + (lane + column_block * 4) * 4
+        y = row + odd * 2
+        at = min(x % width + y * width, len(pixels) - 1)
+        if inverse:
+            out[i] = pixels[at]
+        else:
+            out[at] = value
+    return bytes(out)
+
+
+def load_wad_level(source, entry: dict) -> Level:
+    """A Going Commando, Up Your Arsenal or Deadlocked level (one of a wads.WadDisc's levels()):
+    its level data (the code overlay, core index, GS RAM lump and core data), its gameplay file
+    and, in Deadlocked, its art instances, decoded into the Level the readers take."""
+    import wads  # here: wads imports disc, as this module does, and nothing else needs it
+
+    version = source.version
+    part = entry["level"]
+    ranges = wads.level_ranges(part["header"], version)
+    disc = source.disc
+    data = disc.sectors(part["lba"] + ranges["data"]["sector"], ranges["data"]["sectors"])
+    stored, sections = {}, {}
+    for i, name in enumerate(wads.DATA_SECTIONS[len(part["header"])]):
+        offset, size = unpack("<ii", data, i * 8)
+        if size > 0:
+            stored[name] = span(data, offset, size)
+            sections[name] = decoded(stored[name])
+    for name in ("core_index", "core_data", "gs_ram"):
+        if name not in sections:
+            raise FormatError(f"{version.game} level {entry['id']} has no {name} section")
+    if "gameplay_core" in sections:  # Deadlocked: the level data holds both instance files
+        gameplay, art = sections["gameplay_core"], sections.get("art_instances")
+    else:
+        g = ranges["gameplay"]
+        stored["gameplay"] = disc.sectors(part["lba"] + g["sector"], g["sectors"])
+        gameplay, art = decoded(stored["gameplay"]), None
+    try:
+        overlay = overlay_sections(sections["overlay"]) if "overlay" in sections else None
+    except FormatError:
+        overlay = None
+    index, core = sections["core_index"], sections["core_data"]
+    if len(core) != unpack("<I", index, 0x8c)[0]:
+        raise FormatError("core data size differs from its index")
+    level = Level(entry["id"], part["header"], stored, index, core, gameplay,
+                  overlay or {"entry_point": 0, "sections": []})
+    level.game, level.version, level.art = version.game, version.key, art
+    for chunk, sector, count in wads.chunk_ranges(part["header"]):
+        if chunk == 0:
+            continue  # chunk 0 is the core's own terrain and collision (Wrench reads it from the core)
+        data = disc.sectors(part["lba"] + sector, count)
+        tfrags, collision = unpack("<ii", data)
+        level.chunks.append((chunk, decoded(data[tfrags:]) if tfrags > 0 else None,
+                             decoded(data[collision:]) if collision > 0 else None))
+    level.boundaries = core_boundaries(level)
+    level.textures = textures(level, sections["gs_ram"])
+    return level
 
 
 # The title world: the space flight behind the title and the main menu (the boot program's

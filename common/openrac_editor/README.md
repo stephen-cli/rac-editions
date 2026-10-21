@@ -1,6 +1,6 @@
 # OpenRAC's disc readers
 
-Copied unchanged from OpenRAC's `editor/` at commit `c12e35997f86ac9d6a30d85d675ed6045e416fc3`
+Copied unchanged from OpenRAC's `editor/` at commit `27795c05c442dd55706a50d96385a4f9727bfa42`
 (https://github.com/stephen-cli/OpenRAC), under its MIT license ([LICENSE](LICENSE)). The editions'
 tools import these instead of an OpenRAC checkout, so making an edition
 from a player's discs needs no OpenRAC.
