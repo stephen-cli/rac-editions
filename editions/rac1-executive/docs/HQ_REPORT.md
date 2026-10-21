@@ -4,9 +4,24 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-21 (16:9: the title cards, logo and PRESS START, owner's second report)
+
+### 📺 Proper widescreen (q4) — Title cards, logo and PRESS START fixed and measured against 4:3, awaiting owner test
+
+**What changed.**
+- **The story's title cards** now keep their retail shape in 16:9, with black at the sides. The previous build's fix did nothing to them, so the owner's report was right.
+- **The title screen's logo and PRESS START** keep their retail size and place in 16:9.
+
+**Findings.**
+- The previous entry's verification was flawed: it measured the cards only in 16:9, with nothing to compare against, and didn't check the logo at all.
+- The cards weren't being adjusted because their strips span the whole screen, and the edition deliberately leaves full-screen layers (fades, bars) alone. The cards are now an exception.
+- The logo and PRESS START are pictures drawn by the title screen's own frame, which the earlier changes didn't reach.
+
+**Verification.** In PCSX2, each element was captured with 16:9 off and on and measured. A correct 16:9 picture is exactly three quarters as wide in the frame, and the logo, PRESS START, two title cards and the main menu buttons all measured 0.75. The first card is the same size on screen as in the owner's retail screenshot. Not checked: the title cards between planets later in the game (same code).
+
 ## 2026-10-21 (16:9: the title screen itself, the intro movies, the title cards)
 
-### 📺 Proper widescreen (q4) — Title screen, intro movies and title cards in 16:9, verified in PCSX2, awaiting owner test
+### 📺 Proper widescreen (q4) — Title screen and intro movies in 16:9; the title cards' fix here did not work (see the entry above)
 
 **What changed.**
 - **The title screen turns 16:9** as soon as 16:9 is switched on in Options → Video, the same way the game does: a wider view of the scene, with menus and text keeping their shape.

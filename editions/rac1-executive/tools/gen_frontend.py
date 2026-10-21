@@ -27,6 +27,7 @@ the same distance from the executable's address as its neighbours'.
                              the levels' func_L00_002781D8 at other offsets);
                              the movie frame's tags; the flight's planet name;
                              the title cards' draws (PlayStoryTransition);
+                             the title screen's logo and PRESS START;
                              the Video page's toggle list -> ee_fe_video_entries
                              (a 16:9 row); every call of the game-state reset ->
                              ee_fe_reset_19/20, which keeps the 16:9 setting
@@ -66,8 +67,10 @@ MSG_STRING = "func_001FE540"
 MOVIE_FRAME = "func_0023E298"               # the movie decoder's frame setup (calls setImageTag)
 RENDERER = "func_0021A610"                  # the title's menu renderer (the levels': func_L00_002781D8)
 STORY = "func_00232EF0"                     # PlayStoryTransition: the title cards before the story's movies
+TITLE_FRAME = "func_001EB7C0"               # Transition_DefaultDraw: the title screen's frame
+TITLE_SITES = (0x19C, 0x210)                # its DrawTexturedQuad calls: the logo, PRESS START
 FUNCS = (UPDATE_VIEW, FLIGHT, PLANET_NAME, DRAW_WORLD, LETTERBOX, LOAD_HUD, SOUND_INPUT, SOUND_DRAW,
-         SOUND_INIT, SOUND_UPDATE, MOVIE_LOOP, RESET, MSG_STRING, MOVIE_FRAME, RENDERER, STORY)
+         SOUND_INIT, SOUND_UPDATE, MOVIE_LOOP, RESET, MSG_STRING, MOVIE_FRAME, RENDERER, STORY, TITLE_FRAME)
 PLANET_NAME_SITE = 0x140                    # DrawSpaceFlightFrame + 0x140: jal the planet name
 # The title renderer's calls the 16:9 hooks take, as the levels' (tools/overlay_patch.py
 # widescreen) are at func_L00_002781D8 + PANEL_DRAW_SITE etc.: offset, the callee, the hook.
@@ -363,6 +366,9 @@ def patches(prog: Program, funcs: dict, data: dict, fe_id: int, symbol,
         for off, _ in STORY_CARD_SITES:              # the title cards before the intro's movies
             a = funcs[STORY] + off
             out.append((a, call(a), jal(symbol("ee_ws_br_story_card"))))
+        for off in TITLE_SITES:                      # the title screen's logo and PRESS START
+            a = funcs[TITLE_FRAME] + off
+            out.append((a, call(a), jal(symbol("ee_ws_br_title"))))
         # the Video page's 16:9 row, kept across a new game's reset (src/widescreen.c)
         out.append((data["video_widget"] + 0x34, data["video_entries"], symbol("ee_fe_video_entries")))
         out += [(a, jal(funcs[RESET]), jal(symbol(f"ee_fe_reset_{fe_id}"))) for a in data["reset_calls"]]

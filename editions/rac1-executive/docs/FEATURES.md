@@ -2180,7 +2180,7 @@ side pillars. Not run: "Continue without saving" (the same reset calls),
 and the 60Hz row (unchanged). The page's panel was sized for one row; two
 fit inside it with small margins.
 
-### q4: the title screen in 16:9, the intro after New Game, the story's title cards (2026-10-21, owner's report), verified in PCSX2, awaiting owner test
+### q4: the title screen in 16:9, the intro after New Game, the story's title cards (2026-10-21, owner's report) — cards, logo and PRESS START were still stretched (owner's screenshots); fixed in the next entry
 
 The owner's report on the title screen's 16:9 row: (1) the title screen
 should itself turn 16:9 when the setting is on, as the game does (this
@@ -2249,6 +2249,54 @@ the middle 3/4), and the next card, "Approaching Planet Veldin...", was
 centred and 460 pixels wide in the 960-pixel frame where unsqueezed it
 would be 613. Not run: the cards between planets (the same function and
 hooks in the levels), and a 4:3 comparison of the title logo's place.
+
+### q4: the title cards, the title logo and PRESS START, measured (2026-10-21, owner's second report), verified in PCSX2, awaiting owner test
+
+**The owner's report.** Screenshots of retail at 4:3 next to the edition at
+16:9: the title cards were still stretched, and the title screen's logo and
+PRESS START were stretched. Measured on them: the card's first line 684 px
+(retail) against 910 (edition), the logo 700 against 935, PRESS START 390
+against 515, all a third too wide. The previous entry's verification was
+wrong: it measured the card in 16:9 alone, with no 4:3 reference, and never
+looked at the logo.
+
+**Why the cards stayed stretched.** The squeeze leaves alone any primitive
+whose vertices span the whole screen (fades, tints, bars: `full_width`), and
+the cards' strips are exactly that: 512 wide. The bracket ran and changed
+nothing. The story card bracket now sets `ws_force_full`, which makes the
+squeeze take full-width primitives too, for that bracket only.
+
+**The logo and PRESS START.** The title screen's frame is
+Transition_DefaultDraw (`func_001EB7C0`, only in the title screen's
+programs; frontbin's copy at `0x1EB518`), not DrawWorld, so none of the
+DrawWorld hooks reach it. It draws the logo (DrawTexturedQuad at + 0x19C:
+256 x 128 at x 236, while `D_0015F050` fades it) and PRESS START (+ 0x210:
+the language's picture, effect texture 4 + language) itself. Both are
+pictures, not text: a msg_string watch on "Press Start" (0x5227) never
+fired. Both calls are bracketed (`WS_SITE_TITLE`, `ee_ws_br_title`) and
+squeezed about the centre, which keeps their retail size and place on a
+16:9 screen. The menus on the title screen go through its menu renderer,
+hooked in the previous entry.
+
+**How it was verified this time.** Every element captured with the setting
+off and on (the byte written over PINE, nothing saved), its width measured
+in the capture: a 2D element drawn right for 16:9 must come out at exactly
+0.75 of its 4:3 width, which a 16:9 screen stretches back to retail's size.
+PCSX2 at 16:9, window 2560 x 1440:
+
+| Element | 16:9 off | 16:9 on | Ratio |
+|---|---|---|---|
+| Logo (the copper RATCHET word) | 1140 px, centre +531 | 855 px, centre +400 | 0.750 (centre 0.752) |
+| PRESS START | 811 px | 609 px | 0.751, centred |
+| Card 1, "Kyzil Plateau, Planet Veldin" | 1206 px | 904 px | 0.750, centred |
+| Card 2 (57 s into the intro) | 1231 px | 923 px | 0.750 |
+| Main menu, New Game button | 261 px (640 wide capture) | 196 px | 0.751, centred |
+
+Against the owner's retail screenshot: the card's first line is 684 / 1080 =
+0.633 of the screen's height there and 904 / 1440 = 0.628 in the edition.
+New Game ran on a copy of the owner's card (PCSX2.ini pointed at it and
+restored, the copy deleted). Not run: the cards between planets (the same
+function and hooks in the levels' programs).
 
 ## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
 

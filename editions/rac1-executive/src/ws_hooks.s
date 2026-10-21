@@ -199,6 +199,10 @@ ee_ws_br_planet_name:
 ee_ws_br_story_card:
     j     ee_ws_bracket
     addiu $25, $0, 12
+.globl ee_ws_br_title
+ee_ws_br_title:
+    j     ee_ws_bracket
+    addiu $25, $0, 13
 
 /* The pause renderer's render target, func_001F7A50(a, b, flag, f) at
  * func_L00_002781D8 + 0x458: the return address goes in $7 ($f12 keeps f). */

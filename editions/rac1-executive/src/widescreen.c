@@ -233,6 +233,7 @@ static volatile u32 *ws_pend[128];  /* this GIF tag's vertices, in order, while 
 static s32 ws_npend;
 static void squeeze_word(volatile u32 *w);
 static s32 ws_measuring;            /* collect the x range instead of changing anything */
+static s32 ws_force_full;           /* squeeze full-width primitives too (the title cards' strips) */
 static s32 ws_minx, ws_maxx;
 
 static s32 squeeze_x(s32 x)
@@ -378,7 +379,7 @@ static void gif_squeeze(volatile u32 *q, s32 n)
                         squeeze_scissor(d);              /* a text window's clip, with or without vertices */
                     }
                 }
-                keep = maxx >= 0 && full_width(minx, maxx);   /* the whole screen: leave its vertices */
+                keep = maxx >= 0 && full_width(minx, maxx) && !ws_force_full;   /* the whole screen: leave its vertices */
                 if (ws_measuring) {
                     measured(minx, maxx);
                     break;
@@ -412,7 +413,7 @@ static void gif_squeeze(volatile u32 *q, s32 n)
                     measured(minx, maxx);
                     break;
                 }
-                if (pass == 0 && (maxx < 0 || full_width(minx, maxx))) {
+                if (pass == 0 && (maxx < 0 || (full_width(minx, maxx) && !ws_force_full))) {
                     break;
                 }
             }
@@ -1074,6 +1075,7 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_CREDITS_NAME  10    /* func_L00_001F92E8 + 0xC8: a credits name tag (func_L00_001FCC50) */
 #define WS_SITE_PLANET_NAME   11    /* func_002305A0 + 0x140: the flight screen's planet name (func_0022FD20) */
 #define WS_SITE_STORY_CARD    12    /* func_00232EF0: a title card's strip or text (STORY_CARD_SITES) */
+#define WS_SITE_TITLE         13    /* func_001EB7C0 + 0x19C / + 0x210: the title screen's logo, PRESS START */
 #define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
 #define WS_SITE_TRESPASSER    64    /* + level: the Trespasser puzzle's rings, a draw callback (trespasser_draw) */
 #define WS_SITE_TIMER         96    /* + level: a countdown's frame and digits, a draw callback (timer_draw) */
@@ -1100,10 +1102,23 @@ DECLARE_LVL(func_0022FD20);
  * 2026-10-21). Each of the six calls is bracketed and squeezed about the
  * centre, so a card keeps its 4:3 shape with black at the sides, like the
  * movies around it. The card's frames are always full screen, so the
- * setting alone decides. */
+ * setting alone decides. The strips span the whole screen, which the
+ * squeeze otherwise leaves alone (fades and bars do too): ws_force_full
+ * makes it take them (a first build missed that, and the cards stayed
+ * stretched; owner's screenshots, 2026-10-21).
+ *
+ * The title screen's frame (Transition_DefaultDraw, func_001EB7C0, only in
+ * the title screen's programs) draws the logo (DrawTexturedQuad at + 0x19C:
+ * 256 x 128 at x 236) and PRESS START (+ 0x210: the language's picture)
+ * itself, not through DrawWorld; both calls are bracketed and squeezed
+ * about the centre, so on a 16:9 screen they keep retail's size and place
+ * (WS_SITE_TITLE). */
 DECLARE_LVL(func_00232EF0);             /* PlayStoryTransition */
 DECLARE_LVL(func_00232A00);             /* its backdrop strip */
 static const u16 story_card_sites[] = { 0x1E0, 0x228, 0x280, 0x2C0, 0x30C, 0x33C };   /* strip, picture, ... */
+DECLARE_LVL(func_001EB7C0);             /* Transition_DefaultDraw, the title screen's frame */
+#define TITLE_LOGO_SITE   0x19C
+#define TITLE_START_SITE  0x210
 
 /* The ship levels draw their HUD (radar, health, missiles, messages) from a
  * draw callback the ship registers every frame (through the registrar 0x1B8
@@ -1227,6 +1242,13 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         target = (k & 1) ? LVL(L, func_001F5800, u32) : LVL(L, func_00232A00, u32);
         break;
     }
+    case WS_SITE_TITLE:
+        L = ee_program_of_call(ra, lvl_func_001EB7C0, TITLE_LOGO_SITE);
+        if (L < 0) {
+            L = ee_level_of_call(ra, lvl_func_001EB7C0, TITLE_START_SITE);
+        }
+        target = LVL(L, func_001F5800, u32);
+        break;
     case WS_SITE_VENDOR_HUD:
         L = ee_level_of_call(ra, lvl_func_L00_002A1540, 0x400);
         target = LVL(L, func_001FFFB8, u32);
@@ -1264,9 +1286,11 @@ void ee_ws_bracket_end_c(void)
     if (bracket_site == WS_SITE_VENDOR_HUD) {
         hud_end(bracket_start);
     } else {
+        ws_force_full = bracket_site == WS_SITE_STORY_CARD;
         chain_walk(bracket_start, *cursor_of(bracket_level),
                    bracket_site >= WS_SITE_SHIP && bracket_site < WS_SITE_TRESPASSER ? CHAIN_AUTO
                    : bracket_site == WS_SITE_PLANET_NAME ? CHAIN_LEFT : CHAIN_PLAIN);
+        ws_force_full = 0;
     }
     bracket_on = 0;
 }
