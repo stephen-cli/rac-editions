@@ -2180,6 +2180,76 @@ side pillars. Not run: "Continue without saving" (the same reset calls),
 and the 60Hz row (unchanged). The page's panel was sized for one row; two
 fit inside it with small margins.
 
+### q4: the title screen in 16:9, the intro after New Game, the story's title cards (2026-10-21, owner's report), verified in PCSX2, awaiting owner test
+
+The owner's report on the title screen's 16:9 row: (1) the title screen
+should itself turn 16:9 when the setting is on, as the game does (this
+reverses the 2026-10-20 choice to keep it 4:3); (2) after New Game the
+prerendered intro movies played stretched; (3) the title cards before the
+story's cutscenes ("Kyzil Plateau, Planet Veldin / (11:13am local time)",
+"Chairman Drek's flagship / Veldin Orbit", "Approaching Planet Veldin...")
+were stretched, in the intro and between planets.
+
+**One table per function, 21 programs.** The title screen's two programs now
+get the same 16:9 hooks as a level, so the hooks' code had to find its
+functions and data there too. `tools/modseg.py`'s per-program tables
+(`LVL`, `LVL_DATA`) grew from 19 entries to 21: the 19 levels, then the boot
+executable (its own addresses) and frontbin (`tools/gen_frontend.py`
+`places`/`data_place`: each executable function found in frontbin by its
+masked code; the five short ones that match in several places take the
+match at their nearest uniquely found neighbour's distance, frontbin being
+the executable's functions in order with some left out; a function frontbin
+lacks, like the credits' picture copy, gets 0). Data stays at the
+executable's addresses in both, read from the same lui/addiu pairs; data
+read from a level's own function takes the executable function given in
+`LEVEL_DATA_FRONTEND` (the menu state, from the Sound page's input), else 0.
+A function only the executable has (the title's menu renderer) gets 0 for
+the levels. `ee_level_of_call` matches all 21 (skipping zeros);
+`ee_program_of_call` gives -1 instead of the fallback. The ad hoc
+`ee_fe_*` tables of q4's flight, the Movie volume and the HUD icons are
+gone: they read the same tables now, and msg_string's hook indexes its
+table with ids 19 and 20.
+
+**The title screen in 16:9.** The view hook widens the view in every game
+mode on the title screen (it was only mode 6, the flight). The title's
+programs get DrawWorld's five 2D calls (`EE_SITE_WS_*`, the same offsets as
+a level's) and their menu renderer's eight panel hooks: the title's
+renderer is `func_0021A610`, a sibling of the levels'
+`func_L00_002781D8` with the same calls at other offsets (`+ 0xBC` the
+panel's DrawMobyList; `+ 0x1A4` projection, `+ 0x250` fill, `+ 0x358`
+direct draw, `+ 0x430` render target, `+ 0x474` texture, `+ 0x5E0` quad,
+`+ 0x670` last pass; `+ 0x70` is a list of four background objects, not
+hooked); `renderer_of_call` names the program from either renderer.
+
+**The intro movies.** They play from the title screen's program, whose
+movie decoder now has the same setImageTag hook as a level's
+(`func_0023E298 + 0xF8`), so they are pillarboxed.
+
+**The title cards.** The transition (`func_00233308`) calls
+PlayStoryTransition (`func_00232EF0`) before the story's movies: a frame
+loop of its own drawing each line as two 512-wide strips straight into the
+chain, a scrolling backdrop (`func_00232A00`) and the line's picture
+(`func_001F5800`), up to two lines. They are pictures, not text: msg_string
+never sees them (checked with a new debug watch, docs/DEBUGGING.md). The six
+draws (`+ 0x1E0, 0x228, 0x280, 0x2C0, 0x30C, 0x33C`) are bracketed
+(`WS_SITE_STORY_CARD`, `ee_ws_br_story_card`) and squeezed about the
+centre, in every level and in both title-screen programs; the card's frames
+are always full screen, so the setting alone decides.
+
+**Words.** Each level 6 more (the cards); the boot executable 46 in all;
+frontbin the same.
+
+**Verified in PCSX2** (a copy of the owner's Mcd003, PCSX2.ini pointed at it
+and restored, the copy deleted after): with the title screen's 16:9 row on,
+the title's scene widened at once and its panels and text kept their
+shapes (Video page, main menu, New Game slots, the logo screen); New Game
+into an empty slot: the first card ("Kyzil Plateau, Planet Veldin") drew in
+the middle of the frame, the intro movie came pillarboxed (the picture in
+the middle 3/4), and the next card, "Approaching Planet Veldin...", was
+centred and 460 pixels wide in the 960-pixel frame where unsqueezed it
+would be 613. Not run: the cards between planets (the same function and
+hooks in the levels), and a 4:3 comparison of the title logo's place.
+
 ## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
 
 **Owner's report.** In the Kalebo III hoverboard race the game froze at the

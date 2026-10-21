@@ -4,9 +4,12 @@
  * 0x15F000: core text, data, bss, lit) is at one address; the executable's
  * own game text and data are re-linked into every level program at
  * level-specific addresses, as is level code. So any function above the
- * core, exe-kind or level-only, is reached through LVL(), a 19-entry table
- * the build generates from OpenRAC's overlay catalogue, indexed by the level
- * whose program is running; level-local data through LVL_DATA().
+ * core, exe-kind or level-only, is reached through LVL(), a table the build
+ * generates (tools/modseg.py) with an address per program: the 19 levels'
+ * from OpenRAC's overlay catalogue, then the title screen's two programs'
+ * (FE_BOOT, FE_BIN; tools/gen_frontend.py), 0 where a program has no copy.
+ * It is indexed by the program running; that program's data through
+ * LVL_DATA().
  *
  * Which level is running is NOT the game's current-level variable
  * (0x15EE84): loading a save from the pause menu rewrites the save's
@@ -16,7 +19,7 @@
  * unaligned address" on the second load, 2026-10-17). A hook learns its
  * level from its own call site instead: the trampolines in src/hooks.s pass
  * the return address, and ee_level_of_call() matches it against the hooked
- * function's 19 addresses; msg_string's patch passes the level id in $at. */
+ * function's addresses; msg_string's patch passes the program's id in $at. */
 #ifndef MODSEG_H
 #define MODSEG_H
 
@@ -34,20 +37,19 @@ typedef float f32;
 #define g_bolts      (*(volatile s32 *)0x0015EE98)
 #define g_completes  (*(volatile s32 *)0x0015EF20)   /* times completed; > 0 in a challenge-mode run */
 
-/* The title screen's two programs, numbered after the 19 levels: the boot
- * executable's own code after power-on, and frontbin after quitting a level
- * (tools/gen_frontend.py finds what the hooks need in each; its tables are
- * indexed by FE(L)). */
+/* The programs: the 19 levels, then the title screen's two, the boot
+ * executable's own code after power-on and frontbin after quitting a level
+ * (tools/gen_frontend.py). */
 #define FE_BOOT         19
 #define FE_BIN          20
-#define FE(L)           ((L) - FE_BOOT)
+#define PROGRAMS        21
 
-/* Level tables, indexed by the running level (from ee_level_of_call). */
+/* Per-program tables, indexed by the running program (from ee_level_of_call). */
 #define LVL(level, name, type) ((type)(lvl_##name[level]))
-#define DECLARE_LVL(name) extern const u32 lvl_##name[19]
-/* Level-local data (tools/modseg.py LEVEL_DATA): its address in that level. */
+#define DECLARE_LVL(name) extern const u32 lvl_##name[PROGRAMS]
+/* Program-local data (tools/modseg.py LEVEL_DATA): its address in that program. */
 #define LVL_DATA(level, name, type) ((type)(lvl_data_##name[level]))
-#define DECLARE_LVL_DATA(name) extern const u32 lvl_data_##name[19]
+#define DECLARE_LVL_DATA(name) extern const u32 lvl_data_##name[PROGRAMS]
 
 /* Hooked call sites, as offsets from the hooked function's start. The same
  * numbers drive tools/overlay_patch.py, which reads them from this header. */
@@ -138,8 +140,11 @@ void ee_controls_panel(u32 moby);
 /* The ring is open in LEVEL (HUD slot 3's update callback is the edition's). */
 s32 ee_qs_ring_open(s32 level);
 
-/* The level whose program made the call that returns to RA, given the hooked
- * function's 19 addresses and the call site's offset in it (src/level.c). */
+/* The program whose copy of a hooked function made the call that returns to
+ * RA, given the function's per-program addresses and the call site's offset
+ * in it (src/level.c): ee_program_of_call gives -1 for none,
+ * ee_level_of_call falls back to the game's level. */
+s32 ee_program_of_call(u32 ra, const u32 *funcs, u32 site);
 s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);
 
 /* x2: the Charge Boots item each frame: owned once the cheat is unlocked (src/charge_boots.c). */

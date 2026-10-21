@@ -195,6 +195,10 @@ ee_ws_br_credits_name:
 ee_ws_br_planet_name:
     j     ee_ws_bracket
     addiu $25, $0, 11
+.globl ee_ws_br_story_card
+ee_ws_br_story_card:
+    j     ee_ws_bracket
+    addiu $25, $0, 12
 
 /* The pause renderer's render target, func_001F7A50(a, b, flag, f) at
  * func_L00_002781D8 + 0x458: the return address goes in $7 ($f12 keeps f). */
@@ -302,13 +306,13 @@ ee_ws_subtitles:
 
 /* The title screen's calls of the game-state reset (func_00209DC0), in the
  * boot executable and in frontbin (tools/gen_frontend.py): the reset keeps
- * the 16:9 setting (src/widescreen.c, ee_fe_reset_c). */
+ * the 16:9 setting (src/widescreen.c, ee_fe_reset_c, given the program). */
 .globl ee_fe_reset_19
 .extern ee_fe_reset_c
 ee_fe_reset_19:
     j     ee_fe_reset_c
-    addiu $4, $0, 0
+    addiu $4, $0, 19
 .globl ee_fe_reset_20
 ee_fe_reset_20:
     j     ee_fe_reset_c
-    addiu $4, $0, 1
+    addiu $4, $0, 20

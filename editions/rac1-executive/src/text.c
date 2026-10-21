@@ -31,3 +31,9 @@ const char *ee_msg_string_edition(s32 id)
     const char *s = (lang >= 0 && lang < 8) ? ee_text[id - ee_text_first][lang] : 0;
     return s ? s : ee_text[id - ee_text_first][0];
 }
+
+/* Debug (docs/DEBUGGING.md): who asks for a string. While [1] is nonzero,
+ * every msg_string call for an id in [0], [0] + [1] stores the caller's
+ * return address in [2], the program's id in [3] and the string id in [4]
+ * (src/text_hook.s). Written over PINE; zero in a normal run. */
+volatile u32 ee_debug_msg_watch[5];

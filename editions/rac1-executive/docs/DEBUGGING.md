@@ -29,6 +29,16 @@ there. Do not ship such an image.
 turn, 10 jump planar, 11 pad parse. When PCSX2 stops on an R5900 exception,
 a nonzero trace names the hook it died in.
 
+## Who asks for a string
+
+`ee_debug_msg_watch[5]` (src/text.c): write a first string id to word 0 and
+a count to word 1, and every msg_string call for an id in that range (in a
+level or on the title screen) stores the caller's return address in word 2,
+the program's id (0-18 a level, 19 the boot executable, 20 frontbin) in
+word 3 and the id in word 4. Set word 1 back to 0 when done. A text that
+never shows up there is not drawn through msg_string (the story's title
+cards, for example, are pictures).
+
 ## A savestate holds the registers
 
 `Pine._cmd(9, bytes([slot]))` saves a state; the `.p2s` is a zip with zstd

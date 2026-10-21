@@ -651,8 +651,16 @@ def widescreen(at):
             (at("func_L00_001F92E8") + 0x24, jal(at("func_001F7680")), jal(modseg_symbol("ee_ws_credits_picture"))),
             (at("func_L00_001F92E8") + 0xC8, jal(at("func_L00_001FCC50")), jal(modseg_symbol("ee_ws_br_credits_name"))),
             (at("func_002305A0") + 0x140, jal(at("func_0022FD20")), jal(modseg_symbol("ee_ws_br_planet_name"))),
+            # the title cards before the story's movies (PlayStoryTransition's strips and pictures)
+            *[(at("func_00232EF0") + off, jal(at(fn)), jal(modseg_symbol("ee_ws_br_story_card"))) for off, fn in STORY_CARD_SITES],
             (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at) + \
         trespasser_patches(at) + timer_patches(at)
+
+
+# PlayStoryTransition's six draws of a title card (src/widescreen.c WS_SITE_STORY_CARD; the same
+# offsets there): per line a backdrop strip and the line's picture.
+STORY_CARD_SITES = ((0x1E0, "func_00232A00"), (0x228, "func_001F5800"), (0x280, "func_00232A00"),
+                    (0x2C0, "func_001F5800"), (0x30C, "func_00232A00"), (0x33C, "func_001F5800"))
 
 
 # The ship levels register their HUD's draw callback each frame with a lui/addiu

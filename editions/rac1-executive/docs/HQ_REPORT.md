@@ -4,6 +4,25 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-21 (16:9: the title screen itself, the intro movies, the title cards)
+
+### 📺 Proper widescreen (q4) — Title screen, intro movies and title cards in 16:9, verified in PCSX2, awaiting owner test
+
+**What changed.**
+- **The title screen turns 16:9** as soon as 16:9 is switched on in Options → Video, the same way the game does: a wider view of the scene, with menus and text keeping their shape.
+- **The intro movies after New Game** now have black bars at the sides, like every other movie.
+- **The story's title cards** ("Kyzil Plateau, Planet Veldin", "Chairman Drek's flagship", "Approaching Planet Veldin..." and the ones between planets) keep their original shape with black bars at the sides, instead of stretching across the screen.
+
+**Decisions taken.** This reverses the earlier choice to keep the title screen in 4:3, at the owner's request.
+
+**Findings.**
+- The title screen has its own copy of most of the game's code, so the 16:9 work now covers it the same way it covers every planet.
+- The title cards are pictures, not text, drawn by their own routine before the story's movies; nothing had been adjusting them.
+
+**Verification.** In PCSX2 on a copy of the owner's memory card (deleted afterwards; PCSX2's settings restored): switching 16:9 on widened the title screen at once, with its menus in proportion. A New Game showed the first title card and the next one centred and in proportion, with the intro movie between them pillarboxed. Not checked: the title cards between planets later in the game, which use the same code.
+
+**Owner test.** With 16:9 on, look over the title screen, its menus and the logo, then start a New Game and watch the intro's title cards and movies. Later, check a title card between planets (for example arriving at Novalis).
+
 ## 2026-10-21 (16:9 on the title screen, owner's request)
 
 ### 📺 Proper widescreen (q4) — 16:9 row added to the title screen's Video page, verified in PCSX2, awaiting owner test

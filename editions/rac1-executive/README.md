@@ -35,9 +35,10 @@ holds only the edition's code, tools and notes, never game data.
   Turned on, the game fills a widescreen TV (set your TV, or PCSX2's aspect
   ratio, to 16:9): you see more to the sides, nothing is cut off at the top
   or bottom, and the HUD sits in the corners without being stretched.
-  Menus and the vendor keep their shape. Cutscenes keep their original
-  framing, with black bars at the sides. Saved with your game; off by
-  default. The title screen and main menu stay 4:3.
+  Menus and the vendor keep their shape. Cutscenes, movies and the story's
+  title cards keep their original framing, with black bars at the sides.
+  The title screen and its menus change too. Saved with your game; off by
+  default.
 - **Moving out of the Comet-Strike.** Once the wrench has left Ratchet's
   hand, push the stick to run or press X to jump, as in Going Commando.
 - **A richer Metal Detector in Challenge Mode.** Buried bolt stashes pay out

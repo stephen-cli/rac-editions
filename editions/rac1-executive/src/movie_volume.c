@@ -72,18 +72,6 @@ DECLARE_LVL(func_00201190);       /* a textured HUD quad, coordinates in 1/16 pi
 DECLARE_LVL(func_00201640);       /* a filled rectangle */
 DECLARE_LVL_DATA(menu_state);     /* D_001D5F70: +4 the current page, +8 the next, +0x124 the close lock */
 
-/* The same functions in the title screen's two programs, in this order, and
- * their menu state (tools/gen_frontend.py). */
-enum { F_SOUND, F_GIF_SETUP, F_GIF_DO, F_MSG, F_FONT_RIGHT, F_FONT_LEFT, F_ICON_FRAME, F_QUAD, F_RECT, F_COUNT };
-extern const u32 ee_fe_sound_fns[2][F_COUNT];
-extern const u32 ee_fe_menu_state[2];
-
-static const u32 *const level_fns[F_COUNT] = {
-    lvl_func_0022ED80, lvl_func_001F4630, lvl_func_001F4748, lvl_func_001FE540, lvl_func_001F6CF8,
-    lvl_func_001F68E8, lvl_func_00200198, lvl_func_00201190, lvl_func_00201640,
-};
-
-#define FN(L, f, type)  ((type)((L) >= FE_BOOT ? ee_fe_sound_fns[FE(L)][f] : level_fns[f][L]))
 
 typedef void (*SoundFn)(s32, s32, u32);
 typedef void (*GifFn)(s32);
@@ -182,14 +170,14 @@ static s32 step(s32 v, s32 d)
 
 static const char *text(s32 L, s32 id)
 {
-    return id >= ee_text_first ? ee_msg_string_edition(id) : FN(L, F_MSG, MsgFn)(id);
+    return id >= ee_text_first ? ee_msg_string_edition(id) : LVL(L, func_001FE540, MsgFn)(id);
 }
 
 /* Pause_SoundOptionsInput with the Movie volume row. 1 closes the menu,
  * -1 closes the page, 0 stays. */
 s32 ee_sound_input_c(u8 *w, s32 L)
 {
-    u8 *ms = L >= FE_BOOT ? (u8 *)ee_fe_menu_state[FE(L)] : LVL_DATA(L, menu_state, u8 *);
+    u8 *ms = LVL_DATA(L, menu_state, u8 *);
     u8 *page = *(u8 **)(ms + 4);
     u32 pressed = PAD_PRESSED;
     u32 held = PAD_HELD;
@@ -217,7 +205,7 @@ s32 ee_sound_input_c(u8 *w, s32 L)
         *row = (*row + 1) % ROWS;
     }
     if (*row != previous || *(s32 *)(page + 0x80) != 0) {
-        FN(L, F_SOUND, SoundFn)(1, 0x11, W_OWNER(w));
+        LVL(L, func_0022ED80, SoundFn)(1, 0x11, W_OWNER(w));
     }
 
     sfx = SFX_VOLUME;
@@ -252,7 +240,7 @@ s32 ee_sound_input_c(u8 *w, s32 L)
             STEREO = !STEREO;
         }
         func_0012E380(!STEREO);
-        FN(L, F_SOUND, SoundFn)(0, 0x11, W_OWNER(w));
+        LVL(L, func_0022ED80, SoundFn)(0, 0x11, W_OWNER(w));
     }
     return 0;
 }
@@ -267,27 +255,27 @@ s32 ee_sound_draw_c(u8 *w, s32 L)
     s32 cx = width >> 1;
     s32 r;
 
-    FN(L, F_GIF_SETUP, GifFn)(0);
+    LVL(L, func_001F4630, GifFn)(0);
     for (r = 0; r < ROWS; r++) {
         static const u16 labels[ROWS] = { TEXT_SFX, TEXT_MUSIC, EE_TEXT_MOVIE_VOLUME, TEXT_STEREO };
         s32 y = height * (r + 1) / (ROWS + 1);
         u64 colour = W_ROW(w) == r ? COLOUR_SELECTED : COLOUR_ROW;
-        FN(L, F_FONT_RIGHT, FontFn)(cx - 8, y - 8, colour, text(L, labels[r]), -1);
+        LVL(L, func_001F6CF8, FontFn)(cx - 8, y - 8, colour, text(L, labels[r]), -1);
         if (r == ROW_STEREO) {
-            FN(L, F_FONT_LEFT, FontFn)(cx + 8, y - 8, COLOUR_ROW, text(L, STEREO != 0 ? TEXT_STEREO_ON : TEXT_MONO), -1);
+            LVL(L, func_001F68E8, FontFn)(cx + 8, y - 8, COLOUR_ROW, text(L, STEREO != 0 ? TEXT_STEREO_ON : TEXT_MONO), -1);
         } else {
             s32 volume = r == ROW_SFX ? SFX_VOLUME : r == ROW_MUSIC ? MUSIC_VOLUME : movie_volume();
-            s32 frame = r == ROW_MOVIE ? FN(L, F_ICON_FRAME, FrameFn)(EE_ICON_MOVIE_BAR, 0) : 0;
+            s32 frame = r == ROW_MOVIE ? LVL(L, func_00200198, FrameFn)(EE_ICON_MOVIE_BAR, 0) : 0;
             s32 length = (width - (cx + 0x4A)) * volume / 1024;
             if (frame == 0) {          /* the movie bar's icon missing: green, as retail drew this volume */
-                frame = FN(L, F_ICON_FRAME, FrameFn)(ICON_SLIDER, r == ROW_MUSIC ? 9 : 8);
+                frame = LVL(L, func_00200198, FrameFn)(ICON_SLIDER, r == ROW_MUSIC ? 9 : 8);
             }
-            FN(L, F_RECT, RectFn)(cx + 7, y - 8, width - 0x3F, y + 8, 0x80696969u, 0);
-            FN(L, F_RECT, RectFn)(cx + 9, y - 6, width - 0x41, y + 6, 0x80383838u, 0);
-            FN(L, F_QUAD, QuadFn)(frame, (cx + 9) << 4, (y - 6) << 4, (cx + 8 + length) << 4, (y + 5) << 4,
+            LVL(L, func_00201640, RectFn)(cx + 7, y - 8, width - 0x3F, y + 8, 0x80696969u, 0);
+            LVL(L, func_00201640, RectFn)(cx + 9, y - 6, width - 0x41, y + 6, 0x80383838u, 0);
+            LVL(L, func_00201190, QuadFn)(frame, (cx + 9) << 4, (y - 6) << 4, (cx + 8 + length) << 4, (y + 5) << 4,
                                   0, 0xA0, 0x1F0, 0x150, 0x80);
         }
     }
-    FN(L, F_GIF_DO, VoidFn)();
+    LVL(L, func_001F4748, VoidFn)();
     return 2;
 }

@@ -44,8 +44,14 @@
  * framing, and black pillars cover what lies beyond it at the sides (the
  * owner's choice: nothing outside the original framing is shown).
  *
- * The frontend (title, main menu, loading a save) is not patched: it stays
- * 4:3, as the owner chose; a save with the setting on comes up in 16:9. */
+ * The title screen. Its two programs (the boot executable after power-on,
+ * frontbin after quitting a level) are programs 19 and 20 of the per-program
+ * tables (src/modseg.h) and get the same hooks as a level
+ * (tools/gen_frontend.py): the view, DrawWorld's 2D, the menu renderer's
+ * panels (their own renderer, func_0021A610, at other offsets), the movies
+ * (the intro after New Game plays from there) and the flight after a
+ * title-screen load. So with the setting on the title screen is in 16:9
+ * too (owner, 2026-10-21; it had stayed 4:3 by the owner's earlier choice). */
 #include "modseg.h"
 
 DECLARE_LVL(func_001F3140);        /* UpdateViewContext */
@@ -63,32 +69,14 @@ DECLARE_LVL_DATA(hud_slots);
 
 typedef void (*VoidFn)(void);
 
-/* The frontends. Loading a save from the title plays the flight to the
- * planet (game mode 6) from the frontend's program, which no level patch
- * reaches: after power-on the boot executable's own code, after quitting a
- * level frontbin's (the same functions linked elsewhere). Their
- * UpdateViewContext and planet name call are patched like a level's, with
- * ids 19 and 20 after the 19 levels (tools/gen_frontend.py, which finds
- * their addresses), and the view is widened there only in game mode 6, so
- * the title and its menus stay 4:3 (owner, 2026-10-20: the flight after a
- * title-screen load was stretched). */
-#define GAME_MODE_FLIGHT 6         /* DoSpaceTransition: a level's arrival and departure, the flight between */
-extern const u32 ee_fe_update_view[2], ee_fe_flight[2], ee_fe_planet_name[2];
-extern const u32 ee_fe_view[2], ee_fe_chain_cursor[2], ee_fe_letterbox_lines[2], ee_fe_game_mode[2];
-
 static u32 view_record(s32 L)
 {
-    return L >= FE_BOOT ? ee_fe_view[FE(L)] : LVL_DATA(L, view, u32);
-}
-
-static u32 update_view_fn(s32 L)
-{
-    return L >= FE_BOOT ? ee_fe_update_view[FE(L)] : LVL(L, func_001F3140, u32);
+    return LVL_DATA(L, view, u32);
 }
 
 static s32 game_mode_of(s32 L)
 {
-    return *(L >= FE_BOOT ? (volatile s32 *)ee_fe_game_mode[FE(L)] : LVL_DATA(L, game_mode, volatile s32 *));
+    return *LVL_DATA(L, game_mode, volatile s32 *);
 }
 
 #define WS_SETTING      (*(volatile u8 *)EE_SETTING_WIDESCREEN)
@@ -120,8 +108,7 @@ static s32 ws_on(void)
 /* The letterbox blend, 0 without bars to 1 with the bars fully in. */
 static f32 cutscene_t(s32 L)
 {
-    s32 lines = *(L >= FE_BOOT ? (volatile s32 *)ee_fe_letterbox_lines[FE(L)]
-                               : LVL_DATA(L, letterbox_lines, volatile s32 *));
+    s32 lines = *LVL_DATA(L, letterbox_lines, volatile s32 *);
     if (lines <= 0) {
         return 0.0f;
     }
@@ -185,16 +172,15 @@ u32 ee_view_pre_c(s32 L)
     FloatBits cur;
     f32 orig;
     s32 full = SCREEN[0] == RES_W && SCREEN[1] == RES_H;
-    s32 frontend = L >= FE_BOOT;
 
     cur.f = *fov;
     orig = (L == view_level && cur.u == view_written) ? view_orig : cur.f;
     *src = orig;
     *fov = orig;
-    if (full && !view_suspended && !frontend) {
+    if (full && !view_suspended) {
         view_applied = WS_SETTING != 0;
     }
-    if (ws_on() && !view_suspended && (!frontend || game_mode_of(L) == GAME_MODE_FLIGHT)) {
+    if (ws_on() && !view_suspended) {
         f32 content;
         f32 zoom = framing(L, &content);
         FloatBits wide;
@@ -208,7 +194,7 @@ u32 ee_view_pre_c(s32 L)
         view_written = wide.u;
         view_orig = orig;
     }
-    return update_view_fn(L) + 8;
+    return LVL(L, func_001F3140, u32) + 8;
 }
 
 void ee_view_post_c(void)
@@ -559,7 +545,7 @@ static void chain_squeeze(volatile u32 *p, volatile u32 *end)
 
 static volatile u32 **cursor_of(s32 L)
 {
-    return L >= FE_BOOT ? (volatile u32 **)ee_fe_chain_cursor[FE(L)] : LVL_DATA(L, chain_cursor, volatile u32 **);
+    return LVL_DATA(L, chain_cursor, volatile u32 **);
 }
 
 /* --- the HUD, help, subtitles ---------------------------------------------- */
@@ -756,12 +742,27 @@ void ee_ws_subtitles_c(u32 ra)
  * frames are copied with the remap applied, the moby points at the copies
  * for the call, and back. The class data itself is never changed.
  * func_0020E180 writes the data cache back (func_00118D80(0)) before the
- * walker's DMA reads the frames. */
+ * walker's DMA reads the frames.
+ *
+ * The title screen's menus are drawn the same way by its own renderer,
+ * func_0021A610 (the boot executable's; frontbin has a copy): the same calls
+ * in the same order at other offsets (FE_*_SITE), hooked the same way
+ * (tools/gen_frontend.py RENDERER_SITES). renderer_of_call names the program
+ * from either. */
 DECLARE_LVL(func_L00_002781D8);         /* the pause menu's renderer */
+DECLARE_LVL(func_0021A610);             /* the title screen's (no level has it) */
 DECLARE_LVL(func_001F7A50);             /* set up a 2^n render target */
 DECLARE_LVL(func_0020E180);             /* draw a moby */
 #define PANEL_DRAW_SITE    0xFC         /* func_L00_002781D8 + 0xFC: jal func_0020E180(panel, 1) */
 #define PANEL_PROJECT_SITE 0x1EC        /* func_L00_002781D8 + 0x1EC: jal func_00238D90(corners, rectangle) */
+#define FE_PANEL_DRAW_SITE    0xBC      /* the same calls in func_0021A610 */
+#define FE_PANEL_PROJECT_SITE 0x1A4
+
+static s32 renderer_of_call(u32 ra, u32 site, u32 fe_site)
+{
+    s32 P = ee_program_of_call(ra, lvl_func_0021A610, fe_site);
+    return P >= 0 ? P : ee_level_of_call(ra, lvl_func_L00_002781D8, site);
+}
 
 #define PANEL_CLASS      0x472
 #define PANEL_Y_IN       12500
@@ -839,7 +840,7 @@ static u32 panel_frame(u32 src, u32 *out)
 
 void ee_ws_panel_draw_c(u32 moby, s32 count, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_002781D8, PANEL_DRAW_SITE);
+    s32 L = renderer_of_call(ra, PANEL_DRAW_SITE, FE_PANEL_DRAW_SITE);
     DrawMobyFn draw = LVL(L, func_0020E180, DrawMobyFn);
     volatile u32 *frames = (volatile u32 *)(moby + 0x68);
     u32 a, b;
@@ -891,7 +892,7 @@ typedef void (*ProjectFn)(f32 *, f32 *, s32 *, s32 *, s32 *, s32 *);
 void ee_ws_panel_project_c(f32 *first, f32 *opposite, s32 *w, s32 *h, s32 *x, s32 *y, u32 ra, s32 vendor)
 {
     s32 L = vendor ? ee_level_of_call(ra, lvl_func_L00_002A0F60, VENDOR_PROJECT_SITE)
-                   : ee_level_of_call(ra, lvl_func_L00_002781D8, PANEL_PROJECT_SITE);
+                   : renderer_of_call(ra, PANEL_PROJECT_SITE, FE_PANEL_PROJECT_SITE);
     s32 on = ws_on();
     if (on && !vendor && panel_scale > 0.0f) {
         f32 rec = ((first[1] + opposite[1]) * 0.5f - panel_centre) / panel_scale;
@@ -989,6 +990,8 @@ typedef void (*TargetFn)(s32, s32, s32, f32);
 typedef s32 (*PanelFn)(u32);
 #define PANEL_TARGET_SITE  0x458
 #define PANEL_TEXTURE_SITE 0x49C
+#define FE_PANEL_TARGET_SITE  0x430     /* the same calls in func_0021A610 */
+#define FE_PANEL_TEXTURE_SITE 0x474
 #define VIEW_SAVED_WORDS   (0x280 / 4)     /* the record up to the camera block's copy */
 
 static u32 main_view[VIEW_SAVED_WORDS];
@@ -1013,7 +1016,7 @@ static void swap_view(s32 L, u32 *view, s32 *screen)
 
 void ee_ws_panel_target_c(s32 a, s32 b, s32 flag, u32 ra, f32 f)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_002781D8, PANEL_TARGET_SITE);
+    s32 L = renderer_of_call(ra, PANEL_TARGET_SITE, FE_PANEL_TARGET_SITE);
     volatile u32 *rec = (volatile u32 *)LVL_DATA(L, view, u32);
     s32 k;
     main_saved = ws_on();
@@ -1040,7 +1043,7 @@ void ee_ws_panel_target_c(s32 a, s32 b, s32 flag, u32 ra, f32 f)
 
 s32 ee_ws_panel_texture_c(u32 item, u32 fn, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_002781D8, PANEL_TEXTURE_SITE);
+    s32 L = renderer_of_call(ra, PANEL_TEXTURE_SITE, FE_PANEL_TEXTURE_SITE);
     s32 r = ((PanelFn)fn)(item);
     if (main_saved) {
         swap_view(L, main_view, main_screen);      /* the main view, widened */
@@ -1057,6 +1060,8 @@ s32 ee_ws_panel_texture_c(u32 item, u32 fn, u32 ra)
  * the return address, the callee's results. */
 u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 
+/* The pause sites are at these offsets in the levels' renderer; the title
+ * screen's has them at + 0x250, + 0x358, + 0x5E0 and + 0x670. */
 #define WS_SITE_PAUSE_FILL    1     /* func_L00_002781D8 + 0x298: a panel's dark fill (func_00201640) */
 #define WS_SITE_PAUSE_DIRECT  2     /* + 0x388: jalr $a2, a panel that draws on the screen itself */
 #define WS_SITE_PAUSE_QUAD    3     /* + 0x600: a panel's content drawn over its rectangle (func_001F5800) */
@@ -1068,6 +1073,7 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_QUIT_PROMPT   9     /* func_L00_001F9248 + 0x60: game mode 4's prompt ("Quit Race?", func_001FBE80) */
 #define WS_SITE_CREDITS_NAME  10    /* func_L00_001F92E8 + 0xC8: a credits name tag (func_L00_001FCC50) */
 #define WS_SITE_PLANET_NAME   11    /* func_002305A0 + 0x140: the flight screen's planet name (func_0022FD20) */
+#define WS_SITE_STORY_CARD    12    /* func_00232EF0: a title card's strip or text (STORY_CARD_SITES) */
 #define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
 #define WS_SITE_TRESPASSER    64    /* + level: the Trespasser puzzle's rings, a draw callback (trespasser_draw) */
 #define WS_SITE_TIMER         96    /* + level: a countdown's frame and digits, a draw callback (timer_draw) */
@@ -1083,6 +1089,21 @@ DECLARE_LVL(func_L00_001FCC50);         /* a credits name tag */
  * out to the left edge as the HUD's left elements are (owner, 2026-10-19). */
 DECLARE_LVL(func_002305A0);
 DECLARE_LVL(func_0022FD20);
+
+/* The title cards ("Kyzil Plateau, Planet Veldin", "Chairman Drek's
+ * flagship"...) before the story's movies: the level transition (and, for
+ * the intro after New Game, the title screen's program) runs
+ * PlayStoryTransition (func_00232EF0) with a frame loop of its own, which
+ * draws each line as two 512-wide strips straight into the chain: a
+ * scrolling backdrop (func_00232A00) and the line's picture (func_001F5800),
+ * up to two lines. They spanned the 16:9 screen, stretched (owner,
+ * 2026-10-21). Each of the six calls is bracketed and squeezed about the
+ * centre, so a card keeps its 4:3 shape with black at the sides, like the
+ * movies around it. The card's frames are always full screen, so the
+ * setting alone decides. */
+DECLARE_LVL(func_00232EF0);             /* PlayStoryTransition */
+DECLARE_LVL(func_00232A00);             /* its backdrop strip */
+static const u16 story_card_sites[] = { 0x1E0, 0x228, 0x280, 0x2C0, 0x30C, 0x33C };   /* strip, picture, ... */
 
 /* The ship levels draw their HUD (radar, health, missiles, messages) from a
  * draw callback the ship registers every frame (through the registrar 0x1B8
@@ -1153,19 +1174,19 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
     u32 target;
     switch (site) {
     case WS_SITE_PAUSE_FILL:
-        L = ee_level_of_call(ra, lvl_func_L00_002781D8, 0x298);
+        L = renderer_of_call(ra, 0x298, 0x250);
         target = LVL(L, func_00201640, u32);
         break;
     case WS_SITE_PAUSE_DIRECT:
-        L = ee_level_of_call(ra, lvl_func_L00_002781D8, 0x388);
+        L = renderer_of_call(ra, 0x388, 0x358);
         target = ee_ws_saved_args[2 * 2];               /* the jalr's $a2 */
         break;
     case WS_SITE_PAUSE_QUAD:
-        L = ee_level_of_call(ra, lvl_func_L00_002781D8, 0x600);
+        L = renderer_of_call(ra, 0x600, 0x5E0);
         target = LVL(L, func_001F5800, u32);
         break;
     case WS_SITE_PAUSE_LAST:
-        L = ee_level_of_call(ra, lvl_func_L00_002781D8, 0x698);
+        L = renderer_of_call(ra, 0x698, 0x670);
         target = LVL(L, func_002250B8, u32);
         break;
     case WS_SITE_VENDOR_QUAD:
@@ -1189,14 +1210,23 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         target = LVL(L, func_L00_001FCC50, u32);
         break;
     case WS_SITE_PLANET_NAME:
-        if (ra == ee_fe_flight[0] + 0x140 + 8 || ra == ee_fe_flight[1] + 0x140 + 8) {
-            L = ra == ee_fe_flight[0] + 0x140 + 8 ? FE_BOOT : FE_BIN;   /* a frontend's flight */
-            target = ee_fe_planet_name[FE(L)];
-            break;
-        }
         L = ee_level_of_call(ra, lvl_func_002305A0, 0x140);
         target = LVL(L, func_0022FD20, u32);
         break;
+    case WS_SITE_STORY_CARD: {
+        s32 k;
+        L = -1;
+        for (k = 0; k < 6 && L < 0; k++) {
+            L = ee_program_of_call(ra, lvl_func_00232EF0, story_card_sites[k]);
+        }
+        k--;
+        if (L < 0) {                                    /* never expected */
+            L = ee_level_of_call(ra, lvl_func_00232EF0, story_card_sites[0]);
+            k = 0;
+        }
+        target = (k & 1) ? LVL(L, func_001F5800, u32) : LVL(L, func_00232A00, u32);
+        break;
+    }
     case WS_SITE_VENDOR_HUD:
         L = ee_level_of_call(ra, lvl_func_L00_002A1540, 0x400);
         target = LVL(L, func_001FFFB8, u32);
@@ -1216,7 +1246,7 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
     }
     bracket_level = L;
     bracket_site = site;
-    bracket_on = ws_on();
+    bracket_on = site == WS_SITE_STORY_CARD ? WS_SETTING != 0 : ws_on();
     if (bracket_on) {
         bracket_start = *cursor_of(L);
         if (site == WS_SITE_VENDOR_HUD) {
@@ -1321,8 +1351,9 @@ void ee_ws_pillars_c(u32 ra)
  * of setImageTag (func_0023E298 + 0xF8) is hooked, and its last REF is sent
  * to a copy of the packet, rebuilt from the original each time, whose
  * strips are squeezed toward the centre and which ends with two black
- * sprites over the sides. The frontend's movies (its own copy of the code)
- * are not touched. */
+ * sprites over the sides. The title screen's programs have their own copy
+ * of the code, hooked the same way: the intro movies after New Game play
+ * from there. */
 DECLARE_LVL(func_0023C5E0);           /* setImageTag(tags, frame, width, height) */
 DECLARE_LVL(func_0023E298);           /* the decoder's frame setup that calls it */
 
@@ -1531,12 +1562,13 @@ void ee_ws_credits_picture_c(u32 source, u32 ra)
  * disc's initial state (func_00209DC0), which zeroes the flag; retail keeps
  * the current volumes and stereo setting across that reset, so the title
  * screen's programs keep the 16:9 setting across it too: every call of the
- * reset in them goes to their stub (src/ws_hooks.s), which passes FE(id). */
-extern const u32 ee_fe_reset[2];
+ * reset in them goes to their stub (src/ws_hooks.s), which passes the
+ * program. */
+DECLARE_LVL(func_00209DC0);             /* the game-state reset */
 
-void ee_fe_reset_c(s32 fe)
+void ee_fe_reset_c(s32 L)
 {
-    u8 widescreen = *(volatile u8 *)EE_SETTING_WIDESCREEN;
-    ((VoidFn)ee_fe_reset[fe])();
-    *(volatile u8 *)EE_SETTING_WIDESCREEN = widescreen;
+    u8 widescreen = WS_SETTING;
+    LVL(L, func_00209DC0, VoidFn)();
+    WS_SETTING = widescreen;
 }
