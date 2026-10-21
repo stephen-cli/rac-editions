@@ -4,6 +4,14 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-21 (the countdown timers on Quartu)
+
+### 📺 Proper widescreen (q4) — Quartu's countdown confirmed in 16:9; its rendering quirks are the original game's
+
+**What changed.** Nothing: a check.
+
+**Findings.** The timer keeps its shape in 16:9 on Quartu, but its numbers turn faint and see-through while Ratchet swims on the water's surface, and its black backing vanishes in some camera directions. That is how the original game draws it: the timer is drawn in the middle of the world's 3D effects and picks up their settings (the water's blending, the depth test). With the timer switched back to the original game's own drawing code, the backing is missing and the numbers are see-through just the same.
+
 ## 2026-10-21 (16:9: the title cards, logo and PRESS START, owner's second report)
 
 ### 📺 Proper widescreen (q4) — Title cards, logo and PRESS START fixed; confirmed by the owner (all reported issues)

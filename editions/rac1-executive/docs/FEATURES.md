@@ -2140,7 +2140,17 @@ does not say whether the title-screen load was from a fresh boot (the boot
 executable's copy) or after quitting a level (frontbin's); the other one
 was not reported separately.
 
-### q4: the 16:9 row on the title screen's Video page (2026-10-21, owner's request), verified in PCSX2, awaiting owner test
+**Quartu and Drek's Fleet (2026-10-21).** The timer keeps its shape in
+16:9. Its digits turn faint and see-through with Ratchet swimming on the
+water's surface, and its black backing vanishes at some camera angles. That
+is retail: the timer is a draw callback (TimerMoby_Draw, run from the
+world's draw-callback pass among the 3D effects), so it draws with whatever
+blending and depth test the 3D drawn before it left on the GS. With the
+timer's registration put back to retail's words (func_L15_002D7C00 + 0xCA8
+and + 0xCB0, the lui/addiu of func_L15_002D8BB0), the backing is missing on
+the platform and the digits are see-through in the water just the same.
+
+### q4: the 16:9 row on the title screen's Video page (2026-10-21, owner's request) — working
 
 **The page.** The title screen's Options are Language, Video and Sound;
 Video is a toggle-list page (ToggleList_PadInput and DrawCheatsMenu, the
