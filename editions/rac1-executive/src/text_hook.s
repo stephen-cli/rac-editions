@@ -5,8 +5,10 @@
  * modseg.h). Edition ids tail-call the C lookup; anything else re-executes
  * the two prologue instructions the patch replaced (addiu $sp,-0x10;
  * sq $ra,0($sp)) and continues at that level's msg_string + 8, with $a0 ($4)
- * and $ra ($31) untouched. Numeric register names: the SN assembler takes
- * no aliases. */
+ * and $ra ($31) untouched. The title screen's two programs are patched the
+ * same way with ids 19 and 20 (FE_BOOT, FE_BIN; tools/gen_frontend.py), whose
+ * msg_string is in ee_fe_msg_string. Numeric register names: the SN
+ * assembler takes no aliases. */
 .set noreorder
 .set noat
 .text
@@ -15,6 +17,7 @@
 .extern ee_text_first
 .extern ee_text_count
 .extern lvl_func_001FE540
+.extern ee_fe_msg_string
 ee_msg_string_hook:
     lui   $2, %hi(ee_text_first)
     lw    $2, %lo(ee_text_first)($2)
@@ -24,10 +27,20 @@ ee_msg_string_hook:
     sltu  $2, $2, $3               /* (unsigned)(id - first) < count */
     bnez  $2, edition
     nop
+    sll   $2, $1, 2                /* the program's id from the delay slot */
+    sltiu $3, $1, 19
+    beqz  $3, frontend
+    nop
     lui   $3, %hi(lvl_func_001FE540)
-    sll   $2, $1, 2                /* the level id from the delay slot */
     addu  $3, $3, $2
+    b     prologue
     lw    $3, %lo(lvl_func_001FE540)($3)
+frontend:
+    addiu $2, $2, -4 * 19          /* FE(id) * 4 */
+    lui   $3, %hi(ee_fe_msg_string)
+    addu  $3, $3, $2
+    lw    $3, %lo(ee_fe_msg_string)($3)
+prologue:
     addiu $29, $29, -0x10          /* the replaced prologue */
     sq    $31, 0($29)
     addiu $3, $3, 8

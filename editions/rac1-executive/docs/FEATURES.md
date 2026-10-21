@@ -2140,6 +2140,46 @@ does not say whether the title-screen load was from a fresh boot (the boot
 executable's copy) or after quitting a level (frontbin's); the other one
 was not reported separately.
 
+### q4: the 16:9 row on the title screen's Video page (2026-10-21, owner's request), verified in PCSX2, awaiting owner test
+
+**The page.** The title screen's Options are Language, Video and Sound;
+Video is a toggle-list page (ToggleList_PadInput and DrawCheatsMenu, the
+Subtitles and Controls pages' kind) with one entry {label, flag, on, off,
+special}: "Video mode (50Hz or 60Hz)", flag `0x16044C`, 50Hz/60Hz, special 1
+(its confirmation popup). `tools/gen_frontend.py` finds the list in both
+title-screen programs (the boot executable and frontbin; the widget at
+`0x1D4F40`, executable data, in both) from the Options rows' labels, and
+points the widget's entries (+0x34) at `ee_fe_video_entries`: the Video mode
+entry, then {"16:9 (widescreen)" (0x540D), `0x15EEBA` (gCheats[10], the
+Camera page's flag), On, Off, 0}. The title screen itself stays 4:3, as the
+owner chose (q4 above): the setting is for the game.
+
+**Its label.** The title screen's msg_string was not hooked, so it could not
+answer the edition's ids; both programs' copies now jump to
+`ee_msg_string_hook` like every level's, with ids 19 and 20
+(`src/text_hook.s` reads their msg_string from `ee_fe_msg_string`).
+
+**New game.** A save's own setting applies when it loads (the flag is in its
+cheat block). Starting a new game resets the game state from the disc's
+initial state (`func_00209DC0`), which zeroed the flag; retail keeps the
+volumes and stereo setting across that reset, so the title screen's programs
+keep 16:9 across it too: their seven calls of the reset (in each program)
+go to `ee_fe_reset_19`/`_20` (`src/ws_hooks.s`), which run the program's
+reset with the byte kept (`src/widescreen.c`, `ee_fe_reset_c`).
+
+**Words.** Boot executable: 2 (msg_string) + 1 (entries) + 7 (reset calls),
+with the widescreen and movie volume words, 26 in all; frontbin: the same
+10.
+
+**Verified in PCSX2** (a copy of the owner's Mcd003, PCSX2.ini pointed at it
+and restored, the copy deleted after): the Video page lists both rows, the
+new label in English; Cross on the new row turns it on (`0x15EEBA` = 1), the
+title screen staying 4:3; New Game into an empty slot of the copy: the flag
+stayed 1 through the reset and Veldin's opening cutscene showed the 16:9
+side pillars. Not run: "Continue without saving" (the same reset calls),
+and the 60Hz row (unchanged). The page's panel was sized for one row; two
+fit inside it with small margins.
+
 ## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
 
 **Owner's report.** In the Kalebo III hoverboard race the game froze at the
@@ -2341,7 +2381,7 @@ tool checks both retail words and the store and branch it jumps to.
 is in the built image at the addresses above. The owner confirmed it
 working in game (2026-10-21).
 
-## Movie volume (owner's extra item, 2026-10-21) — prerendered cutscenes working per the owner; in-level cutscenes and the title screen's page (second round, below) verified in PCSX2, awaiting owner test
+## Movie volume (owner's extra item, 2026-10-21) — working per the owner: prerendered and in-level cutscenes, the pause menu's and the title screen's pages
 
 **The request.** Movies (in-level movies, the prerendered cutscenes, the
 Goodies movies) follow the Sound effects volume; the owner wants a slider of

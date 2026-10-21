@@ -30,7 +30,8 @@ holds only the edition's code, tools and notes, never game data.
   prerendered cutscenes and in-level cutscenes, which the original game ties
   to the Sound effects volume. Saved with your game; until you set it, it
   matches your Sound effects volume.
-- **16:9 widescreen.** A new row on the Camera page (Options → Camera).
+- **16:9 widescreen.** A new row on the Camera page (Options → Camera), and
+  on the title screen's Video page (Options → Video).
   Turned on, the game fills a widescreen TV (set your TV, or PCSX2's aspect
   ratio, to 16:9): you see more to the sides, nothing is cut off at the top
   or bottom, and the HUD sits in the corners without being stretched.

@@ -1524,3 +1524,19 @@ void ee_ws_credits_picture_c(u32 source, u32 ra)
     }
     *cursor = p;
 }
+
+/* The 16:9 row on the title screen's Video page (tools/gen_frontend.py adds
+ * it to the page's toggle list). A save's own setting applies when it loads,
+ * as its cheat flags do. Starting a new game resets the game state from the
+ * disc's initial state (func_00209DC0), which zeroes the flag; retail keeps
+ * the current volumes and stereo setting across that reset, so the title
+ * screen's programs keep the 16:9 setting across it too: every call of the
+ * reset in them goes to their stub (src/ws_hooks.s), which passes FE(id). */
+extern const u32 ee_fe_reset[2];
+
+void ee_fe_reset_c(s32 fe)
+{
+    u8 widescreen = *(volatile u8 *)EE_SETTING_WIDESCREEN;
+    ((VoidFn)ee_fe_reset[fe])();
+    *(volatile u8 *)EE_SETTING_WIDESCREEN = widescreen;
+}

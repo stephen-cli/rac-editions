@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-The title screen's programs: q4, the flight to a planet in 16:9
-(src/widescreen.c), and the Movie volume row on the title screen's Sound
-page (src/movie_volume.c). FE_BOOT/FE_BIN in src/modseg.h.
+The title screen's programs: q4, the flight to a planet in 16:9 and the
+Video page's 16:9 row (src/widescreen.c), the Movie volume row on the Sound
+page (src/movie_volume.c), and the edition's strings (src/text_hook.s).
+FE_BOOT/FE_BIN in src/modseg.h.
 
 Loading a save from the title screen plays the flight to the planet
 (DoSpaceTransition, game mode 6) from the frontend's program, not from a
@@ -30,10 +31,14 @@ masked), reads the data they address from their own lui/addiu pairs, and
                and for the Movie volume as in every level: the volume calls
                (overlay_patch.VOLUME_SITES), LoadHudBanks' header copy and
                bank link (the orange bar's icon, src/hud_icons.c), and the
-               Sound page's widget (its input and draw words -> stubs 19/20)
+               Sound page's widget (its input and draw words -> stubs 19/20);
+               msg_string's entry -> ee_msg_string_hook with the id 19/20;
+               the Video page's toggle list -> ee_fe_video_entries (a 16:9
+               row added), and every call of the game-state reset ->
+               ee_fe_reset_19/20, which keeps the 16:9 setting
   frontbin_patches(iso, features)   the same words for frontbin, as image
-               offsets, for tools/overlay_patch.py (features widescreen and
-               movie_volume)
+               offsets, for tools/overlay_patch.py (features edition_text,
+               widescreen and movie_volume)
 
 The Sound page's functions in frontbin are the jal targets of its own copies
 of Pause_SoundOptionsInput and DrawSoundMenu, read against the executable's.
@@ -65,8 +70,9 @@ SOUND_DRAW = "func_0021DE08"                # DrawSoundMenu
 SOUND_INIT = "func_0022DBE8"                # Sound_InitState
 SOUND_UPDATE = "func_0022DD68"              # sound_update
 MOVIE_LOOP = "func_0023B740"                # the movie playback loop
+RESET = "func_00209DC0"                     # the game-state reset from the disc's initial state (new game)
 FUNCS = (UPDATE_VIEW, FLIGHT, PLANET_NAME, DRAW_WORLD, LETTERBOX,
-         LOAD_HUD, SOUND_INPUT, SOUND_DRAW, SOUND_INIT, SOUND_UPDATE, MOVIE_LOOP)
+         LOAD_HUD, SOUND_INPUT, SOUND_DRAW, SOUND_INIT, SOUND_UPDATE, MOVIE_LOOP, RESET)
 PLANET_NAME_SITE = 0x140                    # DrawSpaceFlightFrame + 0x140: jal the planet name
 # The data the hooks read, as tools/modseg.py LEVEL_DATA: a function and its %hi/%lo offsets.
 DATA = {
@@ -81,6 +87,15 @@ DATA = {
 # In frontbin they are read from the jal targets of its copies of those two functions.
 SOUND_FNS = ("func_0022ED80", "func_001F4630", "func_001F4748", "func_001FE540", "func_001F6CF8",
              "func_001F68E8", "func_00200198", "func_00201190", "func_00201640")
+MSG_STRING = SOUND_FNS.index("func_001FE540")
+# The title screen's Options rows (Language, Video, Sound) and the Video page's one toggle
+# entry {label, flag, on, off, special}: "Video mode (50Hz or 60Hz)", special 1 (its popup).
+TITLE_OPTIONS = (0x4F2B, 0x4F21, 0x4F22)
+VIDEO_MODE_LABEL = 0x4F3B
+TOGGLE_ON, TOGGLE_OFF = 0x4F5A, 0x4F5B       # "On", "Off", as the Subtitles and Controls pages' toggles
+TEXT_WIDESCREEN = 0x540D                    # "16:9 (widescreen)" (src/modseg.h EE_TEXT_WIDESCREEN)
+SETTING_WIDESCREEN = 0x0015EEBA             # gCheats[10] (src/modseg.h EE_SETTING_WIDESCREEN)
+MSG_PROLOGUE = (0x27BDFFF0, 0x7FBF0000)     # addiu $sp,$sp,-0x10; sq $ra,0($sp) (src/text_hook.s runs them)
 VIEW_PROLOGUE = (0x27BDFFA0, 0x3C020016)    # addiu $sp,$sp,-0x60; lui $v0,0x16 (ee_view_hook runs them)
 VIEW_FOV_READ, LWC1_FOV, LWC1_FOV_SRC = 0x68, 0xC46000B0, 0xC46000BC
 
@@ -206,6 +221,30 @@ def word_pairs(prog: Program, first: int, second: int) -> list[int]:
     return out
 
 
+def video_list(prog: Program) -> tuple[int, int]:
+    """The title screen's Video page toggle list: (its widget, its entries)."""
+    for base, length, blob, _ in prog.ranges:
+        words = struct.unpack_from(f"<{length // 4}I", blob, 0)
+        for i in range(len(words) - 9):
+            if all(words[i + 3 * k] & 0xFFFF == lab for k, lab in enumerate(TITLE_OPTIONS)):
+                widget = prog.word(words[i + 4] + 0x40)          # the Video row's page, its first widget
+                entries = prog.word(widget + 0x34)
+                if prog.words(entries, 6)[0] != VIDEO_MODE_LABEL or prog.word(entries + 20) != 0:
+                    raise SystemExit("the Video page's toggle list is not the one-row list expected")
+                return widget, entries
+    raise SystemExit("the title screen's Options rows not found")
+
+
+def jal_sites(prog: Program, target: int) -> list[int]:
+    """Every place in PROG holding a jal to TARGET."""
+    word = jal(target)
+    out = []
+    for base, length, blob, _ in prog.ranges:
+        words = struct.unpack_from(f"<{length // 4}I", blob, 0)
+        out += [base + 4 * i for i, w in enumerate(words) if w == word]
+    return out
+
+
 def frontends(openrac: Path, iso: Path | None = None):
     """[(Program, {name: address}, {data: address, ...})] for the boot executable and frontbin.
     The third also holds "sound_fns" (SOUND_FNS' addresses) and "sound_widgets" (the
@@ -227,20 +266,31 @@ def frontends(openrac: Path, iso: Path | None = None):
         data["sound_widgets"] = word_pairs(prog, funcs[SOUND_INPUT], funcs[SOUND_DRAW])
         if not data["sound_widgets"]:
             raise SystemExit("no Sound page widget in a frontend")
+        data["video_widget"], data["video_entries"] = video_list(prog)
+        data["reset_calls"] = jal_sites(prog, funcs[RESET])
+        if not 1 <= len(data["reset_calls"]) <= 8:
+            raise SystemExit(f"{len(data['reset_calls'])} calls of the reset in a frontend")
         out.append((prog, funcs, data))
     return out
 
 
 def patches(prog: Program, funcs: dict, data: dict, fe_id: int, symbol,
-            features=("widescreen", "movie_volume")) -> list[tuple[int, int, int]]:
+            features=("edition_text", "widescreen", "movie_volume")) -> list[tuple[int, int, int]]:
     """(address, retail word, new word) for one frontend."""
     out = []
+    if "edition_text" in features:
+        # msg_string answers the edition's ids, as in every level (src/text_hook.s)
+        f = data["sound_fns"][MSG_STRING]
+        out += [(f, MSG_PROLOGUE[0], j(symbol("ee_msg_string_hook"))), (f + 4, MSG_PROLOGUE[1], addiu_at(fe_id))]
     if "widescreen" in features:
         f = funcs[UPDATE_VIEW]
         out += [(f, VIEW_PROLOGUE[0], j(symbol("ee_view_hook"))),
                 (f + 4, VIEW_PROLOGUE[1], addiu_at(fe_id)),
                 (f + VIEW_FOV_READ, LWC1_FOV, LWC1_FOV_SRC),
                 (funcs[FLIGHT] + PLANET_NAME_SITE, jal(funcs[PLANET_NAME]), jal(symbol("ee_ws_br_planet_name")))]
+        # the Video page's 16:9 row, kept across a new game's reset (src/widescreen.c)
+        out.append((data["video_widget"] + 0x34, data["video_entries"], symbol("ee_fe_video_entries")))
+        out += [(a, jal(funcs[RESET]), jal(symbol(f"ee_fe_reset_{fe_id}"))) for a in data["reset_calls"]]
     if "movie_volume" in features:
         # the volume calls, the HUD loader's header copy and bank link (the movie bar's
         # icon, src/hud_icons.c), and the Sound page's widgets (src/movie_volume.c)
@@ -288,6 +338,16 @@ def emit(openrac: Path, out: Path) -> None:
     lines = ["/* generated by tools/gen_frontend.py: the boot executable's frontend, then frontbin's */"]
     for name, get in rows:
         lines.append(f"const unsigned int {name}[2] = {{ {', '.join(f'0x{get(fn, d):08X}' for _, fn, d in fes)} }};")
+    msg = ", ".join(f"0x{d['sound_fns'][MSG_STRING]:08X}" for _, _, d in fes)
+    lines.append(f"const unsigned int ee_fe_msg_string[2] = {{ {msg} }};")
+    lines.append(f"const unsigned int ee_fe_reset[2] = {{ {', '.join(f'0x{fn[RESET]:08X}' for _, fn, _ in fes)} }};")
+    # The Video page's entries with the 16:9 row: no program's own addresses in them, so one copy serves both.
+    video = [prog.words(d["video_entries"], 5) for prog, _, d in fes]
+    if video[0] != video[1]:
+        raise SystemExit("the two frontends' Video entries differ")
+    rows = video[0] + [TEXT_WIDESCREEN, SETTING_WIDESCREEN, TOGGLE_ON, TOGGLE_OFF, 0] + [0] * 5
+    lines.append("/* the title screen's Video page: Video mode, then 16:9 (widescreen) (src/widescreen.c) */")
+    lines.append(f"unsigned int ee_fe_video_entries[{len(rows)}] = {{ {', '.join(f'0x{w:X}' for w in rows)} }};")
     lines.append(f"/* the Sound page's functions ({', '.join(SOUND_FNS)}) */")
     lines.append(f"const unsigned int ee_fe_sound_fns[2][{len(SOUND_FNS)}] = {{ "
                  + ", ".join("{ " + ", ".join(f"0x{a:08X}" for a in d["sound_fns"]) + " }" for _, _, d in fes) + " };")
@@ -295,7 +355,8 @@ def emit(openrac: Path, out: Path) -> None:
     out.write_text("\n".join(lines) + "\n")
     for (_, fn, d), label in zip(fes, ("boot", "frontbin")):
         print(f"{label}: " + ", ".join(f"{k} 0x{v:08X}" for k, v in {**fn, **d}.items() if isinstance(v, int))
-              + f", Sound widgets {', '.join(f'0x{w:08X}' for w in d['sound_widgets'])}")
+              + f", Sound widgets {', '.join(f'0x{w:08X}' for w in d['sound_widgets'])}"
+              + f", Video list 0x{d['video_widget']:08X}, reset calls {', '.join(f'0x{a:08X}' for a in d['reset_calls'])}")
     print(f"wrote {out}")
 
 

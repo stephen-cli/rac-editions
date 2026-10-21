@@ -299,3 +299,16 @@ ee_ws_screens_project:
 ee_ws_subtitles:
     j     ee_ws_subtitles_c
     addu  $4, $31, $0
+
+/* The title screen's calls of the game-state reset (func_00209DC0), in the
+ * boot executable and in frontbin (tools/gen_frontend.py): the reset keeps
+ * the 16:9 setting (src/widescreen.c, ee_fe_reset_c). */
+.globl ee_fe_reset_19
+.extern ee_fe_reset_c
+ee_fe_reset_19:
+    j     ee_fe_reset_c
+    addiu $4, $0, 0
+.globl ee_fe_reset_20
+ee_fe_reset_20:
+    j     ee_fe_reset_c
+    addiu $4, $0, 1

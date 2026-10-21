@@ -4,9 +4,23 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-21 (16:9 on the title screen, owner's request)
+
+### 📺 Proper widescreen (q4) — 16:9 row added to the title screen's Video page, verified in PCSX2, awaiting owner test
+
+**What changed.** The title screen's Options → Video page has a second row, **16:9 (widescreen)**, under the 50Hz/60Hz setting. It is the same setting as the in-game Camera page's row. Turning it on there and starting a New Game starts the game in 16:9. The title screen itself stays 4:3, as decided before.
+
+**Decisions taken.** It behaves like the volumes: loading a save uses that save's own 16:9 setting, and starting a new game keeps the one set on the title screen.
+
+**Findings.** The title screen couldn't show the edition's own text until now (its text lookup wasn't hooked); it can now, which the new row's label needed.
+
+**Verification.** In PCSX2 on a copy of the owner's memory card (deleted afterwards; PCSX2's settings restored): both rows show on the Video page, the new row toggles, and a New Game started on the copy kept 16:9 on, with Veldin's opening cutscene in the edition's 16:9 framing. Not run: "Continue without saving", which goes through the same reset.
+
+**Owner test.** Turn 16:9 on from the title screen, start a New Game (or Continue without saving), and check the game is in 16:9. The Video page's box is snug with two rows; say if you want it taller.
+
 ## 2026-10-21 (Movie volume: owner's first round)
 
-### 🎬 Movie volume — Prerendered cutscenes working per the owner; in-level cutscenes and the title screen's slider added, verified in PCSX2, awaiting owner test
+### 🎬 Movie volume — Working per the owner (prerendered and in-level cutscenes, title screen)
 
 **What changed.**
 - **In-level cutscenes** (the ones Goodies → In-Level Movies replays) now follow Movie volume too: their speech, music and effects, and the world sounds under them. When the scene ends, everything is back on Sound effects.

@@ -864,11 +864,12 @@ def main() -> int:
                     struct.pack_into("<I", buf, i, word)
                     total += 1
 
-        frontend = [f for f in args.features if f in ("widescreen", "movie_volume")]
+        frontend = [f for f in args.features if f in ("edition_text", "widescreen", "movie_volume")]
         if frontend:
             # the title screen after quitting a level: frontbin's copies (tools/gen_frontend.py;
-            # the boot executable's are patched by its patch-elf step): the flight after a
-            # title-screen load (widescreen), the Sound page and the volume calls (movie_volume)
+            # the boot executable's are patched by its patch-elf step): msg_string (edition_text),
+            # the flight after a title-screen load and the Video page's 16:9 row (widescreen),
+            # the Sound page and the volume calls (movie_volume)
             from gen_frontend import frontbin_patches
             for off, expect, word in frontbin_patches(args.openrac, iso, modseg_symbol, frontend):
                 s, i = divmod(off, SECTOR)
