@@ -2297,3 +2297,46 @@ class retail-style padding.
 
 **Verified.** In PCSX2 on the owner's Kalebo III save: GADGETRON all the way
 round as the ring turns, sky intact, 50 FPS; close up and far away (owner).
+
+## Oltanis keeps its lightning (owner's extra item, 2026-10-21) — fixed, built, awaiting owner test
+
+**Retail's bug.** Oltanis's lightning strikes and their thunder come from
+one moby of the level, `func_L14_002EE6E0` (OpenRAC's
+CameraIntroController, decompiled in
+`src/overlays/l14_oltanis/vendor_002E0538.c`; NTSC `FUN_L14_002ed280`).
+The same moby plays the arrival cutscene. Its state byte (moby+0x20):
+
+- 0: set up (clears the strike timers), go to 1;
+- 1: wait while `D_L14_0015F6A8` is set; then, if the cutscene has not
+  been seen (byte `0x13D4F8`, part of the saved game), start cutscene 0,
+  mark it seen, hide the ship (Ship_ReleaseCurrent) and go to 2;
+- 2: when the cutscene ends, show the ship again (ShowTrackedMoby), go to 3;
+- 3: every few seconds pick a visible point of its path, build a bolt with
+  three branches (LightningArcUpdate, `func_L14_002EE990`), play the
+  thunder (PlayGroupSound on the first frame) and fade it out.
+
+When the seen flag is already set, state 1 simply returns, every frame, so
+the moby never reaches state 3. The lightning only runs on the visit that
+plays the cutscene; after a death, a load or any later trip to the planet
+the sky stays quiet for the rest of the game.
+
+**The patch.** `tools/overlay_patch.py` feature `oltanis_lightning`
+(default), level 14 only, two words in state 1's flag test:
+
+| Address | Retail | Edition |
+|---|---|---|
+| `0x2EE780` | `bnel $3, $0, .L002EE964` (to the exit) | `bne $3, $0, 0x2EE79C` |
+| `0x2EE784` | `lq $22, 0x90($sp)` (likely slot) | `addiu $2, $0, 3` |
+
+`0x2EE79C` is the function's own `sb $2, 0x20($22)` (state 2's store, in
+the delay slot of the Ship_ReleaseCurrent call) followed by
+`b .L002EE960`, the exit that restores every register. So a seen cutscene
+now sets state 3 and returns; the next frame starts the strikes exactly as
+after the cutscene. The new delay slot also runs when the branch is not
+taken, where it is harmless: the cutscene call that follows overwrites
+`$2`. The ship is never hidden on that path, so it needs no showing. The
+tool checks both retail words and the store and branch it jumps to.
+
+**Verified.** The patch applies to the retail image (2 words, 1 sector) and
+is in the built image at the addresses above. Not yet run: it needs a save
+that has been to Oltanis.

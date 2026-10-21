@@ -49,6 +49,10 @@ holds only the edition's code, tools and notes, never game data.
   sits on its own backing.
 - **Gadgets page preview.** Moving the cursor from an empty slot to an item
   no longer flashes the empty slot's item for a frame.
+- **Oltanis's lightning.** The lightning strikes and thunder over Oltanis
+  stopped for good after the first visit's arrival scene: after dying,
+  loading a save or coming back later, the sky stayed quiet. They now run
+  whenever you are on the planet.
 
 Some of these are still being tested. [docs/FEATURES.md](docs/FEATURES.md)
 has every change in full detail, with its status.

@@ -369,6 +369,40 @@ def health_backing(at):
     return [(site, load, addiu(2, ZERO, HEALTH_ROW_STEP))]
 
 
+OLTANIS_SEEN_BRANCH = 0x2EE780 - 0x2EE6E0   # bnel $3, $zero, .L_out (the intro-seen flag); lq $22 in its slot
+OLTANIS_SET_STATE = 0x2EE79C - 0x2EE6E0     # sb $2, 0x20($22) (state = 2), then b .L_epilogue
+
+
+def oltanis_lightning(at):
+    """Oltanis keeps its lightning strikes. One moby of the level
+    (func_L14_002EE6E0, OpenRAC's CameraIntroController, decompiled in
+    src/overlays/l14_oltanis/vendor_002E0538.c) runs both: in state 1 it
+    plays the arrival cutscene and marks it seen in the saved per-level
+    flags (0x13D4F8), state 2 waits for the cutscene to end, and state 3
+    throws a strike with its thunder every few seconds. When the flag is
+    already set, retail's state 1 just returns, so the moby never reaches
+    state 3: after a death, a load or a return trip the sky stays quiet for
+    the rest of the game. The patch sends that case to state 3 instead. The
+    flag test's branch-likely becomes a plain branch to the existing state
+    store before the function's exit (OLTANIS_SET_STATE), with state 3 put
+    in $2 by its delay slot (harmless when not taken: the cutscene call
+    that follows overwrites $2). The ship hide/show pair around the
+    cutscene (Ship_ReleaseCurrent, ShowTrackedMoby) is not needed when the
+    cutscene does not play. Level 14 only; the next frame runs state 3 as
+    after the cutscene."""
+    if at.level != 14:
+        return []
+    f = at("func_L14_002EE6E0")
+    site = f + OLTANIS_SEEN_BRANCH
+    store, exit_branch = at.words(f + OLTANIS_SET_STATE, 2)
+    if store != 0xA2C20020 or exit_branch != 0x1000006F:   # sb $2, 0x20($22); b .L002EE960
+        raise SystemExit(f"level 14: CameraIntroController's state store is not at 0x{f + OLTANIS_SET_STATE:X} "
+                         f"({store:08X} {exit_branch:08X})")
+    target = (f + OLTANIS_SET_STATE - (site + 4)) >> 2
+    return [(site, 0x54600078, 0x14600000 | target),    # bnel $3, $0, .L002EE964 -> bne $3, $0, (the store)
+            (site + 4, 0x7BB60090, addiu(2, ZERO, 3))]  # lq $22, 0x90($29) -> addiu $2, $0, 3
+
+
 PREVIEW_TAIL = 0x44     # func_0021F610 + 0x44: the branch on the cursor cell's owned flag
 
 
@@ -647,13 +681,14 @@ FEATURES = {
     "quick_select_pages": quick_select_pages,
     "commercials": commercials,
     "health_backing": health_backing,
+    "oltanis_lightning": oltanis_lightning,
     "item_preview": item_preview,
     "comet_strike_run": comet_strike_run,
     "comet_strike_jump": comet_strike_jump,
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots", "item_preview", "widescreen"]
+DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "oltanis_lightning", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots", "item_preview", "widescreen"]
 
 
 # --- Disc plumbing ------------------------------------------------------------

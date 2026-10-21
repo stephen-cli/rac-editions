@@ -4,6 +4,18 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-21 (owner's extra item: Oltanis's lightning)
+
+### ⛈️ Oltanis keeps its lightning — Fixed and built, awaiting owner test
+
+**What was wrong.** A bug in the original game. Oltanis's lightning strikes and thunder are run by the same object that plays the arrival scene the first time you land. That object waits for the arrival scene before it starts the lightning. Once your save records the scene as seen, it waits forever. So the lightning only ever ran on the first visit; after dying, loading a save or coming back later, the sky stayed quiet.
+
+**What changed.** When the arrival scene has already been seen, the object now skips straight to the lightning. The first visit is unchanged: the scene plays, then the strikes start. Two instructions in Oltanis's code (new feature `oltanis_lightning`, in the default build); no other planet is touched.
+
+**Verification.** The patch applies to the original disc's code and is in the new image (`build/iso/executive-edition.iso`, full `pack.sh` build). Not yet run in the emulator: it needs a save that has already been to Oltanis.
+
+**Owner test.** Load a save on Oltanis, or one that has been there and fly back: the lightning and thunder should come every few seconds. Then die and check they keep coming after the respawn.
+
 ## 2026-10-20 (q4: owner's report on title-screen loads and the warship timer)
 
 ### 📺 Proper widescreen (q4) — Three fixes confirmed by the owner
