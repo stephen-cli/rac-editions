@@ -2298,7 +2298,7 @@ class retail-style padding.
 **Verified.** In PCSX2 on the owner's Kalebo III save: GADGETRON all the way
 round as the ring turns, sky intact, 50 FPS; close up and far away (owner).
 
-## Oltanis keeps its lightning (owner's extra item, 2026-10-21) — fixed, built, awaiting owner test
+## Oltanis keeps its lightning (owner's extra item, 2026-10-21) — fixed; working per the owner
 
 **Retail's bug.** Oltanis's lightning strikes and their thunder come from
 one moby of the level, `func_L14_002EE6E0` (OpenRAC's
@@ -2338,5 +2338,5 @@ taken, where it is harmless: the cutscene call that follows overwrites
 tool checks both retail words and the store and branch it jumps to.
 
 **Verified.** The patch applies to the retail image (2 words, 1 sector) and
-is in the built image at the addresses above. Not yet run: it needs a save
-that has been to Oltanis.
+is in the built image at the addresses above. The owner confirmed it
+working in game (2026-10-21).
