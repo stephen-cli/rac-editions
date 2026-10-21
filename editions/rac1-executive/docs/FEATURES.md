@@ -2295,8 +2295,8 @@ PCSX2 at 16:9, window 2560 x 1440:
 Against the owner's retail screenshot: the card's first line is 684 / 1080 =
 0.633 of the screen's height there and 904 / 1440 = 0.628 in the edition.
 New Game ran on a copy of the owner's card (PCSX2.ini pointed at it and
-restored, the copy deleted). Not run: the cards between planets (the same
-function and hooks in the levels' programs).
+restored, the copy deleted). A card between planets is right too
+(entering Novalis).
 
 ## x2: the hoverboard races' Devastator is item record 36 (2026-10-19) — fixed, verified by the owner
 

@@ -17,7 +17,7 @@ changed, decisions taken, findings that affect other items.
 - The cards weren't being adjusted because their strips span the whole screen, and the edition deliberately leaves full-screen layers (fades, bars) alone. The cards are now an exception.
 - The logo and PRESS START are pictures drawn by the title screen's own frame, which the earlier changes didn't reach.
 
-**Verification.** In PCSX2, each element was captured with 16:9 off and on and measured. A correct 16:9 picture is exactly three quarters as wide in the frame, and the logo, PRESS START, two title cards and the main menu buttons all measured 0.75. The first card is the same size on screen as in the owner's retail screenshot. Not checked: the title cards between planets later in the game (same code).
+**Verification.** In PCSX2, each element was captured with 16:9 off and on and measured. A correct 16:9 picture is exactly three quarters as wide in the frame, and the logo, PRESS START, two title cards and the main menu buttons all measured 0.75. The first card is the same size on screen as in the owner's retail screenshot. The title card entering Novalis is right too, so the cards between planets work as well.
 
 ## 2026-10-21 (16:9: the title screen itself, the intro movies, the title cards)
 
