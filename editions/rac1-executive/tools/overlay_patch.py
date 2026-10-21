@@ -720,12 +720,13 @@ TIMER_SITES = {
 
 
 def timer_patches(at):
-    """q4: a countdown's frame and digits go through ee_ws_br_timer_NN (squeezed in place)."""
+    """q4: a countdown's draw callback registers as ee_ws_timer_NN, which notes it; the
+    countdown is drawn after the HUD, squeezed in place in 16:9 (src/widescreen.c)."""
     if at.level not in TIMER_SITES:
         return []
     fn, lui_off, lo_off, draw = TIMER_SITES[at.level]
     f = at(fn)
-    hi, lo = hi_lo(modseg_symbol(f"ee_ws_br_timer_{at.level}"))
+    hi, lo = hi_lo(modseg_symbol(f"ee_ws_timer_{at.level}"))
     old_hi, old_lo = hi_lo(at(draw))
     return [(f + lui_off, 0x3C040000 | old_hi, 0x3C040000 | hi),
             (f + lo_off, 0x24840000 | old_lo, 0x24840000 | lo)]

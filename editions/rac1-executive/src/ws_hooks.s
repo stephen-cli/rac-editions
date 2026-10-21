@@ -273,19 +273,21 @@ ee_ws_br_tres_18:
     addiu $25, $0, 82
 
 /* The countdowns' draw callbacks (Blarg Station's self-destruct, Quartu,
- * Drek's Fleet): site 96 + the level. */
-.globl ee_ws_br_timer_6
-ee_ws_br_timer_6:
-    j     ee_ws_bracket
-    addiu $25, $0, 102
-.globl ee_ws_br_timer_15
-ee_ws_br_timer_15:
-    j     ee_ws_bracket
-    addiu $25, $0, 111
-.globl ee_ws_br_timer_17
-ee_ws_br_timer_17:
-    j     ee_ws_bracket
-    addiu $25, $0, 113
+ * Drek's Fleet), registered as these: the moby in $4, the level in $5; the
+ * C notes them and draws the countdown after the HUD (src/widescreen.c). */
+.globl ee_ws_timer_6
+.extern ee_ws_timer_defer_c
+ee_ws_timer_6:
+    j     ee_ws_timer_defer_c
+    addiu $5, $0, 6
+.globl ee_ws_timer_15
+ee_ws_timer_15:
+    j     ee_ws_timer_defer_c
+    addiu $5, $0, 15
+.globl ee_ws_timer_17
+ee_ws_timer_17:
+    j     ee_ws_timer_defer_c
+    addiu $5, $0, 17
 
 /* The vendor render's call of VendorDrawScreens(m): the return address goes in $5. */
 .globl ee_ws_vendor_screens

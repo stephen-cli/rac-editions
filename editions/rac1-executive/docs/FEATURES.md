@@ -2150,6 +2150,15 @@ timer's registration put back to retail's words (func_L15_002D7C00 + 0xCA8
 and + 0xCB0, the lui/addiu of func_L15_002D8BB0), the backing is missing on
 the platform and the digits are see-through in the water just the same.
 
+**The countdowns drawn after the HUD (2026-10-22), awaiting test.** A
+deliberate improvement on retail. The timer's
+registration names `ee_ws_timer_NN` (Blarg Station, Quartu, Drek's Fleet),
+which only notes the moby; DrawWorld's DoGifPaging hook (`ee_ws_pillars_c`,
+after the HUD block, every frame) draws the countdown there, in the HUD's
+2D state, squeezed in place in 16:9. In 4:3 too. The old bracket path for
+the timers (`WS_SITE_TIMER`, `ee_ws_br_timer_NN`) is gone. Built; not yet
+seen at a countdown.
+
 ### q4: the 16:9 row on the title screen's Video page (2026-10-21, owner's request) — working
 
 **The page.** The title screen's Options are Language, Video and Sound;

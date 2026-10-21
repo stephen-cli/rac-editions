@@ -4,6 +4,18 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-22 (the countdown timers drawn cleanly)
+
+### 📺 Proper widescreen (q4) — Countdowns drawn after the HUD, built, awaiting test
+
+**What changed.** The countdowns on Blarg Station, Quartu and Drek's Fleet are drawn after the HUD instead of among the world's 3D effects, so they keep a solid backing and clear numbers wherever Ratchet is, including swimming on the water's surface. This applies in 4:3 and 16:9; in 16:9 they keep their corrected shape.
+
+**Decisions taken.** A deliberate improvement on the original game, which draws the countdowns with the 3D effects' blending and depth test.
+
+**Findings.** OpenRAC's latest master needs its generated disassembly refreshed (OpenRAC's `tools/setup_asm.sh`) before the edition builds against it.
+
+**Verification.** Built only; not yet seen at a countdown.
+
 ## 2026-10-21 (the countdown timers on Quartu)
 
 ### 📺 Proper widescreen (q4) — Quartu's countdown confirmed in 16:9; its rendering quirks are the original game's

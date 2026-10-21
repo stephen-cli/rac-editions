@@ -1078,7 +1078,6 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_TITLE         13    /* func_001EB7C0 + 0x19C / + 0x210: the title screen's logo, PRESS START */
 #define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
 #define WS_SITE_TRESPASSER    64    /* + level: the Trespasser puzzle's rings, a draw callback (trespasser_draw) */
-#define WS_SITE_TIMER         96    /* + level: a countdown's frame and digits, a draw callback (timer_draw) */
 DECLARE_LVL(func_001F5988);
 DECLARE_LVL(func_L00_001F9248);         /* the frame of game mode 4 (the freeze prompt) */
 DECLARE_LVL(func_001FBE80);             /* its prompt */
@@ -1164,7 +1163,25 @@ static u32 trespasser_draw(s32 L)
  * large centred digits from a draw callback their moby registers each frame
  * (AddDrawCallback, a lui/addiu pair of $a0 around the jal), not from a HUD
  * slot, so in 16:9 they came out a third too wide (owner, 2026-10-20).
- * Squeezed in place (CHAIN_PLAIN), frame and digits together. */
+ *
+ * Retail runs that callback in DrawWorld's 3D effects pass
+ * (ExecuteDrawCallbacks), so the countdown drew with whatever blending and
+ * depth test the 3D before it had left: its backing vanished at some camera
+ * angles and its digits went faint and see-through with Ratchet on the
+ * water's surface. The registration now names ee_ws_timer_NN, which only
+ * notes the moby; the countdown is drawn after the HUD, from DrawWorld's
+ * DoGifPaging hook (ee_ws_pillars_c), in the HUD's 2D state, and squeezed in
+ * place in 16:9 (CHAIN_PLAIN), frame and digits together. In 4:3 too: it
+ * fixes the original's look, not just its shape. */
+static u32 timer_arg;                  /* the moby the countdown's callback was registered with */
+static s32 timer_level = -1;           /* its level, or -1: nothing to draw this frame */
+
+void ee_ws_timer_defer_c(u32 moby, s32 L)
+{
+    timer_arg = moby;
+    timer_level = L;
+}
+
 static u32 timer_draw(s32 L)
 {
     switch (L) {
@@ -1254,10 +1271,7 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         target = LVL(L, func_001FFFB8, u32);
         break;
     default:
-        if (site >= WS_SITE_TIMER) {                    /* WS_SITE_TIMER + level */
-            L = site - WS_SITE_TIMER;
-            target = timer_draw(L);
-        } else if (site >= WS_SITE_TRESPASSER) {        /* WS_SITE_TRESPASSER + level */
+        if (site >= WS_SITE_TRESPASSER) {        /* WS_SITE_TRESPASSER + level */
             L = site - WS_SITE_TRESPASSER;
             target = trespasser_draw(L);
         } else {                                        /* WS_SITE_SHIP + level */
@@ -1348,6 +1362,8 @@ void ee_ws_letterbox_c(u32 ra)
  * under the fades that follow. */
 DECLARE_LVL(func_001F4748);            /* DoGifPaging */
 
+typedef void (*TimerFn)(u32);
+
 void ee_ws_pillars_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_001F3D78, EE_SITE_WS_PILLARS);
@@ -1361,6 +1377,14 @@ void ee_ws_pillars_c(u32 ra)
             draw_pillars(L, pillar);
         }
     }
+    if (timer_level == L && timer_draw(L) != 0) {   /* the countdown, after the HUD (above) */
+        volatile u32 *start = *cursor_of(L);
+        ((TimerFn)timer_draw(L))(timer_arg);
+        if (ws_on()) {
+            chain_squeeze(start, *cursor_of(L));
+        }
+    }
+    timer_level = -1;
     LVL(L, func_001F4748, VoidFn)();
 }
 
