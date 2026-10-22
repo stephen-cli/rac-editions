@@ -2670,7 +2670,7 @@ clears L2 and R2 from the pad, so as Clank or Giant Clank the triggers do
 nothing at all. With Strafing off nothing changes: L2 and R2 reach the
 game as in retail.
 
-## q4: the weapon reticles keep their shape in 16:9 (2026-10-22) — fixed, measured in PCSX2
+## q4: the weapon reticles keep their shape in 16:9 (2026-10-22) — fixed, measured in PCSX2; working
 
 **What was wrong.** In 16:9 the weapon reticles (the Blaster's red aim ring
 and green target ring, the RYNO's and the others) came out a third wider
@@ -2697,5 +2697,5 @@ writing its id, 0x0F, to the hero's pending item; first-person aim with
 L1 held, hero state 30, which draws the red reticle at the screen's
 centre; 16:9 toggled over PINE, nothing saved): the reticle is 138 x 114
 pixels in 16:9 against 183 x 114 in 4:3, width ratio 0.754, height and
-centre unchanged. Not seen: an off-centre reticle (the green target ring
-on an enemy, or the third-person auto-aim ring).
+centre unchanged. Off-centre reticles (the green target ring on an enemy,
+the third-person auto-aim ring) tested in game too.

@@ -6,13 +6,13 @@ changed, decisions taken, findings that affect other items.
 
 ## 2026-10-22 (16:9: the weapon reticles)
 
-### 📺 Proper widescreen (q4) — Weapon reticles keep their shape in 16:9; awaiting test
+### 📺 Proper widescreen (q4) — Weapon reticles keep their shape in 16:9; working
 
 **What was wrong.** In 16:9 the weapon reticles, such as the Blaster's red aim ring and green target ring, were a third wider than tall.
 
 **What changed.** The reticles keep their round shape in 16:9 and stay where they were on screen. This covers every weapon that uses the game's reticle drawing, in every level.
 
-**Verification.** Measured in PCSX2 on Quartu with the Blaster in first-person aim: the reticle is 0.75 as wide in 16:9 as in 4:3 (138 against 183 pixels), the same height, in the same place. Not yet seen on an enemy: the green target ring and the third-person aim ring.
+**Verification.** Measured in PCSX2 on Quartu with the Blaster in first-person aim: the reticle is 0.75 as wide in 16:9 as in 4:3 (138 against 183 pixels), the same height, in the same place. Also tested in game on enemies: the green target ring and the third-person aim ring.
 
 ## 2026-10-22 (L2 and R2 as Clank)
 
