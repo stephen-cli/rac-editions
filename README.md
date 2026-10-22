@@ -18,6 +18,7 @@ editions/    one folder per edition: its code (src/), pipeline (tools/), data, d
 common/      tools the editions share: apply_patches.py (writes sector patches into an image),
              rac2_anim.py (Going Commando's packed animations), wsl_linux_run.sh (runs Linux
              assemblers through WSL), deps.py (the pinned dependencies, below),
+             check_game_data.py (refuses game data in the repository),
              openrac_editor/ (OpenRAC's disc readers, carried unchanged)
 installer/   the end-user tool that makes an edition from your disc images (planned)
 deps.json    the OpenRAC and wrench commits the editions build against
@@ -56,6 +57,34 @@ these checkouts. The OpenRAC modules that read the discs are carried in
 [common/openrac_editor](common/openrac_editor/README.md), copied unchanged
 from the pinned commit (MIT), so the installer needs no OpenRAC. To move to
 newer OpenRAC: `python common/deps.py lock`, then `python common/deps.py vendor`.
+
+## Checks
+
+Game data pushed to this public repository stays in its history, so the
+game-data check runs before anything leaves the machine. Enable the hooks
+once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+`pre-commit` checks the staged files and `pre-push` every commit being
+pushed, including commits made with `--no-verify`.
+
+CI ([.github/workflows/checks.yml](.github/workflows/checks.yml)) is the
+backstop. It has no discs, so it builds and runs nothing. On every push and
+pull request it checks:
+
+- **No game data.** `python common/check_game_data.py` refuses files whose
+  name, extension, contents or size look like game data: disc images, ELF
+  executables, the games' archives and banks, binary files, anything over
+  256 KiB but the docs. It checks every file the pushed commits add, so a
+  file added and deleted again is still caught.
+- **The pins.** `python common/deps.py check --strict` against fresh clones:
+  each pinned commit exists on its fork's remote, and
+  `common/openrac_editor` matches the pinned OpenRAC commit.
+- **The OpenRAC patches.** Each edition's `patches/*.patch` is already in the
+  pinned OpenRAC commit, and still applies to OpenRAC's upstream master.
 
 ## Rules
 

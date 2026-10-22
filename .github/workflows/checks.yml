@@ -1,0 +1,85 @@
+# Checks that need no game data: CI never has a disc, so it cannot build an
+# edition or run one. It checks that no game data reaches this public
+# repository, that deps.json pins commits that exist and are pushed, and that
+# the edition's OpenRAC patch still matches its pin and applies to OpenRAC.
+name: checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  game-data:
+    name: No game data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tracked files, and every file the pushed commits add
+        env:
+          BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # A new branch has no "before": check the commits no other branch has.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            range="HEAD --not $(git for-each-ref --format='%(refname)' refs/remotes/origin | grep -v "refs/remotes/origin/${GITHUB_REF_NAME}$" | tr '\n' ' ')"
+          else
+            range="$BEFORE..HEAD"
+          fi
+          python common/check_game_data.py --range "$range"
+
+  deps:
+    name: Pins and the OpenRAC patch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch OpenRAC and wrench without their files
+        run: |
+          # Blobless clones: deps.py reads only history and the few carried files.
+          pin() { python -c "import json,sys; d=json.load(open('deps.json'))['$1']; print(d[sys.argv[1]])" "$2"; }
+          for dep in openrac wrench; do
+            dir="$RUNNER_TEMP/$dep"
+            git clone --quiet --filter=blob:none --no-checkout "$(pin $dep url)" "$dir"
+            # HEAD at the pin when it exists, so deps.py reports the pin itself.
+            if git -C "$dir" cat-file -e "$(pin $dep commit)^{commit}" 2>/dev/null; then
+              git -C "$dir" update-ref --no-deref HEAD "$(pin $dep commit)"
+            fi
+          done
+          git -C "$RUNNER_TEMP/openrac" fetch --quiet --filter=blob:none https://github.com/OpenRAC/OpenRAC master:refs/upstream/master
+      - name: deps.json's pins exist and are pushed, and common/openrac_editor matches the pin
+        run: python common/deps.py check --strict --openrac "$RUNNER_TEMP/openrac" --wrench "$RUNNER_TEMP/wrench"
+      - name: The OpenRAC patch is what the pin carries, and applies to OpenRAC master
+        run: |
+          repo="$RUNNER_TEMP/openrac"
+          pin=$(python -c "import json; print(json.load(open('deps.json'))['openrac']['commit'])")
+          # Each check applies the patch to the files it touches, as they are at one commit.
+          check() {  # check COMMIT DESCRIPTION [git apply flags]
+            local commit=$1 what=$2; shift 2
+            for patch in editions/*/patches/*.patch; do
+              tree=$(mktemp -d)
+              for f in $(sed -n 's|^diff --git a/\([^ ]*\) b/.*|\1|p' "$patch"); do
+                mkdir -p "$tree/$(dirname "$f")"
+                git -C "$repo" show "$commit:$f" > "$tree/$f" 2>/dev/null || rm -f "$tree/$f"
+              done
+              if (cd "$tree" && git apply --check "$@" "$GITHUB_WORKSPACE/$patch"); then
+                echo "$patch: $what"
+              else
+                echo "::error file=$patch::$patch: not $what"; status=1
+              fi
+              rm -rf "$tree"
+            done
+          }
+          status=0
+          check "$pin" "already in the pinned OpenRAC commit ${pin:0:12}" --reverse
+          check refs/upstream/master "applies to OpenRAC master $(git -C "$repo" rev-parse --short=12 refs/upstream/master)"
+          exit $status
