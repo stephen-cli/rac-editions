@@ -651,6 +651,8 @@ def widescreen(at):
             (at("func_L00_001F92E8") + 0x24, jal(at("func_001F7680")), jal(modseg_symbol("ee_ws_credits_picture"))),
             (at("func_L00_001F92E8") + 0xC8, jal(at("func_L00_001FCC50")), jal(modseg_symbol("ee_ws_br_credits_name"))),
             (at("func_002305A0") + 0x140, jal(at("func_0022FD20")), jal(modseg_symbol("ee_ws_br_planet_name"))),
+            # the weapon reticles: each one's draw, squeezed about its own centre
+            (at("func_001EE6E0") + 0x118, jal(at("func_001EE3B0")), jal(modseg_symbol("ee_ws_br_reticle"))),
             # the title cards before the story's movies (PlayStoryTransition's strips and pictures)
             *[(at("func_00232EF0") + off, jal(at(fn)), jal(modseg_symbol("ee_ws_br_story_card"))) for off, fn in STORY_CARD_SITES],
             (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at) + \

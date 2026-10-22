@@ -2669,3 +2669,33 @@ Clank; set by NTSC `FUN_L00_00210a08` on entering a Clank section, read by
 clears L2 and R2 from the pad, so as Clank or Giant Clank the triggers do
 nothing at all. With Strafing off nothing changes: L2 and R2 reach the
 game as in retail.
+
+## q4: the weapon reticles keep their shape in 16:9 (2026-10-22) — fixed, measured in PCSX2
+
+**What was wrong.** In 16:9 the weapon reticles (the Blaster's red aim ring
+and green target ring, the RYNO's and the others) came out a third wider
+than tall. A weapon's update queues a reticle each frame
+(`func_L00_001EE2E0`, NTSC `FUN_L00_001edf60`: a world point or none,
+colour, scale, effect texture, rotation mode; three at most), and DrawWorld
+draws the queue after the particles (`func_001EE6E0`, named
+DrawQueuedGlows in OpenRAC): each world point is projected to the screen
+(no point: the screen's centre) and `func_001EE3B0` (named
+DrawFlareSprites) draws the reticle there as square sprites of 40 x scale
+frame pixels (`func_001F5E60`). The point comes from the 16:9 view and is
+right; the square was not squeezed, so the stretched screen widened it.
+
+**Fix.** The per-reticle call (`func_001EE6E0` + 0x118, every level) goes
+through the bracket stub `ee_ws_br_reticle` (site 14), and the sprites it
+writes to the VIF chain are squeezed by 3/4 about the reticle's own centre
+rather than the screen's: `$f12` is its x in pixels from the screen's left
+edge, which the sprite routine turns into 12.4 as `SCREEN[4] + x * 16`
+(less half a pixel), so the squeeze's centre is the same. `squeeze_x` now
+pulls toward `ws_centre`, the screen's centre except during this bracket.
+
+**Measured in PCSX2** (Mcd001 slot 1, Quartu; the Blaster equipped by
+writing its id, 0x0F, to the hero's pending item; first-person aim with
+L1 held, hero state 30, which draws the red reticle at the screen's
+centre; 16:9 toggled over PINE, nothing saved): the reticle is 138 x 114
+pixels in 16:9 against 183 x 114 in 4:3, width ratio 0.754, height and
+centre unchanged. Not seen: an off-centre reticle (the green target ring
+on an enemy, or the third-person auto-aim ring).

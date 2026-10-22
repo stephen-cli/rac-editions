@@ -236,9 +236,11 @@ static s32 ws_measuring;            /* collect the x range instead of changing a
 static s32 ws_force_full;           /* squeeze full-width primitives too (the title cards' strips) */
 static s32 ws_minx, ws_maxx;
 
+static s32 ws_centre = GS_CENTRE;   /* what the squeeze pulls toward: the screen's centre, or a reticle's */
+
 static s32 squeeze_x(s32 x)
 {
-    return GS_CENTRE + ((x - GS_CENTRE) * 3) / 4;
+    return ws_centre + ((x - ws_centre) * 3) / 4;
 }
 
 static void shift_word(volatile u32 *w, s32 offset)
@@ -1076,6 +1078,7 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_PLANET_NAME   11    /* func_002305A0 + 0x140: the flight screen's planet name (func_0022FD20) */
 #define WS_SITE_STORY_CARD    12    /* func_00232EF0: a title card's strip or text (STORY_CARD_SITES) */
 #define WS_SITE_TITLE         13    /* func_001EB7C0 + 0x19C / + 0x210: the title screen's logo, PRESS START */
+#define WS_SITE_RETICLE       14    /* func_001EE6E0 + 0x118: one weapon reticle (func_001EE3B0) */
 #define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
 #define WS_SITE_TRESPASSER    64    /* + level: the Trespasser puzzle's rings, a draw callback (trespasser_draw) */
 DECLARE_LVL(func_001F5988);
@@ -1191,6 +1194,25 @@ static u32 timer_draw(s32 L)
     }
     return 0;
 }
+/* The weapon reticles: the Blaster's red aim and green target marks, the
+ * RYNO's and the others. A weapon's update queues a reticle each frame
+ * (func_L00_001EE2E0; NTSC
+ * FUN_L00_001edf60: a world point or none, colour, scale, the effect
+ * texture, a rotation mode; three at most) and DrawWorld draws the queue
+ * after the particles (func_001EE6E0, which OpenRAC's names call
+ * DrawQueuedGlows): each reticle's world point is projected to the screen
+ * (none: the screen's centre) and func_001EE3B0 (named DrawFlareSprites
+ * there) draws it there as square sprites, 40 x scale pixels of the frame
+ * (func_001F5E60): one turning sprite, or four pieces around the point.
+ * The point comes from the 16:9 view and is right, but a square of frame
+ * pixels shows a third wider than tall on the stretched screen. The per-reticle call is
+ * bracketed and its sprites squeezed about the reticle's own centre
+ * ($f12/$f13: pixels from the screen's left and top edges). */
+DECLARE_LVL(func_001EE6E0);             /* the reticle queue's draw */
+DECLARE_LVL(func_001EE3B0);             /* one reticle's draw(entry, x, y) */
+#define RETICLE_SITE 0x118
+static s32 reticle_centre;              /* the reticle being drawn's x, 12.4 */
+
 DECLARE_LVL(func_00201640);
 DECLARE_LVL(func_001F5800);
 DECLARE_LVL(func_002250B8);
@@ -1266,6 +1288,11 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         }
         target = LVL(L, func_001F5800, u32);
         break;
+    case WS_SITE_RETICLE:
+        L = ee_level_of_call(ra, lvl_func_001EE6E0, RETICLE_SITE);
+        target = LVL(L, func_001EE3B0, u32);
+        reticle_centre = SCREEN[4] + (s32)(((f32 *)ee_ws_saved_args)[16] * 16.0f);   /* the saved $f12 */
+        break;
     case WS_SITE_VENDOR_HUD:
         L = ee_level_of_call(ra, lvl_func_L00_002A1540, 0x400);
         target = LVL(L, func_001FFFB8, u32);
@@ -1301,10 +1328,12 @@ void ee_ws_bracket_end_c(void)
         hud_end(bracket_start);
     } else {
         ws_force_full = bracket_site == WS_SITE_STORY_CARD;
+        ws_centre = bracket_site == WS_SITE_RETICLE ? reticle_centre : GS_CENTRE;
         chain_walk(bracket_start, *cursor_of(bracket_level),
                    bracket_site >= WS_SITE_SHIP && bracket_site < WS_SITE_TRESPASSER ? CHAIN_AUTO
                    : bracket_site == WS_SITE_PLANET_NAME ? CHAIN_LEFT : CHAIN_PLAIN);
         ws_force_full = 0;
+        ws_centre = GS_CENTRE;
     }
     bracket_on = 0;
 }
