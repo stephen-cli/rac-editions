@@ -9,7 +9,7 @@ holds only the editions' code, tools and notes, never game data.
 |---|---|---|---|
 | Executive Edition | Ratchet & Clank (PAL) | [editions/rac1-executive](editions/rac1-executive/README.md) | in development |
 | Loaded Edition | Ratchet & Clank: Going Commando | `editions/rac2-loaded` | planned |
-| Titanium Edition | Ratchet & Clank 3 | `editions/rac3-titanium` | planned |
+| Titanium Edition | Ratchet & Clank: Up Your Arsenal | `editions/rac3-titanium` | planned |
 
 ## Layout
 
