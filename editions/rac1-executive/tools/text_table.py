@@ -63,7 +63,6 @@ def build(tables) -> bytes:
     heads = []
     for entries in tables:
         heads.append(len(out))
-        start = len(out)
         body = bytearray()
         strings = bytearray()
         base = 8 + 16 * len(entries)

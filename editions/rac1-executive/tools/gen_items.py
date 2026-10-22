@@ -57,7 +57,6 @@ def level_record(pal: Path, level: int):
 def find_items(pal: Path, level: int, boots_class: int | None = None) -> dict:
     base, d = level_record(pal, level)
     u32 = lambda a: struct.unpack_from("<I", d, a - base)[0]
-    u16 = lambda a: struct.unpack_from("<H", d, a - base)[0]
     table = None
     for off in range(0, len(d) - 0x4C * RECORD_COUNT, 4):
         if all(struct.unpack_from("<H", d, off + 0x4C * i + 0x38)[0] == ICON_BASE + i for i in (2, 12, 28, 29)):
@@ -148,7 +147,7 @@ def panel_sequence(openrac: Path) -> tuple[bytes, list[int], list[bytes]]:
                 return z
         raise SystemExit("a panel frame has no root translation")
     delta = root_z(boots[-1]) - root_z(heads[-1])
-    out, starts, blob_out = [], [], bytearray()
+    starts, blob_out = [], bytearray()
     for data, trans_at, trans in heads:
         for i in range(trans):
             x, y, z, joint, pad = struct.unpack_from("<3h2B", data, trans_at + 8 * i)

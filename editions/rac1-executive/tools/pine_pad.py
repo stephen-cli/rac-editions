@@ -6,7 +6,9 @@ and ee_debug_last (the id of the hook running / last entered). See docs/DEBUGGIN
 
   python tools/pine_pad.py                 # status, title, hero state
 """
-import socket, struct, sys, time
+import socket
+import struct
+import time
 from pathlib import Path
 
 SYM = dict(l.split("	") for l in (Path(__file__).resolve().parent.parent / "build/modseg/modseg.sym").read_text().splitlines())
