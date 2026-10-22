@@ -1,1 +1,2 @@
 common/wsl_linux_run.sh text eol=lf
+.githooks/* text eol=lf

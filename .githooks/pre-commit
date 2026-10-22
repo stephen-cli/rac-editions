@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Refuse a commit that stages game data (common/check_game_data.py).
+# Enabled per clone with: git config core.hooksPath .githooks
+exec python "$(git rev-parse --show-toplevel)/common/check_game_data.py" --staged
