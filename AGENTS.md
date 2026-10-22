@@ -94,7 +94,27 @@ over brevity when the two conflict.
 
 ## Code style
 
+The aim is code a reader understands quickly and correctly, with no loss
+of speed. Style rules serve that aim: follow them by default, and know what
+each one is for, so the same intent guides the cases no rule covers.
+
+- **One statement per line**, so every step is visible and no `return` or
+  error path hides at the end of a line.
+- **Descriptive names**, so a reader need not remember what `h`, `p` or `st`
+  stand for.
+- **Lines up to 120 columns.** A line should read at a glance, but a table
+  row, a struct layout or a message that explains the game often reads best
+  whole. Wrap where the structure breaks naturally.
+- **Named functions and a `main()`** rather than assigned lambdas and
+  module-level script code: they show in tracebacks and can be reused.
+
+Depart from a rule where following it would make that code harder to read:
+aligned tables of addresses or offsets, a long message kept whole so it can
+be searched for, an expression that mirrors the game's own formula. Prefer
+restructuring to silencing a check, and give the reason next to any
+`# noqa`. Tidy the code a change touches; leave the rest for its own change.
+
 Python passes `ruff check` (the rules and the 120-column limit are in
 [ruff.toml](ruff.toml)), and shell scripts pass
-`shellcheck --severity=warning`. CI runs both. Wrap or restructure a line
-only where that reads better; never trade clarity or speed for the limit.
+`shellcheck --severity=warning`. CI runs both; they are the floor, and
+should rarely find anything.
