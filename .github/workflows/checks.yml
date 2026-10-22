@@ -1,7 +1,8 @@
 # Checks that need no game data: CI never has a disc, so it cannot build an
 # edition or run one. It checks that no game data reaches this public
-# repository, that deps.json pins commits that exist and are pushed, and that
-# the edition's OpenRAC patch still matches its pin and applies to OpenRAC.
+# repository, that deps.json pins commits that exist and are pushed, that the
+# edition's OpenRAC patch still matches its pin and applies to OpenRAC, and
+# lints the Python tools (ruff.toml) and the shell scripts.
 name: checks
 
 on:
@@ -83,3 +84,18 @@ jobs:
           check "$pin" "already in the pinned OpenRAC commit ${pin:0:12}" --reverse
           check refs/upstream/master "applies to OpenRAC master $(git -C "$repo" rev-parse --short=12 refs/upstream/master)"
           exit $status
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python (ruff.toml)
+        run: |
+          python -m pip install --quiet ruff==0.17.1
+          ruff check --output-format github .
+      - name: Shell scripts and git hooks
+        run: shellcheck --severity=warning $(git ls-files '*.sh') .githooks/*

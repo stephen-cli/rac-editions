@@ -91,3 +91,10 @@ should help others understand and build on them. Explain the real game logic
 rather than abstracting it away: name the game's functions and structures,
 say what they do and why the edition hooks where it does. Aim for clarity
 over brevity when the two conflict.
+
+## Code style
+
+Python passes `ruff check` (the rules and the 120-column limit are in
+[ruff.toml](ruff.toml)), and shell scripts pass
+`shellcheck --severity=warning`. CI runs both. Wrap or restructure a line
+only where that reads better; never trade clarity or speed for the limit.

@@ -85,6 +85,8 @@ pull request it checks:
   `common/openrac_editor` matches the pinned OpenRAC commit.
 - **The OpenRAC patches.** Each edition's `patches/*.patch` is already in the
   pinned OpenRAC commit, and still applies to OpenRAC's upstream master.
+- **Lint.** `ruff check` on the Python tools, with the rules in
+  [ruff.toml](ruff.toml), and `shellcheck` on the shell scripts and hooks.
 
 ## Rules
 

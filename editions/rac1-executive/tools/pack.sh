@@ -25,7 +25,7 @@ OPENRAC=${OPENRAC:-$(cd "$HERE/../../../OpenRAC" && pwd)}
 WRENCH=${WRENCH:-$(cd "$HERE/../../../wrench" && pwd)}
 GAME_BANK=${GAME_BANK:-$OPENRAC/assets/wrench/rac1-pal}   # unpacked with the edition's wrench fork (stash_textures on carried items)
 PAL=$OPENRAC/games/rac1
-ROUTE=patch
+ROUTE="patch"
 case "${1:-}" in
   "") ;;
   --wrench) ROUTE=wrench ;;
