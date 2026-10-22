@@ -4,6 +4,16 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-22 (L2 and R2 as Clank)
+
+### 🎯 Strafing on L2/R2 (x5) — L2 and R2 do nothing as Clank; awaiting test
+
+**What was wrong.** With Strafing on, holding L2 or R2 while playing as Clank switched on the strafe camera, though Clank can't strafe.
+
+**What changed.** As Clank (and Giant Clank), L2 and R2 now do nothing at all when Strafing is on. With Strafing off they still work as in the original game, as another look button and another crouch button.
+
+**Verification.** Built. Not yet tested in game: in a Clank section with Strafing on, holding L2 or R2 should leave the camera and Clank alone.
+
 ## 2026-10-22 (the countdown timers drawn cleanly)
 
 ### 📺 Proper widescreen (q4) — Countdowns drawn after the HUD; working

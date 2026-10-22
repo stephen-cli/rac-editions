@@ -182,6 +182,9 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define hero_flip_class (*(volatile s32 *)(HERO + 0x450))
 #define hero_flip_speed0 (*(volatile f32 *)(HERO + 0x454))   /* take-off speed: the drift term */
 #define hero_flip_speed (*(volatile f32 *)(HERO + 0x458))    /* horizontal speed along the take-off heading */
+#define hero_vehicle    (*(volatile u8 *)(HERO + 0x20A4))    /* who is played: 0 Ratchet, 1 Clank, 2 Giant Clank (NTSC hero.vehicle_mode) */
+#define VEHICLE_CLANK       1
+#define VEHICLE_GIANT_CLANK 2
 #define FRAME_TIME_SQ   (*(volatile f32 *)0x0015EE70)
 #define OPT_MIRROR_ANIM (*(volatile u8 *)0x0015EEB5)
 #define EASE(L)         ((volatile f32 *)LVL_DATA(L, ease_table, u32))
@@ -290,7 +293,17 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         TRACE_END();
         return;
     }
-    ee_strafe_held = p[0x1A0 / 4] & PAD_STRAFE;
+    /* Clank cannot strafe. His sections (entered through NTSC
+     * FUN_L00_00210a08, which sets the vehicle mode) run the same pad parse
+     * and the same follow camera, so a held trigger would still turn on the
+     * strafe camera: as Clank or Giant Clank the triggers are only cleared
+     * below and do nothing at all. */
+    if (hero_vehicle == VEHICLE_CLANK || hero_vehicle == VEHICLE_GIANT_CLANK) {
+        ee_strafe_held = 0;
+        strafe_grace = 0;
+    } else {
+        ee_strafe_held = p[0x1A0 / 4] & PAD_STRAFE;
+    }
     if (ee_strafe_held) {
         strafe_grace = STRAFE_GRACE;
     } else if (strafe_grace) {

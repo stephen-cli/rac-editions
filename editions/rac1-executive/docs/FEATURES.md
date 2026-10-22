@@ -2652,3 +2652,20 @@ applied its own values (movie 0x6D, sound effects 0x20E); in play the groups
 were retail's (0x1A4, 0x400, 0x1A4, 0x170, 0x170) with 0x6D for movies;
 during the replayed scene (mode 2) 0x2B, 0, 0x57, 0x26, 0x4C, 0x6D, all from
 the movie volume; after it, back to retail's. Not run: hearing them.
+
+## x5: L2 and R2 do nothing as Clank (2026-10-22) — fixed, not yet tested in game
+
+**What was wrong.** With Strafing on, holding L2 or R2 in a Clank section
+switched on the strafe camera, though Clank cannot strafe (the strafe's
+movement hooks sit in Ratchet's movement blocks only). Clank's sections run
+the same pad parse and the same follow camera as Ratchet's, and the camera
+patch (`strafe_camera`) keys on `ee_strafe_held` alone.
+
+**Fix.** The game marks who is played in the hero's vehicle mode byte
+(hero + 0x20A4, NTSC `hero.vehicle_mode`: 0 Ratchet, 1 Clank, 2 Giant
+Clank; set by NTSC `FUN_L00_00210a08` on entering a Clank section, read by
+`hero_set_state` to pick Clank's animations). `ee_pad_parse_c` leaves
+`ee_strafe_held` and `strafe_grace` at 0 while it is 1 or 2, and still
+clears L2 and R2 from the pad, so as Clank or Giant Clank the triggers do
+nothing at all. With Strafing off nothing changes: L2 and R2 reach the
+game as in retail.
