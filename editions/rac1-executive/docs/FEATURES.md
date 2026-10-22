@@ -2653,7 +2653,7 @@ were retail's (0x1A4, 0x400, 0x1A4, 0x170, 0x170) with 0x6D for movies;
 during the replayed scene (mode 2) 0x2B, 0, 0x57, 0x26, 0x4C, 0x6D, all from
 the movie volume; after it, back to retail's. Not run: hearing them.
 
-## x5: L2 and R2 do nothing as Clank (2026-10-22) — fixed, not yet tested in game
+## x5: L2 and R2 do nothing as Clank (2026-10-22) — fixed; working
 
 **What was wrong.** With Strafing on, holding L2 or R2 in a Clank section
 switched on the strafe camera, though Clank cannot strafe (the strafe's
