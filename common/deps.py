@@ -7,9 +7,12 @@ beside this repository, at the commits deps.json pins. Making an edition from
 a player's discs needs neither: the few OpenRAC modules that read the discs
 are carried in common/openrac_editor, copied from the pinned commit.
 
-  python common/deps.py check  [--openrac DIR] [--wrench DIR] [--strict]   # checkouts at the pins? pins pushed? copies as at the pin?
-  python common/deps.py lock   [--openrac DIR] [--wrench DIR]   # pin the checkouts' current HEADs
-  python common/deps.py vendor [--openrac DIR]                  # copy the carried modules from the pinned OpenRAC commit
+  # checkouts at the pins? pins pushed? copies as at the pin?
+  python common/deps.py check  [--openrac DIR] [--wrench DIR] [--strict]
+  # pin the checkouts' current HEADs
+  python common/deps.py lock   [--openrac DIR] [--wrench DIR]
+  # copy the carried modules from the pinned OpenRAC commit
+  python common/deps.py vendor [--openrac DIR]
 
 OPENRAC and WRENCH override the default checkouts (../OpenRAC, ../wrench).
 check exits 1 when a carried module differs from the pinned commit's; with
@@ -57,7 +60,8 @@ def check(deps: dict, dirs: dict[str, Path], strict: bool = False) -> int:
             continue
         remotes = git(repo, "branch", "-r", "--contains", pin).stdout.decode().split()
         if not remotes:
-            print(f"{name}:   pinned commit {pin[:12]} is on no remote branch yet: push it to {dep['url']} ({dep['branch']})")
+            print(f"{name}:   pinned commit {pin[:12]} is on no remote branch yet: "
+                  f"push it to {dep['url']} ({dep['branch']})")
             bad |= strict
         vendor = dep.get("vendor")
         if vendor:

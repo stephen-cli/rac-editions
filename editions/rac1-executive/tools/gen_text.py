@@ -60,7 +60,7 @@ def main() -> int:
         langs = [None] * 8
         for col, lang in COLUMN_TO_LANGUAGE.items():
             langs[lang] = cols[col] if col < len(cols) and cols[col] else cols[1]
-        out.append("  { " + ", ".join(c_string(l) if l else "0" for l in langs) + f" }},  /* 0x{sid:X} */")
+        out.append("  { " + ", ".join(c_string(text) if text else "0" for text in langs) + f" }},  /* 0x{sid:X} */")
     out.append("};")
     (ROOT / "build/modseg").mkdir(parents=True, exist_ok=True)
     (ROOT / "build/modseg/gen_text.c").write_text("\n".join(out) + "\n")

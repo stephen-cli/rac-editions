@@ -61,7 +61,8 @@ LEVEL_DATA = {
     "class_slot_by_id": ("func_00226720", 0x4, 0xC),
     # resident class slot -> class data (D_001B3580), from the class loader's lui/addiu
     "class_resources": ("func_00205270", 0x70, 0x13C),
-    # the HUD arena (D_0019A4E8 in the executable: header pointer at +0x18, table pointers at +0x1C..+0x28), from load_hud_banks' lui/addiu
+    # the HUD arena (D_0019A4E8 in the executable: header pointer at +0x18, table pointers at +0x1C..+0x28),
+    # from load_hud_banks' lui/addiu
     "hud_arena": ("func_002032D0", 0x84, 0x8C),
     # the quick-select ring's 8 slot records of 0x1C (D_L00_0017DBC0 in level 0), from QuickSelectInit's lui/addiu
     "qs_slots": ("func_L00_00238478", 0x54, 0x70),
@@ -123,14 +124,17 @@ def level_data_addresses(openrac: Path, places: dict, spec: tuple) -> list[int]:
     out = [None] * 19
     with Disc(iso) as disc, iso.open("rb") as f:
         for info in disc.survey()["levels"]:
-            L = info["id"]; r = info["ranges"]["data"]
+            L = info["id"]
+            r = info["ranges"]["data"]
             data = disc.sectors(r["lba"], r["sectors"])
             off, size = unpack("<ii", data, SECTION_NAMES.index("overlay") * 8)
             text = overlay_sections(span(data, off, size))["sections"][-1]
             base = r["lba"] * SECTOR + off + text["offset"]
             fn = places[func][L]
-            f.seek(base + fn + hi_off - text["address"]); lui, = struct.unpack("<I", f.read(4))
-            f.seek(base + fn + lo_off - text["address"]); lo, = struct.unpack("<I", f.read(4))
+            f.seek(base + fn + hi_off - text["address"])
+            lui, = struct.unpack("<I", f.read(4))
+            f.seek(base + fn + lo_off - text["address"])
+            lo, = struct.unpack("<I", f.read(4))
             if lui >> 26 != 0x0F:
                 raise SystemExit(f"{func}+0x{hi_off:X} in level {L} is not a lui")
             lo16 = lo & 0xFFFF
@@ -153,7 +157,8 @@ def exported(elf_path: Path) -> dict[str, int]:
         elf = ELFFile(f)
         for s in elf.get_section_by_name(".symtab").iter_symbols():
             if (s["st_info"]["type"] in ("STT_FUNC", "STT_OBJECT") and s["st_info"]["bind"] == "STB_GLOBAL"
-                    and not GAME_SYM.match(s.name) and not LEVEL_SYM.match(s.name) and not LEVEL_DATA_SYM.match(s.name)):
+                    and not GAME_SYM.match(s.name) and not LEVEL_SYM.match(s.name)
+                    and not LEVEL_DATA_SYM.match(s.name)):
                 out[s.name] = s["st_value"]
     return out
 
@@ -208,10 +213,11 @@ def main() -> int:
             else:
                 name = LEVEL_SYM.match(s).group(1)
                 if name in places:
-                    addrs = [places[name].get(l) for l in range(19)]
+                    addrs = [places[name].get(level) for level in range(19)]
                     if any(a is None for a in addrs):
-                        missing = [l for l, a in enumerate(addrs) if a is None]
-                        raise SystemExit(f"{name} is not in every level (missing {missing}); LVL() needs a shared function")
+                        missing = [level for level, a in enumerate(addrs) if a is None]
+                        raise SystemExit(f"{name} is not in every level (missing {missing});"
+                                         " LVL() needs a shared function")
                 elif not name.startswith("func_L") and any(fe[name]):
                     addrs = [0] * 19                  # only the executable has it: the title screen's
                 else:

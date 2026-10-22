@@ -200,7 +200,8 @@ def matches(name: str, size: int, exe: Program, fb: Program) -> list[int]:
     pattern = [mask(w) for w in exe.words(int(name[5:], 16), n)]
     hits = []
     for base, words in masked_words(fb):
-        hits += [base + 4 * i for i in range(len(words) - n + 1) if words[i] == pattern[0] and words[i:i + n] == pattern]
+        hits += [base + 4 * i for i in range(len(words) - n + 1)
+                 if words[i] == pattern[0] and words[i:i + n] == pattern]
     return hits
 
 
@@ -376,7 +377,8 @@ def patches(prog: Program, funcs: dict, data: dict, fe_id: int, symbol,
         # the volume calls, the HUD loader's header copy and bank link (the movie bar's
         # icon, src/hud_icons.c), and the Sound page's widgets (src/movie_volume.c)
         out += volume_patches(lambda n: funcs[n], prog.words, label)
-        for site, hook in (("EE_SITE_HUD_HEADER_COPY", "ee_hud_header_copy"), ("EE_SITE_HUD_LINK_BANK", "ee_hud_link_bank")):
+        for site, hook in (("EE_SITE_HUD_HEADER_COPY", "ee_hud_header_copy"),
+                           ("EE_SITE_HUD_LINK_BANK", "ee_hud_link_bank")):
             a = funcs[LOAD_HUD] + site_offset(site)
             old = prog.word(a)
             if old >> 26 != 3:
@@ -409,7 +411,8 @@ def emit(openrac: Path, out: Path) -> None:
     for (_, fn, d), label in zip(fes, ("boot", "frontbin")):
         print(f"{label}: " + ", ".join(f"{k} 0x{v:08X}" for k, v in fn.items())
               + f", Sound widgets {', '.join(f'0x{w:08X}' for w in d['sound_widgets'])}"
-              + f", Video list 0x{d['video_widget']:08X}, reset calls {', '.join(f'0x{a:08X}' for a in d['reset_calls'])}")
+              + f", Video list 0x{d['video_widget']:08X}"
+              f", reset calls {', '.join(f'0x{a:08X}' for a in d['reset_calls'])}")
     print(f"wrote {out}")
 
 

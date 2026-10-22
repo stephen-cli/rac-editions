@@ -75,7 +75,8 @@ def added(rng: str) -> list[tuple[str, str, bytes]]:
     out = []
     for commit in git("rev-list", *rng.split()).decode().split():
         # -z rows: ":mode mode sha sha status", then the path (two paths for a rename or copy).
-        rows = git("diff-tree", "-r", "--no-commit-id", "--root", "--diff-filter=AMRC", "-z", commit).decode().split("\0")
+        rows = git("diff-tree", "-r", "--no-commit-id", "--root", "--diff-filter=AMRC", "-z",
+                   commit).decode().split("\0")
         i = 0
         while i < len(rows) - 1:
             meta = rows[i].split()

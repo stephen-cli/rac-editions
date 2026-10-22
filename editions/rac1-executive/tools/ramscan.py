@@ -31,7 +31,8 @@ def ee_memory(path: Path) -> bytes:
         import zstandard
         with path.open("rb") as f:
             f.seek(info.header_offset)
-            sig, _ver, _flag, _method, _t, _d, _crc, csize, _usize, nlen, xlen = struct.unpack("<IHHHHHIIIHH", f.read(30))
+            sig, _ver, _flag, _method, _t, _d, _crc, csize, _usize, nlen, xlen = struct.unpack(
+                "<IHHHHHIIIHH", f.read(30))
             assert sig == 0x04034B50
             f.seek(nlen + xlen, 1)
             raw = f.read(info.compress_size or csize)

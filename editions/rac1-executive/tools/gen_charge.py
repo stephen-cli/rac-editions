@@ -228,9 +228,11 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
     if len(tables) != 1:
         raise SystemExit(f"level {level}: the cheat table found {len(tables)} times")
     table = tables.pop()
-    entry = lambda i: b"".join(struct.pack("<I", word_at(table + 16 * i + 4 * k)) for k in range(4))
+    def entry(i):
+        return b"".join(struct.pack("<I", word_at(table + 16 * i + 4 * k)) for k in range(4))
     if not entry(0).startswith(RETAIL_CHEAT_0) or entry(CHEAT_ENTRY) != bytes(16):
-        raise SystemExit(f"level {level}: the cheat table at {table:#x} is not retail's ({entry(0).hex()}, entry 8 {entry(CHEAT_ENTRY).hex()})")
+        raise SystemExit(f"level {level}: the cheat table at {table:#x} is not retail's "
+                         f"({entry(0).hex()}, entry 8 {entry(CHEAT_ENTRY).hex()})")
 
     # The Cheats page's list widget: the data word holding the builder's
     # address is its "enter" slot (widget + 8); its "update" slot (+ 0) holds
@@ -246,7 +248,8 @@ def find_level(openrac: Path, level: int, cat: dict) -> dict:
         raise SystemExit(f"level {level}: the cheats widget at {widget:#x} has rows at {rows:#x}")
     update = one(CHEATS_UPDATE)
     if word_at(widget) != update:
-        raise SystemExit(f"level {level}: the cheats widget at {widget:#x} updates with {word_at(widget):#x}, not {update:#x}")
+        raise SystemExit(f"level {level}: the cheats widget at {widget:#x} "
+                         f"updates with {word_at(widget):#x}, not {update:#x}")
     return {"trigger": tbase + 4 * k0, "slot_item": slot_item, "scale": scale, "set_state": set_state,
             "move_site": calls[0], "move_fn": move_fn, "part_frames": part_frames,
             "camera_site": cams[0], "collect": collect, "collect_list": lists[0],
@@ -267,7 +270,8 @@ def main() -> int:
         h = json.loads(hero.read_text())
         for L, f in found.items():
             if h[str(L)]["hero_set_state"] != f["set_state"]:
-                raise SystemExit(f"level {L}: set_state {f['set_state']:#x} disagrees with gen_hero's {h[str(L)]['hero_set_state']:#x}")
+                raise SystemExit(f"level {L}: set_state {f['set_state']:#x} "
+                                 f"disagrees with gen_hero's {h[str(L)]['hero_set_state']:#x}")
     if args.print:
         for L, f in found.items():
             print(f"level {L:2d}: " + ", ".join(f"{k} {f[k]:#x}" for k in NAMES))

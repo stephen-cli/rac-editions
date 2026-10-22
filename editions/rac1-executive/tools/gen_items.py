@@ -41,7 +41,8 @@ RECORD_WORDS = 0x4C // 4
 RECORD_COUNT = 37
 PANEL_BOOTS, PANEL_HEADS = 0x26, 0x25     # menu panel class 0x472 sequences: the boots box, the Head Items box
 PANEL_CLASS = 0x472
-PANEL_SLOT = 219                          # the edition's sequence: the Head Items box moved down (src/charge_boots.c installs it)
+PANEL_SLOT = 219                          # the edition's sequence: the Head Items box moved down
+                                          # (src/charge_boots.c installs it)
 PLACEMENT_WORDS = 8                   # ItemPreviewPlacement: 8 floats per item
 PLACEMENT_COUNT = 36                  # retail's table; item 36 would read the words after it
 PLACEMENT_SIGNATURE = struct.pack("<8f", 2, 3, 0, 0.2, 0, 0.5, 0, 0) * 2   # entries 28 and 29, the boots
@@ -56,7 +57,8 @@ def level_record(pal: Path, level: int):
 
 def find_items(pal: Path, level: int, boots_class: int | None = None) -> dict:
     base, d = level_record(pal, level)
-    u32 = lambda a: struct.unpack_from("<I", d, a - base)[0]
+    def u32(a):
+        return struct.unpack_from("<I", d, a - base)[0]
     table = None
     for off in range(0, len(d) - 0x4C * RECORD_COUNT, 4):
         if all(struct.unpack_from("<H", d, off + 0x4C * i + 0x38)[0] == ICON_BASE + i for i in (2, 12, 28, 29)):
@@ -64,7 +66,8 @@ def find_items(pal: Path, level: int, boots_class: int | None = None) -> dict:
             break
     if table is None:
         raise SystemExit(f"level {level}: item record table not found")
-    rec = lambda i: [u32(table + 0x4C * i + 4 * k) for k in range(RECORD_WORDS)]
+    def rec(i):
+        return [u32(table + 0x4C * i + 4 * k) for k in range(RECORD_WORDS)]
     grind, spare = rec(ITEM_GRINDBOOTS), rec(ITEM_CHARGE_BOOTS)
     if grind[2] != 1 or grind[4] != 0xC3 or (grind[14] & 0xFFFF) != ICON_BASE + ITEM_GRINDBOOTS:
         raise SystemExit(f"level {level}: the Grindboots record is not as expected")
@@ -82,8 +85,9 @@ def find_items(pal: Path, level: int, boots_class: int | None = None) -> dict:
     # The boots grid: two cells {icon, first frame, kind 0 = item, id, stream entry}.
     cells = None
     for off in range(0, len(d) - 20, 2):
-        if struct.unpack_from("<HhhhH", d, off) == (ICON_BASE + ITEM_GRINDBOOTS, 0, 0, ITEM_GRINDBOOTS, 0) \
-                and struct.unpack_from("<HhhhH", d, off + 10) == (ICON_BASE + ITEM_MAGNEBOOTS, 0, 0, ITEM_MAGNEBOOTS, 0):
+        if (struct.unpack_from("<HhhhH", d, off) == (ICON_BASE + ITEM_GRINDBOOTS, 0, 0, ITEM_GRINDBOOTS, 0)
+                and struct.unpack_from("<HhhhH", d, off + 10)
+                == (ICON_BASE + ITEM_MAGNEBOOTS, 0, 0, ITEM_MAGNEBOOTS, 0)):
             cells = base + off
             break
     if cells is None:
@@ -195,18 +199,22 @@ def main() -> int:
     c.append("")
     c.append(f"const unsigned int ee_preview_placements[{len(words)}] __attribute__((aligned(16))) = {{")
     for k in range(0, len(words), PLACEMENT_WORDS):
-        c.append("  " + ", ".join(f"0x{w:08X}" for w in words[k:k + PLACEMENT_WORDS]) + f",  /* item {k // PLACEMENT_WORDS} */")
+        c.append("  " + ", ".join(f"0x{w:08X}" for w in words[k:k + PLACEMENT_WORDS])
+                 + f",  /* item {k // PLACEMENT_WORDS} */")
     c.append("};")
     # The Foot Items box: a sequence of the menu panel class, installed at runtime in PANEL_SLOT.
     header, starts, frames_blob = panel_sequence(args.openrac)
     c.append("")
-    c.append("/* The Foot Items box: the Head Items box sequence (0x25) of the menu panel class 0x472 with its root moved")
-    c.append("   down to the boots box's height; header words, then the frames' addresses. Installed by src/charge_boots.c. */")
+    c.append("/* The Foot Items box: the Head Items box sequence (0x25) of the menu panel class 0x472"
+             " with its root moved")
+    c.append("   down to the boots box's height; header words, then the frames' addresses."
+             " Installed by src/charge_boots.c. */")
     c.append(f"static const unsigned char ee_panel_frames[{len(frames_blob)}] __attribute__((aligned(16))) = {{")
     for k in range(0, len(frames_blob), 16):
         c.append("  " + ", ".join(f"0x{b:02X}" for b in frames_blob[k:k + 16]) + ",")
     c.append("};")
-    words = [f"0x{w:08X}" for w in struct.unpack("<7I", header)] + [f"(unsigned int)(ee_panel_frames + 0x{o:X})" for o in starts]
+    words = ([f"0x{w:08X}" for w in struct.unpack("<7I", header)]
+             + [f"(unsigned int)(ee_panel_frames + 0x{o:X})" for o in starts])
     c.append(f"const unsigned int ee_panel_seq[{len(words)}] __attribute__((aligned(16))) = {{ {', '.join(words)} }};")
     # Record 36 per level: its address, retail's words (the races' Devastator) and the Charge Boots'.
     c.append("")

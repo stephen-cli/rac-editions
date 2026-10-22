@@ -323,16 +323,19 @@ def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palett
         out.append(0)
     if len(out) > len(archive):
         raise SystemExit(f"the new archive ({len(out):#x} bytes) is larger than the retail one ({len(archive):#x})")
-    return bytes(out), {"classes": n_cls + 1, "texture": n_tex, "core_grew": delta, "shifted": shifted, "insert": insert_at,
-                        "stream_grew": len(new_stream) - len(stream), "archive": len(out) - len(archive)}
+    return bytes(out), {"classes": n_cls + 1, "texture": n_tex, "core_grew": delta, "shifted": shifted,
+                        "insert": insert_at, "stream_grew": len(new_stream) - len(stream),
+                        "archive": len(out) - len(archive)}
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("image", type=Path)
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
-    ap.add_argument("--class-core", type=Path, default=ROOT / f"build/boots_bank/moby_classes/{CLASS_ID}_charge_boots/core.bin")
-    ap.add_argument("--texture", type=Path, default=None, help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
+    ap.add_argument("--class-core", type=Path,
+                    default=ROOT / f"build/boots_bank/moby_classes/{CLASS_ID}_charge_boots/core.bin")
+    ap.add_argument("--texture", type=Path, default=None,
+                    help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
     args = ap.parse_args()
     sys.path.insert(0, str(EDITOR))
@@ -370,9 +373,11 @@ def main() -> int:
             f.write(new + bytes(len(archive) - len(new)))
             f.seek(header_lba * SECTOR + 8)
             f.write(struct.pack("<2I", data_lba, len(new) // SECTOR))
-            print(f"level {level:2d}: {info['classes']} classes, class at {info['insert']:#x} ({info['shifted']} offsets shifted), "
+            print(f"level {level:2d}: {info['classes']} classes, "
+                  f"class at {info['insert']:#x} ({info['shifted']} offsets shifted), "
                   f"texture slot {info['texture']}, core +{info['core_grew']:#x}, "
-                  f"stream {info['stream_grew']:+#x}, archive {info['archive']:+#x} against retail, at sector {data_lba}")
+                  f"stream {info['stream_grew']:+#x}, archive {info['archive']:+#x} against retail, "
+                  f"at sector {data_lba}")
     print(f"{args.image.name}: 19 levels spliced in place, image still {image_end // SECTOR} sectors")
     return 0
 

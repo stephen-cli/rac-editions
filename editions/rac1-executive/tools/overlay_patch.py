@@ -470,7 +470,8 @@ def item_preview(at):
     draw = jal(at("func_0020E180"))
     retail = [0x54600003, 0x8E040044, 0x1000000B, 0x0000102D,   # bnel $3,.draw; lw $4,0x44($16); b .ret; v0=0
               0x50800004, 0x8E040048, draw, 0x24050001,         # .draw: beql $4,.second; draw(primary, 1)
-              0x8E040048, 0x10800004, 0x24020008, draw,         # .second: lw $4,0x48($16); beqz $4,.ret; v0=8; draw(secondary, 1)
+              0x8E040048, 0x10800004, 0x24020008, draw,         # .second: lw $4,0x48($16); beqz $4,.ret; v0=8;
+                                                                # draw(secondary, 1)
               0x24050001, 0x24020008]                           # v0 = 8; .ret at +0x7C
     patched = [0x1060000D, 0x0000102D,                          # beqz $3,.ret; v0 = 0
                jal(modseg_symbol("ee_preview_shown")), 0x8E040044,   # v0 = ee_preview_shown(primary)
@@ -511,7 +512,8 @@ def charge_boots(at):
     link = at("func_002032D0") + site_offset("EE_SITE_HUD_LINK_BANK")
     out.append((link, jal(at("func_001FF7F0")), jal(modseg_symbol("ee_hud_link_bank"))))
     hi, lo = hi_lo(modseg_symbol("ee_preview_placements"))
-    for fn, luis, addius in (("func_0021F238", (552, 576), (560, 584, 604)), ("func_0021F6A0", (80, 108), (88, 116, 140))):
+    for fn, luis, addius in (("func_0021F238", (552, 576), (560, 584, 604)),
+                             ("func_0021F6A0", (80, 108), (88, 116, 140))):
         f = at(fn)
         for o in luis:
             old, = at.words(f + o, 1)
@@ -525,7 +527,8 @@ def charge_boots(at):
             out.append((f + o, old, (old & 0xFFFF0000) | lo))
     # The worn boots' pose: the boots predicate's slot_item call answers 36 as the
     # Magneboots, so the item updater poses them from Ratchet's leg (src/charge_boots.c).
-    out.append((at("func_L00_0020DBD8") + 8, jal(at("func_L00_0020DB30")), jal(modseg_symbol("ee_boots_pose_item_hook"))))
+    out.append((at("func_L00_0020DBD8") + 8, jal(at("func_L00_0020DB30")),
+                jal(modseg_symbol("ee_boots_pose_item_hook"))))
     # Saves a retail game can load: every memcard_MakeWholeSave call writes the
     # save without the Charge Boots worn or owned (src/charge_boots.c, ee_save_c).
     save = jal(at("func_0020BA00"))
@@ -581,8 +584,10 @@ def charge_dash(at):
             (c["camera_site"], jal(c["collect"]), jal(modseg_symbol("ee_charge_camera_hook"))),
             (at("func_L00_00299250") + FRAME_START_SITE, jal(at("func_L00_0024F7E0")),
              jal(modseg_symbol("ee_frame_start_hook"))),
-            (at("func_L00_00299250") + PAUSE_ENTRY_SITES[0], jal(at("func_00219C70")), jal(modseg_symbol("ee_pause_entry_hook"))),
-            (at("func_L00_00299250") + PAUSE_ENTRY_SITES[1], jal(at("func_00219C70")), jal(modseg_symbol("ee_pause_entry_hook"))),
+            (at("func_L00_00299250") + PAUSE_ENTRY_SITES[0], jal(at("func_00219C70")),
+             jal(modseg_symbol("ee_pause_entry_hook"))),
+            (at("func_L00_00299250") + PAUSE_ENTRY_SITES[1], jal(at("func_00219C70")),
+             jal(modseg_symbol("ee_pause_entry_hook"))),
             (c["cheats_enter"], c["cheats_builder"], modseg_symbol(f"ee_cheats_enter_{at.level:02d}")),
             (c["cheats_update_slot"], c["cheats_update"], modseg_symbol(f"ee_cheats_update_{at.level:02d}"))] + \
         [(entry + 4 * k, 0, struct.unpack_from("<I", seq, 4 * k)[0]) for k in range(4)]
@@ -626,8 +631,10 @@ def widescreen(at):
             (dw + site_offset("EE_SITE_WS_LETTERBOX"), jal(at("func_001F5148")), jal(modseg_symbol("ee_ws_letterbox"))),
             (dw + site_offset("EE_SITE_WS_SUBTITLES"), jal(at("func_001F4F90")), jal(modseg_symbol("ee_ws_subtitles"))),
             (dw + site_offset("EE_SITE_WS_PILLARS"), jal(at("func_001F4748")), jal(modseg_symbol("ee_ws_pillars"))),
-            (at("func_L00_002781D8") + PANEL_DRAW_SITE, jal(at("func_0020E180")), jal(modseg_symbol("ee_ws_panel_draw"))),
-            (at("func_L00_002781D8") + PANEL_PROJECT_SITE, jal(at("func_00238D90")), jal(modseg_symbol("ee_ws_panel_project"))),
+            (at("func_L00_002781D8") + PANEL_DRAW_SITE, jal(at("func_0020E180")),
+             jal(modseg_symbol("ee_ws_panel_draw"))),
+            (at("func_L00_002781D8") + PANEL_PROJECT_SITE, jal(at("func_00238D90")),
+             jal(modseg_symbol("ee_ws_panel_project"))),
             (at("func_L00_002A0F60") + 0x188, jal(at("func_00238D90")), jal(modseg_symbol("ee_ws_vendor_project"))),
             # bracketed 2D calls (src/widescreen.c WS_SITE_*)
             (at("func_L00_002781D8") + 0x298, jal(at("func_00201640")), jal(modseg_symbol("ee_ws_br_pause_fill"))),
@@ -644,7 +651,8 @@ def widescreen(at):
             (at("func_0023AA38") + 0x374, jal(at("func_00238F98")), jal(modseg_symbol("ee_ws_screens_project"))),
             (at("func_0023AA38") + 0x50C, jal(at("func_001F5988")), jal(modseg_symbol("ee_ws_br_screens_quad_a"))),
             (at("func_0023AA38") + 0x568, jal(at("func_001F5988")), jal(modseg_symbol("ee_ws_br_screens_quad_b"))),
-            (at("func_0023E298") + site_offset("EE_SITE_WS_MOVIE"), jal(at("func_0023C5E0")), jal(modseg_symbol("ee_ws_movie_tag"))),
+            (at("func_0023E298") + site_offset("EE_SITE_WS_MOVIE"), jal(at("func_0023C5E0")),
+             jal(modseg_symbol("ee_ws_movie_tag"))),
             # game mode 4's prompt ("Quit Race?" in the ships and races)
             (at("func_L00_001F9248") + 0x60, jal(at("func_001FBE80")), jal(modseg_symbol("ee_ws_br_quit_prompt"))),
             # the credits (game mode 7): the picture pillarboxed, the name tags squeezed
@@ -654,7 +662,8 @@ def widescreen(at):
             # the weapon reticles: each one's draw, squeezed about its own centre
             (at("func_001EE6E0") + 0x118, jal(at("func_001EE3B0")), jal(modseg_symbol("ee_ws_br_reticle"))),
             # the title cards before the story's movies (PlayStoryTransition's strips and pictures)
-            *[(at("func_00232EF0") + off, jal(at(fn)), jal(modseg_symbol("ee_ws_br_story_card"))) for off, fn in STORY_CARD_SITES],
+            *[(at("func_00232EF0") + off, jal(at(fn)), jal(modseg_symbol("ee_ws_br_story_card")))
+              for off, fn in STORY_CARD_SITES],
             (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at) + \
         trespasser_patches(at) + timer_patches(at)
 
@@ -752,7 +761,23 @@ FEATURES = {
     "strafe": strafe,
     "strafe_camera": strafe_camera,
 }
-DEFAULT_FEATURES = ["edition_text", "metal_detector_10x_modseg", "quick_select_pause", "quick_select_pages", "commercials", "health_backing", "oltanis_lightning", "movie_volume", "comet_strike_run", "comet_strike_jump", "strafe", "strafe_camera", "charge_boots", "item_preview", "widescreen"]
+DEFAULT_FEATURES = [
+    "edition_text",
+    "metal_detector_10x_modseg",
+    "quick_select_pause",
+    "quick_select_pages",
+    "commercials",
+    "health_backing",
+    "oltanis_lightning",
+    "movie_volume",
+    "comet_strike_run",
+    "comet_strike_jump",
+    "strafe",
+    "strafe_camera",
+    "charge_boots",
+    "item_preview",
+    "widescreen",
+]
 
 
 # --- Disc plumbing ------------------------------------------------------------
@@ -870,8 +895,8 @@ def main() -> int:
                     buf = sector(s)
                     old, = struct.unpack_from("<I", buf, i)
                     if expect is not None and old != expect:
-                        raise SystemExit(f"level {level} {feature}: at 0x{addr:X} found {old:08X}, expected {expect:08X}; "
-                                         f"is this the PAL v2.00 image, unpatched?")
+                        raise SystemExit(f"level {level} {feature}: at 0x{addr:X} found {old:08X}, "
+                                         f"expected {expect:08X}; is this the PAL v2.00 image, unpatched?")
                     struct.pack_into("<I", buf, i, word)
                     total += 1
 

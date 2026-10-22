@@ -1,0 +1,7 @@
+# Python follows PEP 8, with lines up to 120 columns: the tools describe the
+# game's structures and addresses, and longer lines keep a record on one line.
+line-length = 120
+extend-exclude = ["common/openrac_editor"]  # OpenRAC's code, carried unchanged
+
+[lint]
+select = ["E", "W", "F"]

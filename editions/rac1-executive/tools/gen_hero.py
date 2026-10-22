@@ -112,7 +112,8 @@ def records(pal: Path, level: int):
     out = {}
     for rec in m["records"]:
         if rec["name"] in ("text", "data", "lit"):
-            out[rec["name"]] = (rec["address"], (pal / f"baserom/overlays/level_{level:02d}/{rec['name']}.bin").read_bytes())
+            out[rec["name"]] = (rec["address"],
+                                (pal / f"baserom/overlays/level_{level:02d}/{rec['name']}.bin").read_bytes())
     return out
 
 
@@ -195,19 +196,22 @@ def find_level(openrac: Path, level: int) -> dict:
                         if len(hits) == len(RUN_ORDER):
                             break
                 if [k for _, k in hits] != RUN_ORDER:
-                    raise SystemExit(f"level {level}: the RUN movement block's calls are {[k for _, k in hits]}, expected {RUN_ORDER}")
+                    raise SystemExit(f"level {level}: the RUN movement block's calls are {[k for _, k in hits]}, "
+                                     f"expected {RUN_ORDER}")
                 run = [b for b, _ in hits]
                 # The same table's JUMP entry (shared by the jump family): its first turn_to and first set_planar_vel.
                 e7 = word_at(tbl + 4 * STATE_JUMP)
                 found = {}
                 for b in range(e7, e7 + 0x700, 4):
                     x = w[(b - tbase) // 4]
-                    if x >> 26 == 3 and helpers.get((x & 0x3FFFFFF) << 2) in ("turn", "planar") and helpers[(x & 0x3FFFFFF) << 2] not in found:
+                    if (x >> 26 == 3 and helpers.get((x & 0x3FFFFFF) << 2) in ("turn", "planar")
+                            and helpers[(x & 0x3FFFFFF) << 2] not in found):
                         found[helpers[(x & 0x3FFFFFF) << 2]] = b
                     if len(found) == 2:
                         break
                 if sorted(found) != ["planar", "turn"] or not found["turn"] < found["planar"]:
-                    raise SystemExit(f"level {level}: the jump block's turn_to / set_planar_vel not found in order: {found}")
+                    raise SystemExit(f"level {level}: the jump block's turn_to / set_planar_vel "
+                                     f"not found in order: {found}")
                 jump = (found["turn"], found["planar"])
                 break
     if site is None:
@@ -245,7 +249,8 @@ def find_level(openrac: Path, level: int) -> dict:
                          f"{[(hex(c), hex(r)) for c, r in attack]}")
     comet_jump_site, attack_records = attack.pop()
     if w[(comet_jump_site - tbase) // 4 - 1] != 0x24040040:     # addiu $a0, $zero, 0x40 (Cross)
-        raise SystemExit(f"level {level}: the attack block's pad_pressed_within at {comet_jump_site:#x} does not test Cross")
+        raise SystemExit(f"level {level}: the attack block's pad_pressed_within at {comet_jump_site:#x} "
+                         "does not test Cross")
     frames = [word_at(attack_records + COMET_RECORD * 0x2C + o) for o in (0xC, 0x14, 0x18)]
     if frames != COMET_RECORD_FRAMES:
         raise SystemExit(f"level {level}: attack record {COMET_RECORD} at {attack_records:#x} has fC/f14/f18 {frames}, "
@@ -255,13 +260,15 @@ def find_level(openrac: Path, level: int) -> dict:
     air = [tbase + 4 * j for k, x in enumerate(w) if x >> 26 == 0x31 and (x & 0xFFFF) == 0x414
            for j in range(k + 1, min(k + 9, n)) if w[j] == jal_turn_to]
     if len(air) != 1:
-        raise SystemExit(f"level {level}: the air control's turn_to (rate hero + 0x414) found {len(air)} times: {[hex(a) for a in air]}")
+        raise SystemExit(f"level {level}: the air control's turn_to (rate hero + 0x414) found {len(air)} times: "
+                         f"{[hex(a) for a in air]}")
     # The jump-press handler's call sites.
     jp = catalogue_place(openrac, JUMP_PRESS, level)
     jal_jp = 0x0C000000 | ((jp >> 2) & 0x3FFFFFF)
     press = [tbase + 4 * k for k, x in enumerate(w) if x == jal_jp]
     if len(press) != 4:
-        raise SystemExit(f"level {level}: {JUMP_PRESS} is called {len(press)} times, expected 4: {[hex(a) for a in press]}")
+        raise SystemExit(f"level {level}: {JUMP_PRESS} is called {len(press)} times, expected 4: "
+                         f"{[hex(a) for a in press]}")
     # The lean helper's calls, the run animation updater's call, the flip's two approach calls.
     tw = catalogue_place(openrac, TWIST, level)
     twist = [tbase + 4 * k for k, x in enumerate(w) if x == (0x0C000000 | ((tw >> 2) & 0x3FFFFFF))]
@@ -282,7 +289,8 @@ def find_level(openrac: Path, level: int) -> dict:
                     appr.append(tbase + 4 * k)
                     break
     if len(appr) != 2:
-        raise SystemExit(f"level {level}: approach_value(&hero + 0x458) found {len(appr)} times, expected 2: {[hex(a) for a in appr]}")
+        raise SystemExit(f"level {level}: approach_value(&hero + 0x458) found {len(appr)} times, expected 2: "
+                         f"{[hex(a) for a in appr]}")
 
     # hero_set_state: the function most often called as f(const < 0x83, 0 or 1).
     calls = Counter()
@@ -316,7 +324,8 @@ def find_level(openrac: Path, level: int) -> dict:
         return any(w[k] >> 26 == 0x2B and (w[k] & 0xFFFF) == 0x2084 for k in range(k0, min(k0 + 0xC0, n)))
     picks = [(fn, c) for fn, c in calls.most_common(4) if stores_state(fn)]
     if len(picks) != 1:
-        raise SystemExit(f"level {level}: hero_set_state ambiguous: {[(hex(f), c) for f, c in picks]} of {calls.most_common(4)}")
+        raise SystemExit(f"level {level}: hero_set_state ambiguous: {[(hex(f), c) for f, c in picks]} "
+                         f"of {calls.most_common(4)}")
     set_state, votes = picks[0]
     known = catalogue_place(openrac, "func_L00_00222B80", level)
     if known is not None and known != set_state:
@@ -332,11 +341,14 @@ def find_level(openrac: Path, level: int) -> dict:
                     off = w[j] & 0xFFFF
                     off = off - 0x10000 if off & 0x8000 else off
                     target = tbase + 4 * j + 4 + (off << 2)
-                    if tbase <= target < tbase + len(text) and w[(target - tbase) // 4] == jal_set_state                             and w[j + 1] == 0x24040003 and w[(target - tbase) // 4 + 1] == 0x24050001                             and w[j + 2] == jal_set_state and w[j + 3] == 0x0000282D:
+                    if (tbase <= target < tbase + len(text) and w[(target - tbase) // 4] == jal_set_state
+                            and w[j + 1] == 0x24040003 and w[(target - tbase) // 4 + 1] == 0x24050001
+                            and w[j + 2] == jal_set_state and w[j + 3] == 0x0000282D):
                         stops.append((target, tbase + 4 * (j + 2)))   # (STOP, 1) tail; (STOP, 0) fall-through
                     break
     if len(stops) != 1:
-        raise SystemExit(f"level {level}: the run update's high-speed stop found {len(stops)} times: {[hex(a) for a in stops]}")
+        raise SystemExit(f"level {level}: the run update's high-speed stop found {len(stops)} times: "
+                         f"{[hex(a) for a in stops]}")
     # The gun-arm layer manager: its identity call on Ratchet's current sequence, its two
     # mapper calls and its two "arm sequence < 0x17" tests (src/gun_arm.c).
     mgr = catalogue_place(openrac, ARM_MANAGER, level)
@@ -358,14 +370,17 @@ def find_level(openrac: Path, level: int) -> dict:
     arm["arm_ident_fn"] = (w[(arm["arm_ident_site"] - tbase) // 4] & 0x3FFFFFF) << 2
     inv = {v: k for k, v in helpers.items()}
     return {"comet_site": site, "speed_step": speed_step, "hero_set_state": set_state, "set_state_calls": votes,
-            "run_turn_a": run[0], "run_pivot": run[1], "run_turn_b": run[2], "run_planar_a": run[4], "run_planar_b": run[5],
+            "run_turn_a": run[0], "run_pivot": run[1], "run_turn_b": run[2],
+            "run_planar_a": run[4], "run_planar_b": run[5],
             "turn_to": inv["turn"], "pivot_turn": inv["pivot"], "set_planar_vel": inv["planar"],
             "jump_turn_site": jump[0], "jump_planar_site": jump[1], "air_turn_site": air[0],
             "jump_press_0": press[0], "jump_press_1": press[1], "jump_press_2": press[2], "jump_press_3": press[3],
             "jump_press_fn": jp,
-            "twist_0": twist[0], "twist_1": twist[1], "twist_2": twist[2], "twist_3": twist[3], "twist_4": twist[4], "twist_5": twist[5],
+            "twist_0": twist[0], "twist_1": twist[1], "twist_2": twist[2],
+            "twist_3": twist[3], "twist_4": twist[4], "twist_5": twist[5],
             "twist_fn": tw, "runanim_site": runanim[0], "run_anim_fn": ra,
-            "flip_appr_0": appr[0], "flip_appr_1": appr[1], "approach_fn": ap, "stop_site": stops[0][0], "stop_site_low": stops[0][1],
+            "flip_appr_0": appr[0], "flip_appr_1": appr[1], "approach_fn": ap,
+            "stop_site": stops[0][0], "stop_site_low": stops[0][1],
             "comet_jump_site": comet_jump_site, "attack_records": attack_records, **arm}
 
 
@@ -386,14 +401,17 @@ def main() -> int:
          "typedef unsigned int u32;"]
     names = ("comet_site", "speed_step", "hero_set_state", "run_turn_a", "run_pivot", "run_turn_b",
              "run_planar_a", "run_planar_b", "turn_to", "pivot_turn", "set_planar_vel",
-             "jump_turn_site", "jump_planar_site", "air_turn_site", "jump_press_0", "jump_press_1", "jump_press_2", "jump_press_3", "jump_press_fn",
-             "twist_0", "twist_1", "twist_2", "twist_3", "twist_4", "twist_5", "twist_fn", "runanim_site", "run_anim_fn",
+             "jump_turn_site", "jump_planar_site", "air_turn_site",
+             "jump_press_0", "jump_press_1", "jump_press_2", "jump_press_3", "jump_press_fn",
+             "twist_0", "twist_1", "twist_2", "twist_3", "twist_4", "twist_5", "twist_fn",
+             "runanim_site", "run_anim_fn",
              "flip_appr_0", "flip_appr_1", "approach_fn", "stop_site", "stop_site_low", "comet_jump_site",
              "arm_ident_site", "arm_ident_fn", "arm_map_0", "arm_map_1", "arm_mapper", "arm_check_0", "arm_check_1")
     for name in names:
         c.append(f"const u32 ee_{name}[19] = {{ {', '.join(f'0x{found[L][name]:08X}' for L in range(19))} }};")
     (args.out / "gen_hero.c").write_text("\n".join(c) + "\n")
-    (args.out / "hero_sites.json").write_text(json.dumps({L: {k: f[k] for k in names + ("attack_records",)} for L, f in found.items()}, indent=1))
+    (args.out / "hero_sites.json").write_text(json.dumps({L: {k: f[k] for k in names + ("attack_records",)}
+                                                          for L, f in found.items()}, indent=1))
     print(f"wrote {args.out / 'gen_hero.c'} and hero_sites.json (19 levels)")
     return 0
 

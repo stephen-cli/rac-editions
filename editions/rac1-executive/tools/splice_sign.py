@@ -58,7 +58,8 @@ def replace_class(archive: bytes, names, blob: bytes, wad, wrench: Path, work: P
     end = min(o for _, o in pointers if o > start)
     resident_end, = struct.unpack_from("<I", index, 0x7C)
     if end > resident_end:
-        raise SystemExit(f"class {CLASS_ID} at {start:#x}..{end:#x} is not in the resident part (ends {resident_end:#x})")
+        raise SystemExit(f"class {CLASS_ID} at {start:#x}..{end:#x} "
+                         f"is not in the resident part (ends {resident_end:#x})")
     old = end - start
     region = old + max(0, -(-(len(blob) - old) // STEP)) * STEP
     delta = region - old
@@ -99,8 +100,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("image", type=Path)
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
-    ap.add_argument("--class-core", type=Path, default=ROOT / "build/sign_bank/moby_classes/1891_gadgetron_sign/core.bin")
-    ap.add_argument("--retail", type=Path, default=None, help="the retail image, for its archive size (default OpenRAC's PAL baserom)")
+    ap.add_argument("--class-core", type=Path,
+                    default=ROOT / "build/sign_bank/moby_classes/1891_gadgetron_sign/core.bin")
+    ap.add_argument("--retail", type=Path, default=None,
+                    help="the retail image, for its archive size (default OpenRAC's PAL baserom)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
     args = ap.parse_args()
     sys.path.insert(0, str(EDITOR))
@@ -133,14 +136,16 @@ def main() -> int:
         archive = f.read(data_sectors * SECTOR)
         new, info = replace_class(archive, SECTION_NAMES, blob, wad, args.wrench, work)
         if len(new) > retail_sectors * SECTOR:
-            raise SystemExit(f"the new archive ({len(new):#x} bytes) is larger than the retail one ({retail_sectors * SECTOR:#x})")
+            raise SystemExit(f"the new archive ({len(new):#x} bytes) "
+                             f"is larger than the retail one ({retail_sectors * SECTOR:#x})")
         lba = image_end // SECTOR
         if data_lba == retail_lba:  # in the retail archive's sectors, which the new one fits: overwrite it
             f.seek(data_lba * SECTOR)
             f.write(new + bytes(retail_sectors * SECTOR - len(new)))
             f.seek(header_lba * SECTOR + 8)
             f.write(struct.pack("<2I", data_lba, len(new) // SECTOR))
-            print(f"level {LEVEL}: class {CLASS_ID} at core {info['at']:#x}, {info['old']:#x} -> {info['new']:#x} bytes "
+            print(f"level {LEVEL}: class {CLASS_ID} at core {info['at']:#x}, "
+                  f"{info['old']:#x} -> {info['new']:#x} bytes "
                   f"(core +{info['grew']:#x}, {info['shifted']} offsets shifted), archive {len(new):#x} bytes "
                   f"(retail {retail_sectors * SECTOR:#x}) in place at sector {data_lba}; image still {lba} sectors")
             return 0

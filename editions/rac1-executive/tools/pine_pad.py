@@ -11,7 +11,8 @@ import struct
 import time
 from pathlib import Path
 
-SYM = dict(l.split("	") for l in (Path(__file__).resolve().parent.parent / "build/modseg/modseg.sym").read_text().splitlines())
+SYM = dict(line.split("	") for line in
+           (Path(__file__).resolve().parent.parent / "build/modseg/modseg.sym").read_text().splitlines())
 S = {k: int(v, 16) for k, v in SYM.items()}
 DEBUG_PAD = S["ee_debug_pad"]
 TRACE = S["ee_debug_trace"]
@@ -19,8 +20,10 @@ LAST = S["ee_debug_last"]
 HERO = 0x13F450
 
 # buttons, game layout (active high): same bits as the report word
-BTN = {"select": 0x0100, "l3": 0x0200, "r3": 0x0400, "start": 0x0800, "up": 0x1000, "right": 0x2000, "down": 0x4000, "left": 0x8000,
-       "l2": 0x0001, "r2": 0x0002, "l1": 0x0004, "r1": 0x0008, "triangle": 0x0010, "circle": 0x0020, "cross": 0x0040, "square": 0x0080}
+BTN = {"select": 0x0100, "l3": 0x0200, "r3": 0x0400, "start": 0x0800,
+       "up": 0x1000, "right": 0x2000, "down": 0x4000, "left": 0x8000,
+       "l2": 0x0001, "r2": 0x0002, "l1": 0x0004, "r1": 0x0008,
+       "triangle": 0x0010, "circle": 0x0020, "cross": 0x0040, "square": 0x0080}
 
 
 class Pine:
@@ -78,7 +81,8 @@ class Pine:
 
     def hero(self):
         return {"state": self.r32(HERO + 0x2084), "mode": self.r32(HERO + 0x208C), "stick": self.rf(HERO + 0x229C),
-                "pos": tuple(round(self.rf(HERO + 0x10 + 4 * i), 2) for i in range(3)), "trace": self.r32(TRACE), "last": self.r32(LAST),
+                "pos": tuple(round(self.rf(HERO + 0x10 + 4 * i), 2) for i in range(3)),
+                "trace": self.r32(TRACE), "last": self.r32(LAST),
                 "strafe_held": self.r32(S["ee_strafe_held"]), "level": self.r32(0x15EE84)}
 
 

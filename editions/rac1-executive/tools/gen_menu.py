@@ -95,7 +95,8 @@ def level_record(pal: Path, level: int):
 
 def find_menu(pal: Path, level: int) -> dict:
     base, d = level_record(pal, level)
-    u32 = lambda a: struct.unpack_from("<I", d, a - base)[0]
+    def u32(a):
+        return struct.unpack_from("<I", d, a - base)[0]
     items = None
     for off in range(0, len(d) - 96, 4):
         if all(struct.unpack_from("<H", d, off + 12 * i)[0] == lab for i, lab in enumerate(OPTION_LABELS)) \
@@ -141,7 +142,8 @@ def find_menu(pal: Path, level: int) -> dict:
         if not w:
             continue
         arr = u32(w + 0x34)
-        if desc_site is None and 0 < arr - base < len(d) - 32 and all(u32(arr + 4 * k) == v for k, v in enumerate(DESC_IDS)):
+        if (desc_site is None and 0 < arr - base < len(d) - 32
+                and all(u32(arr + 4 * k) == v for k, v in enumerate(DESC_IDS))):
             desc_site = (w + 0x34, arr)
         if u32(w + 0x30) == IMAGE_TABLE:
             image_site = (w + 0x30, IMAGE_TABLE)
@@ -240,9 +242,12 @@ def main() -> int:
         sites[L] = {"items": {"site": m["widget"] + 0x34, "expect": m["items"], "symbol": f"ee_options_items_{s}"},
                     "desc": {"site": m["desc_site"][0], "expect": m["desc_site"][1], "symbol": f"ee_options_desc_{s}"},
                     "image": {"site": m["image_site"][0], "expect": m["image_site"][1], "symbol": "ee_options_images"},
-                    "camera": {"site": m["camera_site"][0], "expect": m["camera_site"][1], "symbol": f"ee_camera_entries_{s}"},
-                    "sound_input": {"site": m["sound_widget"][0], "expect": m["sound_widget"][1], "symbol": f"ee_sound_input_{s}"},
-                    "sound_draw": {"site": m["sound_widget"][0] + 4, "expect": m["sound_widget"][2], "symbol": f"ee_sound_draw_{s}"}}
+                    "camera": {"site": m["camera_site"][0], "expect": m["camera_site"][1],
+                               "symbol": f"ee_camera_entries_{s}"},
+                    "sound_input": {"site": m["sound_widget"][0], "expect": m["sound_widget"][1],
+                                    "symbol": f"ee_sound_input_{s}"},
+                    "sound_draw": {"site": m["sound_widget"][0] + 4, "expect": m["sound_widget"][2],
+                                   "symbol": f"ee_sound_draw_{s}"}}
     (args.out / "gen_menu.c").write_text("\n".join(c) + "\n")
     (args.out / "menu_sites.json").write_text(json.dumps(sites, indent=1))
     print(f"wrote {args.out / 'gen_menu.c'} (19 levels) and menu_sites.json")

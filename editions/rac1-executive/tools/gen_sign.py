@@ -220,8 +220,10 @@ class Plate:
 def fit_line(points):
     """w = a + b u through (u, w) points, least squares."""
     n = len(points)
-    su = sum(u for u, _ in points); sw = sum(w for _, w in points)
-    suu = sum(u * u for u, _ in points); suw = sum(u * w for u, w in points)
+    su = sum(u for u, _ in points)
+    sw = sum(w for _, w in points)
+    suu = sum(u * u for u, _ in points)
+    suw = sum(u * w for u, w in points)
     b = (n * suw - su * sw) / (n * suu - su * su)
     return (sw - b * su) / n, b
 
@@ -357,7 +359,8 @@ def enclosing_sphere(points):
             rhs.append(sum(n[i] * a[i] for i in range(3)))
 
         def det(m):
-            return (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            return (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+                    - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
                     + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
         dm = det(rows)
         if abs(dm) < 1e-9:
@@ -390,7 +393,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
-    ap.add_argument("--bank", type=Path, default=None, help="wrench unpack of the PAL disc (default OpenRAC/assets/wrench/rac1-pal)")
+    ap.add_argument("--bank", type=Path, default=None,
+                    help="wrench unpack of the PAL disc (default OpenRAC/assets/wrench/rac1-pal)")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/sign_bank")
     args = ap.parse_args()
 
@@ -448,9 +452,11 @@ def main() -> int:
     for i in range(data[4] + data[5]):
         table, = struct.unpack_from("<I", data, table_at + 16 * i + 8)
         size = data[table_at + 16 * i + 12] * 16
-        transfer, mult = struct.unpack_from("<I", data, table + 0x14)[0], struct.unpack_from("<I", data, table + 0x1C)[0]
+        transfer, mult = (struct.unpack_from("<I", data, table + 0x14)[0],
+                          struct.unpack_from("<I", data, table + 0x1C)[0])
         if any(data[table + mult + 4 * transfer:table + size]):
-            raise SystemExit(f"gen_sign: packet {i}'s colour multipliers are not padded with zeros (wrench fork too old?)")
+            raise SystemExit(f"gen_sign: packet {i}'s colour multipliers are not padded with zeros"
+                             " (wrench fork too old?)")
     check = moby_class(bytes(data), bytes(range(16)), "sign").mesh
     expected = sum(map(strip_triangles, strips))
     if check.triangles != expected:
