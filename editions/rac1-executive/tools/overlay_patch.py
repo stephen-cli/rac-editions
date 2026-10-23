@@ -530,7 +530,8 @@ def charge_boots(at):
     out.append((at("func_L00_0020DBD8") + 8, jal(at("func_L00_0020DB30")),
                 jal(modseg_symbol("ee_boots_pose_item_hook"))))
     # Saves a retail game can load: every memcard_MakeWholeSave call writes the
-    # save without the Charge Boots worn or owned (src/charge_boots.c, ee_save_c).
+    # save without the Charge Boots worn or owned, and with the quick select on
+    # page 1 (src/charge_boots.c, ee_save_c).
     save = jal(at("func_0020BA00"))
     for fn, off in SAVE_SITES:
         out.append((at(fn) + off, save, jal(modseg_symbol("ee_save_hook"))))

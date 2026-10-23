@@ -1619,9 +1619,11 @@ back):
 **What the player gets.** The quick-select ring has three pages. With the
 ring open (Triangle held), R1 shows the next page and L1 the previous, in a
 loop: page 1, R1, page 2, R1, page 3, R1, page 1; L1 goes the other way. L1
-and R1 glyphs sit left and right of the ring. The ring reopens on the page
-it was left on, and that page is what the pause menu's Quick Select tab
-shows first. On that tab, Square switches between the three rings ("Page 1",
+and R1 glyphs sit left and right of the ring. During play the ring
+reopens on the page it was left on, across levels too, and that page is
+what the pause menu's Quick Select tab shows first. A loaded game starts
+on page 1, in the edition and in retail alike. On that tab, Square
+switches between the three rings ("Page 1",
 "Page 2", "Page 3" in the ring's centre) and the button box reads "[X]
 Equip", "[square] Next ring", "[triangle] Exit" (the owner's "Switch
 rings" does not fit the retail box, which clipped it to "Switch rin";
@@ -1697,9 +1699,13 @@ references across the executable and the 19 level programs, all by constant
 offset) stays below `0x141A4D`. Its last three records, `0x141A50`-
 `0x141A67`, hold the next page (8 bytes), the previous page (8) and the page
 number (`EE_QS_PAGE_NEXT`, `EE_QS_PAGE_PREV`, `EE_QS_PAGE_INDEX` in
-src/modseg.h). The active page stays in the eight words. A retail game
-loads such a save whole, shows the active page, and keeps and re-saves the
-other two untouched; the edition loads retail saves with the two pages
+src/modseg.h). The active page stays in the eight words, so a retail game
+keeps whatever page the save holds there for good: every save is written
+on page 1 (`ee_save_c`, the edition's hook on memcard_MakeWholeSave's
+callers, turns the pages to page 1 with `ee_qs_turn_to_page`, saves, and
+turns them back), so the page number is 0 in every save. A retail game
+loads such a save whole, shows page 1, and keeps and re-saves the other
+two untouched; the edition loads retail saves with the two pages
 empty. The new-game reset zeroes both blocks. The challenge-mode carry-over
 (`func_00227DB0`: copies the ring and the items to the scratchpad, calls the
 reset `func_00209DC0`, copies them back validated) resets the statistics,

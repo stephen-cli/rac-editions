@@ -294,7 +294,10 @@ void ee_pause_entry_c(s32 arg, u32 ra)
  * item 36 not owned, with EE_SAVE_BOOTS_WORN set in the saved statistics
  * block, and puts them back after. Ownership follows gCheats[8] every frame
  * anyway; on a load the flag puts the boots back on (rewear_saved_boots),
- * the way the race code does, once Ratchet is in normal control. */
+ * the way the race code does, once Ratchet is in normal control. The
+ * quick select is turned to page 1 for the save the same way
+ * (src/quick_select_pages.c), as a retail game keeps the saved ring's
+ * page for good. */
 DECLARE_LVL(func_0020BA00);            /* memcard_MakeWholeSave(out) */
 DECLARE_LVL(func_00227C78);            /* its callers: + 0x64 */
 DECLARE_LVL(func_00227D20);            /* + 0x3C */
@@ -309,6 +312,7 @@ void ee_save_c(u8 *out, u32 ra, s32 L)
 {
     s32 worn = EQUIPPED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS;
     u8 owned = ITEM_OWNED(ITEM_CHARGE_BOOTS);
+    s32 qs_page;
     if (L < 0) {
         for (L = 0; L < 19; L++) {
             if (ra == lvl_func_00227C78[L] + SAVE_SITE_A + 8 || ra == lvl_func_00227D20[L] + SAVE_SITE_B + 8
@@ -320,6 +324,7 @@ void ee_save_c(u8 *out, u32 ra, s32 L)
             L = ee_level_of_call(ra, lvl_func_00227C78, SAVE_SITE_A);   /* never expected */
         }
     }
+    qs_page = ee_qs_turn_to_page(0);
     if (worn) {
         EQUIPPED(SLOT_BOOTS) = 0;
     }
@@ -331,6 +336,7 @@ void ee_save_c(u8 *out, u32 ra, s32 L)
     if (worn) {
         EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
     }
+    ee_qs_turn_to_page(qs_page);
 }
 
 static void rewear_saved_boots(void)

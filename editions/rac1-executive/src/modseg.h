@@ -122,7 +122,8 @@ void ee_controls_panel(u32 moby);
  * resets the statistics, so its reset call is hooked (EE_SITE_QS_CARRY). */
 #define EE_QS_PAGE_NEXT      0x00141A50   /* 8 item ids: the page R1 brings up */
 #define EE_QS_PAGE_PREV      0x00141A58   /* 8 item ids: the page L1 brings up */
-#define EE_QS_PAGE_INDEX     0x00141A60   /* which of the three pages is active, 0-2 */
+#define EE_QS_PAGE_INDEX     0x00141A60   /* which of the three pages is active, 0-2; 0 in every save */
+s32 ee_qs_turn_to_page(s32 page);
 /* x2: 1 in a save written while the Charge Boots were worn (src/charge_boots.c,
  * ee_save_c): the save itself holds no boots in the boots slot, which a
  * retail game would build from its own record 36, the race Devastator. In

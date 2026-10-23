@@ -26,7 +26,9 @@
  * while the ring is open rotates to the next page, L1 to the previous:
  * active <- next <- previous <- active, and the slot records are refilled
  * as Init fills them; the selection keeps its place. The ring reopens on
- * the page it was left on (the number is saved). An item may sit on more
+ * the page it was left on, across levels too, but a save is written on page
+ * 1 (ee_qs_turn_to_page), so a loaded game, retail or edition, starts on
+ * page 1. An item may sit on more
  * than one page; the game's within-ring uniqueness is kept per page by its
  * own code. Items no longer owned are dropped from the two stored pages
  * whenever they are about to be shown (the carry-over does that for the
@@ -175,6 +177,22 @@ static void rotate(s32 dir)
         }
         QS_PAGE = (QS_PAGE + PAGES - 1) % PAGES;
     }
+}
+
+/* Makes PAGE (0-2) the active page and returns the one that was. Every save
+ * is written on page 1 (src/charge_boots.c, ee_save_c): a retail game knows
+ * only the eight words, so a save written on another page would leave the
+ * retail ring on that page for good. The slot records are left alone; the
+ * ring is closed while saving and the caller turns back before it reopens. */
+s32 ee_qs_turn_to_page(s32 page)
+{
+    s32 was;
+    validate();
+    was = QS_PAGE;
+    while (QS_PAGE != page) {
+        rotate(1);
+    }
+    return was;
 }
 
 /* The slot records from the active page, as QuickSelectInit fills them. */
