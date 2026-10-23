@@ -2423,6 +2423,36 @@ use); owner test: the Controls page shows both rows without clipping, each
 toggles on its own, strafing works only with its row on, L2/R2 crouch and
 look with it off, and the setting survives a save and load.
 
+## Controls page: the Control layout row (2026-10-23), confirmed by the owner
+
+**What changed.** The Controls page has a third toggle row, **Control layout**
+(id 0x5413) with the choices **Classic** (0x5414) and **Future** (0x5415), above
+Strafing. It defaults to Classic. `GetControlLayout()` (src/control_layout.c)
+returns `EE_LAYOUT_CLASSIC` (0) or `EE_LAYOUT_FUTURE` (1); no button binding or
+prompt reads it yet.
+
+**Setting.** `EE_SETTING_CONTROL_LAYOUT` in src/modseg.h = `0x141A64`. All four
+never-read cheat bytes (`gCheats[8-11]`) are in use, so the byte lives in the
+saved statistics block's spare bytes after the Movie volume (q2; save block
+0x11), which retail keeps and re-saves without reading. The save format and its
+size do not change. 0 is Classic and 1 is Future; a retail save, a wiped block,
+the new-game reset and any other value all read as Classic. The challenge-mode
+carry-over keeps it with the quick-select pages (`ee_qs_carry` copies 24 bytes
+from `EE_QS_PAGE_NEXT`, which reach this byte).
+
+**Menu.** `tools/gen_menu.py` writes the row as `{label, &byte, Future, Classic,
+0}`: the toggle widget shows the first name for a nonzero byte, as the other rows
+show "On" first.
+
+**Panel.** The list panel was sized for two rows (`ee_controls_panel`): its
+half-height goes from 1441 to 1600 (`PANEL_HALF_NEW`, src/quick_select_pause.c),
+which fits three rows. A row is about 970 high; the old panel's 2882 fell just
+short of the three rows' 2910.
+
+**Verification.** Tested in PCSX2 on a full build: the page shows the three rows
+without clipping, the row flips between Classic and Future, and the choice
+survives a save and load.
+
 ## Kalebo III's sign reads GADGETRON (owner's extra item, 2026-10-19) — confirmed by the owner, near and far
 
 **What the discs have.** The rotating ring on Kalebo III's main building is

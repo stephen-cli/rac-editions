@@ -63,6 +63,10 @@ def setting_address() -> int:
 SETTING_FLAG = setting_address()  # the saved byte the toggle writes (gCheats[11])
 STRAFE_FLAG = header_define("EE_SETTING_STRAFE")    # x5: the strafing setting's saved byte (gCheats[9])
 LABEL_STRAFE = header_define("EE_TEXT_STRAFE")
+LAYOUT_FLAG = header_define("EE_SETTING_CONTROL_LAYOUT")   # the control layout's saved byte (statistics block)
+LABEL_LAYOUT = header_define("EE_TEXT_CONTROL_LAYOUT")
+LABEL_CLASSIC = header_define("EE_TEXT_LAYOUT_CLASSIC")
+LABEL_FUTURE = header_define("EE_TEXT_LAYOUT_FUTURE")
 WS_FLAG = header_define("EE_SETTING_WIDESCREEN")    # q4: the 16:9 setting's saved byte (gCheats[10])
 LABEL_WIDESCREEN = header_define("EE_TEXT_WIDESCREEN")
 LABEL_ON, LABEL_OFF = 0x4F5A, 0x4F5B                 # "on", "off" (the Subtitles page's)
@@ -209,8 +213,10 @@ def main() -> int:
         s = f"{L:02d}"
         on, off = m["entry"][2], m["entry"][3]
         # The Controls page's toggle rows, {label, &flag, on, off, 0} each and a
-        # zero row: Strafing (movement) above Quick Select pause (items).
-        entries = [LABEL_STRAFE, STRAFE_FLAG, on, off, 0, LABEL_QS_PAUSE, SETTING_FLAG, on, off, 0] + [0] * 5
+        # zero row: Control layout, Strafing (movement), then Quick Select pause (items).
+        entries = ([LABEL_LAYOUT, LAYOUT_FLAG, LABEL_FUTURE, LABEL_CLASSIC, 0]
+                   + [LABEL_STRAFE, STRAFE_FLAG, on, off, 0]
+                   + [LABEL_QS_PAUSE, SETTING_FLAG, on, off, 0] + [0] * 5)
         c.append(f"u32 ee_qs_entries_{s}[{len(entries)}] = {{ {', '.join(f'0x{x:X}' for x in entries)} }};")
         tog = [f"0x{w:08X}" for w in m["toggle"]]
         tog[13] = f"(u32)ee_qs_entries_{s}"

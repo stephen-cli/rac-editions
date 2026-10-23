@@ -89,6 +89,22 @@ typedef float f32;
  * (tools/gen_menu.py reads both names from here). */
 #define EE_SETTING_STRAFE       0x0015EEB9
 #define EE_TEXT_STRAFE          0x540E       /* "Strafing" */
+
+/* The control layout (src/control_layout.c): a byte of the Controls page, above
+ * Strafing. 0 is Classic, 1 is Future; any other value reads as Classic. All
+ * four never-read cheat bytes (gCheats[8-11]) are taken, so it lives in the
+ * saved statistics block's spare bytes after the Movie volume (see q2): retail
+ * never touches them, so a retail game keeps and re-saves it. It is 0 in a retail
+ * save and after the new-game reset, and the challenge-mode carry-over keeps it
+ * with the quick-select pages (ee_qs_carry). */
+#define EE_SETTING_CONTROL_LAYOUT 0x00141A64
+#define EE_TEXT_CONTROL_LAYOUT  0x5413       /* "Control layout" */
+#define EE_TEXT_LAYOUT_CLASSIC  0x5414       /* "Classic" */
+#define EE_TEXT_LAYOUT_FUTURE   0x5415       /* "Future" */
+#define EE_LAYOUT_CLASSIC       0
+#define EE_LAYOUT_FUTURE        1
+/* The layout in force: EE_LAYOUT_CLASSIC or EE_LAYOUT_FUTURE. */
+s32 GetControlLayout(void);
 /* DrawWorld (func_001F3D78, every level) calls, as offsets in it: HudDraw,
  * draw_help, the letterbox bars and the subtitles (the same in all 19). */
 #define EE_SITE_WS_HUD          0x4C0

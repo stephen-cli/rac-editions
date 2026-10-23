@@ -156,14 +156,16 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
  * against the Subtitles panel's 1441 (sequence 76, the same opening with a
  * narrower end), so two rows filled it to the edges (owner, 2026-10-19).
  * Retail uses sequence 123 for that cut page only, so the last key frame's
- * four corners (joints 1-4, z = +-half-height) are raised to the Subtitles
- * height in place, in the level's own class data, the first time a panel
- * draws (src/widescreen.c's panel draw hook calls this for every panel of
+ * four corners (joints 1-4, z = +-half-height) are raised in place. A row is
+ * about 970 high (two rows filled 971 x 2), so the page's three rows (Control
+ * layout, Strafing, Quick Select pause) need about 2910 against Subtitles'
+ * 2882; 1600 (3200 high) leaves a margin. The change is made in the level's
+ * own class data, the first time a panel draws (src/widescreen.c's panel draw hook calls this for every panel of
  * the class). The test on the old value makes it a no-op after that, and a
  * level load brings fresh data that is patched again. */
 #define PANEL_LIST_SEQ   123
 #define PANEL_HALF_OLD   971
-#define PANEL_HALF_NEW   1441
+#define PANEL_HALF_NEW   1600
 
 void ee_controls_panel(u32 moby)
 {

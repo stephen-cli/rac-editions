@@ -315,7 +315,8 @@ void ee_qs_autoslot_c(s32 index, u32 item)
 }
 
 /* The challenge-mode carry-over's save-state reset, with the pages kept
- * across it as the carry-over keeps the ring. */
+ * across it as the carry-over keeps the ring. The 24 bytes also cover the
+ * Movie volume and the control layout, which follow the pages. */
 void ee_qs_carry_hook_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_00227DB0, EE_SITE_QS_CARRY);
