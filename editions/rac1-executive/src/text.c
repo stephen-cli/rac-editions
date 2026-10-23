@@ -29,6 +29,9 @@ const char *ee_msg_string_edition(s32 id)
 {
     s32 lang = g_language;
     const char *s = (lang >= 0 && lang < 8) ? ee_text[id - ee_text_first][lang] : 0;
+    if (id == EE_TEXT_SEED_INPUT) {
+        return ee_seed_text();      /* built as buttons are pressed (src/goodies.c) */
+    }
     return s ? s : ee_text[id - ee_text_first][0];
 }
 

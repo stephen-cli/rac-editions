@@ -455,6 +455,22 @@ def oltanis_lightning(at):
             (site + 4, 0x7BB60090, addiu(2, ZERO, 3))]  # lq $22, 0x90($29) -> addiu $2, $0, 3
 
 
+DREK_CHOICE_SITE = 0x2F90   # func_L18_002F4050 + 0x2F90: jal the pause entry (func_00219C70) with 0x21
+
+
+def goodies(at):
+    """The title screen's Goodies row unlocks once Drek is beaten (src/goodies.c).
+    Drek's update (FinalBossUpdate, func_L18_002F4050) opens the choice between
+    going back in time and Challenge Mode by calling the pause entry with 0x21,
+    once per win and before either choice changes the game state: that call goes
+    to ee_drek_beaten, which puts the flag on the memory card and makes it. Level
+    18 only; the title screen's half is tools/gen_frontend.py's."""
+    if at.level != 18:
+        return []
+    pause_entry = jal(at("func_00219C70"))
+    return [(at("func_L18_002F4050") + DREK_CHOICE_SITE, pause_entry, jal(modseg_symbol("ee_drek_beaten")))]
+
+
 PREVIEW_TAIL = 0x44     # func_0021F610 + 0x44: the branch on the cursor cell's owned flag
 
 
@@ -755,6 +771,7 @@ FEATURES = {
     "commercials": commercials,
     "health_backing": health_backing,
     "oltanis_lightning": oltanis_lightning,
+    "goodies": goodies,
     "movie_volume": movie_volume,
     "item_preview": item_preview,
     "comet_strike_run": comet_strike_run,
@@ -770,6 +787,7 @@ DEFAULT_FEATURES = [
     "commercials",
     "health_backing",
     "oltanis_lightning",
+    "goodies",
     "movie_volume",
     "comet_strike_run",
     "comet_strike_jump",
@@ -901,12 +919,12 @@ def main() -> int:
                     struct.pack_into("<I", buf, i, word)
                     total += 1
 
-        frontend = [f for f in args.features if f in ("edition_text", "widescreen", "movie_volume")]
+        frontend = [f for f in args.features if f in ("edition_text", "widescreen", "movie_volume", "goodies")]
         if frontend:
             # the title screen after quitting a level: frontbin's copies (tools/gen_frontend.py;
             # the boot executable's are patched by its patch-elf step): msg_string (edition_text),
             # the flight after a title-screen load and the Video page's 16:9 row (widescreen),
-            # the Sound page and the volume calls (movie_volume)
+            # the Sound page and the volume calls (movie_volume), the start menu's Goodies row (goodies)
             from gen_frontend import frontbin_patches
             for off, expect, word in frontbin_patches(args.openrac, iso, modseg_symbol, frontend):
                 s, i = divmod(off, SECTOR)

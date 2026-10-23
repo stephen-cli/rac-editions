@@ -70,6 +70,7 @@ python "$HERE/tools/gen_charge.py" --openrac "$OPENRAC"                       # 
 python "$HERE/tools/gen_qs.py" --openrac "$OPENRAC"                           # the quick-select pages' sites (src/quick_select_pages.c)
 python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
+python "$HERE/tools/gen_glyphs.py" --openrac "$OPENRAC"                       # the D-pad glyphs of the Reuse Seed box (src/goodies.c)
 python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" emit                # the frontends' flight in 16:9 (src/widescreen.c FE_BOOT/FE_BIN)
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"
 echo "== 3/5 bootable executable with the mod segment"

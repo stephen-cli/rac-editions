@@ -14,3 +14,6 @@
 540D	16:9 (widescreen)	16:9 (écran large)	16:9 (Breitbild)	16:9 (panorámico)	16:9 (widescreen)
 540E	Strafing	Déplacement latéral	Seitwärtsbewegung	Movimiento lateral	Movimento laterale
 540F	Movie volume	Volume des vidéos	Film-Lautstärke	Volumen vídeos	Volume filmati
+5410	Randomizer	Randomiseur	Randomizer	Aleatorizador	Randomizzatore
+5411	Reuse Seed	Réutiliser une graine	Seed wiederverwenden	Reutilizar semilla	Riutilizza seed
+5412	(the Reuse Seed box: src/goodies.c builds this text)

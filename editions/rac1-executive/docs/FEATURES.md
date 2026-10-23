@@ -2705,3 +2705,145 @@ centre; 16:9 toggled over PINE, nothing saved): the reticle is 138 x 114
 pixels in 16:9 against 183 x 114 in 4:3, width ratio 0.754, height and
 centre unchanged. Off-centre reticles (the green target ring on an enemy,
 the third-person auto-aim ring) tested in game too.
+
+## rz6/rz2: the title screen's Goodies menu, unlocked by beating Drek, and the Randomizer pages (2026-10-23) — confirmed working
+
+**What it does.** The title screen's start menu gets a fourth row, Goodies,
+under Options, once the game has been beaten: Drek defeated in the edition,
+or a Challenge Mode save on the memory card (a save whose completion count
+`0x15EF20` is above 0, the Load Game list's "R" badge). Either is enough,
+and nothing announces it. Locked, the menu is retail's three rows. The row
+is the randomizer's entry point and does nothing yet when selected. It is
+not the pause menu's Goodies. Code: `src/goodies.c`.
+
+**Where the flag lives.** The save directory `BESCES-50916RATCHET` holds
+`save0.bin`-`save4.bin` (slots 1-5) and a 15360-byte file named like the
+directory. Retail writes that file once, as it creates the directory
+(MemCard_UpdateState `func_00209E68` state 10: a RAM dump from
+`0x15EE84`), and never reads it again: the directory check only wants it
+listed. The edition keeps a 16-byte record in its tail (offset `0x3BF0`):
+magic `EEDG`, version 1, flags (bit 0: Drek beaten) and the game's save
+checksum (`memcard_Checksum`, `func_0020BB10`) over the first 12 bytes;
+anything else there reads as no flags. The 2002 game neither reads nor
+rewrites it, except when it re-creates the whole directory, which loses
+every save too.
+
+**Setting it.** Drek's update (FinalBossUpdate `func_L18_002F4050`) ends
+the fight's last phase (state 0x1B, phase 0xB, after the ending's movie) by
+calling the pause entry `func_00219C70` with 0x21, which opens the choice
+between going back in time and Challenge Mode. That call runs once per win
+on either choice, before the time warp restores the pre-fight snapshot or
+Challenge Mode resets the game, so no saved byte could keep a flag set
+there. Feature `goodies` (tools/overlay_patch.py, level 18 only) sends it
+to `ee_drek_beaten`, which writes the record at once and opens the menu as
+retail does. Without a card the flag stays in RAM and is written at the
+next start menu that finds one.
+
+**Reading the card.** The title screen reads no slot until a Load or Save
+page opens, so the edition reads the card itself as the start menu opens:
+the record, then the first 0x40 bytes of each save (two blob sizes, the game
+blob's {length, checksum}, then records {id, size, data} from the save
+block table at `0x1A05C0`; record 2, the completion count, sits at file
+offset 0x30). It uses retail's libmc wrappers (open `func_001238B0`, seek
+`func_00123AC8`, read `func_00123C30`, write `func_00123D48`, close
+`func_00123A10`, sync `func_00123F30`), each run to its end as
+MemCard_CheckFreeSpace does. The game's card machine (`D_0013D390`) polls
+the card all the time on the title screen, one command at a time, and is
+busy about one frame in six: the edition finishes that command into the
+machine's own result words (+0xC0, +0xC4) and clears its busy flag (+0xD4),
+which is what the machine would have done; it stays off the card while the
+machine runs a sequence of its own (state +0xDC of 3 or more, or a request
+at +0xE4).
+
+**The row.** The start menu (page `D_001D4948`) is three one-row text lists
+in panels 2-4 (New Game `D_001D4A18`, Load Game, Options, 0x50 apart),
+linked up and down in a loop; screens 0 and 1 hold an empty placeholder list
+(`D_001CE678`, no update or draw). A page's 14 panels are mobys of class
+0x472, each playing the page's sequence for it (`moby_anims`); unused panels
+park. The Goodies list takes screen and panel 0, and the four rows are
+centred where the three were. Pause_Open (`func_00219E90`) creates the
+panels and starts them on the page's sequences, and the page switch that
+follows in the same Pause_Update (`func_0021A1A0`) plays them in.
+Pause_Update's call of Pause_Open (+0x120) in the boot executable and in
+frontbin goes to `ee_title_menu_open_19/20` (tools/gen_frontend.py
+`goodies`), which checks the card, runs Pause_Open on the retail page, then
+installs the sequences and links the row in. gen_frontend.py checks the page
+layout in both title programs at build time.
+
+**The sequences.** A panel sequence is a 0x1C-byte header (a bounding
+sphere {x, y, z, r} in record units, the frame count at +0x10) and frame
+pointers; a frame holds a record {x, y, z, joint} per joint, joint 0 the
+panel's centre (x depth, y across, z up), 1-4 its corners. With the row
+shown, the class's sequence table points at copies: the rows' own (16, 17,
+18) raised by half their spacing; Load Game's lowered a row below Options as
+id 218, which no page plays, for the Goodies row; and, for the pages the
+rows open, whose panels 2-4 start where the rows rest and end in their own
+layout, copies raised at their first frame and tapered to retail at their
+last. Their panel 0 is a title box sliding in from the side on Load Game
+and New Game (sequence 196), which then starts from the Goodies row instead
+(all records tapered), and parked on Options, which plays 218 and slides the
+row out and back in. Going back, the switch plays the leaving page's
+sequences backwards, so every round trip ends where it began. Locked, the
+table is put back. A moby copies its sequence's bounding sphere when the
+sequence starts (moby + 0xF0, a quadword load) and the panel's frame draws
+only while that sphere is where the panel is: each copy's header sits on a
+16-byte boundary and its sphere moves with the panel's centre (half of it
+for a taper, with the radius grown by the other half and by any change of
+the corners). A copy whose sphere stays behind, or whose header is not
+16-byte aligned, shows its box without the gold frame (in 16:9 first).
+
+**The pages behind it.** Goodies opens a page made from the title
+screen's Options page (title box, list, "Select / Exit" box) with one row,
+Randomizer; that opens another with New Game and Reuse Seed. New Game opens
+a copy of retail's New Game page through the same game-mode freeze retail
+uses, with Triangle back to the Randomizer page (the Randomizer save type
+comes later). Reuse Seed is the Video Options page's layout with the "Exit"
+box alone: its centre box's update is the edition's, and each press of
+Cross, Circle, Square, L1, R1, L2, R2 or a D-pad direction adds that
+button's symbol (up to 15); Triangle empties it and goes back. The pages
+are copies of the title screen's records made as the start menu opens, so
+they use each title program's own box functions.
+
+**Their boxes.** The list boxes are one row (half height 1250) and two rows
+(2100) high, against the Options list's 3770 for three. Every switch
+between the Goodies pages changes the boxes the way the Options page's
+sub-pages do (Language, Video): retail's sequence 195, the Video Options
+prompt shrinking and growing in place, gives the timing, and
+`morph_sequence` builds a box going from one layout to another on it: the
+corners shrink to about a fifth of the old size over the first half, grow
+to the new size over the second, and the centre moves between them. 7
+frames over the switch's 12 ticks, as retail's (measured over PINE). Built
+this way: start menu rows to Goodies, Goodies to Randomizer, Randomizer to
+the Video Options layout for Reuse Seed (ids 216, 217, 211; 3, 83, 138;
+139, 140, 141, which no page plays); going back plays them backwards. The
+Randomizer's New Game plays copies of retail's New Game sequences that
+start from the Randomizer page's boxes (183, 184, 174, and its title box
+retail's own as 173).
+
+**The seed box's symbols.** Each takes the shoulder buttons' width
+(advance 25), so fifteen always fill the same space. The menu font has no
+D-pad glyphs and its face buttons are narrower: tools/gen_glyphs.py draws
+the D-pad's four arms (codes 0x1A-0x1D: pentagons pointing at the pad's
+centre, shaded like the face buttons) and copies of Cross, Circle and Square
+moved to the shoulder buttons' centre (0x02-0x04, which no string uses;
+codes below 0x20 draw as untinted button sprites) from the disc's fonts at
+build time. The seed box writes them into the unused corner of the three
+sheets (u 0xD0-0xFF) and their metrics records, which the title screen's
+draw passes upload from EE memory each time.
+
+**Verified in PCSX2** on copies of the memory cards: Mcd001 (Challenge Mode
+saves in slots 3-5) shows the four rows centred, Goodies taking the game's
+highlight and looping with the others, all with their gold frames, in 4:3
+and in 16:9 (switched on from Options > Video, as well as before the menu
+opens); Load Game, New Game and Options > Sound open and close with every
+box ending where it began, and a capture of Load Game opening shows the
+boxes morphing into its layout without jumps. A copy with every save's
+completion count set to 0 (and its checksum redone) shows retail's three
+rows at retail's heights, with the class's own sequences. On a copy of
+Mcd003 with no Challenge Mode save, Drek's moby was put into its last phase
+over PINE in a Veldin 2 save: the hook wrote the record (the file's last 16
+bytes changed, no save did), the game's own choice screen opened, and the
+title screen then showed the row from the record alone, after power-on and
+after quitting a level. The fight itself and both choices after it are
+untested, as is real hardware. The Goodies pages, the box changes, the seed box's
+symbols, its limit and its emptying on Triangle are seen in PCSX2.

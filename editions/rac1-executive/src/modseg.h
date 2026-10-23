@@ -185,4 +185,11 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size);
 void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra);   /* entered through the trampoline ee_hud_link_bank */
 #define EE_SITE_HUD_LINK_BANK   0x190   /* func_002032D0 + 0x190: jal LinkHudBank(1, bank) */
 
+/* rz2: the title screen's Goodies pages (src/goodies.c) and their strings
+ * (text/strings.tsv); the seed box's text is built as buttons are pressed. */
+#define EE_TEXT_RANDOMIZER      0x5410  /* "Randomizer" */
+#define EE_TEXT_REUSE_SEED      0x5411  /* "Reuse Seed" */
+#define EE_TEXT_SEED_INPUT      0x5412  /* the Reuse Seed box's buttons, from ee_seed_text() */
+const char *ee_seed_text(void);
+
 #endif

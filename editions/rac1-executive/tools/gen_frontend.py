@@ -34,6 +34,9 @@ the same distance from the executable's address as its neighbours'.
                movie_volume  the volume calls (overlay_patch.VOLUME_SITES),
                              LoadHudBanks' header copy and bank link (the
                              orange bar's icon), the Sound page's widget
+               goodies       Pause_Update's call of Pause_Open ->
+                             ee_title_menu_open_19/20 (the start menu's
+                             Goodies row, src/goodies.c)
   frontbin_patches(iso, features)   the same words for frontbin, as image
                offsets, for tools/overlay_patch.py
 
@@ -69,8 +72,12 @@ RENDERER = "func_0021A610"                  # the title's menu renderer (the lev
 STORY = "func_00232EF0"                     # PlayStoryTransition: the title cards before the story's movies
 TITLE_FRAME = "func_001EB7C0"               # Transition_DefaultDraw: the title screen's frame
 TITLE_SITES = (0x19C, 0x210)                # its DrawTexturedQuad calls: the logo, PRESS START
+PAUSE_UPDATE = "func_0021A1A0"              # Pause_Update: the menus' frame, the title's start menu included
+PAUSE_OPEN = "func_00219E90"                # Pause_Open: makes the start page current, creates the 14 panels
+PAUSE_OPEN_SITE = 0x120                     # Pause_Update + 0x120: jal Pause_Open
 FUNCS = (UPDATE_VIEW, FLIGHT, PLANET_NAME, DRAW_WORLD, LETTERBOX, LOAD_HUD, SOUND_INPUT, SOUND_DRAW,
-         SOUND_INIT, SOUND_UPDATE, MOVIE_LOOP, RESET, MSG_STRING, MOVIE_FRAME, RENDERER, STORY, TITLE_FRAME)
+         SOUND_INIT, SOUND_UPDATE, MOVIE_LOOP, RESET, MSG_STRING, MOVIE_FRAME, RENDERER, STORY, TITLE_FRAME,
+         PAUSE_UPDATE, PAUSE_OPEN)
 PLANET_NAME_SITE = 0x140                    # DrawSpaceFlightFrame + 0x140: jal the planet name
 # The title renderer's calls the 16:9 hooks take, as the levels' (tools/overlay_patch.py
 # widescreen) are at func_L00_002781D8 + PANEL_DRAW_SITE etc.: offset, the callee, the hook.
@@ -94,6 +101,13 @@ VIDEO_MODE_LABEL = 0x4F3B
 TOGGLE_ON, TOGGLE_OFF = 0x4F5A, 0x4F5B       # "On", "Off", as the Subtitles and Controls pages' toggles
 TEXT_WIDESCREEN = 0x540D                    # "16:9 (widescreen)" (src/modseg.h EE_TEXT_WIDESCREEN)
 SETTING_WIDESCREEN = 0x0015EEBA             # gCheats[10] (src/modseg.h EE_SETTING_WIDESCREEN)
+# The start menu (src/goodies.c TITLE_*): page, its three one-row lists New Game, Load Game, Options,
+# and their labels; screens 0 and 1 hold an empty placeholder, and panel 0 takes the Goodies row.
+TITLE_PAGE, TITLE_LISTS, TITLE_PLACEHOLDER = 0x1D4948, (0x1D4A18, 0x1D4A68, 0x1D4AB8), 0x1CE678
+TITLE_LABELS = (0x4F2A, 0x4F28, 0x4EE7)
+# The pages the Goodies pages are made from (src/goodies.c OPTIONS_*, VIDEO_*, EXIT_PROMPT, NEW_GAME_PAGE).
+OPTIONS_PAGE, OPTIONS_PAGE_BOXES = 0x1D4B08, (0x1D0C58, 0x1D4BE8, 0x1CFE90)
+VIDEO_PAGE, VIDEO_TITLE, EXIT_PROMPT, NEW_GAME_PAGE = 0x1D4E38, 0x1D4EC0, 0x1CE7B8, 0x1D5008
 MSG_PROLOGUE = (0x27BDFFF0, 0x7FBF0000)     # addiu $sp,$sp,-0x10; sq $ra,0($sp) (src/text_hook.s runs them)
 VIEW_PROLOGUE = (0x27BDFFA0, 0x3C020016)    # addiu $sp,$sp,-0x60; lui $v0,0x16 (ee_view_hook runs them)
 VIEW_FOV_READ, LWC1_FOV, LWC1_FOV_SRC = 0x68, 0xC46000B0, 0xC46000BC
@@ -296,6 +310,36 @@ def video_list(prog: Program) -> tuple[int, int]:
     raise SystemExit("the title screen's Options rows not found")
 
 
+def check_title_page(prog: Program, label: str) -> None:
+    """The start menu and the pages the Goodies pages copy are laid out as src/goodies.c expects:
+    three one-row lists in panels 2-4, 0x50 bytes apart, linked in a loop; screens 0 and 1 the empty
+    placeholder list (no update, no draw), panel 0 parked (sequence 0); the pages the rows open
+    have it as their back page; and the Options, Video Options and New Game pages and the "Exit"
+    box as build_pages copies them."""
+    anims = prog.words(TITLE_PAGE, 14)
+    screens = prog.words(TITLE_PAGE + 0x44, 14)
+    ok = screens[:5] == [TITLE_PLACEHOLDER, TITLE_PLACEHOLDER] + list(TITLE_LISTS) and anims[0] == 0
+    ok = ok and prog.words(TITLE_PLACEHOLDER, 2) == [0, 0]
+    for i, lst in enumerate(TITLE_LISTS):
+        items, up, down = prog.words(lst + 0x34, 3)
+        opens = prog.word(items + 4)
+        ok = ok and lst == TITLE_LISTS[0] + 0x50 * i
+        ok = ok and prog.word(items) & 0xFFFF == TITLE_LABELS[i] and prog.word(items + 12) & 0xFFFF == 0
+        ok = ok and up == TITLE_LISTS[i - 1] and down == TITLE_LISTS[(i + 1) % 3]
+        ok = ok and prog.word(opens + 0x38) == TITLE_PAGE
+    # The Goodies pages' models: Options (title box, list, "Select / Exit"), Video Options (title
+    # box, wider box), the "Exit" box alone, and New Game (src/goodies.c build_pages).
+    list_draw = prog.word(OPTIONS_PAGE_BOXES[1] + 4)
+    ok = ok and prog.words(OPTIONS_PAGE + 0x44, 5)[2:] == list(OPTIONS_PAGE_BOXES)
+    ok = ok and prog.words(VIDEO_PAGE + 0x44, 5)[2] == VIDEO_TITLE
+    ok = ok and prog.word(OPTIONS_PAGE_BOXES[0] + 0x34) == 0x4F1D and prog.word(VIDEO_TITLE + 0x34) == 0x4F3A
+    ok = ok and prog.word(EXIT_PROMPT + 4) == list_draw and prog.word(prog.word(EXIT_PROMPT + 0x34)) == 0x4EE0
+    ok = ok and prog.word(prog.word(EXIT_PROMPT + 0x34) + 12) == 0
+    ok = ok and prog.word(NEW_GAME_PAGE + 0x38) == TITLE_PAGE
+    if not ok:
+        raise SystemExit(f"{label}: the start menu is not the three-row page src/goodies.c expects")
+
+
 def jal_sites(prog: Program, target: int) -> list[int]:
     """Every place in PROG holding a jal to TARGET."""
     word = jal(target)
@@ -325,12 +369,13 @@ def frontends(openrac: Path, iso: Path | None = None):
         data["reset_calls"] = jal_sites(prog, funcs[RESET])
         if not 1 <= len(data["reset_calls"]) <= 8:
             raise SystemExit(f"{len(data['reset_calls'])} calls of the reset in a frontend")
+        check_title_page(prog, "frontbin" if prog is fb else "boot executable")
         out.append((prog, funcs, data))
     return out
 
 
 def patches(prog: Program, funcs: dict, data: dict, fe_id: int, symbol,
-            features=("edition_text", "widescreen", "movie_volume")) -> list[tuple[int, int, int]]:
+            features=("edition_text", "widescreen", "movie_volume", "goodies")) -> list[tuple[int, int, int]]:
     """(address, retail word, new word) for one frontend."""
     out = []
     sys.path.insert(0, str(HERE))
@@ -387,6 +432,12 @@ def patches(prog: Program, funcs: dict, data: dict, fe_id: int, symbol,
         for w in data["sound_widgets"]:
             out += [(w, funcs[SOUND_INPUT], symbol(f"ee_sound_input_{fe_id:02d}")),
                     (w + 4, funcs[SOUND_DRAW], symbol(f"ee_sound_draw_{fe_id:02d}"))]
+    if "goodies" in features:
+        # the start menu's Goodies row, once the game has been beaten (src/goodies.c)
+        a = funcs[PAUSE_UPDATE] + PAUSE_OPEN_SITE
+        if prog.word(a) != jal(funcs[PAUSE_OPEN]):
+            raise SystemExit(f"{label}: Pause_Update + 0x{PAUSE_OPEN_SITE:X} is not its call of Pause_Open")
+        out.append((a, jal(funcs[PAUSE_OPEN]), jal(symbol(f"ee_title_menu_open_{fe_id}"))))
     return out
 
 
