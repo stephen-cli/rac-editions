@@ -1,6 +1,6 @@
 # Patches against OpenRAC
 
-Base: OpenRAC master commit 041d19911e50974932f65aed149fd79778f1b71c
+Base: OpenRAC master commit bd5327534d9f26e889cd578158823994e5eec0a3
 Branch: executive-edition
 
 What the edition adds to OpenRAC, as one diff against the base:
