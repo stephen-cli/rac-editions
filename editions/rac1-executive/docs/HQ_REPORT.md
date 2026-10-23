@@ -4,6 +4,16 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-23 (quick select pages in saves)
+
+### 📑 Quick select pages (q2) — Saves load on page 1, in retail too; working
+
+**What was wrong.** A save made with page 2 or 3 of the quick select active kept the original game's ring on that page for good: the original game knows only one ring, and the save gave it whichever page was active.
+
+**What changed.** Every save now stores page 1 as the ring the original game reads, with pages 2 and 3 kept in the edition's spare save bytes. Loading a save starts on page 1, in the edition and in the original game. During play the ring still reopens on the last page used, across levels too. A save already made on page 2 or 3 loads on that page until it is saved again.
+
+**Verification.** Tested in PCSX2 on a Challenge Mode save in Batalia that was on page 2: after saving, the ring stayed on page 2; the save file holds page 1 in the original game's ring with pages 2 and 3 intact; loading it opened the ring on page 1. Not yet run: loading the new save on the original game.
+
 ## 2026-10-22 (16:9: the weapon reticles)
 
 ### 📺 Proper widescreen (q4) — Weapon reticles keep their shape in 16:9; working
