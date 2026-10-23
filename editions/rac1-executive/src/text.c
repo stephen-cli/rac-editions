@@ -28,7 +28,11 @@ extern const char *const ee_text[][8];
 const char *ee_msg_string_edition(s32 id)
 {
     s32 lang = g_language;
-    const char *s = (lang >= 0 && lang < 8) ? ee_text[id - ee_text_first][lang] : 0;
+    const char *s;
+    if (id == EE_TEXT_CHARGE_BOOTS_INFO && GetControlLayout() == EE_LAYOUT_FUTURE) {
+        id = EE_TEXT_CHARGE_BOOTS_INFO_FUTURE;      /* the dash's double tap is on R2 */
+    }
+    s = (lang >= 0 && lang < 8) ? ee_text[id - ee_text_first][lang] : 0;
     if (id == EE_TEXT_SEED_INPUT) {
         return ee_seed_text();      /* built as buttons are pressed (src/goodies.c) */
     }

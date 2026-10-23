@@ -2470,14 +2470,114 @@ mode 0x16; func_L05_00254030 picks a trick per shoulder button, `held &
 (src/control_layout.c) is game mode 0 (the level's D_0015F6A8, LEVEL_DATA
 `game_mode`) and not the hoverboard (hero + 0x208C != 0x16). Elsewhere
 `ee_strafe_held`, the grace and the flip are cleared and the pad is left as
-the parse made it. The Clank and Giant Clank rule (the triggers cleared and
-doing nothing) is unchanged.
+the parse made it. In both layouts; Classic's Clank and Giant Clank rule
+(the triggers cleared and doing nothing) is unchanged.
 
-**Verification.** PCSX2, Challenge Mode save on Veldin 2, Strafing on
-(debug pad over PINE): paused, L1+R2 reads 0x6 and the four
+**Verification.** PCSX2, Challenge Mode save on Veldin 2, Strafing on,
+Classic (debug pad over PINE): paused, L1+R2 reads 0x6 and the four
 shoulder buttons 0xF in held, unmasked and raw (before: 0x4 and 0xC); in
 play R2 still strafes (`ee_strafe_held` 2) and is hidden from the game.
 Not run: a cutscene skip, the credits, an item code, a hoverboard race.
+
+## The Future control layout (2026-10-23)
+
+**What it does.** With Control layout set to Future, Ratchet's buttons move
+toward the later games': crouch and everything built on it (the crouch
+jumps, Comet-Strike, Power Slam, the ledge drop, the Hydro-Pack's jets, the
+Thruster-Pack's double tap to hover and the Charge Boots' double tap to
+dash) are on R2; R1 does exactly what Circle does (fire the weapon, use the
+gadget in hand), with both together counting as one press; and strafing
+(when Strafing is on) is L2 alone, which also steers the Thruster-Pack's
+hover. L1 still looks, and with the quick-select ring open L1 and R1 still
+turn its pages. The prompts follow: weapon prompts show R1, crouch and jets
+prompts R2 (also the German prompts that write "R1-Taste" in words), the
+three prompts that name two buttons for one action name the one Future
+uses, and the Charge Boots' description says R2. Gadget prompts keep
+Circle. Classic is retail's buttons and text.
+
+**The buttons (src/control_layout.c).** Every button test of Ratchet's reads
+pad 0 (D_0013CA40) after the game's pad parse (func_002181F0): held, pressed,
+released and the 30-entry ring of pressed words that PadPressedWithin
+(func_L00_00267BA8) searches. Crouch and its moves and the Hydro-Pack's jets
+test R1 or R2 (0xA), so retail already crouches on R2; the Thruster-Pack's
+hover (its entry at the end of Hero_TryLaunchGadget, func_L00_00228770, and
+its exit in the hero update) and the edition's Charge Boots dash test R1
+(0x8) alone; every weapon and gadget tests the hero's item button mask (hero
++ 0x10A0, 0x20 from func_L00_0020F118) or Circle directly. So Future gives
+the game Circle for physical Circle or R1 and the game's R1 bit for physical
+R2, and no game code changes. The remap runs in the pad hook
+(`ee_pad_parse_c`, src/strafe.c) right after the parse, and works the edges
+out again from the merged buttons the way the parse does (pressed = held &
+~prev_held, released the reverse, none while + 0x18C counts down), using the
+previous frame's physical buttons (+ 0x1AC) merged the same way: pressing R1
+while Circle is held, or letting go of one of the two, makes no edge, so a
+single-shot weapon never fires twice and the Tesla Claw never sees a false
+release. The raw (+ 0x1B0..) and unmasked (+ 0x1C0..) words and + 0x348 stay
+physical: menus and the quick-select ring read the unmasked ones, and the
+ship flights read the raw ones (their missiles fire on R1 or Circle in
+retail already).
+
+**Where it applies.** Gameplay (game mode 0) as Ratchet or Clank. Giant
+Clank keeps retail's buttons, as does the hoverboard (control mode 0x16:
+its four tricks are L1, L2, R1 and R2, `held & 0xF` in func_L05_00254030), and
+so do the pause menu, cutscenes, vendors and every other game mode: the
+pause menu's Circle confirms, the item-code entry (L1 and R2 held) and the
+cutscene skip (all four shoulder buttons with Start) work as in retail. The
+remap also waits while the quick-select ring is open and on frames the game
+has locked the pad (+ 0x1CC, read before the parse, which resets it). Turret
+cannons, the Visibomb's detonation and the Hologuise fire on R1 too, being
+Circle to the game. The strafe likewise takes its trigger from the game only
+in play (both layouts; see "x5: L2 and R2 reach the game outside play"), and
+in Future not as Giant Clank, who looks with L2 as in retail.
+
+**The prompts (src/control_prompts.c).** The game keeps no record of whether
+a prompt is about a weapon or a gadget: a help request (Help_Request) carries
+only the string id, and the item table puts weapons and gadgets in the same
+(hand) slot. So the prompts are listed by string id: 7 weapon prompts
+(Circle -> R1), 19 crouch and 1 jets prompt (R1 -> R2), and the three that
+name two buttons (0x2EE3 and 0x2EE4, the Thruster-Pack's hover and strafe,
+and 0x4F15, the ledge drop). The 13 gadget prompts, the menus, the ship's,
+Giant Clank's and the hoverboard's prompts are not listed. Prompts live in
+the loaded text table (D_0015F780: entries {text, id, voice, 0}; count at
+D_001997D0 + 0x2C): the level's, and while the pause menu is open the global
+one, which MenuTextBank_Load loads into its own buffer and MenuTextBank_Restore
+swaps back. The help popups read it directly (Help_Open, Help_Update,
+Help_Draw), not through msg_string, so the text is changed in the table.
+The font draws bytes below 0x20 as button glyphs (FontPrint, func_001F6668:
+0x11 Circle, 0x15 R1, 0x16 L2, 0x17 R2) and no code takes an argument, so
+each change is one byte for one byte, and none needs a record to undo: no
+weapon prompt shows R1 and no crouch prompt R2 in any of the five languages.
+The two-button prompts are copied with their glyphs mapped and a glyph that
+repeats across the short joining word merged ("L2 or L2" -> "L2"; or, ou,
+oder, o, y, et, e, und), which keeps retail's translation, and their entries
+point at the copy while Future is on. Each frame the pad hook brings the
+table in force to the layout; the prompts' entries are found again when the
+table, its size or an entry changes, and the text set again when the layout
+changes or a byte the last pass set no longer holds (a table loaded again).
+The title screen shows only menu prompts and is unchanged.
+
+**Not changed.** The HelpDesk's voiced lines still say retail's buttons, and
+the Help Desk's controller diagrams (help_controls images) have retail's
+labels drawn in.
+
+**Verification.** `control_layout.c` and `control_prompts.c` were also run
+on a PC against all five languages' global text: Classic leaves every string
+as retail; Future changes exactly the listed prompts; Classic again gives
+retail back byte for byte, also after a pause-menu table swap, a table
+loaded again and a setting change made in the pause menu; the pad tests
+cover the merged edges, the R2 mapping, the lock frames, Clank, Giant Clank,
+the hoverboard, the pause and the ring. In PCSX2 on a real save (Veldin 2,
+Thruster-Pack worn, Strafing on; the setting byte written over PINE, debug
+pad input): Classic as before (R1 crouches, double-tapped hovers, R2 and L2
+strafe, Circle fires, retail glyphs); Future: R2 crouches and its double tap
+hovers, R1 fires the Blaster and does not crouch, L2 strafes and R2 does
+not, Circle and R1 together or overlapping leave one Circle press in the
+game's press history; the level's table and the pause menu's global one
+(loaded by the Help Log) show the Future glyphs, the Moves page draws
+"Crouch with R2" and "To drop down hit R2", and choosing Classic in the
+pause menu gives retail back in both tables. Not run in game: the
+Hydro-Pack, the Charge Boots, Clank, Giant Clank, the hoverboard, the
+setting changed through the menu row.
 
 ## Kalebo III's sign reads GADGETRON (owner's extra item, 2026-10-19) — confirmed by the owner, near and far
 

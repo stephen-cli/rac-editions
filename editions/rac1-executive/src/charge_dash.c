@@ -139,7 +139,7 @@ extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (bu
 #define HERO_STICK      0x229C        /* stick magnitude, 0..1 */
 #define PAD_HELD        (*(volatile u32 *)(0x0013CA40 + 0x1A0))
 #define PAD_PRESSED     (*(volatile u32 *)(0x0013CA40 + 0x1A4))
-#define PAD_R1          0x8u
+#define PAD_R1          0x8u          /* the game's R1 bit: R1 in Classic, R2 in Future (src/control_layout.c) */
 #define OWNED_ITEM_1C   (*(volatile u8 *)(0x0013D5C8 + 0x1C))
 #define WORN_BOOTS      (*(volatile s32 *)0x00141764)   /* D_00141760[1] */
 #define ITEM_CHARGE_BOOTS 36

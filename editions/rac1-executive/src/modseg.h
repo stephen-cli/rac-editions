@@ -108,6 +108,19 @@ s32 GetControlLayout(void);
 /* Nonzero in play: game mode 0 (not paused, in a cutscene, at a vendor or in
  * the credits) and not on the hoverboard (src/control_layout.c). */
 s32 ee_in_play(s32 level);
+/* Nonzero where Future's buttons apply: Future, in play, as Ratchet or Clank
+ * (not Giant Clank). */
+s32 ee_layout_in_play(s32 level);
+/* Called by the pad hook (src/strafe.c) after the game's parse of pad 0: the
+ * Future buttons (src/control_layout.c; pad_lock is the pad's + 0x1CC as it
+ * was before the parse) and the prompts of the layout in force
+ * (src/control_prompts.c). */
+void ee_layout_pad(s32 level, volatile u8 *pad, s32 pad_lock);
+void ee_layout_prompts(s32 level);
+/* The Charge Boots' description (text/strings.tsv), and its Future wording,
+ * which src/text.c serves in its place while Future is on. */
+#define EE_TEXT_CHARGE_BOOTS_INFO        0x5407
+#define EE_TEXT_CHARGE_BOOTS_INFO_FUTURE 0x5416
 /* DrawWorld (func_001F3D78, every level) calls, as offsets in it: HudDraw,
  * draw_help, the letterbox bars and the subtitles (the same in all 19). */
 #define EE_SITE_WS_HUD          0x4C0

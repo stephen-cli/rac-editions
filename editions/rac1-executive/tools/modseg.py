@@ -77,6 +77,10 @@ LEVEL_DATA = {
     "letterbox_lines": ("func_001F5148", 0x24, 0x28),
     # q4: the game mode (D_0015F6E8: 0 play, 2 cinematic, 3 pause...), from DrawWorld's subtitle test
     "game_mode": ("func_001F3D78", 0x4D8, 0x4DC),
+    # the loaded text table (D_0015F780: entries {text, id, voice, 0}) and the help state (D_001997D0: + 0x2C
+    # the table's entry count), from Help_FindIndex's lui/lw and lui/addiu (src/control_prompts.c)
+    "text_table": ("func_001FE4D0", 0x1C, 0x20),
+    "help_state": ("func_001FE4D0", 0x0, 0xC),
 }
 # Where the title screen's programs have the data, for LEVEL_DATA entries read from a level's
 # own function: the executable function that addresses it there (its address is the same in both).

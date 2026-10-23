@@ -1,5 +1,8 @@
 /* x5: strafing, as Going Commando has it on L2 and R2 (the movement and
- * the camera; the strafe animations follow).
+ * the camera; the strafe animations follow). In the Future control layout
+ * (src/control_layout.c) it is L2 alone, R2 being Future's crouch; the
+ * Thruster-Pack's hover then steers with L2 alone too, as its test of L2 or
+ * R2 sees R2 as the game's R1.
  *
  * R&C2 (SCUS_972.68, Oozla's program) reads L2 or R2 held (pad + 0x1A0 &
  * 3, at 0x2B40A0 in its hero input pass) and marks the hero strafing
@@ -206,6 +209,8 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define CLASS_FORWARD   2
 #define PAD_CROSS       0x40u
 #define PAD_STRAFE      0x3u          /* L2 | R2 in the game's button layout */
+#define PAD_STRAFE_FUTURE 0x1u        /* L2: the Future control layout's strafe button */
+#define PAD_LOCK        0x1CC         /* the input lock the parse applies and resets (src/control_layout.c) */
 #define STRAFE_SETTING  (*(volatile u8 *)EE_SETTING_STRAFE)   /* the Controls page's Strafing row */
 #define EE_SITE_PAD_PARSE 0x1C4       /* func_00217F68 + 0x1C4: jal func_002181F0 */
 
@@ -247,12 +252,18 @@ static s32 strafe_grace;      /* frames since a trigger was released, counting d
 extern const u32 ee_backpedal_seq[];   /* R&C2's backward step in R&C1's layout (build/modseg/gen_anim.c) */
 
 /* After the game's pad parse (pad.c: func_002181F0(pad, report, length)):
- * remember L2/R2 and hide them from the game, except while hovering. */
+ * the Future control layout's buttons and prompts (src/control_layout.c,
+ * src/control_prompts.c), then remember the strafe buttons and hide them
+ * from the game, except while hovering. Classic strafes on L2 or R2, Future
+ * on L2 alone (R2 is its crouch). */
 void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_00217F68, EE_SITE_PAD_PARSE);
     volatile u32 *p = (volatile u32 *)pad;
     static const u16 fields[] = { 0x1A0, 0x1A4, 0x1A8, 0x1B0, 0x1B4, 0x1B8, 0x1C0, 0x1C4, 0x1C8, 0x348 };
+    s32 pad_lock = p[PAD_LOCK / 4];   /* read before the parse, which applies it and sets it back to 0 */
+    s32 future = GetControlLayout() == EE_LAYOUT_FUTURE;
+    u32 strafe_buttons = future ? PAD_STRAFE_FUTURE : PAD_STRAFE;
     s32 i;
 
     TRACE(11);
@@ -279,6 +290,8 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         TRACE_END();
         return;
     }
+    ee_layout_pad(L, (volatile u8 *)pad, pad_lock);
+    ee_layout_prompts(L);
     /* q2: while the quick-select ring is open, L1 and R1 turn its pages (the
      * ring reads the unmasked words); the hero must not also crouch or look. */
     if (ee_qs_ring_open(L)) {
@@ -302,8 +315,8 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
      * hold all four shoulder buttons, the pause menu's item-code entry
      * (PauseCheatEntry, func_L00_00284410) holds L1 and R2, its text pages
      * scroll fast with L2, and the hoverboard's four tricks are L1, L2, R1
-     * and R2. */
-    if (!ee_in_play(L)) {
+     * and R2. Future also leaves Giant Clank retail's buttons (L2 looks). */
+    if (!ee_in_play(L) || (future && !ee_layout_in_play(L))) {
         ee_strafe_held = 0;
         strafe_grace = 0;
         strafe_flip = 0;
@@ -319,7 +332,7 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         ee_strafe_held = 0;
         strafe_grace = 0;
     } else {
-        ee_strafe_held = p[0x1A0 / 4] & PAD_STRAFE;
+        ee_strafe_held = p[0x1A0 / 4] & strafe_buttons;
     }
     if (ee_strafe_held) {
         strafe_grace = STRAFE_GRACE;
@@ -334,10 +347,10 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         return;
     }
     for (i = 0; i < 10; i++) {
-        p[fields[i] / 4] &= ~PAD_STRAFE;
+        p[fields[i] / 4] &= ~strafe_buttons;
     }
     for (i = 0; i < PAD_HISTORY_LEN; i++) {
-        p[PAD_HISTORY / 4 + i] &= ~PAD_STRAFE;
+        p[PAD_HISTORY / 4 + i] &= ~strafe_buttons;
     }
     TRACE_END();
 }

@@ -16,9 +16,41 @@ changed, decisions taken, findings that affect other items.
 - fast-scrolling text with L2;
 - the hoverboard's L2 and R2 tricks.
 
-**What changed.** Strafing now takes L2 and R2 only in normal play off the hoverboard. In cutscenes, the credits, the pause menu, at vendors and on the hoverboard they work as in the original game. As Clank and Giant Clank, L2 and R2 still do nothing while Strafing is on, as before.
+**What changed.** Strafing now takes L2 and R2 only in normal play off the hoverboard. In cutscenes, the credits, the pause menu, at vendors and on the hoverboard they work as in the original game. It applies to both control layouts. As Clank and Giant Clank in the Classic layout, L2 and R2 still do nothing while Strafing is on, as before.
 
-**Verification.** Tested in PCSX2 on a Challenge Mode save on Veldin, Strafing on. In the pause menu, L1+R2 and all four shoulder buttons now reach the game. In play, R2 and L2 still strafe. Not yet tried in the game: an actual cutscene skip, the credits, an item code or a hoverboard race.
+**Verification.** Tested in PCSX2 on a Challenge Mode save on Veldin, Strafing on, Classic layout. In the pause menu, L1+R2 and all four shoulder buttons now reach the game. In play, R2 and L2 still strafe. Not yet tried in the game: an actual cutscene skip, the credits, an item code or a hoverboard race.
+
+## 2026-10-23 (the Future control layout)
+
+### 🎮 Control layout: Future — Implemented and checked in PCSX2; awaiting test
+
+**What changed.** The Controls page's Control layout row now does something when set to Future (Classic, the default, is the original game's buttons and stays exactly as before):
+
+- **Crouch on R2**, and everything built on crouch with it: the crouch jumps, Comet-Strike, Power Slam, the ledge drop and the Hydro-Pack's jets.
+- **Double-tap R2** for the Thruster-Pack's hover and the Charge Boots' dash.
+- **R1 fires the weapon or uses the gadget in hand**, exactly as Circle still does. Pressing both counts as one press: nothing fires twice.
+- **Strafing on L2 alone** (when Strafing is on). L2 also steers the Thruster-Pack's hover.
+- **L1 and R1 still turn the quick-select pages** with the ring open.
+- **Button prompts follow:** weapon prompts show R1, crouch and Hydro-Pack prompts R2 (German "R1-Taste" too), the Thruster-Pack and ledge prompts name the one button Future uses, and the Charge Boots' description says R2. Gadget prompts keep Circle.
+
+**Decisions taken.**
+
+- Giant Clank, the hoverboard races, the pause menu, cutscenes and vendors keep the original buttons. The hoverboard's tricks use all four shoulder buttons, and the cutscene skip and the item-code entry need L2 and R2 as in the original game.
+- The game cannot tell a weapon prompt from a gadget prompt, so the prompts are listed one by one by text id: 7 weapon prompts, 20 crouch and jets prompts, 3 prompts naming two buttons. The ship, Giant Clank and hoverboard rocket prompts keep Circle.
+- Turret cannons, the Visibomb and the Hologuise also answer R1, as the game treats it as Circle.
+
+**Findings.**
+
+- The HelpDesk's voiced lines still say the original buttons, and the Help Desk's controller diagrams have the original labels drawn in. Alternative English voice lines are planned as a separate task.
+
+**Verification.**
+
+- **On a PC.** The new code ran against the game's text in all five languages and against simulated controller input. Classic leaves every string and button as in the original game. Future changes exactly the listed prompts and gives the original text back when switched back to Classic.
+- **In PCSX2, on a real save** (Veldin's second visit, Thruster-Pack worn, Strafing on):
+  - **Classic** is unchanged: R1 crouches and its double tap hovers, Circle fires, L2 and R2 strafe, and the prompts show the original buttons.
+  - **Future:** R2 crouches and its double tap hovers; R1 fires the Blaster and doesn't crouch; L2 strafes and R2 doesn't. Circle and R1 pressed together or overlapping register as one press.
+  - **Prompts:** the Moves help page reads "Crouch with R2" and "To drop down hit R2", and the Help Log's messages change too. Switching back to Classic in the pause menu restores the original text.
+- **Not yet run in the game:** the Hydro-Pack, the Charge Boots, Clank, Giant Clank, the hoverboard races, and switching the setting through its menu row (the tests set it directly in memory).
 
 ## 2026-10-23 (quick select pages in saves)
 
