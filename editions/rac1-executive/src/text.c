@@ -20,8 +20,6 @@ extern const int ee_text_first;
 extern const int ee_text_count;
 extern const char *const ee_text[][8];
 
-#define g_language   (*(volatile s32 *)0x0015EE88)   /* 0 English, 2 French, 3 German, 4 Spanish, 5 Italian */
-
 /* Only ids in the edition's range reach this (src/text_hook.s checks the
  * range first and sends every other id on into the game's own msg_string,
  * whose data this code never touches). */

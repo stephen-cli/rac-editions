@@ -24,8 +24,9 @@ holds only the edition's code, tools and notes, never game data.
   games: crouch, the Hydro-Pack's jets and the double taps of the
   Thruster-Pack and the Charge Boots on R2; R1 fires and uses gadgets, as
   Circle still does; strafing on L2 alone. Button prompts follow: weapons
-  show R1, gadgets keep Circle. Giant Clank, the hoverboard and the menus
-  keep the original buttons.
+  show R1, gadgets keep Circle, and in English the HelpDesk speaks new
+  versions of its lines for the moves and weapons whose buttons changed. Giant
+  Clank, the hoverboard and the menus keep the original buttons.
 - **Three quick-select pages.** With the ring open, R1 and L1 turn between
   three pages of eight slots. In the pause menu's Quick Select tab, Square
   changes the page. Your saves still load in the original game.

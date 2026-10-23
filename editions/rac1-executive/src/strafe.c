@@ -292,6 +292,7 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     }
     ee_layout_pad(L, (volatile u8 *)pad, pad_lock);
     ee_layout_prompts(L);
+    ee_helpdesk_voices(L);
     /* q2: while the quick-select ring is open, L1 and R1 turn its pages (the
      * ring reads the unmasked words); the hero must not also crouch or look. */
     if (ee_qs_ring_open(L)) {

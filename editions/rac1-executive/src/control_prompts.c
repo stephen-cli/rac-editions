@@ -42,13 +42,6 @@
 DECLARE_LVL_DATA(text_table);   /* D_0015F780: the loaded table's entries */
 DECLARE_LVL_DATA(help_state);   /* D_001997D0: + 0x2C the number of entries */
 
-typedef struct {
-    u8 *text;
-    s32 id;
-    s32 voice;
-    s32 unused;
-} TextEntry;
-
 #define HELP_STATE_COUNT 0x2C
 
 #define GLYPH_CIRCLE 0x11

@@ -7,7 +7,8 @@
 #   default   the patch route: a copy of the owner's image: the executable in new sectors at the end, the
 #             level code patched in place, the Charge Boots class (R&C2's model)
 #             spliced into every level's data archive in place (tools/splice_boots.py),
-#             and Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py)
+#             Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py),
+#             and the edition's HelpDesk lines added at the end (tools/splice_helpdesk.py)
 #             -> editions/rac1-executive/build/iso/executive-edition.iso
 #   --wrench  experimental: wrench full re-layout (the edition's wrench fork): game bank +
 #             wrench overlay + mod/ + the Charge Boots bank (R&C2's model, tools/gen_boots.py)
@@ -57,7 +58,7 @@ case "$(uname -s)" in
 esac
 echo "== 1/5 build"
 bash tools/build_sn.sh
-echo "== 2/5 strings (tools/gen_text.py), menu data (tools/gen_menu.py), hero sites (tools/gen_hero.py), R&C2 backpedal (common/rac2_anim.py), Charge Boots item and icon (tools/gen_items.py, tools/gen_hud.py), mod segment (tools/modseg.py)"
+echo "== 2/5 strings (tools/gen_text.py), HelpDesk lines (tools/gen_helpdesk.py), menu data (tools/gen_menu.py), hero sites (tools/gen_hero.py), R&C2 backpedal (common/rac2_anim.py), Charge Boots item and icon (tools/gen_items.py, tools/gen_hud.py), mod segment (tools/modseg.py)"
 python "$HERE/tools/gen_text.py"
 python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit 0x14 -o "$HERE/build/modseg/gen_anim.c"
 python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit-arm 0x14 -o "$HERE/build/modseg/gen_anim_arm.c"   # R&C2's gun arms over the backpedal (src/gun_arm.c)
@@ -72,6 +73,7 @@ python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit 0x8B --name ee_charge_se
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_glyphs.py" --openrac "$OPENRAC"                       # the D-pad glyphs of the Reuse Seed box (src/goodies.c)
 python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" emit                # the frontends' flight in 16:9 (src/widescreen.c FE_BOOT/FE_BIN)
+python "$HERE/tools/gen_helpdesk.py" --openrac "$OPENRAC"                     # the HelpDesk lines, cut from the disc's own (audio/helpdesk.json)
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"
 echo "== 3/5 bootable executable with the mod segment"
 python tools/boot_elf.py --segment "A0000:$(cygpath -w "$HERE/build/modseg/modseg.bin" 2>/dev/null || echo "$HERE/build/modseg/modseg.bin")"
@@ -90,6 +92,8 @@ if [ "$ROUTE" = patch ]; then
   python "$HERE/tools/splice_boots.py" "$out" --openrac "$OPENRAC"
   echo "== 5c/5 Kalebo III's GADGETRON sign spliced into its data (tools/splice_sign.py)"
   python "$HERE/tools/splice_sign.py" "$out" --openrac "$OPENRAC"
+  echo "== 5d/5 the edition's HelpDesk lines in new sectors at the end (tools/splice_helpdesk.py)"
+  python "$HERE/tools/splice_helpdesk.py" "$out"
   echo "-> $out"
   exit 0
 fi
@@ -105,4 +109,6 @@ while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$HERE/b
 echo "== 5/5 level-code patches against the packed image (tools/overlay_patch.py --iso), written in place"
 python "$HERE/tools/overlay_patch.py" --iso "$out" -o "$HERE/build/patches-wrench"
 python "$COMMON/apply_patches.py" "$out" "$HERE/build/patches-wrench/patches.tsv"
+echo "== 5b/5 the edition's HelpDesk lines in new sectors at the end (tools/splice_helpdesk.py)"
+python "$HERE/tools/splice_helpdesk.py" "$out"
 echo "-> $out"

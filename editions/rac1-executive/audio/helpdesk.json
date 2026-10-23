@@ -1,0 +1,89 @@
+{
+  "about": "The edition's English HelpDesk lines as cut lists of the game's own lines (tools/helpdesk_recipes.py reads them from the DaVinci Resolve timelines, tools/gen_helpdesk.py builds them from the disc). use: future = played in the Future layout in place of the retail line 'replaces'; strafe, strafe_future = the strafing help in Classic and in Future. Clip times in frames of 1/24 s; line = the source line's help-audio slot.",
+  "frame_rate": 24,
+  "lines": [
+    {"slot": 150, "name": "L1_bombglove_f", "use": "future", "replaces": 0, "project": "000_L1_bombglove_f", "clips": [
+      {"line": 0, "source": "L1_bombglove", "at": 0.0, "from": 0.0, "length": 43.746101, "fade_in": 0.0, "fade_out": 0.0},
+      {"line": 140, "source": "L18_powerslam1", "at": 43.746101, "from": 118.349272, "length": 20.650728, "fade_in": 0.0, "fade_out": 3.0},
+      {"line": 0, "source": "L1_bombglove", "at": 64.39683, "from": 58.846898, "length": 27.603155, "fade_in": 3.0, "fade_out": 1.0},
+      {"line": 140, "source": "L18_powerslam1", "at": 91.999984, "from": 118.796894, "length": 17.000016, "fade_in": 1.0, "fade_out": 3.0},
+      {"line": 0, "source": "L1_bombglove", "at": 109.0, "from": 97.450069, "length": 140.142312, "fade_in": 3.0, "fade_out": 0.0}
+    ]},
+    {"slot": 151, "name": "L0_wrenchthrow_f", "use": "future", "replaces": 9, "project": "009_L0_wrenchthrow_f", "clips": [
+      {"line": 9, "source": "L0_wrenchthrow", "at": 0.0, "from": 0.0, "length": 154.0, "fade_in": 0.0, "fade_out": 1.0},
+      {"line": 110, "source": "L12_straferemind", "at": 154.0, "from": 56.0, "length": 14.0, "fade_in": 1.0, "fade_out": 1.0},
+      {"line": 9, "source": "L0_wrenchthrow", "at": 168.0, "from": 169.0, "length": 64.0, "fade_in": 1.0, "fade_out": 0.0}
+    ]},
+    {"slot": 152, "name": "L3_highjump_f", "use": "future", "replaces": 21, "project": "021_L3_highjump_f", "clips": [
+      {"line": 21, "source": "L3_highjump", "at": 0.0, "from": 0.0, "length": 108.687482, "fade_in": 0.0, "fade_out": 0.53125},
+      {"line": 110, "source": "L12_straferemind", "at": 108.687482, "from": 59.562451, "length": 10.437549, "fade_in": 0.53125, "fade_out": 1.0},
+      {"line": 21, "source": "L3_highjump", "at": 119.125031, "from": 117.0, "length": 34.0, "fade_in": 1.0, "fade_out": 0.0}
+    ]},
+    {"slot": 153, "name": "L3_longjump_f", "use": "future", "replaces": 23, "project": "023_L3_longjump_f", "clips": [
+      {"line": 23, "source": "L3_longjump", "at": 0.0, "from": 0.0, "length": 143.0, "fade_in": 0.0, "fade_out": 0.0},
+      {"line": 110, "source": "L12_straferemind", "at": 143.0, "from": 52.0, "length": 22.0, "fade_in": 0.0, "fade_out": 1.0},
+      {"line": 23, "source": "L3_longjump", "at": 165.0, "from": 162.0, "length": 25.0, "fade_in": 1.0, "fade_out": 0.0}
+    ]},
+    {"slot": 154, "name": "L11_thrusterpack_f", "use": "future", "replaces": 61, "project": "061_L11_thrusterpack_f", "clips": [
+      {"line": 61, "source": "L11_thrusterpack", "at": 0.0, "from": 0.0, "length": 111.0, "fade_in": 0.0, "fade_out": 0.0},
+      {"line": 110, "source": "L12_straferemind", "at": 111.0, "from": 54.0, "length": 13.0, "fade_in": 0.0, "fade_out": 0.0},
+      {"line": 61, "source": "L11_thrusterpack", "at": 124.0, "from": 124.0, "length": 102.0, "fade_in": 0.0, "fade_out": 0.0}
+    ]},
+    {"slot": 155, "name": "General_pyrocito_f", "use": "future", "replaces": 78, "project": "078_General_pyrocito_f", "clips": [
+      {"line": 78, "source": "General_pyrocito", "at": 0.0, "from": 0.0, "length": 53.125, "fade_in": 0.0, "fade_out": 1.046875},
+      {"line": 9, "source": "L0_wrenchthrow", "at": 53.125, "from": 150.03125, "length": 22.96875, "fade_in": 1.046875, "fade_out": 0.0}
+    ]},
+    {"slot": 156, "name": "L5_longjump_f", "use": "future", "replaces": 94, "project": "094_L5_longjump_f", "clips": [
+      {"line": 94, "source": "L5_longjump", "at": 0.0, "from": 0.0, "length": 108.0, "fade_in": 0.0, "fade_out": 0.53125},
+      {"line": 109, "source": "L12_hover", "at": 108.0, "from": 109.0, "length": 10.0625, "fade_in": 0.53125, "fade_out": 1.34375},
+      {"line": 94, "source": "L5_longjump", "at": 118.0625, "from": 117.0625, "length": 29.9375, "fade_in": 1.34375, "fade_out": 0.0}
+    ]},
+    {"slot": 157, "name": "L11_thrusterpack_f", "use": "future", "replaces": 108, "project": "108_L11_thrusterpack_f", "clips": [
+      {"line": 108, "source": "L11_thrusterpack", "at": 0.0, "from": 0.0, "length": 119.15625, "fade_in": 0.0, "fade_out": 1.71875},
+      {"line": 109, "source": "L12_hover", "at": 119.15625, "from": 108.90625, "length": 10.84375, "fade_in": 1.71875, "fade_out": 1.21875},
+      {"line": 108, "source": "L11_thrusterpack", "at": 130.0, "from": 131.75, "length": 8.25, "fade_in": 1.21875, "fade_out": 0.0}
+    ]},
+    {"slot": 158, "name": "L18_thrusterpowe_f", "use": "future", "replaces": 133, "project": "133_L18_thrusterpowe_f", "clips": [
+      {"line": 133, "source": "L18_thrusterpowe", "at": 0.0, "from": 0.0, "length": 111.781219, "fade_in": 0.0, "fade_out": 1.25},
+      {"line": 109, "source": "L12_hover", "at": 111.781219, "from": 108.218718, "length": 11.593781, "fade_in": 1.25, "fade_out": 1.125},
+      {"line": 133, "source": "L18_thrusterpowe", "at": 123.375, "from": 125.0625, "length": 7.718719, "fade_in": 1.125, "fade_out": 0.0}
+    ]},
+    {"slot": 159, "name": "General_strafe", "use": "strafe", "replaces": null, "project": "general_strafe", "clips": [
+      {"line": 110, "source": "L12_straferemind", "at": 0.0, "from": 0.0, "length": 125.0, "fade_in": 0.0, "fade_out": 0.0}
+    ]},
+    {"slot": 160, "name": "L12_hover_f", "use": "future", "replaces": 109, "project": "109_L12_hover_f", "clips": [
+      {"line": 109, "source": "L12_hover", "at": 0.0, "from": 0.0, "length": 16.765631, "fade_in": 0.0, "fade_out": 0.765631},
+      {"line": 109, "source": "L12_hover", "at": 16.765631, "from": 108.0, "length": 12.75, "fade_in": 0.765631, "fade_out": 1.0625},
+      {"line": 109, "source": "L12_hover", "at": 29.515631, "from": 29.78125, "length": 66.906244, "fade_in": 1.0625, "fade_out": 1.234375},
+      {"line": 109, "source": "L12_hover", "at": 96.421875, "from": 117.640619, "length": 50.359381, "fade_in": 1.234375, "fade_out": 0.0}
+    ]},
+    {"slot": 161, "name": "L12_straferemind_f", "use": "future", "replaces": 110, "project": "110_L12_straferemind_f", "clips": [
+      {"line": 110, "source": "L12_straferemind", "at": 0.0, "from": 0.0, "length": 33.0, "fade_in": 0.0, "fade_out": 1.0},
+      {"line": 110, "source": "L12_straferemind", "at": 33.0, "from": 61.0, "length": 86.0, "fade_in": 1.0, "fade_out": 0.0}
+    ]},
+    {"slot": 162, "name": "General_hydropac_f", "use": "future", "replaces": 120, "project": "120_General_hydropac_f", "clips": [
+      {"line": 120, "source": "General_hydropac", "at": 0.0, "from": 0.0, "length": 116.842111, "fade_in": 0.0, "fade_out": 0.755974},
+      {"line": 109, "source": "L12_hover", "at": 116.842111, "from": 108.626811, "length": 12.076541, "fade_in": 0.755974, "fade_out": 0.0},
+      {"line": 120, "source": "General_hydropac", "at": 128.918651, "from": 130.0, "length": 9.0, "fade_in": 0.0, "fade_out": 0.0}
+    ]},
+    {"slot": 163, "name": "L14_morpharay_f", "use": "future", "replaces": 122, "project": "122_L14_morpharay_f", "clips": [
+      {"line": 122, "source": "L14_morpharay", "at": 0.0, "from": 0.0, "length": 119.121224, "fade_in": 0.0, "fade_out": 0.5},
+      {"line": 9, "source": "L0_wrenchthrow", "at": 119.121224, "from": 149.464974, "length": 17.878941, "fade_in": 0.5, "fade_out": 0.9375},
+      {"line": 122, "source": "L14_morpharay", "at": 137.000165, "from": 131.592775, "length": 144.407225, "fade_in": 0.9375, "fade_out": 0.0}
+    ]},
+    {"slot": 164, "name": "General_tesla_f", "use": "future", "replaces": 129, "project": "129_General_tesla_f", "clips": [
+      {"line": 129, "source": "General_tesla", "at": 0.0, "from": 0.0, "length": 48.09375, "fade_in": 0.0, "fade_out": 0.71875},
+      {"line": 9, "source": "L0_wrenchthrow", "at": 48.09375, "from": 148.859375, "length": 20.359375, "fade_in": 0.71875, "fade_out": 1.65625},
+      {"line": 129, "source": "General_tesla", "at": 68.453125, "from": 64.3125, "length": 25.653214, "fade_in": 1.65625, "fade_out": 0.0}
+    ]},
+    {"slot": 165, "name": "L18_powerslam1_f", "use": "future", "replaces": 140, "project": "140_L18_powerslam1_f", "clips": [
+      {"line": 140, "source": "L18_powerslam1", "at": 0.0, "from": 0.0, "length": 122.375, "fade_in": 0.0, "fade_out": 0.71875},
+      {"line": 109, "source": "L12_hover", "at": 122.375, "from": 107.5, "length": 16.4375, "fade_in": 0.71875, "fade_out": 1.34375},
+      {"line": 140, "source": "L18_powerslam1", "at": 138.8125, "from": 138.5625, "length": 3.4375, "fade_in": 1.34375, "fade_out": 0.0}
+    ]},
+    {"slot": 166, "name": "General_strafe_f", "use": "strafe_future", "replaces": null, "project": "general_strafe_f", "clips": [
+      {"line": 110, "source": "L12_straferemind", "at": 0.0, "from": 0.0, "length": 32.65625, "fade_in": 0.0, "fade_out": 0.53125},
+      {"line": 110, "source": "L12_straferemind", "at": 32.65625, "from": 60.875, "length": 66.125, "fade_in": 0.53125, "fade_out": 0.0}
+    ]}
+  ]
+}

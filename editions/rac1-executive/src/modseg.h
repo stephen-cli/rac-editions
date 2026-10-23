@@ -117,6 +117,25 @@ s32 ee_layout_in_play(s32 level);
  * (src/control_prompts.c). */
 void ee_layout_pad(s32 level, volatile u8 *pad, s32 pad_lock);
 void ee_layout_prompts(s32 level);
+
+/* The game's language (0 English, 2 French, 3 German, 4 Spanish, 5 Italian;
+ * 1 is a slot no disc uses). */
+#define g_language   (*(volatile s32 *)0x0015EE88)
+#define LANGUAGE_ENGLISH 0
+
+/* An entry of the loaded text table (D_0015F780, the level's or, while the
+ * pause menu is open, the global one): the string, its id, its HelpDesk voice
+ * (a help-audio slot, played as voice + 30000; -1 for none) and a zero word. */
+typedef struct {
+    u8 *text;
+    s32 id;
+    s32 voice;
+    s32 unused;
+} TextEntry;
+
+/* Called by the pad hook each frame, after the prompts: the Future layout's
+ * HelpDesk lines (src/helpdesk_voices.c). */
+void ee_helpdesk_voices(s32 level);
 /* The Charge Boots' description (text/strings.tsv), and its Future wording,
  * which src/text.c serves in its place while Future is on. */
 #define EE_TEXT_CHARGE_BOOTS_INFO        0x5407
