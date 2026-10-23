@@ -26,11 +26,13 @@
  * stick_target's own lui/lwc1 in every level; a first build used level 0's
  * address everywhere and faced a fixed world direction on other planets).
  *
- * L2 and R2 only mirror L1 (look) and R1 (crouch) in R&C1, so the pad
- * parse hook reads them for the strafe and clears them from every field
- * gameplay reads (held, pressed, released, raw and their copies) and from
- * the 30-entry ring of pressed edges at + 0x1E0 that pad_pressed_within
- * (func_L00_00267BA8) scans: the pack jumps test crouch through that
+ * L2 and R2 only mirror L1 (look) and R1 (crouch) in R&C1's play, so in
+ * play (game mode 0, not on the hoverboard, whose tricks use all four
+ * shoulder buttons) the pad parse hook reads them for the strafe and clears
+ * them from every field gameplay reads (held, pressed, released, raw and
+ * their copies) and from the 30-entry ring of pressed edges at + 0x1E0
+ * that pad_pressed_within (func_L00_00267BA8) scans: the pack jumps test
+ * crouch through that
  * history (pad_pressed_within(0xA, 2)), which is how R2 still gave long
  * jumps in the first build. This frees the triggers without touching the
  * hero's own button tests, with one exception: the thruster pack's hover
@@ -287,6 +289,21 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
      * the game as in retail and nothing below runs (every strafe hook keys
      * on ee_strafe_held or strafe_grace, the camera patch included). */
     if (!STRAFE_SETTING) {
+        ee_strafe_held = 0;
+        strafe_grace = 0;
+        strafe_flip = 0;
+        TRACE_END();
+        return;
+    }
+    /* The strafe takes the triggers only in play (src/control_layout.c,
+     * ee_in_play: game mode 0, not on the hoverboard). Elsewhere the game
+     * reads them as in retail: the cutscene skip (CutsceneModeUpdate,
+     * func_L00_0029A300, game mode 2) and the credits' fast-forward (mode 7)
+     * hold all four shoulder buttons, the pause menu's item-code entry
+     * (PauseCheatEntry, func_L00_00284410) holds L1 and R2, its text pages
+     * scroll fast with L2, and the hoverboard's four tricks are L1, L2, R1
+     * and R2. */
+    if (!ee_in_play(L)) {
         ee_strafe_held = 0;
         strafe_grace = 0;
         strafe_flip = 0;

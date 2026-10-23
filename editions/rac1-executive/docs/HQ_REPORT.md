@@ -4,6 +4,22 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-23 (Strafing: L2 and R2 outside play)
+
+### 🎯 Strafing on L2/R2 (x5) — L2 and R2 work again outside play; fixed, checked in PCSX2
+
+**What was wrong.** With Strafing on, L2 and R2 were taken from the game everywhere, not just while playing. Anything else that used them stopped working:
+
+- skipping a cutscene, which needs all four shoulder buttons held;
+- fast-forwarding the credits;
+- entering item codes in the pause menu, which needs L1 and R2 held;
+- fast-scrolling text with L2;
+- the hoverboard's L2 and R2 tricks.
+
+**What changed.** Strafing now takes L2 and R2 only in normal play off the hoverboard. In cutscenes, the credits, the pause menu, at vendors and on the hoverboard they work as in the original game. As Clank and Giant Clank, L2 and R2 still do nothing while Strafing is on, as before.
+
+**Verification.** Tested in PCSX2 on a Challenge Mode save on Veldin, Strafing on. In the pause menu, L1+R2 and all four shoulder buttons now reach the game. In play, R2 and L2 still strafe. Not yet tried in the game: an actual cutscene skip, the credits, an item code or a hoverboard race.
+
 ## 2026-10-23 (quick select pages in saves)
 
 ### 📑 Quick select pages (q2) — Saves load on page 1, in retail too; working

@@ -2453,6 +2453,32 @@ short of the three rows' 2910.
 without clipping, the row flips between Classic and Future, and the choice
 survives a save and load.
 
+## x5: L2 and R2 reach the game outside play (2026-10-23) — fixed; checked in PCSX2
+
+**What was wrong.** With Strafing on, `ee_pad_parse_c` (src/strafe.c) took L2
+and R2 out of every pad word in every game mode, so everything else that
+reads them stopped working: the cutscene skip (CutsceneModeUpdate,
+func_L00_0029A300, game mode 2: all four shoulder buttons held with Start,
+`(held & 0xF) == 0xF`), the credits' fast-forward (mode 7, the same four),
+the pause menu's item-code entry (PauseCheatEntry, func_L00_00284410: L1
+and R2 held, `(held_unmasked & 0xF) == 6`), the fast scroll of its text
+pages (L2, func_0021B298), and the hoverboard's L2 and R2 tricks (control
+mode 0x16; func_L05_00254030 picks a trick per shoulder button, `held &
+0xF`).
+
+**Fix.** The strafe takes the triggers only in play: `ee_in_play()`
+(src/control_layout.c) is game mode 0 (the level's D_0015F6A8, LEVEL_DATA
+`game_mode`) and not the hoverboard (hero + 0x208C != 0x16). Elsewhere
+`ee_strafe_held`, the grace and the flip are cleared and the pad is left as
+the parse made it. The Clank and Giant Clank rule (the triggers cleared and
+doing nothing) is unchanged.
+
+**Verification.** PCSX2, Challenge Mode save on Veldin 2, Strafing on
+(debug pad over PINE): paused, L1+R2 reads 0x6 and the four
+shoulder buttons 0xF in held, unmasked and raw (before: 0x4 and 0xC); in
+play R2 still strafes (`ee_strafe_held` 2) and is hidden from the game.
+Not run: a cutscene skip, the credits, an item code, a hoverboard race.
+
 ## Kalebo III's sign reads GADGETRON (owner's extra item, 2026-10-19) — confirmed by the owner, near and far
 
 **What the discs have.** The rotating ring on Kalebo III's main building is

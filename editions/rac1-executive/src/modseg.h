@@ -105,6 +105,9 @@ typedef float f32;
 #define EE_LAYOUT_FUTURE        1
 /* The layout in force: EE_LAYOUT_CLASSIC or EE_LAYOUT_FUTURE. */
 s32 GetControlLayout(void);
+/* Nonzero in play: game mode 0 (not paused, in a cutscene, at a vendor or in
+ * the credits) and not on the hoverboard (src/control_layout.c). */
+s32 ee_in_play(s32 level);
 /* DrawWorld (func_001F3D78, every level) calls, as offsets in it: HudDraw,
  * draw_help, the letterbox bars and the subtitles (the same in all 19). */
 #define EE_SITE_WS_HUD          0x4C0
