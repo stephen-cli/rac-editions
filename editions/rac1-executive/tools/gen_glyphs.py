@@ -78,8 +78,8 @@ def face(sheet, width, blank, u):
 
 def glyph(blank, colours, direction):
     """A 24 x 16 cell of the arm for DIRECTION on the sheet's transparent index BLANK, shaded like the
-    face buttons: an outer rim lit at the top left and dark at the bottom right, an inner rim, a dark face. COLOURS is the palette as the GS reads
-    it (formats.Texture.colours: CSM1 swaps index bits 3 and 4)."""
+    face buttons: an outer rim lit at the top left and dark at the bottom right, an inner rim, a dark face.
+    COLOURS is the palette as the GS reads it (formats.Texture.colours: CSM1 swaps index bits 3 and 4)."""
     cell = [[blank] * CELL_W for _ in range(CELL_H)]
     mask = arm_mask(direction)
     face, light, shade, rim_lit, rim_dark = (nearest(colours, c) for c in (FACE, LIGHT, SHADE, RIM_LIT, RIM_DARK))
