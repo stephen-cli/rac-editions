@@ -18,7 +18,8 @@ holds only the edition's code, tools and notes, never game data.
   where the camera looks, as in Going Commando. He side-flips, strafe-jumps,
   backpedals with his gun held up and stops on the spot. L1 and R1 still
   look and crouch. Switch it on in Options → Controls (off by default, so L2
-  and R2 work as in the original game).
+  and R2 work as in the original game). The first time you switch it on,
+  the HelpDesk explains it when you go back to the game.
 - **Future control layout.** Options → Controls → Control layout: Classic
   (the original game's buttons, the default) or Future, closer to the later
   games: crouch, the Hydro-Pack's jets and the double taps of the

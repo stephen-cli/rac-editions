@@ -134,8 +134,15 @@ typedef struct {
 } TextEntry;
 
 /* Called by the pad hook each frame, after the prompts: the Future layout's
- * HelpDesk lines (src/helpdesk_voices.c). */
+ * HelpDesk lines (src/helpdesk_voices.c) and the strafing help (src/strafe_help.c). */
 void ee_helpdesk_voices(s32 level);
+void ee_strafe_help_frame(s32 level);
+/* x5: the strafing help, shown once per save: bit 0 of a byte in the saved
+ * statistics block's spare bytes (after the control layout), 0 in a retail
+ * save and after the new-game reset. */
+#define EE_STRAFE_HELP_SEEN     0x00141A65
+#define EE_TEXT_STRAFE_HELP        0x5417
+#define EE_TEXT_STRAFE_HELP_FUTURE 0x5418
 /* The Charge Boots' description (text/strings.tsv), and its Future wording,
  * which src/text.c serves in its place while Future is on. */
 #define EE_TEXT_CHARGE_BOOTS_INFO        0x5407

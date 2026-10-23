@@ -3003,3 +3003,143 @@ title screen then showed the row from the record alone, after power-on and
 after quitting a level. The fight itself and both choices after it are
 untested, as is real hardware. The Goodies pages, the box changes, the seed box's
 symbols, its limit and its emptying on Triangle are seen in PCSX2.
+
+## The Future layout's HelpDesk lines, and the strafing help (2026-10-23) — confirmed working
+
+**What it does.** With Control layout set to Future and the game in English,
+the HelpDesk speaks new versions of the lines that name a button Future
+moves, cut from the game's own lines: the Bomb Glove, Comet-Strike, the Boost Jump, both
+Stretch Jump lines, the four Power Slam lines, the Thruster-Pack's hover and
+strafe lines, the Hydro-Pack, the Pyrocitor, the Morph-o-Ray and the Tesla
+Claw. Classic, and every other language, keep retail's lines. So do, in
+both layouts, the ship flights' lines (retail 85 and 86) and the
+hoverboard's (131): Future does not change those controls. And the first
+time a save switches Strafing on in Options > Controls, going back to the game opens a
+HelpDesk popup with its own line: "Try using the L2 or R2 button with the
+left stick to strafe" (in Future "the L2 button", with its own line:
+Future strafes on L2 alone), in the game's five languages (the French,
+German, Spanish and Italian text unchecked so far), spoken in English. It
+shows once per save.
+
+**How the game plays a HelpDesk line.** A line belongs to a string of the
+loaded text table (D_0015F780; entries {text, id, voice, 0}). When a help
+popup opens, Help_Update (func_001FE6C0) queues voice + 30000 on the
+dialogue player (D_001517D0 + 0x1C), and music_start_track_by_id
+(func_002167C0) hands ids from 30000 to Music_PlayId30000 (func_00216528),
+which streams the VAG whose first sector is the word at 0x11C278 + id * 4 +
+language * 600: the table of contents' help-audio group (+ 0x1AB8, copied to
+0x137C80 at boot), 150 slots per language in language order (0 English,
+1 none, 2 French, 3 German, 4 Spanish, 5 Italian). Language 1's block is
+empty on the disc, and English ids 150-299 read it. While a line plays,
+Help_Update keeps the popup open as long as the playing id is its entry's
+voice + 30000.
+
+**The lines as cut lists (audio/helpdesk.json, tools/helpdesk_recipes.py).**
+Every new line is pieces of the game's English lines joined with short
+crossfades ("R1" from the Comet-Strike line in the Pyrocitor's, and so on),
+made in DaVinci Resolve. That audio is the game's, so the repository keeps
+none of it: audio/helpdesk.json holds each line's slot, its use and its cut
+list (per clip the source line's slot and name, where it sits, where in the
+source it starts and how long it plays, in frames of 1/24 s, and the
+crossfade halves on either side). tools/helpdesk_recipes.py reads the cut
+lists from the timelines Resolve exports (.drt: a zip whose SeqContainer XML
+lists the clips and their "Cross Fade 0DB" transitions, which are linear and
+centred on the cut). Rendered from the decoded originals, every clip matches
+the audio Resolve exported at 44-60 dB once Resolve's resampling delay
+(11.9 samples) and its placement on a 48 kHz grid (within a sample) are
+allowed for; levels are the game's own throughout.
+
+**Building them (tools/gen_helpdesk.py).** The build reads the source lines
+from the player's disc (the help-audio table's first sectors, then each
+VAG), decodes them (sample for sample as OpenRAC's decoded dump), joins the
+clips, fades the line in over 2 ms and out over 12 ms, and encodes a VAG in
+the format of retail's: VAGp version 0x20, 44,100 Hz mono SPU-ADPCM, a
+0x30-byte header, a zero first frame, the last audio frame flagged 1 and a
+flag-7 end frame, zero-padded to whole sectors. Each 28-sample frame takes
+the filter and shift whose decoded samples come closest (trying, per
+filter, the shift the frame's range needs and its two neighbours); on these
+lines that gives the same error as trying all 65, at 36-55 dB. It also
+writes build/modseg/gen_helpdesk.c, the slot table the C code reads, so the
+slots are listed once. Results are cached by a hash of the cut list and its
+sources: the first build takes about 40 s.
+
+**The lines on the disc (tools/splice_helpdesk.py).** The step puts
+build/helpdesk's files in new sectors at the image's end, in place of the blank margin the earlier steps leave and
+followed by a new one, writes their first sectors into their slots of the
+table, and grows the volume size. pack.sh runs it last on both routes.
+
+| Slot | Retail slot | Line |
+|---:|---:|---|
+| 150 | 0 | L1_bombglove |
+| 151 | 9 | L0_wrenchthrow (Comet-Strike) |
+| 152 | 21 | L3_highjump (Boost Jump) |
+| 153 | 23 | L3_longjump (Stretch Jump) |
+| 154 | 61 | L11_thrusterpack (Power Slam) |
+| 155 | 78 | General_pyrocito |
+| 156 | 94 | L5_longjump (Stretch Jump) |
+| 157 | 108 | L11_thrusterpack (Power Slam on switches) |
+| 158 | 133 | L18_thrusterpowe (Power Slam the button) |
+| 159 | — | General_strafe (the strafing help, Classic) |
+| 160 | 109 | L12_hover (the Thruster-Pack's hover and strafe) |
+| 161 | 110 | L12_straferemind (strafe while hovering) |
+| 162 | 120 | General_hydropac (the Hydro-Pack's jets) |
+| 163 | 122 | L14_morpharay |
+| 164 | 129 | General_tesla |
+| 165 | 140 | L18_powerslam1 (Power Slam) |
+| 166 | — | General_strafe_f (the strafing help, Future) |
+
+**Future's lines (src/helpdesk_voices.c).** Each frame, after the prompts,
+the pad hook brings the loaded table's voices in line with the layout: in
+Future and English, entries with voice 0, 9, 21, ... take 150, 151, 152,
+...; otherwise they take retail's back. The entries are found again whenever
+the table, its size or one of them changes (a table loaded again comes back
+with retail's voices), so the level's table and the pause menu's both
+follow. Changing the entry rather than the queued id keeps Help_Update's own
+comparison true, so the popup stays open for the whole line.
+
+**The strafing help (src/strafe_help.c).** Entering the pause menu (game
+mode 3) notes the Strafing setting; returning straight to play (mode 0)
+with it now on and the help not yet seen makes the help pending until the
+HelpDesk is free. Help_Request (func_L00_00203F20) takes a string id and a
+slot of the saved help records (D_00141A68, 148 records of {u16 count, u16
+best time, u32 level bits}), and Help_Update then looks the id up in the
+loaded table. The edition's string is in no level's table, and a level's
+table cannot grow, so for the length of the popup the table is a copy with
+one more entry: the string from src/text.c in the game's language and the
+layout's wording, with voice 159 (166 in Future) in English and none
+otherwise. D_0015F780
+and the count (help state + 0x2C) point at the copy and are pointed back
+when the popup is over. The pause menu keeps them across a pause
+(MenuTextBank_Load saves both, MenuTextBank_Restore puts them back), and a
+level load replaces them, after which the copy is let go. Help_Update starts
+nothing until the player has first moved in the level (help state + 0x30).
+
+The request names record 104: no English line has that slot, no retail code
+requests or reads it, and it is empty in every save checked. Retail could
+still name it from level data, so its eight bytes are kept before the
+request and written back once the popup is over, and the save keeps
+retail's record. "Seen" is bit 0 of 0x141A65, a spare byte of the saved
+statistics block after the control layout, which retail keeps and re-saves
+without reading. It is 0 in a retail save and after the new-game reset. A
+save loaded from the pause menu with Strafing already on and the help never
+shown counts as switching it on.
+
+**Tested in PCSX2** on a Veldin 2 save (a copy of the memory card), Strafing
+switched through Options > Controls: off and back on, resuming, opened the
+popup with the Classic wording and its glyphs, the dialogue player streamed
+id 30159 for the line's length, record 104 and the table were back as
+before the moment it closed, and the seen bit was set; switching off and on
+again showed nothing. With the HelpDesk's Voice and Text off (that save's
+setting) the popup runs silent and undrawn, as retail's do. In Future the
+wording names L2 alone, and the level's Pyrocitor and Power Slam entries
+carry voices 155, 157 and 158 (back to 78, 108 and 133 in Classic); the
+Pyrocitor popup, requested over PINE, streamed slot 155. A pause during the
+strafing popup keeps it open after resuming, and the table goes back when it
+closes. The seen bit was cleared over PINE between runs. With slots 160-166
+added, a fresh copy of the save in Future gave the Hydro-Pack, Tesla Claw
+and fourth Power Slam entries voices 162, 164 and 165 (retail's again in
+Classic), the Tesla Claw popup (requested over PINE) streamed slot 164, and
+switching Strafing on through the menu played the Future line, slot 166,
+with no PINE writes. Not tested: the
+lines in other levels and in normal play, the pause menu's table, other
+languages, a save made and reloaded, hardware, and how the lines sound.
