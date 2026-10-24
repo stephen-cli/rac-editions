@@ -3797,10 +3797,9 @@ froze), the code cleanup (the build before it froze), the autosave hooks
 (leaving a vendor saves nothing), the chicken's shadow and collision flags.
 Confirmed fixed on the owner's PS3.
 
-**Not yet.** One Batalia bolt that another class awards (class 0x305 in its
-level code, which sets the flag without GoldBoltUpdate): the save hook
-collects a spot whose flag is set at the level's next autosave, which
-should cover it, untried on Batalia. World
+**Gold Bolts.** All 40 are ordinary Gold Bolt mobies (class 1134) in the
+level data, Batalia's included, and each spot has its own rule since
+bb1e2e8; the class 0x305 suspected here gives no Gold Bolt. World
 pickups keep the model of the item retail put there, by decision: the
 banner on picking one up names the item received.
 
