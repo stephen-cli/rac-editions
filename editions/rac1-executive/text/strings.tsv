@@ -23,3 +23,11 @@
 5416	A prototype pair of boots from Gadgetron's future catalogue. Double-tap R2 and keep holding it to charge.
 5417	Try using the \x16 or \x17 button with \x19 to strafe	Essaie d'utiliser le bouton \x16 ou \x17 avec \x19 pour mitrailler	Setze die Taste \x16 oder \x17 mit dem linken Analog-Stick ein, um zu schwenken	Prueba a usar el botón \x16 o \x17 con \x19 para desplazarte lateralmente	Usa il tasto \x16 o \x17 insieme al \x19 per spostarti lateralmente
 5418	Try using the \x16 button with \x19 to strafe	Essaie d'utiliser le bouton \x16 avec \x19 pour mitrailler	Setze die Taste \x16 mit dem linken Analog-Stick ein, um zu schwenken	Prueba a usar el botón \x16 con \x19 para desplazarte lateralmente	Usa il tasto \x16 insieme al \x19 per spostarti lateralmente
+5419	Seed	Graine	Seed	Semilla	Seed
+541A	\x10 Confirm	\x10 Confirmer	\x10 Bestätigen	\x10 Confirmar	\x10 Conferma
+541B	Invalid seed code	Code de graine invalide	Ungültiger Seed-Code	Código de semilla no válido	Codice seed non valido
+541C	(the Randomizer's banner: src/randomizer_play.c builds this text)
+541D	You found the \x0c@\x08!	Tu as trouvé le \x0c@\x08 !	Du hast \x0c@\x08 gefunden!	Has encontrado \x0c@\x08!	Hai trovato \x0c@\x08!
+541E	You got the \x0c@\x08!	Tu as le \x0c@\x08 !	Du hast \x0c@\x08!	Tienes \x0c@\x08!	Hai ottenuto \x0c@\x08!
+541F	You won a \x0c@\x08!	Tu as gagné un \x0c@\x08 !	Du hast \x0c@\x08 gewonnen!	Has ganado \x0c@\x08!	Hai vinto \x0c@\x08!
+5420	???	???	???	???	???

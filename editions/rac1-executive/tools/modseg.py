@@ -81,6 +81,18 @@ LEVEL_DATA = {
     # the table's entry count), from Help_FindIndex's lui/lw and lui/addiu (src/control_prompts.c)
     "text_table": ("func_001FE4D0", 0x1C, 0x20),
     "help_state": ("func_001FE4D0", 0x0, 0xC),
+    # rz3: the vendor's record (D_L00_001CA7C0 in level 0: the item just bought at +0x48, -1 none, which
+    # decides the weapon demo on leaving), from VendorBuyDialogUpdate's lui/addiu
+    "vendor_state": ("func_L00_0029CDE0", 0x4, 0x14),
+    # rz3: the level's item info table (D_L00_001C43B0 in level 0: 37 records of 0x18, the ammo price at +8) and
+    # its item sound table (D_L00_001C2488: a word per item, stride 0x14), from VendorBuildItemList's lui/addiu pairs
+    "vendor_items": ("func_L00_0029B770", 0x78, 0x80),
+    "vendor_pose": ("func_L00_0029C9E8", 0xA0, 0xAC),      # Vendor_InitItemDisplay's per-item panel offsets (0x30 an item)
+    "vendor_sounds": ("func_L00_0029B770", 0x74, 0x7C),
+    # rz2: the save layout tables (D_001A05C0 the game's records, D_001A08C0 a level page's: {address, size, id, 0}
+    # to a zero address), from memcard_RestoreGame's lui/addiu pairs; the Randomizer's record offset in a file
+    "save_game_table": ("func_00209CE8", 0x4, 0x10),
+    "save_level_table": ("func_00209CE8", 0x34, 0x3C),
 }
 # Where the title screen's programs have the data, for LEVEL_DATA entries read from a level's
 # own function: the executable function that addresses it there (its address is the same in both).

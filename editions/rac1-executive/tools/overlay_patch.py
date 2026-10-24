@@ -747,6 +747,16 @@ TIMER_SITES = {
 }
 
 
+def randomizer(at):
+    """rz3: the Randomizer's grants (src/randomizer_play.c). Every call of GiveItem,
+    UnlockPlanet and ShowPlanetBanner in the level's code, memcard_Save's calls inside
+    GoldBoltUpdate, the gold bolt count's calls and the moby update loop's call of a
+    moby's update go to the level's stubs (src/rz_hooks.s); tools/gen_randomizer.py
+    finds them and lists the giver classes."""
+    from gen_randomizer import patches
+    return patches(at.level, at)
+
+
 def timer_patches(at):
     """q4: a countdown's draw callback registers as ee_ws_timer_NN, which notes it; the
     countdown is drawn after the HUD, squeezed in place in 16:9 (src/widescreen.c)."""
@@ -761,6 +771,7 @@ def timer_patches(at):
 
 
 FEATURES = {
+    "randomizer": randomizer,
     "widescreen": widescreen,
     "charge_boots": charge_boots,
     "edition_text": edition_text,
@@ -796,6 +807,7 @@ DEFAULT_FEATURES = [
     "charge_boots",
     "item_preview",
     "widescreen",
+    "randomizer",
 ]
 
 
@@ -891,6 +903,9 @@ def main() -> int:
                     raise SystemExit(f"{name} has no place in level {level}")
             at.level = level
             at.size = SIZES.__getitem__
+            at.places = places
+            at.sizes = SIZES
+            at.text = (records[0][1], records[0][2])      # the level's code: load address, size
 
             def file_offset(addr):
                 for file_base, rec_addr, rec_size in records:
@@ -906,6 +921,18 @@ def main() -> int:
                     out.append(struct.unpack_from("<I", sector(s), i)[0])
                 return out
             at.words = words
+
+            def blob(addr, n):
+                """N bytes of this level's program at ADDR, as patched so far."""
+                out = bytearray()
+                while n > 0:
+                    s, i = divmod(file_offset(addr), SECTOR)
+                    chunk = min(n, SECTOR - i)
+                    out += sector(s)[i:i + chunk]
+                    addr += chunk
+                    n -= chunk
+                return bytes(out)
+            at.blob = blob
 
             for feature in args.features:
                 for addr, expect, word in FEATURES[feature](at):

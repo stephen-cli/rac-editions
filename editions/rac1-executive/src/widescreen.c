@@ -1640,7 +1640,8 @@ void ee_ws_credits_picture_c(u32 source, u32 ra)
  * the current volumes and stereo setting across that reset, so the title
  * screen's programs keep the 16:9 setting across it too: every call of the
  * reset in them goes to their stub (src/ws_hooks.s), which passes the
- * program. */
+ * program. A Randomizer new game writes its record after the same reset
+ * (src/randomizer_save.c). */
 DECLARE_LVL(func_00209DC0);             /* the game-state reset */
 
 void ee_fe_reset_c(s32 L)
@@ -1648,4 +1649,5 @@ void ee_fe_reset_c(s32 L)
     u8 widescreen = WS_SETTING;
     LVL(L, func_00209DC0, VoidFn)();
     WS_SETTING = widescreen;
+    ee_rz_after_reset(L);
 }

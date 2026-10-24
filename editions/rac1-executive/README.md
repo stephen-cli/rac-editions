@@ -51,12 +51,17 @@ holds only the edition's code, tools and notes, never game data.
 - **Moving out of the Comet-Strike.** Once the wrench has left Ratchet's
   hand, push the stick to run or press X to jump, as in Going Commando.
 - **A richer Metal Detector in Challenge Mode.** Buried bolt stashes pay out
-  far more in Challenge Mode, so hunting them down is a real way to save up
-  for the RYNO and the Gold Weapons, rather than farming bolts.
+  far more in Challenge Mode and in Randomizer saves, so hunting them down
+  is a real way to save up for the RYNO and the Gold Weapons, rather than
+  farming bolts.
 - **Commercials.** The three TV ads from the American release, in Goodies.
   They unlock with all ten Gold Weapons, along with the 'Making Of' video.
 - **GADGETRON.** Kalebo III's rotating sign reads GADGETRON, as in the
   American release, instead of the PAL release's GALACTRON.
+- **Randomizer.** Beat the game to unlock Goodies on the title screen,
+  where you can start a Randomizer save: the infobots, gadgets, weapons and
+  Gold Bolts are shuffled across the galaxy, and every seed can be
+  finished. A seed code lets you replay or share a layout.
 
 ### Fixes to the original game
 
@@ -203,3 +208,8 @@ docs/       FEATURES.md (each feature and how it is patched), HQ_REPORT.md, DEBU
 Same as OpenRAC's: your own disc is the evidence; no Sony SDK source,
 samples or headers; no leaked material; never commit disc images,
 executables, extracted data or build output.
+
+## Thanks
+
+The Randomizer's logic is based on Panda291's Ratchet & Clank world for
+Archipelago.

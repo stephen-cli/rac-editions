@@ -72,6 +72,7 @@ python "$HERE/tools/gen_qs.py" --openrac "$OPENRAC"                           # 
 python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_glyphs.py" --openrac "$OPENRAC"                       # the D-pad glyphs of the Reuse Seed box (src/goodies.c)
+python "$HERE/tools/gen_randomizer.py" --openrac "$OPENRAC"                   # the Randomizer's giver classes per level (src/randomizer_play.c)
 python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" emit                # the frontends' flight in 16:9 (src/widescreen.c FE_BOOT/FE_BIN)
 python "$HERE/tools/gen_helpdesk.py" --openrac "$OPENRAC"                     # the HelpDesk lines, cut from the disc's own (audio/helpdesk.json)
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"

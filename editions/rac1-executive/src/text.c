@@ -37,6 +37,9 @@ const char *ee_msg_string_edition(s32 id)
     if (id == EE_TEXT_SEED_INPUT) {
         return ee_seed_text();      /* built as buttons are pressed (src/goodies.c) */
     }
+    if (id == EE_TEXT_RZ_BANNER) {
+        return ee_rz_banner_text(); /* the Randomizer's banner, built as an item is received (src/randomizer_play.c) */
+    }
     return s ? s : ee_text[id - ee_text_first][0];
 }
 

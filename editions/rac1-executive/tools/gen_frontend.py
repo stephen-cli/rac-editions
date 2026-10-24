@@ -36,7 +36,9 @@ the same distance from the executable's address as its neighbours'.
                              orange bar's icon), the Sound page's widget
                goodies       Pause_Update's call of Pause_Open ->
                              ee_title_menu_open_19/20 (the start menu's
-                             Goodies row, src/goodies.c)
+                             Goodies row, src/goodies.c); the main loop's
+                             call of MemCard_UpdateState ->
+                             ee_title_card_19/20 (the card scan behind it)
   frontbin_patches(iso, features)   the same words for frontbin, as image
                offsets, for tools/overlay_patch.py
 
@@ -75,9 +77,14 @@ TITLE_SITES = (0x19C, 0x210)                # its DrawTexturedQuad calls: the lo
 PAUSE_UPDATE = "func_0021A1A0"              # Pause_Update: the menus' frame, the title's start menu included
 PAUSE_OPEN = "func_00219E90"                # Pause_Open: makes the start page current, creates the 14 panels
 PAUSE_OPEN_SITE = 0x120                     # Pause_Update + 0x120: jal Pause_Open
+MC_UPDATE = "func_00209E68"                 # MemCard_UpdateState, the card machine
+# The title screen's main loop (func_001EBB48 in the executable; frontbin's differs elsewhere, so it is
+# found by its calls): PutDrawBufferLarge, MemCard_UpdateState, Menu_RunStateHandler, each with a nop.
+DRAW_BUFFER = "func_001FB498"               # PutDrawBufferLarge
+MENU_STATES = "func_00209070"               # Menu_RunStateHandler
 FUNCS = (UPDATE_VIEW, FLIGHT, PLANET_NAME, DRAW_WORLD, LETTERBOX, LOAD_HUD, SOUND_INPUT, SOUND_DRAW,
          SOUND_INIT, SOUND_UPDATE, MOVIE_LOOP, RESET, MSG_STRING, MOVIE_FRAME, RENDERER, STORY, TITLE_FRAME,
-         PAUSE_UPDATE, PAUSE_OPEN)
+         PAUSE_UPDATE, PAUSE_OPEN, MC_UPDATE, DRAW_BUFFER, MENU_STATES)
 PLANET_NAME_SITE = 0x140                    # DrawSpaceFlightFrame + 0x140: jal the planet name
 # The title renderer's calls the 16:9 hooks take, as the levels' (tools/overlay_patch.py
 # widescreen) are at func_L00_002781D8 + PANEL_DRAW_SITE etc.: offset, the callee, the hook.
@@ -438,6 +445,11 @@ def patches(prog: Program, funcs: dict, data: dict, fe_id: int, symbol,
         if prog.word(a) != jal(funcs[PAUSE_OPEN]):
             raise SystemExit(f"{label}: Pause_Update + 0x{PAUSE_OPEN_SITE:X} is not its call of Pause_Open")
         out.append((a, jal(funcs[PAUSE_OPEN]), jal(symbol(f"ee_title_menu_open_{fe_id}"))))
+        sites = [a for a in jal_sites(prog, funcs[MC_UPDATE])
+                 if prog.word(a - 8) == jal(funcs[DRAW_BUFFER]) and prog.word(a + 8) == jal(funcs[MENU_STATES])]
+        if len(sites) != 1:
+            raise SystemExit(f"{label}: {len(sites)} main loop calls of MemCard_UpdateState, not 1")
+        out.append((sites[0], jal(funcs[MC_UPDATE]), jal(symbol(f"ee_title_card_{fe_id}"))))
     return out
 
 

@@ -632,5 +632,6 @@ void ee_frame_start_c(u32 ra)
     }
     ee_charge_cheat_frame(L);
     ee_race_item_frame(L);
+    ee_rz_frame(L);                     /* rz3: the Randomizer's state for this level (src/randomizer_play.c) */
     LVL(L, func_L00_0024F7E0, Void)();
 }

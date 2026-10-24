@@ -17,3 +17,16 @@ ee_title_menu_open_19:
 ee_title_menu_open_20:
     j     ee_title_menu_open_c
     addiu $4, $0, 20
+
+/* The title screen's main loop's call of MemCard_UpdateState
+ * (func_001EBB48 + 0x248 in the executable, jal func_00209E68), the same way. */
+.globl ee_title_card_19
+.extern ee_title_card_c
+ee_title_card_19:
+    j     ee_title_card_c
+    addiu $4, $0, 19
+
+.globl ee_title_card_20
+ee_title_card_20:
+    j     ee_title_card_c
+    addiu $4, $0, 20

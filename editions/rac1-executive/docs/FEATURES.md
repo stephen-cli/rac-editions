@@ -75,7 +75,14 @@ moves the directory record (verified booting in PCSX2 from sector 2058000).
 - The mod segment is the default route; the cave shim of x4 remains as
   feature `metal_detector_10x` for reference.
 
-## x4: Metal Detector gives 20x bolts in challenge mode — 10x owner-confirmed 2026-10-17; raised to 20x 2026-10-18, awaiting owner test
+## x4: Metal Detector gives 20x bolts in challenge mode — 10x owner-confirmed 2026-10-17; raised to 20x 2026-10-18, awaiting owner test; also in Randomizer saves since 2026-10-24
+
+**Randomizer saves (owner, 2026-10-24).** The 20x applies in a Randomizer
+save too (`ee_rz_active()`, src/randomizer_save.c: the record is in
+memory), though it is no challenge-mode run: the shuffled items leave the
+RYNO and the Gold Weapons to buy with bolts found along the way, and the
+spots are the grind the owner wants for it. Retail saves outside Challenge
+Mode pay as before.
 
 **Goal (owner, 2026-10-18).** Make a Challenge Mode run that collects every
 hidden spot a better way to the 400,000 bolts of the RYNO (150,000) and the
@@ -2896,20 +2903,24 @@ retail does. Without a card the flag stays in RAM and is written at the
 next start menu that finds one.
 
 **Reading the card.** The title screen reads no slot until a Load or Save
-page opens, so the edition reads the card itself as the start menu opens:
-the record, then the first 0x40 bytes of each save (two blob sizes, the game
-blob's {length, checksum}, then records {id, size, data} from the save
-block table at `0x1A05C0`; record 2, the completion count, sits at file
-offset 0x30). It uses retail's libmc wrappers (open `func_001238B0`, seek
+page opens, so the edition reads the card itself: the record, then the first
+0x40 bytes of each save (two blob sizes, the game blob's {length, checksum},
+then records {id, size, data} from the save block table at `0x1A05C0`;
+record 2, the completion count, sits at file offset 0x30) and its Randomizer
+record. It uses retail's libmc wrappers (open `func_001238B0`, seek
 `func_00123AC8`, read `func_00123C30`, write `func_00123D48`, close
-`func_00123A10`, sync `func_00123F30`), each run to its end as
-MemCard_CheckFreeSpace does. The game's card machine (`D_0013D390`) polls
-the card all the time on the title screen, one command at a time, and is
-busy about one frame in six: the edition finishes that command into the
-machine's own result words (+0xC0, +0xC4) and clears its busy flag (+0xD4),
-which is what the machine would have done; it stays off the card while the
-machine runs a sequence of its own (state +0xDC of 3 or more, or a request
-at +0xE4).
+`func_00123A10`, sync `func_00123F30`). The scan runs in the background
+while PRESS START shows, so the start menu opens with its answer ready (see
+the next section). The game's card machine, MemCard_UpdateState
+(`func_00209E68`, record `D_0013D390`), polls the card all the time on the
+title screen, one command at a time: a card check (sceMcGetInfo, states 0-1),
+then ten frames in state 2 with no command running. Where the edition reads
+at once (the start menu with a scan left to finish, a pause page, Drek), it
+finishes the machine's command into the machine's own result words (+0xC0,
++0xC4) and clears its busy flag (+0xD4), which is what the machine would
+have done, then runs each command to its end as MemCard_CheckFreeSpace does.
+It stays off the card while the machine runs a sequence of its own (state
++0xDC of 3 or more, or a request at +0xE4).
 
 **The row.** The start menu (page `D_001D4948`) is three one-row text lists
 in panels 2-4 (New Game `D_001D4A18`, Load Game, Options, 0x50 apart),
@@ -3003,6 +3014,62 @@ title screen then showed the row from the record alone, after power-on and
 after quitting a level. The fight itself and both choices after it are
 untested, as is real hardware. The Goodies pages, the box changes, the seed box's
 symbols, its limit and its emptying on Triangle are seen in PCSX2.
+
+### rz6: the start menu opens without waiting for the card (2026-10-24)
+
+The start menu used to read the card when START was pressed: the record and
+five save files, up to 34 libmc commands each waited for in turn, with no
+frame drawn meanwhile. On PCSX2 that is a pause of about half a second
+before the menu appears.
+
+The title screen's main loop (`func_001EBB48` in the executable, frontbin's
+copy found by its calls of PutDrawBufferLarge and Menu_RunStateHandler on
+either side) runs the card machine once a frame. Feature `goodies` sends
+that call to `ee_title_card_19/20` (tools/gen_frontend.py), which runs the
+same scan one command per frame: it issues a command only while the machine
+sits in state 2 with no command or request, and skips the machine's turn
+while its own command runs, since libmc runs one at a time. It runs only
+while the start menu is closed (Pause_Update's update count at
+`D_001D5F70 + 0x110` has not moved since the last frame): the menu's pages
+ask the machine for sequences of their own, and New Game and Load Game leave
+the title screen through loops that run the machine directly. The results
+stand until the card changes: the slots' summary, the free space at
++0xC or the machine's last card check at +0x1C (0: the same PS2 card) differ
+from the scan's start. A command whose result another sceMcSync caller took
+is run again.
+
+When the menu opens, a finished scan of the same card is used as it is; a
+scan PRESS START did not finish is finished there, at once, as before. The
+pause pages' rescans run the same steps at once. `ee_debug_card` counts the
+title loop's frames, the commands the background issued, the scans finished
+and the commands run at once (PINE).
+
+**The overwrite question's box (2026-10-24).** The confirm page's panel
+sequence takes the name box to the overwrite question's box, and plays
+back to the name box on No. Stretched throughout (the first build's best
+effort at continuity) the question ran down over the Yes/No prompt box;
+not stretched at all, the name box came back a line short after No (the
+owner's reports). The copy now stretches its first frame, the name box,
+and fades the stretch out to nothing at its last, the question (a
+stretch of -1 in raise_sequence, measured at the sequence's first frame).
+
+**Verified in PCSX2** on copies of Mcd001 (Challenge Mode saves) and
+RCEE-NO-CM: the background scan takes 29 commands and is done about 1.5 s
+after the title screen appears; START then opens the menu with no card
+command (Goodies shown on Mcd001, absent on RCEE-NO-CM), and so does START
+again after Triangle back to PRESS START. Pressing START within the first
+half second of the title screen finishes the scan at the menu, with the old
+pause. Load Game reads the card normally after the scan. Real hardware and a
+card swapped on the title screen are untested.
+
+**A scan publishes when it finishes (2026-10-24).** The scan read straight
+into the slot results and cleared them at its start, so a scan begun while
+a save page kept the card busy stalled with the results empty: after a
+valid Reuse Seed code the Randomizer's New Game page showed no green R, nor
+did New Game or Load Game, until PRESS START finished the scan (the owner's
+report). A scan now reads into a staging copy and publishes it into the
+results (slots, rz_saves, card_flags) when it finishes, so the pages keep
+showing the last scan meanwhile.
 
 ## The Future layout's HelpDesk lines, and the strafing help (2026-10-23) — confirmed working
 
@@ -3143,3 +3210,597 @@ switching Strafing on through the menu played the Future line, slot 166,
 with no PINE writes. Not tested: the
 lines in other levels and in normal play, the pause menu's table, other
 languages, a save made and reloaded, hardware, and how the lines sound.
+
+## rz1/rz2: the Randomizer's logic, seed codes and saves (2026-10-23) — working in PCSX2; awaiting owner test
+
+**What it does.** The Randomizer pages behind the title screen's Goodies row
+now make Randomizer saves. New Game there creates a save with a seed and a
+layout: which of the 94 checks (54 infobots, gadgets, weapons and vendor
+entries, 40 Gold Bolts; with the Charge Boots in the build a 95th, an extra
+vendor entry on a seed-chosen planet) holds which of the 94 (95) items.
+Reuse Seed takes a nine-press code and makes the same game again. A
+Randomizer save shows a green R where Challenge Mode's R goes on the New
+Game and Load Game lists, and in the box naming its planet ("Kyzil Plateau
+/ Veldin") a third line, "Seed" and the code's nine buttons, the box
+stretched down by a line to make room. The grants (rz3), the
+Charge Boots as an item sold by the bonus vendor entry (rz4, rz5) are
+built since 2026-10-24; the vendors' mystery icons (rz4) are not. Code:
+`src/randomizer.c` (logic), `src/randomizer_save.c` (the save),
+`src/goodies.c` (the pages), `tests/randomizer_test.c`.
+
+**The logic (rz1).** Panda291's R&C1 Archipelago world (worlds/RAC1:
+data/Items.py, data/Locations.py, Logic.py, ItemPool.py), transcribed check
+by check: every planet gated by its infobot, Novalis the start and the Bomb
+Glove the starting weapon, Drek the goal and not a check. The 56 logical
+items (18 infobots, 38 gadgets and weapons) are the bits of one u64; a
+check's rule is "every bit of `all`, one bit of each `any` group", the
+groups being his ORs (improved jump: Heli-Pack or Thruster-Pack; explosive:
+Bomb Glove or Devastator; long range: Blaster, Devastator, Visibomb or RYNO),
+and vendor entries over 7,500 bolts want the Metal Detector as he has it.
+The fill is Archipelago's own assumed fill (fill_restrictive), which his
+rules were tested with, rather than the forward fill proposed in the HQ
+pack: the 36 progression items (17 infobots, the 19 gadgets and weapons his
+classification marks progression) are placed one at a time in random order,
+each into a check reachable with the items still to be placed plus the
+start's, so no item ends up behind its own lock; the other 18 weapons and
+gadgets, the 40 Gold Bolts and the Charge Boots scatter over what is left.
+A sweep from the start then collects everything reachable and confirms
+every check and Drek's rule, and a seed that fails it (none did) fills again
+from the next state of its generator, so a seed always gives the same
+layout. The generator is a 32-bit xorshift over a splitmix scramble of the
+seed and the attempt. The bonus vendor check's planet (1-18) and price
+(2,500 or 5,000) come from the seed too; its only rule is the planet's
+infobot. The Charge Boots are a dead end nothing needs.
+
+**Seed codes.** Nine presses of eleven buttons, as digits 0-10: Up, Right,
+Down, Left, Cross, Circle, Square, L1, L2, R1, R2. The first eight are
+seed * 64 + weapon mode * 16 + logic version in base 11, most significant
+first: 4 bits of version (RZ_LOGIC_VERSION, 1; bump it on any change to
+rules, pool or algorithm), 2 bits reserved for the starting weapon modes
+(only vanilla is implemented, any other is refused), 3,349,357 seeds. The
+ninth makes 1 * d0 + 2 * d1 + ... + 9 * d8 a multiple of 11, which catches
+every single wrong press and every swap of two neighbouring presses (the
+weights are distinct and consecutive mod 11). The same code gives a
+different layout with and without the Charge Boots, as decided.
+
+**The save (rz2).** A save file is {game blob size, level blob size}, the
+game blob, then twenty level blobs (memcard_MakeWholeSave, func_0020BA00),
+one per entry of the level save table D_001A08C0 and per level page, the
+per-level records being arrays of twenty. The game has nineteen levels
+(0-18): block 0xBBA, a level's 0x800 bytes of moby state, is read at
+D_00141FC0 + (level << 11) for the current level only (the save's
+Menu_ReadSector, the load's func_002083E0), so the twentieth page,
+0x14B7C0-0x14BFBF, is 2 KB the 2002 game writes and reads back without
+looking at. The Randomizer's record is at its start (EE_RZ_PAGE,
+EE_RZ_RECORD_SIZE 160): magic `EERZ`, size, record version, flags (bit 0:
+the Charge Boots pool; bit 1: the bonus entry listed once), the seed, the
+logic version, the weapon mode, the bonus check's planet and price, the
+check count, the item of each check, the checks collected (a bit each), the
+Gold Bolts received, the special items received, and the game's save
+checksum (memcard_Checksum) over all of that; anything else there reads as
+no record. The 2002 game loads such a save as a plain new game (its vanilla
+data is one), keeps the page across its own saves and sees no corruption,
+since the file is the size it always is and the game's own records are
+untouched. The game's full save (memcard_MakeWholeSave: the pause menu's
+Save, the new game's first save) writes every page, the record's with them;
+its autosave (memcard_Save, func_0020BFC8: a pickup's, a character's gift,
+a Gold Bolt's, the ship's at a planet change) writes the game's records and
+the current level's page only, so the Randomizer writes the record's page
+itself once the record changed (rz3, "The autosaves"). Its offset in the file, 8 + the game blob's size
++ 19 level blobs + the blob header + record 0xBB9's 12 bytes + 8, is
+computed from the tables (ee_rz_record_offset).
+
+**Starting one.** The Randomizer's New Game page is retail's New Game page
+(title, the five slots, the selected save's planet picture, the card's
+status text, "Select / Exit") with a copy of its slot list (`D_001D50E8`)
+whose update arms a Randomizer game while it runs. Creating the save
+(Menu_BeginSaveSlot, func_00227D20, or Circle's start without a card)
+begins with the game-state reset from the disc's initial state
+(func_00209DC0), which both title programs call through ee_fe_reset_19/20
+(the 16:9 setting's hook, src/widescreen.c): once the reset is done,
+ee_rz_after_reset generates the layout and writes the record into the page,
+before memcard_MakeWholeSave copies the page to the card. The seed is Reuse
+Seed's, or a fresh one from sceCdReadClock and the menu's tick. The
+overwrite question (`D_001D51B8`) returns to the page whose list asked it:
+its back pointer is set to the Randomizer's page when that list sends it
+there, and to retail's when retail's list draws. The Randomizer page's own
+list forgets a Reuse Seed code, so New Game from there is always fresh.
+
+**Showing one.** The start menu's card scan (goodies_unlocked) now reads
+every slot's record too, after its first 0x40 bytes, and keeps the five
+results until the next start menu. The two slot lists' draw words
+(`D_001D50E8`, `D_001D1BB0`, both Pause_DrawSaveSlots) and the name box's
+(`D_001D1B08`, screen 3 of both pages) are pointed at the edition's in RAM
+when the start menu opens (a title program loaded afresh brings retail's
+words back, so they are read again): the slot draw runs retail's and then
+puts EE_ICON_RANDOMIZER (16 x 16) at x 0x4E on each Randomizer slot's row,
+where retail puts the Challenge Mode R, at the rows retail uses (4, then
+0x30 plus 0x24 in 50 Hz or 0x1B otherwise), only while the card is idle and
+a PS2 card as retail requires. The badge is the R's own frame (icon 0xE99E
+frame 4) under a palette page of its own, its gold turned green at the same
+brightness (tools/gen_hud.py, src/hud_icons.c, inserted after the movie
+bar's palette). The pause menu's Save and Load pages in a level show the
+badges too (the owner's request, 2026-10-24): their slot lists are drawn by
+the same Pause_DrawSaveSlots, whose last call (DoGifPaging, func_001F4748,
+inside its own paging) feature `randomizer` sends to the level's stub, and
+the edition draws the badges there before ending the paging. In a level
+the badges need the slots scanned: the title's scan is kept, and when the
+card is idle with its summaries read (the level's copy of the menu record
+has the idle ticks, LEVEL_DATA `menu_state`) and the summaries differ from
+the last scan's (level and play time per slot: a save just made on the Save
+page, another card, a title scan made before the summaries were read) the
+slots are read again inside the draw. The Seed line is still the title
+screen's only. The first in-level build showed no badge (the owner's
+report): the record's offset in a slot's file comes from the save layout
+tables (D_001A05C0, D_001A08C0 in the executable), which each level program
+has at another address, so the in-level scan read no record from any slot
+(counters over PINE: the draw hooked, the card idle, one scan, no
+Randomizer save). The tables are LEVEL_DATA entries now
+(`save_game_table`, `save_level_table`, from memcard_RestoreGame's own
+lui/addiu), and ee_rz_record_offset takes the program. The name box's draw, DrawSaveLevelName (func_00223E40),
+names the planet of the focused slot list's slot from the card's summary
+of it (D_0013D390 + 0x20 + 0x1C * slot, its level; -1 is an empty slot and
+gets "empty") in two centred lines of the normal font at y 4 and 20; the
+edition's wrapper runs it and, for a Randomizer save, adds a third line at
+y 36: "Seed" and the nine symbols, centred together on the box (322 pixels
+wide; the line is 279, and a translation that would not fit is drawn
+smaller through the scaled font print, Font_DrawString). The box is
+stretched down for that line in every sequence that plays it, its bottom
+corners moved by 3/4 of its resting half height (the box is 67 pixels tall
+then, against about 48): New Game's and Load Game's shared sequence 0xC7
+(raised and tapered with the opened pages when the Goodies row shows), the
+confirm page's 0x84 and the Randomizer New Game's copy. The stretch grows
+in over a sequence whose box moves, none of it at the first frame and all
+of it at the last: a page's sequence starts where the start menu's row
+rests, and the switch back plays it to that frame again, so a stretch
+applied to every frame left the Load Game row taller, overlapping Options,
+after a visit to Load Game. A sequence whose box stands still (the confirm
+page's) is stretched throughout. With the Goodies
+row locked but a Randomizer save on the card, only the name boxes are
+stretched. The box stays stretched while another slot is highlighted (its
+third line empty), since the sequences are set as the start menu opens.
+
+**Reuse Seed.** The box takes exactly nine presses and is just wide enough
+for them (SEED_BOX_PX, 240 pixels: the list draw puts left-aligned text at
+x 4, and the symbols take 25 each; the width goes into record units through
+the name box's measured 322). The prompt box is the Options page's two-row
+one with the edition's list: "Exit" while entering, "Confirm" and "Exit"
+once nine are in. Cross then decodes them: a code that passes opens the
+Randomizer's New Game with its seed through the game-mode freeze the lists
+use (Freeze_Enter, func_001FBC80, mode 3, with the same bookkeeping as the
+lists' action 4); one that fails its check press, or carries another logic
+version or a weapon mode not implemented, empties the box and shows
+"Invalid seed code" in red (the HUD's red at the menus' alpha, drawn by the
+box's draw wrapper where the symbols go) until the next press, which starts
+a new code. Triangle backs out at any point.
+
+**Tests.** `bash tools/test_randomizer.sh` (gcc; WSL's where the machine
+has none) builds tests/randomizer_test.c against src/randomizer.c: the
+tables (54 non-bolt checks, 40 bolt spots, 12 vendor entries, every item
+retail gives given exactly once but the start's two), 2,000 seeds per pool
+(every layout complete, deterministic, a permutation of the pool; at most
+3 fills were needed; progression items sit at check 42-43 on average of
+94), and the codes (round trips over the seed range, every single wrong
+press and every neighbour swap refused, other versions and modes refused).
+
+**Verified in PCSX2** (a copy of Mcd001, Challenge Mode saves in slots
+3-5; the title driven over PINE, the start menu unlocked by them): Goodies
+> Randomizer > New Game on slot 1 asked to overwrite the save there, Circle
+accepted, the game started, and the record was in the page (seed 2,368,050,
+95 checks, the Charge Boots pool, Blarg Station's bonus entry at 2,500); its
+code read L1 L2 Square Up Cross L1 Left Square R1. After power-on, Load Game
+showed slot 1 with the green R and, under "Kyzil Plateau / Veldin", the
+"Seed" line with those nine symbols, inside the stretched box, and New Game
+the same; a save in slot 5 highlighted showed the two retail lines in the
+stretched box and no third. Reuse Seed with the first two presses swapped
+left the Reuse Seed page with the box cleared; with the code as shown it
+opened the Randomizer's New Game, slot 2 was overwritten through the same
+question, and the record it wrote was byte for byte slot 1's (the same seed,
+the same items). Loading slot 1 from Load Game brought the record back into
+the page from the card. Both saves list in the 2002 game's layout (the slot
+list shows them as 00:00, 0 bolts, the day). Not tried: the pause menu's
+Save and Load pages in a level (badges built 2026-10-24, awaiting the
+owner's look; no Seed line there); a 16:9 title screen; the 2002 game
+reading such a save; real hardware. The
+challenge-mode carry-over resets the page, so Challenge Mode from a
+Randomizer save loses its record.
+
+## rz3/rz5: the checks give the shuffled items (2026-10-23) — working in the owner's play; owner's first round fixed
+
+**What it does.** In a Randomizer save every check hands out the item the
+seed put there and a banner names it: a gadget or weapon through GiveItem
+(the ammo, the quick select, the hand), an infobot through UnlockPlanet, a
+Gold Bolt into the record's count, the Zoomerator, Raritanium and Codebot
+as their flag, the two Nanotech upgrades as their flag (the Items page lists
+them by it) and the health maximum, and the Charge Boots as the cheat toggle
+switched on. The banner is the Randomizer's own string: the check's words
+around the item's name in the game's orange, by how the check is come by
+(`how` in src/randomizer.c's table, RzHow): "You found the ...!" for a
+pickup in the world and a Gold Bolt spot, "You got the ...!" for a reward
+a character gives or sells and for a vendor entry, "You won a ...!" for a
+hoverboard race's prize (text/strings.tsv 0x541D-0x541F, the item at the
+@). The name is the game's own, in the game's language
+(tools/gen_randomizer.py takes the item names, the special items' names
+and "Gold Bolt" from the disc's text table); a Gold Bolt names its count,
+"Gold Bolt (12/40)"; the Charge Boots use the edition's name; an infobot
+shows retail's own banner for its planet instead ("Infobot for Planet
+Oltanis acquired", every planet has one in the text table). Retail's
+banner texts belong to the level they are shown on (an item's "You got the
+..." is in its level's text block only), and a text not in the level's
+block shows as "Paradox: This message does not exist", which is what every
+shuffled grant showed in the owner's first play; the bare item names of
+the second build and the retail sentences of the third were replaced by
+these at the owner's request (2026-10-24). GiveItem's own banner (its call
+of ShowBanner, hooked in every level) and UnlockPlanet's planet banner
+show the Randomizer's text while it is giving.
+Each check gives once; the record keeps the collected checks and the items
+received (record version 2, 160 bytes). A retail save, or a Randomizer save
+whose record is missing, plays exactly as before: every hook passes the
+call through when no record is in memory. Code: `src/randomizer_play.c`,
+`src/rz_hooks.s`, `tools/gen_randomizer.py`, feature `randomizer` in
+tools/overlay_patch.py.
+
+**What a check is in the game.** Every gadget and weapon the game ever
+gives goes through GiveItem (func_L00_002618D8), from character dialogues,
+pickups and the Gadgetron vendor alike (VendorBuyDialogUpdate,
+func_L00_0029CDE0); every infobot ends in UnlockPlanet (func_L00_00261848),
+whether a flying infobot (InfobotUpdate, func_L00_002D7298, class 750) or a
+character's (Novalis's plumber, Batalia's deserter and commando, Oltanis's
+scrap merchant, Quartu's scientist, ...), often followed by ShowPlanetBanner
+(func_L00_00263DB0), and a giver may show a banner of its own right after
+its GiveItem (Al: "You got the Heli-Pack upgrade!", Helga: "You've
+purchased a Swingshot!"), which with the check redirected named the wrong
+item (the owner's fifth round): every ShowBanner call in a function that
+holds a GiveItem or UnlockPlanet call is hooked too, and shows the
+Randomizer's banner for the check collected this frame instead (banner_due,
+cleared at each frame start); a Gold Bolt sets its spot's flag
+`D_0014BFC0[level][k]` and saves (GoldBoltUpdate, func_L01_00309078, class
+1134); the Zoomerator, the Raritanium, the Codebot and the Nanotech
+upgrades set bytes 0, 1, 2, 4 and 5 of the global flags `D_0013D490`
+(Panda291's PS3 randomizer treats them the same way, as items 0x30-0x35).
+The item retail gives names the check: every item is given at exactly one
+check (`src/randomizer.c`'s table, which the host tests check), an infobot
+by the planet it unlocks (Eudora's henchman unlocks Blarg Station, the
+exploding ship there Rilgar, the bouncer Umbris: the game's own calls), a
+Gold Bolt by its level and flag.
+
+**The hooks.** tools/gen_randomizer.py scans each level's code for every
+`jal` of GiveItem, UnlockPlanet, ShowPlanetBanner and the gold bolt count
+(count_nonzero_entries_up_to_40, func_002160E0, which GetUnspentGoldBolts
+sums for the Gold Weapons' vendor), every memcard_Save call (the givers'
+autosaves, among them GoldBoltUpdate's, and the ship's at a planet change),
+and the moby update loop's call of a moby's update
+(MobyUpdateLoop, func_00213C78 + 0x58, `jalr $3`), the vendor's three
+VendorBuildItemList (func_L00_0029B770) calls, and the DoGifPaging call
+that ends Pause_DrawSaveSlots (the pause menu's badges, see rz2); feature
+`randomizer` sends them to the level's stubs in src/rz_hooks.s (one per
+level and hook, passing the level), 1113 words over the 19 levels. The GiveItem hook maps
+the item to its check and gives the check's item instead (a vendor entry is
+also marked bought in the vendor's stock list `D_0015EED0`, bit 0x40, as
+GiveItem would, so it leaves the list); the UnlockPlanet hook does the same
+for a planet other than the level itself and Novalis, and the planet banner
+that retail shows right after is skipped; the save hook finds the Gold Bolt
+spot whose flag is set and whose check is not collected, and takes the
+collected view off around the save ("The autosaves" below); the count hook
+returns the record's count.
+
+**The collected view.** The givers decide what to offer from what the
+player owns: Helga sells the Swingshot while it is not owned, an infobot
+deletes itself once its planet is unlocked, the Trespasser pickup once the
+Trespasser is owned, the Pilot's Helmet's too (class 1290), the Nanotech
+vendor sells the second upgrade once the first's flag is set. With the
+rewards shuffled, "owned" is the wrong question: a Swingshot received
+elsewhere would make Helga keep hers, and her check with it, forever; a
+planet unlocked by another check would delete the infobot that was a check
+of its own. So while a giver's moby updates, four arrays show whether the
+giver's check has been collected instead: the inventory `D_0013D5C8` for
+the items retail gives, the "has had" bytes `D_0013D5F0` beside it
+(GiveItem sets an item's; the Magneboots, Bolt Grabber and Hoverboard
+pickups, Skid, the Grindboots scientist and the RYNO salesman test those
+rather than the inventory, which is why the Magneboots came back after a
+reload in the owner's play of 2026-10-24), `D_0013DE48` for the planets
+infobots unlock, `D_0013D490`'s five bytes for the special items; the real
+arrays come back
+when the update returns, with any other byte the giver changed kept, and a
+grant inside the update puts the real arrays back for its duration. The
+givers' classes come from the same scan: the UpdateMoby roles
+(config/overlays/names.tsv) of the functions the GiveItem and UnlockPlanet
+calls sit in, plus the infobot, the Nanotech vendor, the Raritanium pickup
+(Moby37Update), the Trespasser and Hydrodisplacer pickups (Moby1005Update)
+and class 188, whose helper gives an item (gen_rz.c, per level). A moby's
+class is its `oclass`, the halfword at +0xA6 (include/moby.h; the edition's
+other code reads it there too). The builds up to 2026-10-24 read +0xBC,
+the command byte and its padding, so no giver was ever recognised and the
+view never applied: the Magneboots pickup came back after a reload and
+Helga sold her check again after a death with the Swingshot still unowned
+(the owner's fifth round), both givers deciding by the real inventory;
+checked on a live moby over PINE (Ratchet's class 0 at +0xA6, 0x100 at
++0xBC) and fixed. The view also needs `active` set before the givers'
+first updates: the frame hook that reads the record runs at the first
+gameplay frame, after the arrival, while the givers decide at their first
+update during it, so after a Load Game from the card (the title screen
+leaving `active` clear) every giver saw the real inventory and stayed: NPCs
+and the Magneboots came back on a reload but not after a death (the
+seventh round). The record is read at the level's init as well. Consumers
+(the Swingshot's targets, the Trespasser's locks, the galactic map, the
+HelpDesk, the hero) update outside those mobys and see the truth. A special
+item's giver writes its flag under the view: a byte that turned 1 is the
+check collected, and the Nanotech vendor's change of the health maximum is
+undone (the player keeps the maximum the received upgrades give). The
+Gadgetron vendor is not under the view (its menu runs as a game mode, not
+a moby update): its list is rewritten instead, below. The
+health maximum is 4, one more with the Premium Nanotech received, three
+more with the Ultra: 5, 7 or 8, as Panda291's randomizer has it, where
+retail only sells the Ultra after the Premium and so only knows 5 and 8.
+
+**The vendor's list.** Retail's vendor (VendorBuildItemList,
+func_L00_0029B770, called on opening and after each purchase) lists its
+stock, `D_0015EED0`: the level's weapon as a purchase, every weapon bought
+before (bit 0x40, set by GiveItem) as an ammo entry, then ammo for every
+other weapon owned. A purchase is the weapon itself, so owning it and
+having bought it are one thing, and the buy dialog treats an entry by its
+kind: an ammo entry sells ammo at the weapon's ammo price, a purchase entry
+gives the item. With the rewards shuffled the two come apart. The first
+build marked the vendor's weapon bought in the stock list when its check
+was collected, so the entry turned into an ammo entry for a weapon the
+player did not own, with its empty counter flashed on the HUD as retail
+does after a weapon purchase (the owner's third round); and a reload
+rebuilds the stock from the level (VendorStockLevelInit), which would show
+the purchase again. So every VendorBuildItemList call is hooked (three per
+level: VendorOpenMenu's and the dialog's two) and the Randomizer rewrites
+the list retail built: a purchase entry stays only while its check is not
+collected (it is the check, whether or not the weapon came from another
+check); an ammo entry stays only for a weapon really owned; and a weapon
+owned from elsewhere whose purchase is still listed gets the ammo entry
+retail skipped for it (the level's item info table, ammo price at +8 of
+0x18, and item sound table give the entry; LEVEL_DATA `vendor_items`,
+`vendor_sounds`, from the builder's own lui/addiu pairs). The cursor is
+kept on an entry. The Bomb Glove, a start item the first vendor gives, is
+always owned, so the list is never empty.
+
+**Seven health orbs.** HudHealthDraw (func_L00_0023A1A0) lays the orbs
+out by their count: 8 and 5 have tables (two rows of four; three over
+two), anything else is the row of four, so the 7 of the Ultra Nanotech
+without the Premium drew seven orbs over four places (the owner's fifth
+round). Hud_RegisterHealthBank (func_L00_00235790) loads the drawer's
+address with a lui/addiu pair, which feature `randomizer` points at the
+edition's drawer (ee_rz_health_draw_c, src/randomizer_play.c): for a count
+of 7 it draws four over three, the three centred under the four as retail
+centres the two under the three, with the backing bars of a row of four
+(48) and of three (32), porting retail's drawing with its constants
+(the element's fade over 8, bars 32 tall 16 above the orbs, rows 32 apart,
+the orb icon 0x7536 and its 30 phases, the bar icon 0x7580); any other
+count is retail's. Seen in PCSX2 with the maximum forced to 7: four over
+three, the filled orbs bright.
+
+**Helga's lift.** Kerwan's Helga (QuestGiverUpdate, func_L03_002DBC38,
+class 890) sells the Swingshot on a platform the Swingshot leaves; a rail
+lift back to the ship (RailLiftUpdate, func_L03_002DE088, class 0x3F4) is
+linked to her and gets its trigger volume at the purchase, and on a later
+visit, once the Swingshot is owned and she deletes herself, she starts it
+outright (its pvars + 0x8C, autostart). With her check giving something
+else the player would be stranded (the owner's request, 2026-10-24): the
+moby update wrapper reads her link before her update (which deletes her)
+and, when that update collected the Swingshot's check and the Swingshot is
+still not owned, starts the lift outright as she does on the later visit.
+This never ran in the owner's play of the 2026-10-24 builds (the owner was
+stranded, and after dying bought her check again): the class test above
+read the wrong halfword, so Helga was never recognised as a giver.
+
+**The vendor's item display.** The cursor on an entry shows the item's
+model: Vendor_InitItemDisplay loads the item record's class through
+LoadMobyClassResources, which looks the class up in the level's gadget
+directory and reads it in. The Charge Boots' class (2000, R&C2's model) is
+spliced into every level's core and not in that directory, and the loader
+run off the end of it froze the game when the cursor reached the entry
+(the owner's fifth round). The call is hooked (one per level) and skipped
+for that class: the model is already in memory. The three per-item display
+tables have 37 entries, so record 36 is read within bounds.
+
+**The vendor's weapon demo.** On leaving the vendor after buying a weapon,
+the game plays the demo of the weapon bought: the hero's pose with it,
+which equips it (VendorStartWeaponDemo, func_L00_0029C070, sets the hero's
+pending item and loads the weapon's class). The vendor remembers the
+purchase in its record (`D_L00_001CA7C0` + 0x48 in level 0; -1 none), right
+after its GiveItem call. With the reward shuffled, that demo equipped the
+vendor's own weapon, unowned and without ammo, over whatever the check had
+given (the owner's second round). The list hook's call that follows the
+note clears it unless the reward is the vendor's own item, so the demo
+plays only for an item that landed in its original place; otherwise the
+vendor closes as it does for an item without a demo and the hero keeps
+what the check gave. The record's address per level is tools/modseg.py's
+LEVEL_DATA entry `vendor_state`, from VendorBuyDialogUpdate's own
+lui/addiu.
+
+**The Charge Boots in the pool (rz4, rz5; 2026-10-24).** Every build has
+the Charge Boots, so the pool is the 95-check one
+(EE_RANDOMIZER_CHARGE_BOOTS 1): the Charge Boots are an item, received as
+the cheat toggle switched on, and the bonus vendor check is the vendor of
+the seed's planet (the record's `bonus_planet`) selling the edition's item
+36 for 2,500 bolts (the owner's price; the record's `bonus_price` byte is
+kept at 0, "2,500", for its format). The list hook appends the entry while
+the check is not collected and writes the price, the Persuader's price and
+no ammo into the level's item info record 36 first. The first build listed
+it on the seed's planet only; retail keeps a weapon on sale everywhere once
+a vendor has offered it, so the record remembers (flag bit 1,
+`RZ_FLAG_BONUS_SEEN`) and every vendor lists the entry from then on (the
+owner's sixth round); the trigger is landing on the seed's planet, as a
+planet's own weapon goes on sale everywhere from the visit on, not opening
+its vendor (the seventh), and the Persuader halves the price to 1,250; the vendor shows the
+item by its own record (the boots' class and icon, from tools/gen_items.py).
+Buying it is the bonus check (rz_check_for_vanilla(RZ_CHARGE_BOOTS) is
+RZ_CHECKS_BASE, which has no table row: its words are "You got the ...!")
+and never a weapon demo. The entry still shows the Charge Boots, not the
+item the seed put there: the mystery icons (rz4) are not built.
+
+**The O2 Mask early.** Retail plays Orxon as Clank until the O2 Mask (the
+mask comes from Pokitaru, whose infobot is in Orxon's Clank section), and
+that section's gates open for Clank and his Gadgebots only; Blarg Station's
+drawbridge is lowered from the Clank side too. With the mask shuffled early
+the player arrives as Ratchet and both would stay shut, so Panda291's
+randomizer forces them on PS3 when the mask is owned
+(Lawrence/mods/randomizer/LocationSyncing.lua, FixPlanetsForPlayer): on
+Orxon the level triggers 1 and 4 done and the gates' and the infobot's save
+bits set (bytes 30, 35, 102 and 103 of the level's 256, `D_0014C290`), and
+the gadgebot door (uid 83), the main gate (673) and the two minor gates
+(812, 813) deleted; on Blarg Station the level trigger 1 done
+(`D_0014C150`, 16 bytes a level), which spawns the drawbridge lowered
+(DrawbridgeUpdate's first state). The edition does the same, once per
+visit, at the level's first moby update (the earliest hook, before any
+gate's own first update reads the tables), through the moby update list
+and DeleteMoby (src/randomizer_play.c, o2_early_fixes). One of Panda291's
+writes names a planet 87 and is left out. A visit begins at
+InitLevelResidentState (func_L00_0023D9C0, hooked in the level's init),
+which a Load Game of a save on the same level runs too: the first build
+counted a visit per level change only, so a reload on Orxon brought the
+gates back (the owner's sixth round). Worked in the owner's play as
+Ratchet on Orxon before the reload.
+
+**The autosaves (the owner's tenth round, 2026-10-24).** A load from the
+title screen brought the save back "as a normal game": the original items
+owned, the shuffled ones gone, Helga and the Magneboots offering their
+original item again; a load from the pause menu's Load page had seemed
+fine. Two causes, both in the game's autosave (memcard_Save, func_0020BFC8),
+which the givers call right after giving (Helga's QuestGiverUpdate, the
+pickups' SpinningPickupUpdate, GoldBoltUpdate, the Nanotech vendor) and the
+ship at every planet change (ShipTravelTo). (1) It serialises the
+inventory, the "has had" bytes, the planets and the flags the moment it is
+called (memcard_PrepData into the card buffers), and inside a giver's
+update those arrays hold the collected view: the card got the vanilla items
+as owned and the real ones as not, which the title screen's load restored
+as the truth (the pause menu's Load keeps the hero's state in part, which
+hid it). Every memcard_Save call in a level's code is now hooked
+(ee_rz_save_c, replacing the GoldBoltUpdate-only hook) and the view comes
+off around the call. (2) The autosave writes the game's records and the
+current level's page only, never the record's page 19, so a save that
+only ever autosaved since its last full save came back with the record as
+the full save left it: the checks collected since uncollected, the Gold
+Bolts not retained (the owner's fourth round). The record is now written
+by the Randomizer itself (ee_rz_record_autosave, src/randomizer_save.c):
+every change to the record marks it dirty, and the gameplay frame hook
+then starts the game's own save sequence for page 19 the way memcard_Save
+does for the current level's page, writing the machine's page index
+(D_0013D390 + 0xD0), packing the game's records and page 19 into the two
+card buffers (D_0014EFD0, D_001507D0), and setting the request (+0xE4 =
+0xF) with the card (+0xE8), under memcard_Save's own conditions: a card
+with the save's file, an autosave before (the mask at +0xFC), no sequence
+running (+0xDC < 3) and no request waiting (+0xE4 < 0). A giver's own
+autosave is queued first in the same frame, so the record follows it a few
+frames later. Only a level's gameplay frames run the hook, never the title
+screen's, nor a cutscene's: a quit during the cutscene right after a check
+(a planet arrival, say) loses the record's change while the game's own
+autosave of the item stands, a narrow window left open for now. Checked in
+PCSX2 in two halves: the ship's autosave at a planet change ran through the
+hook (a Gold Bolt flag set over PINE had its check collected by it), and
+the record's page, written with the dirty flag poked over PINE, came back
+intact from a title-screen load (its new check collected, the card's
+sequence ending without error); the whole flow in one run awaits the
+owner's play. The Orxon Magneboots the owner still saw come back after a
+title-screen load are this: the card's "has had" byte for them was the
+view's.
+
+**The load-time pass (the owner's twelfth round, 2026-10-24).** With
+reloads fixed, the givers still came back on a revisit of their planet
+(Helga, the Orxon Magneboots). A level's load runs every moby's update once
+in MobyLoadTimeUpdatePass (func_L00_002657B8, + 0xC8, `jalr $3`), before
+the update loop's first run, and a giver decides to stay or go at that
+first update: the Magneboots pickup tests the "has had" byte in its state 0
+there, without the collected view. Measured over PINE: on arriving at
+Orxon the pickup was in state 1 while the hook had not been called once on
+the level. The pass's call goes to the same per-level stub as the loop's.
+Checked in PCSX2 both ways: with the Magneboots check (index 52) collected
+the pickup removes itself on arrival (state 253); with it uncollected it
+stays (state 1).
+
+**The vendor display, third round.** The mystery tile now fills its 32x32
+frame edge to edge, as the item icons do (it was 2 pixels short a side,
+smaller than its neighbours on the strip). The panel's chicken stood where
+the item's own offset puts that item's model (Vendor_InitItemDisplay: the
+panel's base point plus a per-item offset, 0x30 an item at `D_001C8C20`,
+LEVEL_DATA vendor_pose, plus its price-line lift once, twice with the
+Persuader's prices), off-centre for a chicken; the hook now takes that
+offset back out, turned into the world by the vendor camera's matrix
+(matrix_mul_vec3). The owner found the result good but a little low: the
+chicken now comes down 0.15 rather than 0.35. The hologram in the beam is
+re-posed every frame by VendorMenuUpdate (func_L00_0029D988), which copies
+the item's tilt (x, y) from its table and the spin (z), then calls the
+placement function; that one call (the one whose delay slot passes the
+hologram, `addiu $a0, $a0, 0x300`, one per level) is hooked
+(ee_rz_vendor_holo_c) and the chicken's tilt set to 0, so it stands upright
+and keeps spinning; the pose is rewritten each frame, so nothing piles up.
+Upright, some chickens still stood off the beam's axis (the owner): the
+hologram also gets two per-item offsets each frame, tuned to the original
+weapon (FastVecAdd of a table entry): its place in the beam (`D_001C9C50`,
+the addition before the placement whose delay slot indexes the table) and
+the pivot its spin swings around (`D_001C9C30`, turned by the hologram's
+matrix, the first addition after it). Both additions are hooked
+(ee_rz_vendor_holo_add_c, two a level) and skipped for a purchase entry.
+The mystery tile's background is now the weapon icons' own, measured on
+their frames: a diagonal gradient from (129, 135, 242) at the top left to
+(64, 68, 164) at the bottom right, without the rim (the owner: it should
+look like its neighbours).
+
+**Not yet.** One Batalia bolt that another class awards (class 0x305 in its
+level code, which sets the flag without GoldBoltUpdate); the Gold Bolt
+spots' flags (0-3) are matched to Panda291's spots by table order, so each
+spot's rule is the conjunction of its level's spots' rules until the flags
+are mapped; the world's pickups still wear the model of the item retail put
+there (the owner's design has them become the item the seed put there: a
+later step).
+
+## rz4: the vendors' mystery entries and the givers' prompts (2026-10-24) — built; awaiting the owner's test
+
+**What it does.** In a Randomizer save a vendor's purchase entry is a check,
+not the item it is named after, so it shows as a mystery (the owner's
+design): in the icon strip a blue tile with a question mark, in the item
+panel the name "???", on the display stand the Morph-o-Ray's chicken
+instead of the item's model, at the entry's own price (the Blaster's slot
+costs the Blaster's 2,500 bolts whatever it gives). Ammo entries, which are
+the weapons owned, stay as they are. The chicken on the panel's stand is
+posed upright facing the camera (the item tables tilt a weapon for the box,
+which showed the chicken from above), at 0.6 of its size and a little
+lower, through the display's placement call after the pose is set; its
+stand, a second chicken, is moved below the display's view (the first
+build scaled it to 0, and the Novalis vendor froze on opening in a new
+game with that build, the cursor on the Pyrocitor's mystery entry and the
+stand at scale 0 in the frozen state; the zero scale was the cause, the
+one display change no run had shown working, and the owner confirmed the
+vendor opens again with the stand moved instead; the slogan's empty string
+is safe, the game pads it and moves on to an advert); the hologram keeps
+its pose. The
+selected item's slogan on the scrolling line ("BLASTER! POINT IT MORE OR
+LESS AT THE BAD GUYS...", msg_string in VendorMenuUpdate, four calls) is
+blank for a purchase entry, so the line moves on to the vendor's own
+adverts; the Charge Boots entry's slogan was a stray text id of record 36
+(the owner's report). A character offering a check (Helga's
+Swingshot, Al's Heli-Pack, the Nanotech vendor's upgrades, the races'
+prizes) names the item retail has there in its prompts; the Randomizer
+redacts that name to "???" while the check is not collected. The banner on
+receiving names the real item, as before.
+
+**How.** The icon strip (VendorDrawIconStrip, func_00239A00, in every level
+program) asks GetIconFrame for frame 0 of a purchase entry's icon and frame
+2 of an ammo entry's; its four calls are hooked, and a frame 0 of an item's
+icon (0xEA60 + item) becomes the tile's (EE_ICON_MYSTERY 0xE9A1, drawn by
+tools/gen_hud.py with 4x4 supersampling as one 32x32 frame under a palette
+page of its own; src/hud_icons.c appends the icon, frame, image and palette
+pages). The item panel (VendorDrawItemPanel, func_00239CF8) names the
+selected entry through msg_string: its three calls are hooked and answer
+"???" (text/strings.tsv 0x5420) for a purchase entry, but for the ammo
+entry's own line (0x4F5D). The item display (Vendor_InitItemDisplay) builds
+the item's model and its stand with InitMobyInstance: both calls are hooked
+and get class 270, the chicken, for a purchase entry (every level has the
+class). The prompts: msg_string's entry is the edition's already (feature
+edition_text, src/text_hook.s); the hook now lets retail's lookup return to
+it first and hands the string, the id and the program to ee_rz_redact_c
+(src/randomizer_play.c), which, in a Randomizer save outside the pause menu
+and for retail's own ids, replaces the name of every uncollected check's
+item on the current planet with "???" (an infobot check's "Infobot"; the
+game's names from the text table, tools/gen_randomizer.py), and while the
+vendor's menu is up the names of every uncollected vendor check's item too,
+since a vendor sells the stock of every planet visited (the Charge Boots by
+the edition's name). The result lives in one of four buffers while the
+caller draws it. Side effect, accepted: a HelpDesk line on that planet
+naming the item reads "???" too. The vendor's menu being up is a flag the
+list hook sets and the gameplay frame clears (no gameplay frame runs while
+the vendor is open). Not yet tried in play.

@@ -250,4 +250,50 @@ void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra);   /* entered through the tr
 #define EE_TEXT_SEED_INPUT      0x5412  /* the Reuse Seed box's buttons, from ee_seed_text() */
 const char *ee_seed_text(void);
 
+/* rz1/rz2: the Randomizer (src/randomizer.h, src/randomizer.c for the logic;
+ * src/randomizer_save.c for the save; src/goodies.c for the menus). */
+#define EE_RANDOMIZER_CHARGE_BOOTS 1    /* the pool has the Charge Boots, sold as the bonus vendor entry (every build has the boots) */
+#define EE_RZ_PAGE          0x0014B7C0  /* the Randomizer's record: level page 19 of save block 0xBBA, 2 KB no level owns */
+#define EE_RZ_RECORD_SIZE   160
+#define EE_TEXT_SEED        0x5419      /* "Seed" */
+#define EE_TEXT_CONFIRM     0x541A      /* "[cross] Confirm", the Reuse Seed prompt */
+#define EE_TEXT_BAD_SEED    0x541B      /* "Invalid seed code" */
+#define EE_TEXT_RZ_BANNER   0x541C      /* the Randomizer's banner, built as an item is received (src/randomizer_play.c) */
+#define EE_TEXT_RZ_FOUND    0x541D      /* "You found the @!": the banner's words, @ the item (RzHow) */
+#define EE_TEXT_RZ_GOT      0x541E      /* "You got the @!" */
+#define EE_TEXT_RZ_WON      0x541F      /* "You won a @!" */
+#define EE_TEXT_MYSTERY     0x5420      /* "???": a vendor's purchase entry and a giver's item in its prompts */
+const char *ee_rz_banner_text(void);
+#define EE_ICON_RANDOMIZER  0xE9A0      /* the Randomizer save badge: the Challenge Mode R (icon 0xE99E frame 4) in green */
+#define EE_ICON_MYSTERY     0xE9A1      /* the vendor's mystery tile: a blue tile with a question mark (tools/gen_hud.py) */
+/* What the title screen knows of a slot's Randomizer record. */
+struct RzSlot {
+    u8 present;
+    u8 version;                         /* the logic version it was made with */
+    u8 weapon_mode;
+    u8 with_boots;
+    u32 seed;
+};
+u32 ee_save_checksum(const u8 *data, s32 length);          /* memcard_Checksum, func_0020BB10 */
+s32 ee_rz_record_offset(s32 program);                       /* the record's offset in a slot's file; -1 if the tables changed */
+s32 ee_rz_record_parse(const u8 *bytes, struct RzSlot *out);   /* EE_RZ_RECORD_SIZE bytes from there */
+s32 ee_rz_active(void);                                     /* the game in memory is a Randomizer save */
+void ee_rz_arm(s32 on);                                     /* the next new-game reset starts a Randomizer game */
+void ee_rz_set_seed(u32 seed, s32 given);                   /* with this seed (Reuse Seed), or a fresh one */
+void ee_rz_after_reset(s32 L);                              /* from ee_fe_reset_c, once the reset has run */
+/* The record's play state (src/randomizer_save.c), read and changed in place by src/randomizer_play.c. */
+s32 ee_rz_layout_item(s32 check);                           /* the RzItem the seed put at CHECK */
+s32 ee_rz_check_collected(s32 check);
+void ee_rz_set_collected(s32 check);
+s32 ee_rz_gold_received(void);
+s32 ee_rz_bonus_planet(void);                               /* the bonus vendor check's planet, 0 without the Charge Boots */
+s32 ee_rz_bonus_seen(void);                                 /* its entry has been listed once: every vendor lists it now */
+void ee_rz_set_bonus_seen(void);
+void ee_rz_add_gold(void);
+s32 ee_rz_received_special(s32 flag);                       /* FLAG: the byte of D_0013D490 the item sets in retail */
+void ee_rz_set_received_special(s32 flag);
+/* rz3: each gameplay frame, from src/charge_dash.c's frame hook. */
+void ee_rz_frame(s32 L);
+void ee_rz_record_autosave(s32 L);                          /* the record's page to the card once it changed (from ee_rz_frame) */
+
 #endif

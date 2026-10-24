@@ -34,6 +34,12 @@ entries the bar does not use stay as retail has them. Written to
 gen_icons.c as ee_palette_movie_bar; src/hud_icons.c adds the page and the
 icon (EE_ICON_MOVIE_BAR in src/modseg.h).
 
+The Randomizer save badge (src/goodies.c) is the Load Game list's Challenge
+Mode "R" (0xE99E frame 4) under a palette of its own too: the badge's
+palette page with its gold entries turned green at the same brightness.
+Written as ee_palette_randomizer_badge; src/hud_icons.c adds the page and
+the icon (EE_ICON_RANDOMIZER).
+
   python tools/gen_hud.py [--openrac DIR]
 """
 import argparse
@@ -214,6 +220,134 @@ def movie_bar_palette(hdr: HudHeader) -> bytes:
     return bytes(out)
 
 
+ICON_BADGE_FRAME = 4                     # the Challenge Mode "R" badge of the Load Game list (16 x 16)
+BADGE_GREEN = (46, 196, 62)              # the gold's place in the hue circle, moved to green
+BADGE_SYMBOL = "ee_palette_randomizer_badge"
+
+
+def header_define(name: str) -> int:
+    import re
+    m = re.search(rf"#define\s+{name}\s+(0x[0-9A-Fa-f]+|\d+)", (ROOT / "src/modseg.h").read_text())
+    if not m:
+        raise SystemExit(f"{name} is not defined in src/modseg.h")
+    return int(m.group(1), 0)
+
+
+def randomizer_badge_palette(hdr: HudHeader) -> bytes:
+    """The R badge's palette page with its gold entries green (src/goodies.c: the Randomizer
+    save's badge). The badge is a gold disc, white at its highlight, with a dark grey R: each
+    gold entry (red well above blue) keeps its brightness and goes to the green of the same
+    brightness; the greys and the black stay. The edition's icon id must be one retail lacks."""
+    icon_id = header_define("EE_ICON_RANDOMIZER")
+    if any(i[0] == icon_id for i in hdr.icons):
+        raise SystemExit(f"icon 0x{icon_id:X} exists in retail's HUD header; pick another EE_ICON_RANDOMIZER")
+    _, count, start, _, _ = hdr.icon(ICON_SLIDER)
+    if count <= ICON_BADGE_FRAME:
+        raise SystemExit(f"icon 0x{ICON_SLIDER:X} has {count} frames, not the R badge")
+    pixels, w, h, pal = hdr.frame_pixels(start + ICON_BADGE_FRAME)
+    if (w, h) != (16, 16):
+        raise SystemExit(f"the R badge is {w}x{h}, not 16x16")
+    raw, _, _ = hdr.page(pal, hdr.pal_pages, hdr.pal_ends, lambda wl, hl: 1024)
+    out = bytearray(raw)
+    def csm1(i):
+        return i ^ 0x18 if ((i >> 3) & 1) != ((i >> 4) & 1) else i
+    for i in set(pixels):
+        at = csm1(i) * 4
+        r, g, b = out[at:at + 3]
+        if r < b + 40 or r < 100:
+            continue                       # black, the R's greys, the rim's shadow
+        lum = (299 * r + 587 * g + 114 * b) / 1000
+        k = min(lum / 255, 1.0)
+        # the green at this brightness: dark greens toward black, bright ones toward white
+        green = tuple(round(c * k * 1.15) if lum < 180 else round(c + (255 - c) * (lum - 180) / 75)
+                      for c in BADGE_GREEN)
+        out[at:at + 3] = bytes(min(255, max(0, v)) for v in green)
+    return bytes(out)
+
+
+MYSTERY_SYMBOL, MYSTERY_PALETTE_SYMBOL = "ee_icon_mystery", "ee_palette_mystery"
+# the weapon icons' own background (measured on their frames): a diagonal blue gradient, light at
+# the top left, deep at the bottom right, no rim: the tile looks like its neighbours on the strip
+TILE_CORNERS = ((129, 135, 242), (113, 118, 225), (81, 86, 185), (64, 68, 164))   # TL, TR, BL, BR
+GLYPH = (236, 236, 240)              # the question mark, the font's near white
+TILE_RADIUS = 0                      # square corners, as the weapon tiles'
+
+
+def mystery_tile() -> tuple[bytes, bytes]:
+    """The vendor's mystery tile (src/randomizer_play.c: a purchase entry's icon): a square blue
+    tile with a bold question mark, drawn here with 4x4 supersampling, as one 32x32 8-bit frame
+    with a palette page of its own (RGBA in the game's CSM1 order, alpha 0x80 opaque, 0 clear)."""
+    import math
+    n = 4
+    size = SIZE * n
+    cov = [[None] * size for _ in range(size)]      # None clear, else (r, g, b)
+
+    def in_tile(x, y):
+        lo, hi, r = 0, SIZE * n, TILE_RADIUS * n          # edge to edge, as the item icons fill their frame
+        if not (lo <= x < hi and lo <= y < hi):
+            return 0
+        if r == 0:
+            edge = x < lo + 1.2 * n or x >= hi - 1.2 * n or y < lo + 1.2 * n or y >= hi - 1.2 * n
+            return 1 if edge else 2
+        cx = lo + r if x < lo + r else hi - r if x >= hi - r else x
+        cy = lo + r if y < lo + r else hi - r if y >= hi - r else y
+        if (cx, cy) == (x, y):
+            return 2
+        d = math.hypot(x - cx, y - cy)
+        return 0 if d > r else 1 if d > r - 1.2 * n else 2
+
+    def in_glyph(x, y):
+        # the question mark in 32-pixel units, centred on x 16: an arc from the left, over the
+        # top and down the right side; a stem from the arc's foot to the middle; a dot below
+        px, py = x / n, y / n
+        thick = 3.2
+        acx, acy, ar = 16.0, 11.5, 5.2
+        d = math.hypot(px - acx, py - acy)
+        ang = math.degrees(math.atan2(acy - py, px - acx))      # 0 right, 90 up, 180 left
+        on_arc = abs(d - ar) <= thick / 2 and (ang >= -75 or ang <= -170)
+        stem = 16.0 - thick / 2 <= px <= 16.0 + thick / 2 and acy + 2.0 <= py <= 20.5
+        dot = math.hypot(px - 16.0, py - 24.5) <= 1.9
+        return on_arc or stem or dot
+
+    for y in range(size):
+        for x in range(size):
+            t = in_tile(x, y)
+            if t == 0:
+                continue
+            if in_glyph(x, y):
+                cov[y][x] = GLYPH
+                continue
+            u, v = x / (size - 1), y / (size - 1)
+            tl, tr, bl, br = TILE_CORNERS
+            cov[y][x] = tuple(round(tl[i] * (1 - u) * (1 - v) + tr[i] * u * (1 - v) + bl[i] * (1 - u) * v + br[i] * u * v)
+                              for i in range(3))
+    pixels = []
+    for y in range(SIZE):
+        for x in range(SIZE):
+            samples = [cov[y * n + j][x * n + i] for j in range(n) for i in range(n)]
+            opaque = [s for s in samples if s is not None]
+            if len(opaque) < n * n // 2:
+                pixels.append(None)
+                continue
+            r = sum(s[0] for s in opaque) // len(opaque)
+            g = sum(s[1] for s in opaque) // len(opaque)
+            b = sum(s[2] for s in opaque) // len(opaque)
+            pixels.append((r // 8 * 8, g // 8 * 8, b // 8 * 8))
+    colours = sorted({p for p in pixels if p is not None})
+    if len(colours) > 255:
+        raise SystemExit(f"the mystery tile has {len(colours)} colours, over 255")
+    index = {c: i + 1 for i, c in enumerate(colours)}
+
+    def csm1(i):
+        return i ^ 0x18 if ((i >> 3) & 1) != ((i >> 4) & 1) else i
+
+    palette = bytearray(1024)
+    for c, i in index.items():
+        palette[csm1(i) * 4:csm1(i) * 4 + 4] = bytes((c[0], c[1], c[2], 0x80))
+    frame = bytes(0 if p is None else index[p] for p in pixels)
+    return frame, bytes(palette)
+
+
 def c_bytes(symbol: str, data: bytes) -> list[str]:
     lines = [f"const unsigned char {symbol}[{len(data)}] __attribute__((aligned(16))) = {{"]
     for i in range(0, len(data), 32):
@@ -225,16 +359,26 @@ def emit(args) -> int:
     frame0, frame1, hdr = convert(args.openrac, args.png)
     data = frame0 + frame1
     palette = movie_bar_palette(hdr)
+    badge = randomizer_badge_palette(hdr)
+    tile, tile_palette = mystery_tile()
     lines = ["/* generated by tools/gen_hud.py from art/charge_boots.png: icon 0xEA84's two 32x32 frames",
              "   (black; white while equipped), 8-bit indices into HUD palette pages 5 and 6. "
              "See src/charge_boots.c. */",
              *c_bytes(SYMBOL, data),
              "/* the Movie volume bar's palette: the green bar's palette page with its entries orange "
              "(src/hud_icons.c) */",
-             *c_bytes(PALETTE_SYMBOL, palette)]
+             *c_bytes(PALETTE_SYMBOL, palette),
+             "/* the Randomizer badge's palette: the R badge's palette page with its gold entries green "
+             "(src/hud_icons.c) */",
+             *c_bytes(BADGE_SYMBOL, badge),
+             "/* the vendor's mystery tile (EE_ICON_MYSTERY): one 32x32 frame and its palette page "
+             "(src/hud_icons.c) */",
+             *c_bytes(MYSTERY_SYMBOL, tile),
+             *c_bytes(MYSTERY_PALETTE_SYMBOL, tile_palette)]
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "gen_icons.c").write_text("\n".join(lines) + "\n")
-    print(f"wrote {args.out / 'gen_icons.c'} ({len(data)} bytes of pixels, {len(palette)} bytes of palette)")
+    print(f"wrote {args.out / 'gen_icons.c'} "
+          f"({len(data)} bytes of pixels, {len(palette) + len(badge)} bytes of palettes)")
     return 0
 
 
