@@ -64,7 +64,7 @@ enum RzCheckKind {
     RZ_KIND_BONUS_VENDOR                /* the extra vendor entry of a build with the Charge Boots */
 };
 
-/* How the reward is come by, which words the banner uses (src/randomizer_play.c). */
+/* How the reward is come by, which words the banner uses (src/randomizer_text.c). */
 enum RzHow {
     RZ_HOW_FOUND,                       /* picked up in the world: "You found the ...!" */
     RZ_HOW_GOT,                         /* given or sold by a character, a vendor entry: "You got the ...!" */
@@ -103,10 +103,12 @@ const char *rz_item_name(s32 item);                 /* English, for tests and de
 u64 rz_item_bit(s32 item);                          /* 0 for a Gold Bolt or the Charge Boots */
 s32 rz_item_is_progression(s32 item);
 u64 rz_drek_rule(void);                             /* the goal's bits */
-s32 rz_item_game_id(s32 item);                      /* the game's inventory id (0-35) of a gadget or weapon; -1 for other kinds */
+/* The game's inventory id (0-35) of a gadget or weapon; -1 for other kinds. */
+s32 rz_item_game_id(s32 item);
 s32 rz_item_of_game_id(s32 game_id);                /* the RzItem of an inventory id; RZ_ITEM_NONE for none */
 s32 rz_check_for_vanilla(s32 item);                 /* the check whose retail reward is ITEM; -1 for none */
-s32 rz_check_for_bolt(s32 level, s32 k);            /* LEVEL's k-th Gold Bolt spot in table order (the game's flag k); -1 */
+/* LEVEL's Gold Bolt SPOT (the game's flag, 0-3), taken as the spot of that rank in table order; -1 for none. */
+s32 rz_check_for_bolt(s32 level, s32 spot);
 
 /* The layout for SEED: deterministic, the same every time. Returns 0 if no
  * fill passed the sweep (which the tests say never happens). */

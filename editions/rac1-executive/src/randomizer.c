@@ -261,15 +261,15 @@ s32 rz_check_for_vanilla(s32 item)
     return -1;
 }
 
-s32 rz_check_for_bolt(s32 level, s32 k)
+s32 rz_check_for_bolt(s32 level, s32 spot)
 {
-    s32 i, n = 0;
+    s32 i, spots_seen = 0;
     for (i = 0; i < RZ_CHECKS_BASE; i++) {
         if (checks[i].kind == RZ_KIND_GOLD_BOLT && checks[i].planet == level) {
-            if (n == k) {
+            if (spots_seen == spot) {
                 return i;
             }
-            n++;
+            spots_seen++;
         }
     }
     return -1;
@@ -281,7 +281,7 @@ static s32 bolt_rules_ready;
 
 static void prepare_bolt_rules(void)
 {
-    s32 i, g, h;
+    s32 i, group, slot;
     for (i = 0; i < RZ_PLANETS; i++) {
         bolt_rules[i].all = 0;
         bolt_rules[i].any[0] = 0;
@@ -294,11 +294,11 @@ static void prepare_bolt_rules(void)
             continue;
         }
         merged->all |= checks[i].all;
-        for (g = 0; g < 3 && checks[i].any[g] != 0; g++) {
-            for (h = 0; h < 3 && merged->any[h] != 0 && merged->any[h] != checks[i].any[g]; h++) {
+        for (group = 0; group < 3 && checks[i].any[group] != 0; group++) {
+            for (slot = 0; slot < 3 && merged->any[slot] != 0 && merged->any[slot] != checks[i].any[group]; slot++) {
             }
-            if (h < 3) {
-                merged->any[h] = checks[i].any[g];
+            if (slot < 3) {
+                merged->any[slot] = checks[i].any[group];
             }
         }
     }
@@ -362,35 +362,37 @@ static void rng_seed(struct Rng *rng, u32 seed, s32 attempt)
     }
 }
 
+/* xorshift32 (Marsaglia's 13, 17, 5). */
 static u32 rng_next(struct Rng *rng)
 {
-    u32 x = rng->state;
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-    rng->state = x;
-    return x;
+    u32 state = rng->state;
+    state ^= state << 13;
+    state ^= state >> 17;
+    state ^= state << 5;
+    rng->state = state;
+    return state;
 }
 
-static s32 rng_below(struct Rng *rng, s32 n)
+static s32 rng_below(struct Rng *rng, s32 limit)
 {
-    return (s32)((rng_next(rng) >> 8) % (u32)n);
+    return (s32)((rng_next(rng) >> 8) % (u32)limit);
 }
 
+/* Fisher-Yates. */
 static void shuffle(struct Rng *rng, u8 *items, s32 count)
 {
     s32 i;
     for (i = count - 1; i > 0; i--) {
-        s32 j = rng_below(rng, i + 1);
-        u8 t = items[i];
-        items[i] = items[j];
-        items[j] = t;
+        s32 other = rng_below(rng, i + 1);
+        u8 held = items[i];
+        items[i] = items[other];
+        items[other] = held;
     }
 }
 
 static s32 rule_met(const struct RzCheck *check, u64 have)
 {
-    s32 g;
+    s32 group;
     if (check->kind == RZ_KIND_GOLD_BOLT) {
         if (!bolt_rules_ready) {
             prepare_bolt_rules();
@@ -400,8 +402,8 @@ static s32 rule_met(const struct RzCheck *check, u64 have)
     if ((have & check->all) != check->all) {
         return 0;
     }
-    for (g = 0; g < 3 && check->any[g] != 0; g++) {
-        if ((have & check->any[g]) == 0) {
+    for (group = 0; group < 3 && check->any[group] != 0; group++) {
+        if ((have & check->any[group]) == 0) {
             return 0;
         }
     }
@@ -456,61 +458,61 @@ static u64 sweep(const struct RzLayout *layout, u64 have, u8 *reached)
 /* One fill: 0 if an item found no check. */
 static s32 fill(struct RzLayout *layout, struct Rng *rng)
 {
-    u8 prog[RZ_ITEMS_MAX], rest[RZ_ITEMS_MAX], reached[RZ_CHECKS_MAX], candidates[RZ_CHECKS_MAX];
-    s32 n_prog = 0, n_rest = 0, i, item;
+    u8 progression[RZ_ITEMS_MAX], rest[RZ_ITEMS_MAX], reached[RZ_CHECKS_MAX], candidates[RZ_CHECKS_MAX];
+    s32 progression_count = 0, rest_count = 0, i, item;
 
     for (i = 0; i < layout->checks; i++) {
         layout->item[i] = RZ_ITEM_NONE;
     }
     for (item = RZ_INFOBOT_NOVALIS + 1; item <= RZ_INFOBOT_VELDIN; item++) {   /* Novalis is the start */
-        prog[n_prog++] = (u8)item;
+        progression[progression_count++] = (u8)item;
     }
     for (item = RZ_INFOBOT_VELDIN + 1; item < RZ_LOGICAL_ITEMS; item++) {
         if (item == RZ_BOMB_GLOVE) {
             continue;                                                        /* the starting weapon */
         }
         if (rz_item_is_progression(item)) {
-            prog[n_prog++] = (u8)item;
+            progression[progression_count++] = (u8)item;
         } else {
-            rest[n_rest++] = (u8)item;
+            rest[rest_count++] = (u8)item;
         }
     }
     for (i = 0; i < RZ_GOLD_BOLTS; i++) {
-        rest[n_rest++] = RZ_GOLD_BOLT;
+        rest[rest_count++] = RZ_GOLD_BOLT;
     }
     if (layout->with_boots) {
-        rest[n_rest++] = RZ_CHARGE_BOOTS;
+        rest[rest_count++] = RZ_CHARGE_BOOTS;
     }
-    if (n_prog + n_rest != layout->checks) {
+    if (progression_count + rest_count != layout->checks) {
         return 0;                                                            /* the tables disagree */
     }
-    shuffle(rng, prog, n_prog);
-    shuffle(rng, rest, n_rest);
+    shuffle(rng, progression, progression_count);
+    shuffle(rng, rest, rest_count);
 
-    while (n_prog > 0) {
+    while (progression_count > 0) {
         u64 have = START_ITEMS;
-        s32 n = 0;
-        item = prog[--n_prog];
-        for (i = 0; i < n_prog; i++) {
-            have |= BIT(prog[i]);                                            /* assumed: still to be placed */
+        s32 candidate_count = 0;
+        item = progression[--progression_count];
+        for (i = 0; i < progression_count; i++) {
+            have |= BIT(progression[i]);                                            /* assumed: still to be placed */
         }
         sweep(layout, have, reached);
         for (i = 0; i < layout->checks; i++) {
             if (reached[i] && layout->item[i] == RZ_ITEM_NONE) {
-                candidates[n++] = (u8)i;
+                candidates[candidate_count++] = (u8)i;
             }
         }
-        if (n == 0) {
+        if (candidate_count == 0) {
             return 0;
         }
-        layout->item[candidates[rng_below(rng, n)]] = (u8)item;
+        layout->item[candidates[rng_below(rng, candidate_count)]] = (u8)item;
     }
     for (i = 0; i < layout->checks; i++) {
         if (layout->item[i] == RZ_ITEM_NONE) {
-            layout->item[i] = rest[--n_rest];
+            layout->item[i] = rest[--rest_count];
         }
     }
-    return n_rest == 0;
+    return rest_count == 0;
 }
 
 s32 rz_layout_complete(const struct RzLayout *layout)

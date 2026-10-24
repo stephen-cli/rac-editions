@@ -7,7 +7,7 @@
  * sq $ra,0($sp)) and continues at that level's msg_string + 8, with $a0 ($4)
  * and $ra ($31) untouched, except that the return comes back here first:
  * msg_string returns to redact_return, which hands the string, the id and
- * the program to ee_rz_redact_c (src/randomizer_play.c: a Randomizer save's
+ * the program to ee_rz_redact_c (src/randomizer_text.c: a Randomizer save's
  * givers name their item as "???") and returns its result to the caller.
  * The caller's $ra and the id wait in ee_redact_saved meanwhile (msg_string
  * is never re-entered). The title screen's two programs are patched the

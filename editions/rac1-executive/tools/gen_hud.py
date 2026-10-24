@@ -274,7 +274,7 @@ TILE_RADIUS = 0                      # square corners, as the weapon tiles'
 
 
 def mystery_tile() -> tuple[bytes, bytes]:
-    """The vendor's mystery tile (src/randomizer_play.c: a purchase entry's icon): a square blue
+    """The vendor's mystery tile (src/randomizer_vendor.c: a purchase entry's icon): a square blue
     tile with a bold question mark, drawn here with 4x4 supersampling, as one 32x32 8-bit frame
     with a palette page of its own (RGBA in the game's CSM1 order, alpha 0x80 opaque, 0 clear)."""
     import math

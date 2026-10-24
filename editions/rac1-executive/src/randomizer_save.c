@@ -39,7 +39,7 @@
 #define RZ_MAGIC        0x5A524545u     /* "EERZ" */
 #define RZ_RECORD_VERSION 2
 #define RZ_FLAG_BOOTS   1
-#define RZ_FLAG_BONUS_SEEN 2                /* a vendor on the bonus planet has listed the Charge Boots: every vendor does from then on */
+#define RZ_FLAG_BONUS_SEEN 2            /* the bonus planet was reached: every vendor sells the Charge Boots */
 
 struct RzRecord {
     u32 magic;
@@ -69,7 +69,7 @@ struct RzRecord {
  * screen's programs keep their data there; a level relocates it). */
 DECLARE_LVL_DATA(save_game_table);      /* the game's save records {address, size, id, 0}, to a zero address */
 DECLARE_LVL_DATA(save_level_table);     /* a level page's; both move with each program's data (tools/modseg.py) */
-DECLARE_LVL(func_0020BBC8);             /* memcard_PrepData(buffer, page, table): packs the table's records for the page */
+DECLARE_LVL(func_0020BBC8);             /* memcard_PrepData(buffer, page, table): the table's records for the page */
 typedef s32 (*PrepFn)(void *, s32, const void *);
 
 /* The card machine (D_0013D390) as memcard_Save (func_0020BFC8) drives it
@@ -91,15 +91,16 @@ typedef s32 (*PrepFn)(void *, s32, const void *);
 #define MC_REQUEST_SAVE     0xF
 #define GAME_FLAGS          (*(volatile u32 *)0x0015EFB4)
 #define GAME_FLAG_SAVING    0x200                                   /* memcard_Save sets it for slot 0 */
-#define RZ_PAGE_INDEX       ((EE_RZ_PAGE - 0x00141FC0) / 0x800)
+#define HIDDEN_PAGE_INDEX 19            /* the level page no level owns: EE_RZ_PAGE */
+#define HIDDEN_PAGE_BLOCK_ID 0xBBA      /* the level save table's record of a level's moby state */
 
 static s32 record_dirty;                /* the page changed since the card last had it */
-volatile u32 ee_debug_rz_card[2];       /* PINE: record autosaves started, frames one waited for the machine */
-#define HIDDEN_PAGE_INDEX 19
-#define HIDDEN_PAGE_BLOCK_ID 0xBBA
+
+/* For the PINE test scripts (docs/DEBUGGING.md): record autosaves started; frames one waited for the machine. */
+volatile u32 ee_debug_rz_card[2];
 
 extern void func_00121A80(void *clock);              /* sceCdReadClock into 8 bytes (core) */
-#define MENU_TICKS      (*(volatile s32 *)0x001D60C4) /* D_001D5F70 + 0x154: the menus' ticks since the card went idle */
+#define MENU_TICKS      (*(volatile s32 *)0x001D60C4)   /* D_001D5F70 + 0x154: the menus' ticks since the card idled */
 
 static u8 armed;                        /* a Randomizer new game is being created */
 static u8 seed_given;                   /* with this seed (Reuse Seed) rather than a fresh one */
@@ -129,12 +130,12 @@ u32 ee_save_checksum(const u8 *data, s32 length)
  * rounded up to 4 per record, then 8. */
 static s32 blob_size(const s32 *table)
 {
-    s32 n = 8;
+    s32 size = 8;
     while (table[0] != 0) {
-        n = (n + 8 + table[1] + 3) & ~3;
+        size = (size + 8 + table[1] + 3) & ~3;
         table += 4;
     }
-    return n + 8;
+    return size + 8;
 }
 
 s32 ee_rz_record_offset(s32 program)
@@ -153,28 +154,29 @@ s32 ee_rz_record_offset(s32 program)
     return offset + 8;
 }
 
-static s32 record_valid(const struct RzRecord *r)
+static s32 record_valid(const struct RzRecord *record)
 {
-    return r->magic == RZ_MAGIC && r->size == EE_RZ_RECORD_SIZE && r->record_version == RZ_RECORD_VERSION
-           && r->checksum == ee_save_checksum((const u8 *)r, CHECKSUM_BYTES);
+    return record->magic == RZ_MAGIC && record->size == EE_RZ_RECORD_SIZE
+           && record->record_version == RZ_RECORD_VERSION
+           && record->checksum == ee_save_checksum((const u8 *)record, CHECKSUM_BYTES);
 }
 
 s32 ee_rz_record_parse(const u8 *bytes, struct RzSlot *out)
 {
-    const struct RzRecord *r = (const struct RzRecord *)bytes;
+    const struct RzRecord *record = (const struct RzRecord *)bytes;
     out->present = 0;
     out->version = 0;
     out->weapon_mode = 0;
     out->with_boots = 0;
     out->seed = 0;
-    if (!record_valid(r)) {
+    if (!record_valid(record)) {
         return 0;
     }
     out->present = 1;
-    out->version = r->logic_version;
-    out->weapon_mode = r->weapon_mode;
-    out->with_boots = (r->flags & RZ_FLAG_BOOTS) != 0;
-    out->seed = r->seed;
+    out->version = record->logic_version;
+    out->weapon_mode = record->weapon_mode;
+    out->with_boots = (record->flags & RZ_FLAG_BOOTS) != 0;
+    out->seed = record->seed;
     return 1;
 }
 
@@ -220,9 +222,9 @@ void ee_rz_record_autosave(s32 L)
         ee_debug_rz_card[1]++;
         return;
     }
-    MC_PAGE = RZ_PAGE_INDEX;
+    MC_PAGE = HIDDEN_PAGE_INDEX;
     LVL(L, func_0020BBC8, PrepFn)(MC_SAVE_GAME_BUF, 0, LVL_DATA(L, save_game_table, const void *));
-    LVL(L, func_0020BBC8, PrepFn)(MC_SAVE_LEVEL_BUF, RZ_PAGE_INDEX, LVL_DATA(L, save_level_table, const void *));
+    LVL(L, func_0020BBC8, PrepFn)(MC_SAVE_LEVEL_BUF, HIDDEN_PAGE_INDEX, LVL_DATA(L, save_level_table, const void *));
     GAME_FLAGS |= GAME_FLAG_SAVING;
     MC_REQUEST = MC_REQUEST_SAVE;
     MC_REQUEST_CARD = card;
@@ -311,42 +313,42 @@ void ee_rz_set_seed(u32 seed, s32 given)
 static u32 fresh_seed(void)
 {
     u8 clock[8];
-    u32 x = (u32)MENU_TICKS * 0x9E3779B9u;
+    u32 hash = (u32)MENU_TICKS * 0x9E3779B9u;   /* the golden-ratio multiplier spreads the tick */
     s32 i;
     for (i = 0; i < 8; i++) {
         clock[i] = 0;
     }
     func_00121A80(clock);
     for (i = 1; i < 8; i++) {
-        x = (x ^ clock[i]) * 0x01000193u;
+        hash = (hash ^ clock[i]) * 0x01000193u;     /* FNV-1a's prime */
     }
-    x ^= x >> 15;
-    return x % RZ_SEED_LIMIT;
+    hash ^= hash >> 15;
+    return hash % RZ_SEED_LIMIT;
 }
 
 static void write_record(const struct RzLayout *layout)
 {
-    struct RzRecord r;
+    struct RzRecord record;
     s32 i;
     for (i = 0; i < EE_RZ_RECORD_SIZE; i++) {
-        ((u8 *)&r)[i] = 0;
+        ((u8 *)&record)[i] = 0;
     }
-    r.magic = RZ_MAGIC;
-    r.size = EE_RZ_RECORD_SIZE;
-    r.record_version = RZ_RECORD_VERSION;
-    r.flags = layout->with_boots ? RZ_FLAG_BOOTS : 0;
-    r.seed = layout->seed;
-    r.logic_version = layout->version;
-    r.weapon_mode = layout->weapon_mode;
-    r.bonus_planet = layout->bonus_planet;
-    r.bonus_price = layout->bonus_price;
-    r.checks = layout->checks;
+    record.magic = RZ_MAGIC;
+    record.size = EE_RZ_RECORD_SIZE;
+    record.record_version = RZ_RECORD_VERSION;
+    record.flags = layout->with_boots ? RZ_FLAG_BOOTS : 0;
+    record.seed = layout->seed;
+    record.logic_version = layout->version;
+    record.weapon_mode = layout->weapon_mode;
+    record.bonus_planet = layout->bonus_planet;
+    record.bonus_price = layout->bonus_price;
+    record.checks = layout->checks;
     for (i = 0; i < RZ_CHECKS_MAX; i++) {
-        r.item[i] = layout->item[i];
+        record.item[i] = layout->item[i];
     }
-    r.checksum = (u16)ee_save_checksum((const u8 *)&r, CHECKSUM_BYTES);
+    record.checksum = (u16)ee_save_checksum((const u8 *)&record, CHECKSUM_BYTES);
     for (i = 0; i < EE_RZ_RECORD_SIZE; i++) {
-        ((volatile u8 *)EE_RZ_PAGE)[i] = ((u8 *)&r)[i];
+        ((volatile u8 *)EE_RZ_PAGE)[i] = ((u8 *)&record)[i];
     }
     record_dirty = 1;
 }

@@ -258,7 +258,7 @@ const char *ee_seed_text(void);
 #define EE_TEXT_SEED        0x5419      /* "Seed" */
 #define EE_TEXT_CONFIRM     0x541A      /* "[cross] Confirm", the Reuse Seed prompt */
 #define EE_TEXT_BAD_SEED    0x541B      /* "Invalid seed code" */
-#define EE_TEXT_RZ_BANNER   0x541C      /* the Randomizer's banner, built as an item is received (src/randomizer_play.c) */
+#define EE_TEXT_RZ_BANNER   0x541C      /* the Randomizer's banner, built as an item is received (src/randomizer_text.c) */
 #define EE_TEXT_RZ_FOUND    0x541D      /* "You found the @!": the banner's words, @ the item (RzHow) */
 #define EE_TEXT_RZ_GOT      0x541E      /* "You got the @!" */
 #define EE_TEXT_RZ_WON      0x541F      /* "You won a @!" */
@@ -281,7 +281,7 @@ s32 ee_rz_active(void);                                     /* the game in memor
 void ee_rz_arm(s32 on);                                     /* the next new-game reset starts a Randomizer game */
 void ee_rz_set_seed(u32 seed, s32 given);                   /* with this seed (Reuse Seed), or a fresh one */
 void ee_rz_after_reset(s32 L);                              /* from ee_fe_reset_c, once the reset has run */
-/* The record's play state (src/randomizer_save.c), read and changed in place by src/randomizer_play.c. */
+/* The record's play state (src/randomizer_save.c), read and changed in place by src/randomizer_play.c and its neighbours. */
 s32 ee_rz_layout_item(s32 check);                           /* the RzItem the seed put at CHECK */
 s32 ee_rz_check_collected(s32 check);
 void ee_rz_set_collected(s32 check);

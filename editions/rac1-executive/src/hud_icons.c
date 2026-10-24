@@ -52,7 +52,7 @@ extern const unsigned char ee_icon_charge_boots[2048];   /* tools/gen_hud.py: tw
 extern const unsigned char ee_palette_movie_bar[1024];   /* tools/gen_hud.py: 256 RGBA entries, the game's CSM1 order */
 extern const unsigned char ee_palette_randomizer_badge[1024];   /* tools/gen_hud.py: the R badge's palette, its gold green */
 extern const unsigned char ee_icon_mystery[1024];        /* tools/gen_hud.py: the vendor's mystery tile, one 32x32 frame */
-extern const unsigned char ee_palette_mystery[1024];     /* and its palette (src/randomizer_play.c) */
+extern const unsigned char ee_palette_mystery[1024];     /* and its palette (src/randomizer_vendor.c) */
 
 #define ICON_CHARGE_BOOTS   0xEA84
 #define PALETTE_BLACK       5

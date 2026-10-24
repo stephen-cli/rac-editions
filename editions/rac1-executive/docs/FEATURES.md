@@ -3464,6 +3464,14 @@ by the planet it unlocks (Eudora's henchman unlocks Blarg Station, the
 exploding ship there Rilgar, the bouncer Umbris: the game's own calls), a
 Gold Bolt by its level and flag.
 
+**Where the code is.** src/randomizer_play.c holds the checks, the
+collected view and the autosaves; src/randomizer_text.c the banners and
+the prompts' redaction; src/randomizer_vendor.c the vendor's list and its
+mystery entries; src/randomizer_hud.c the 7-orb health display;
+src/randomizer_play.h what they share. The per-level stubs, src/rz_hooks.s,
+are written by tools/gen_rz_hooks.py. (Entries below dated before
+2026-10-24's tidy name src/randomizer_play.c for all of it.)
+
 **The hooks.** tools/gen_randomizer.py scans each level's code for every
 `jal` of GiveItem, UnlockPlanet, ShowPlanetBanner and the gold bolt count
 (count_nonzero_entries_up_to_40, func_002160E0, which GetUnspentGoldBolts

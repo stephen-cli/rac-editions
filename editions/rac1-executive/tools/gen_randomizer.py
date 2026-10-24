@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-The Randomizer's hook sites and giver classes, per level (src/randomizer_play.c).
+The Randomizer's hook sites and giver classes, per level (src/randomizer_play.h).
 
 Every gadget and weapon the game gives goes through GiveItem
 (func_L00_002618D8), every infobot through UnlockPlanet (func_L00_00261848),
@@ -290,7 +290,7 @@ def patches(level: int, at) -> list[tuple[int, int | None, int]]:
     return out
 
 
-# The Randomizer's banners (src/randomizer_play.c) are the edition's "You found the @!" / "You got
+# The Randomizer's banners (src/randomizer_text.c) are the edition's "You found the @!" / "You got
 # the @!" / "You won a @!" (text/strings.tsv) with the game's own name of the item at the @, from the
 # game's text table in all five languages: each item's name (the item records), the special items'
 # (Zoomerator, Raritanium, CodeBot, Premium and Ultra Nanotech) and "Gold Bolt"; an infobot shows
@@ -303,7 +303,7 @@ GOLD_BOLT_WORD = 0x4E9F
 INFOBOT_WORD = 0x4E7C                   # "Infobot": redacted in an infobot check's prompts
 LANGUAGE_TABLES = (0, 2, 3, 4, 5)       # the text table's sub-tables, which are the game's language ids
 ITEM_COUNT = 37
-BANNER_MAX = 60                         # a name or an infobot banner; src/randomizer_play.c's buffers hold more
+BANNER_MAX = 60                         # a name or an infobot banner; src/randomizer_text.c's buffers hold more
 
 
 def c_bytes_string(raw: bytes) -> str:
@@ -351,7 +351,7 @@ def item_name_ids(openrac: Path) -> list[int]:
 
 
 def banner_tables(openrac: Path) -> list[str]:
-    """The C tables of the banners' words (src/randomizer_play.c)."""
+    """The C tables of the banners' words (src/randomizer_text.c)."""
     texts = load_texts(openrac)
     lines = [f"const char *const ee_rz_item_names[{ITEM_COUNT}][8] = {{"]
     for i, sid in enumerate(item_name_ids(openrac)):
