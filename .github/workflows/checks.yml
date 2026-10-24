@@ -1,8 +1,9 @@
 # Checks that need no game data: CI never has a disc, so it cannot build an
 # edition or run one. It checks that no game data reaches this public
 # repository, that deps.json pins commits that exist and are pushed, that the
-# edition's OpenRAC patch still matches its pin and applies to OpenRAC, and
-# lints the Python tools (ruff.toml) and the shell scripts.
+# edition's OpenRAC patch still matches its pin and applies to OpenRAC,
+# lints the Python tools (ruff.toml) and the shell scripts, and runs the
+# Randomizer's logic tests, which are plain C on the host.
 name: checks
 
 on:
@@ -99,3 +100,11 @@ jobs:
           ruff check --output-format github .
       - name: Shell scripts and git hooks
         run: shellcheck --severity=warning $(git ls-files '*.sh') .githooks/*
+
+  randomizer:
+    name: Randomizer logic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Every seed can be finished (2,000 per pool, with and without the Charge Boots)
+        run: bash editions/rac1-executive/tools/test_randomizer.sh
