@@ -25,6 +25,7 @@ static void test_tables(void)
         if (c->kind == RZ_KIND_GOLD_BOLT) {
             bolts++;
             CHECK(c->vanilla == RZ_GOLD_BOLT, "check %d: a bolt spot with item %d", i, c->vanilla);
+            CHECK(c->spot < 4 && rz_check_for_bolt(c->planet, c->spot) == i, "check %d: flag %d is not its own", i, c->spot);
         } else {
             CHECK(c->vanilla != RZ_GOLD_BOLT && c->vanilla != RZ_ITEM_NONE, "check %d: vanilla %d", i, c->vanilla);
             seen[c->vanilla]++;

@@ -4,6 +4,18 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-25 (the Randomizer: Gold Bolt spots mapped)
+
+### 🎲 Gold Bolt spots' own rules (rz1) — Built, host tests pass; awaiting a test in game
+
+**What changed.** Each of the 40 Gold Bolt spots now has its own rule. The game tells a planet's Gold Bolts apart by a flag (0-3) that each bolt carries in the level data; every flag is now paired with its spot in Panda291's list (matched by the bolts' positions in the level data, in Wrench). Until now each spot took the combined rule of its planet's spots, which made seeds place items later than they could.
+
+**Decisions taken.**
+
+- The logic version is 2: a seed code gives a different layout than under version 1, so version 1 codes are refused. Saves made under version 1 keep playing as made (the record holds the whole layout).
+
+**Findings that affect other items.** The level data holds all 40 Gold Bolts as ordinary Gold Bolt mobies (class 1134), Batalia's two included, with the same count per planet as Panda291's list.
+
 ## 2026-10-23 (the Randomizer in play)
 
 ### 📣 Shuffled item grants and received messages (rz3) — Working in the owner's play; the owner's tenth round (the autosaves) fixed, awaiting re-test
@@ -14,7 +26,7 @@ changed, decisions taken, findings that affect other items.
 
 - One shared grant path (the GiveItem, UnlockPlanet and Gold Bolt hooks all end in the same receive function), as the pack proposed.
 - Out-of-order safety by a "collected view": while a giver's moby updates, it sees whether its check was collected rather than whether its item is owned, so Helga still sells her check after the Swingshot arrived elsewhere, and an infobot stays when another check unlocked its planet. Consumers (locks, targets, the map) see the real inventory.
-- Gold Bolt spots are matched to Panda291's spots by table order for now; each spot's rule is the conjunction of its level's spots' rules, so a seed can only be more conservative, never unbeatable, until the flags are mapped.
+- Gold Bolt spots are matched to Panda291's spots by the game's flag (2026-10-25), so each spot has its own rule.
 - Two infobot destinations in the pack's list were corrected from the game's own calls: Eudora's henchman unlocks Blarg Station, Blarg Station's ship Rilgar, Rilgar's bouncer Umbris.
 - The Charge Boots are in the pool since 2026-10-24 (95 checks, 95 items): the bonus vendor entry sells the edition's item for 2,500 bolts on the seed's planet. Its icon is the Charge Boots' own; the mystery icons (rz4) are still to do.
 
@@ -55,7 +67,7 @@ changed, decisions taken, findings that affect other items.
 **Decisions taken.**
 
 - The fill is Archipelago's own assumed fill (the method Panda291's rules were tested with) rather than the forward fill the pack proposed: progression items are placed one at a time into checks reachable with the items still to be placed, so nothing ends up behind its own lock. The sweep and the re-roll stay as proposed.
-- Seed code: digits 0-10 are Up, Right, Down, Left, Cross, Circle, Square, L1, L2, R1, R2; the first eight presses carry seed × 64 + weapon mode × 16 + version in base 11, the ninth makes the weighted sum a multiple of 11. Logic version 1. Only the vanilla starting weapon mode is implemented; a code with another mode or version is refused.
+- Seed code: digits 0-10 are Up, Right, Down, Left, Cross, Circle, Square, L1, L2, R1, R2; the first eight presses carry seed × 64 + weapon mode × 16 + version in base 11, the ninth makes the weighted sum a multiple of 11. Logic version 2 (since 2026-10-25, the Gold Bolt spots' own rules). Only the vanilla starting weapon mode is implemented; a code with another mode or version is refused.
 - The bonus vendor check's planet and price (2,500 or 5,000) come from the seed; its only rule is the planet's infobot.
 
 **Verification.** On a PC, 2,000 seeds per pool: every layout is completable from the start and deterministic, every item placed exactly once, at most 3 fills needed; every single wrong press and every neighbour swap in a code is caught. Requirements ticked: check and item tables, rules as bitmask tests, the fill with sweep and re-roll, the seeded generator, the seed code with version and check press, the two reserved weapon-mode bits.

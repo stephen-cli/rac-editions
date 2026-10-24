@@ -74,117 +74,117 @@
 /* data/Locations.py, in its order (location ids 1..94), with Logic.py's rules. */
 static const struct RzCheck checks[RZ_CHECKS_BASE] = {
     /* Novalis */
-    { NOVALIS, INFOBOT, IB(ARIDIA), GOT, P(1), { 0, 0, 0 } },                     /* 1 the plumber's infobot */
-    { NOVALIS, INFOBOT, IB(KERWAN), GOT, P(1), { 0, 0, 0 } },                     /* 2 the mayor's infobot */
-    { NOVALIS, VENDOR, RZ_PYROCITOR, GOT, P(1), { 0, 0, 0 } },                    /* 3 vendor: Pyrocitor */
-    { NOVALIS, BOLT, GB, 0, P(1), { 0, 0, 0 } },                                /* 4 sewer */
-    { NOVALIS, BOLT, GB, 0, P(1), { EXPLOSIVE, 0, 0 } },                        /* 5 caves */
-    { NOVALIS, BOLT, GB, 0, P(1) | HYDRO, { 0, 0, 0 } },                        /* 6 underwater caves */
+    { NOVALIS, INFOBOT, IB(ARIDIA), GOT, P(1), { 0, 0, 0 }, 0 },                  /* 1 the plumber's infobot */
+    { NOVALIS, INFOBOT, IB(KERWAN), GOT, P(1), { 0, 0, 0 }, 0 },                  /* 2 the mayor's infobot */
+    { NOVALIS, VENDOR, RZ_PYROCITOR, GOT, P(1), { 0, 0, 0 }, 0 },                 /* 3 vendor: Pyrocitor */
+    { NOVALIS, BOLT, GB, 0, P(1), { 0, 0, 0 }, 0 },                             /* 4 sewer */
+    { NOVALIS, BOLT, GB, 0, P(1), { EXPLOSIVE, 0, 0 }, 2 },                     /* 5 caves */
+    { NOVALIS, BOLT, GB, 0, P(1) | HYDRO, { 0, 0, 0 }, 1 },                     /* 6 underwater caves */
     /* Aridia */
-    { ARIDIA, GADGET, RZ_HOVERBOARD, GOT, P(2), { 0, 0, 0 } },                    /* 7 save Skid McMarx */
-    { ARIDIA, GADGET, RZ_TRESPASSER, 0, P(2) | SWING, { 0, 0, 0 } },            /* 8 find the Trespasser */
-    { ARIDIA, GADGET, RZ_SONIC_SUMMONER, GOT, P(2) | BIT(RZ_ZOOMERATOR), { 0, 0, 0 } },  /* 9 trade the Zoomerator */
-    { ARIDIA, BOLT, GB, 0, P(2) | SWING, { 0, 0, 0 } },                         /* 10 below the Trespasser */
-    { ARIDIA, BOLT, GB, 0, P(2), { JUMP, 0, 0 } },                              /* 11 the island */
-    { ARIDIA, BOLT, GB, 0, P(2) | MAGNET, { 0, 0, 0 } },                        /* 12 by the mortar turret */
-    { ARIDIA, BOLT, GB, 0, P(2), { EXPLOSIVE, 0, 0 } },                         /* 13 the sandshark area */
+    { ARIDIA, GADGET, RZ_HOVERBOARD, GOT, P(2), { 0, 0, 0 }, 0 },                 /* 7 save Skid McMarx */
+    { ARIDIA, GADGET, RZ_TRESPASSER, 0, P(2) | SWING, { 0, 0, 0 }, 0 },         /* 8 find the Trespasser */
+    { ARIDIA, GADGET, RZ_SONIC_SUMMONER, GOT, P(2) | BIT(RZ_ZOOMERATOR), { 0, 0, 0 }, 0 }, /* 9 trade the Zoomerator */
+    { ARIDIA, BOLT, GB, 0, P(2) | SWING, { 0, 0, 0 }, 3 },                      /* 10 below the Trespasser */
+    { ARIDIA, BOLT, GB, 0, P(2), { JUMP, 0, 0 }, 1 },                           /* 11 the island */
+    { ARIDIA, BOLT, GB, 0, P(2) | MAGNET, { 0, 0, 0 }, 2 },                     /* 12 by the mortar turret */
+    { ARIDIA, BOLT, GB, 0, P(2), { EXPLOSIVE, 0, 0 }, 0 },                      /* 13 the sandshark area */
     /* Kerwan */
-    { KERWAN, GADGET, RZ_SWINGSHOT, GOT, P(3), { 0, 0, 0 } },                     /* 14 Helga's Swingshot */
-    { KERWAN, GADGET, RZ_HELI_PACK, GOT, P(3), { 0, 0, 0 } },                     /* 15 Al's Heli-Pack */
-    { KERWAN, INFOBOT, IB(EUDORA), 0, P(3), { JUMP, 0, 0 } },                   /* 16 after the train */
-    { KERWAN, VENDOR, RZ_BLASTER, GOT, P(3), { 0, 0, 0 } },                       /* 17 vendor: Blaster */
-    { KERWAN, BOLT, GB, 0, P(3) | HELI, { 0, 0, 0 } },                          /* 18 below the ship */
-    { KERWAN, BOLT, GB, 0, P(3), { JUMP, 0, 0 } },                              /* 19 the train station */
-    { KERWAN, BOLT, GB, 0, P(3) | HELI, { 0, 0, 0 } },                          /* 20 the lone tower */
+    { KERWAN, GADGET, RZ_SWINGSHOT, GOT, P(3), { 0, 0, 0 }, 0 },                  /* 14 Helga's Swingshot */
+    { KERWAN, GADGET, RZ_HELI_PACK, GOT, P(3), { 0, 0, 0 }, 0 },                  /* 15 Al's Heli-Pack */
+    { KERWAN, INFOBOT, IB(EUDORA), 0, P(3), { JUMP, 0, 0 }, 0 },                /* 16 after the train */
+    { KERWAN, VENDOR, RZ_BLASTER, GOT, P(3), { 0, 0, 0 }, 0 },                    /* 17 vendor: Blaster */
+    { KERWAN, BOLT, GB, 0, P(3) | HELI, { 0, 0, 0 }, 0 },                       /* 18 below the ship */
+    { KERWAN, BOLT, GB, 0, P(3), { JUMP, 0, 0 }, 2 },                           /* 19 the train station */
+    { KERWAN, BOLT, GB, 0, P(3) | HELI, { 0, 0, 0 }, 1 },                       /* 20 the lone tower */
     /* Eudora */
-    { EUDORA, INFOBOT, IB(BLARG), GOT, P(4) | SWING | TRESPASS, { JUMP, 0, 0 } },      /* 21 the henchman (UnlockPlanet(6)) */
-    { EUDORA, GADGET, RZ_SUCK_CANNON, 0, P(4) | HELI, { 0, 0, 0 } },           /* 22 the Suck Cannon */
-    { EUDORA, VENDOR, RZ_GLOVE_OF_DOOM, GOT, P(4) | DETECTOR, { 0, 0, 0 } },      /* 23 vendor: Glove of Doom */
-    { EUDORA, BOLT, GB, 0, P(4) | HELI, { 0, 0, 0 } },                          /* 24 by the ship */
+    { EUDORA, INFOBOT, IB(BLARG), GOT, P(4) | SWING | TRESPASS, { JUMP, 0, 0 }, 0 },   /* 21 the henchman (UnlockPlanet(6)) */
+    { EUDORA, GADGET, RZ_SUCK_CANNON, 0, P(4) | HELI, { 0, 0, 0 }, 0 },        /* 22 the Suck Cannon */
+    { EUDORA, VENDOR, RZ_GLOVE_OF_DOOM, GOT, P(4) | DETECTOR, { 0, 0, 0 }, 0 },   /* 23 vendor: Glove of Doom */
+    { EUDORA, BOLT, GB, 0, P(4) | HELI, { 0, 0, 0 }, 0 },                       /* 24 by the ship */
     /* Rilgar */
-    { RILGAR, INFOBOT, IB(UMBRIS), GOT, P(5) | SWING | DISPLACER, { JUMP, 0, 0 } },    /* 25 the bouncer, Captain Qwark (UnlockPlanet(7)) */
-    { RILGAR, GADGET, RZ_ZOOMERATOR, WON, P(5) | BOARD, { JUMP, 0, 0 } },        /* 26 the hoverboard race */
-    { RILGAR, VENDOR, RZ_MINE_GLOVE, GOT, P(5) | DETECTOR, { 0, 0, 0 } },         /* 27 vendor: Mine Glove */
-    { RILGAR, VENDOR, RZ_RYNO, GOT, P(5) | DETECTOR, { JUMP, 0, 0 } },            /* 28 the RYNO */
-    { RILGAR, BOLT, GB, 0, P(5), { JUMP, 0, 0 } },                              /* 29 the maze */
-    { RILGAR, BOLT, GB, 0, P(5) | SWING | DISPLACER | O2, { JUMP, 0, 0 } },     /* 30 the waterworks */
+    { RILGAR, INFOBOT, IB(UMBRIS), GOT, P(5) | SWING | DISPLACER, { JUMP, 0, 0 }, 0 }, /* 25 the bouncer, Captain Qwark (UnlockPlanet(7)) */
+    { RILGAR, GADGET, RZ_ZOOMERATOR, WON, P(5) | BOARD, { JUMP, 0, 0 }, 0 },     /* 26 the hoverboard race */
+    { RILGAR, VENDOR, RZ_MINE_GLOVE, GOT, P(5) | DETECTOR, { 0, 0, 0 }, 0 },      /* 27 vendor: Mine Glove */
+    { RILGAR, VENDOR, RZ_RYNO, GOT, P(5) | DETECTOR, { JUMP, 0, 0 }, 0 },         /* 28 the RYNO */
+    { RILGAR, BOLT, GB, 0, P(5), { JUMP, 0, 0 }, 0 },                           /* 29 the maze */
+    { RILGAR, BOLT, GB, 0, P(5) | SWING | DISPLACER | O2, { JUMP, 0, 0 }, 1 },  /* 30 the waterworks */
     /* Blarg Tactical Research Station */
-    { BLARG, GADGET, RZ_HYDRODISPLACER, 0, P(6) | TRESPASS, { 0, 0, 0 } },     /* 31 as Clank */
-    { BLARG, INFOBOT, IB(RILGAR), 0, P(6), { 0, 0, 0 } },                       /* 32 the exploding ship (UnlockPlanet(5)) */
-    { BLARG, GADGET, RZ_GRINDBOOTS, GOT, P(6) | SWING, { 0, 0, 0 } },            /* 33 the scientist's Grindboots */
-    { BLARG, VENDOR, RZ_TAUNTER, GOT, P(6), { 0, 0, 0 } },                        /* 34 vendor: Taunter */
-    { BLARG, BOLT, GB, 0, P(6) | O2 | TRESPASS, { 0, 0, 0 } },                  /* 35 outside, as Ratchet */
-    { BLARG, BOLT, GB, 0, P(6) | SWING, { 0, 0, 0 } },                          /* 36 the swarmer nest */
+    { BLARG, GADGET, RZ_HYDRODISPLACER, 0, P(6) | TRESPASS, { 0, 0, 0 }, 0 },  /* 31 as Clank */
+    { BLARG, INFOBOT, IB(RILGAR), 0, P(6), { 0, 0, 0 }, 0 },                    /* 32 the exploding ship (UnlockPlanet(5)) */
+    { BLARG, GADGET, RZ_GRINDBOOTS, GOT, P(6) | SWING, { 0, 0, 0 }, 0 },         /* 33 the scientist's Grindboots */
+    { BLARG, VENDOR, RZ_TAUNTER, GOT, P(6), { 0, 0, 0 }, 0 },                     /* 34 vendor: Taunter */
+    { BLARG, BOLT, GB, 0, P(6) | O2 | TRESPASS, { 0, 0, 0 }, 0 },               /* 35 outside, as Ratchet */
+    { BLARG, BOLT, GB, 0, P(6) | SWING, { 0, 0, 0 }, 1 },                       /* 36 the swarmer nest */
     /* Umbris */
-    { UMBRIS, INFOBOT, IB(BATALIA), 0, P(7) | SWING | HELI | DISPLACER, { 0, 0, 0 } },   /* 37 the Snagglebeast */
-    { UMBRIS, BOLT, GB, 0, P(7) | SWING | HELI, { 0, 0, 0 } },                  /* 38 the pressure plate puzzle */
-    { UMBRIS, BOLT, GB, 0, P(7) | SWING | HELI | DISPLACER, { 0, 0, 0 } },      /* 39 jumping down onto it */
+    { UMBRIS, INFOBOT, IB(BATALIA), 0, P(7) | SWING | HELI | DISPLACER, { 0, 0, 0 }, 0 }, /* 37 the Snagglebeast */
+    { UMBRIS, BOLT, GB, 0, P(7) | SWING | HELI, { 0, 0, 0 }, 1 },               /* 38 the pressure plate puzzle */
+    { UMBRIS, BOLT, GB, 0, P(7) | SWING | HELI | DISPLACER, { 0, 0, 0 }, 0 },   /* 39 jumping down onto it */
     /* Batalia */
-    { BATALIA, VENDOR, RZ_DEVASTATOR, GOT, P(8) | DETECTOR, { 0, 0, 0 } },        /* 40 vendor: Devastator */
-    { BATALIA, INFOBOT, IB(GASPAR), 0, P(8) | GRIND, { 0, 0, 0 } },             /* 41 after the grind rail */
-    { BATALIA, INFOBOT, IB(ORXON), GOT, P(8), { 0, 0, 0 } },                      /* 42 the commander */
-    { BATALIA, GADGET, RZ_METAL_DETECTOR, GOT, P(8) | MAGNET, { 0, 0, 0 } },      /* 43 the plumber's Metal Detector */
-    { BATALIA, BOLT, GB, 0, P(8), { JUMP, 0, 0 } },                             /* 44 the cliffside */
-    { BATALIA, BOLT, GB, 0, P(8), { 0, 0, 0 } },                                /* 45 above the Trespasser lock */
+    { BATALIA, VENDOR, RZ_DEVASTATOR, GOT, P(8) | DETECTOR, { 0, 0, 0 }, 0 },     /* 40 vendor: Devastator */
+    { BATALIA, INFOBOT, IB(GASPAR), 0, P(8) | GRIND, { 0, 0, 0 }, 0 },          /* 41 after the grind rail */
+    { BATALIA, INFOBOT, IB(ORXON), GOT, P(8), { 0, 0, 0 }, 0 },                   /* 42 the commander */
+    { BATALIA, GADGET, RZ_METAL_DETECTOR, GOT, P(8) | MAGNET, { 0, 0, 0 }, 0 },   /* 43 the plumber's Metal Detector */
+    { BATALIA, BOLT, GB, 0, P(8), { JUMP, 0, 0 }, 0 },                          /* 44 the cliffside */
+    { BATALIA, BOLT, GB, 0, P(8), { 0, 0, 0 }, 1 },                             /* 45 above the Trespasser lock */
     /* Gaspar */
-    { GASPAR, VENDOR, RZ_WALLOPER, GOT, P(9) | DETECTOR, { 0, 0, 0 } },           /* 46 vendor: Walloper */
-    { GASPAR, GADGET, RZ_PILOTS_HELMET, 0, P(9), { 0, 0, 0 } },                 /* 47 the Pilot's Helmet */
-    { GASPAR, BOLT, GB, 0, P(9) | SWING, { 0, 0, 0 } },                         /* 48 the Swingshot side path */
-    { GASPAR, BOLT, GB, 0, P(9), { JUMP, 0, 0 } },                              /* 49 through the volcano */
+    { GASPAR, VENDOR, RZ_WALLOPER, GOT, P(9) | DETECTOR, { 0, 0, 0 }, 0 },        /* 46 vendor: Walloper */
+    { GASPAR, GADGET, RZ_PILOTS_HELMET, 0, P(9), { 0, 0, 0 }, 0 },              /* 47 the Pilot's Helmet */
+    { GASPAR, BOLT, GB, 0, P(9) | SWING, { 0, 0, 0 }, 1 },                      /* 48 the Swingshot side path */
+    { GASPAR, BOLT, GB, 0, P(9), { JUMP, 0, 0 }, 0 },                           /* 49 through the volcano */
     /* Orxon */
-    { ORXON, VENDOR, RZ_VISIBOMB, GOT, P(10) | O2 | DETECTOR, { 0, 0, 0 } },      /* 50 vendor: Visibomb */
-    { ORXON, INFOBOT, IB(POKITARU), 0, P(10), { 0, 0, 0 } },                    /* 51 the Clank section */
-    { ORXON, INFOBOT, IB(HOVEN), 0, P(10) | O2 | HELI | SWING | MAGNET, { 0, 0, 0 } },  /* 52 as Ratchet */
-    { ORXON, GADGET, RZ_MAGNEBOOTS, 0, P(10), { 0, 0, 0 } },                    /* 53 the Clank section's Magneboots */
-    { ORXON, GADGET, RZ_PREMIUM_NANOTECH, GOT, P(10) | O2 | HELI, { 0, 0, 0 } },  /* 54 Premium Nanotech */
-    { ORXON, GADGET, RZ_ULTRA_NANOTECH, GOT, P(10) | O2 | HELI | DETECTOR, { 0, 0, 0 } },  /* 55 Ultra Nanotech */
-    { ORXON, BOLT, GB, 0, P(10) | O2, { 0, 0, 0 } },                            /* 56 the Clank section, as Ratchet */
-    { ORXON, BOLT, GB, 0, P(10) | O2 | BIT(RZ_VISIBOMB) | HELI | SWING | MAGNET, { 0, 0, 0 } },  /* 57 with the Visibomb */
+    { ORXON, VENDOR, RZ_VISIBOMB, GOT, P(10) | O2 | DETECTOR, { 0, 0, 0 }, 0 },   /* 50 vendor: Visibomb */
+    { ORXON, INFOBOT, IB(POKITARU), 0, P(10), { 0, 0, 0 }, 0 },                 /* 51 the Clank section */
+    { ORXON, INFOBOT, IB(HOVEN), 0, P(10) | O2 | HELI | SWING | MAGNET, { 0, 0, 0 }, 0 }, /* 52 as Ratchet */
+    { ORXON, GADGET, RZ_MAGNEBOOTS, 0, P(10), { 0, 0, 0 }, 0 },                 /* 53 the Clank section's Magneboots */
+    { ORXON, GADGET, RZ_PREMIUM_NANOTECH, GOT, P(10) | O2 | HELI, { 0, 0, 0 }, 0 }, /* 54 Premium Nanotech */
+    { ORXON, GADGET, RZ_ULTRA_NANOTECH, GOT, P(10) | O2 | HELI | DETECTOR, { 0, 0, 0 }, 0 }, /* 55 Ultra Nanotech */
+    { ORXON, BOLT, GB, 0, P(10) | O2, { 0, 0, 0 }, 1 },                         /* 56 the Clank section, as Ratchet */
+    { ORXON, BOLT, GB, 0, P(10) | O2 | BIT(RZ_VISIBOMB) | HELI | SWING | MAGNET, { 0, 0, 0 }, 0 }, /* 57 with the Visibomb */
     /* Pokitaru */
-    { POKITARU, VENDOR, RZ_DECOY_GLOVE, GOT, P(11) | DETECTOR, { 0, 0, 0 } },     /* 58 vendor: Decoy Glove */
-    { POKITARU, GADGET, RZ_O2_MASK, GOT, P(11) | HELMET | THRUSTER, { 0, 0, 0 } },     /* 59 destroy the ships */
-    { POKITARU, GADGET, RZ_PERSUADER, GOT, P(11) | BIT(RZ_RARITANIUM) | TRESPASS | DISPLACER, { 0, 0, 0 } },  /* 60 the sewer */
-    { POKITARU, GADGET, RZ_THRUSTER_PACK, GOT, P(11), { 0, 0, 0 } },              /* 61 buy the Thruster-Pack */
-    { POKITARU, BOLT, GB, 0, P(11) | SWING | THRUSTER, { 0, 0, 0 } },           /* 62 the waterfalls */
+    { POKITARU, VENDOR, RZ_DECOY_GLOVE, GOT, P(11) | DETECTOR, { 0, 0, 0 }, 0 },  /* 58 vendor: Decoy Glove */
+    { POKITARU, GADGET, RZ_O2_MASK, GOT, P(11) | HELMET | THRUSTER, { 0, 0, 0 }, 0 },  /* 59 destroy the ships */
+    { POKITARU, GADGET, RZ_PERSUADER, GOT, P(11) | BIT(RZ_RARITANIUM) | TRESPASS | DISPLACER, { 0, 0, 0 }, 0 }, /* 60 the sewer */
+    { POKITARU, GADGET, RZ_THRUSTER_PACK, GOT, P(11), { 0, 0, 0 }, 0 },           /* 61 buy the Thruster-Pack */
+    { POKITARU, BOLT, GB, 0, P(11) | SWING | THRUSTER, { 0, 0, 0 }, 0 },        /* 62 the waterfalls */
     /* Hoven */
-    { HOVEN, VENDOR, RZ_DRONE_DEVICE, GOT, P(12) | DETECTOR, { 0, 0, 0 } },       /* 63 vendor: Drone Device */
-    { HOVEN, INFOBOT, IB(GEMLIK), 0, P(12), { LONG_RANGE, JUMP, 0 } },          /* 64 the turret's ship */
-    { HOVEN, GADGET, RZ_HYDRO_PACK, GOT, P(12) | DISPLACER, { 0, 0, 0 } },        /* 65 buy the Hydro-Pack */
-    { HOVEN, GADGET, RZ_RARITANIUM, 0, P(12) | SWING, { JUMP, 0, 0 } },         /* 66 the Raritanium */
-    { HOVEN, BOLT, GB, 0, P(12) | DISPLACER, { 0, 0, 0 } },                     /* 67 the Hydrodisplacer section */
-    { HOVEN, BOLT, GB, 0, P(12), { 0, 0, 0 } },                                 /* 68 the moving wall jump */
+    { HOVEN, VENDOR, RZ_DRONE_DEVICE, GOT, P(12) | DETECTOR, { 0, 0, 0 }, 0 },    /* 63 vendor: Drone Device */
+    { HOVEN, INFOBOT, IB(GEMLIK), 0, P(12), { LONG_RANGE, JUMP, 0 }, 0 },       /* 64 the turret's ship */
+    { HOVEN, GADGET, RZ_HYDRO_PACK, GOT, P(12) | DISPLACER, { 0, 0, 0 }, 0 },     /* 65 buy the Hydro-Pack */
+    { HOVEN, GADGET, RZ_RARITANIUM, 0, P(12) | SWING, { JUMP, 0, 0 }, 0 },      /* 66 the Raritanium */
+    { HOVEN, BOLT, GB, 0, P(12) | DISPLACER, { 0, 0, 0 }, 1 },                  /* 67 the Hydrodisplacer section */
+    { HOVEN, BOLT, GB, 0, P(12), { 0, 0, 0 }, 0 },                              /* 68 the moving wall jump */
     /* Gemlik Base */
-    { GEMLIK, INFOBOT, IB(OLTANIS), 0, P(13) | MAGNET | TRESPASS | SWING, { JUMP, LONG_RANGE, 0 } },  /* 69 Captain Qwark */
-    { GEMLIK, BOLT, GB, 0, P(13) | BIT(RZ_VISIBOMB) | TRESPASS, { JUMP, 0, 0 } },  /* 70 shoot the tower */
+    { GEMLIK, INFOBOT, IB(OLTANIS), 0, P(13) | MAGNET | TRESPASS | SWING, { JUMP, LONG_RANGE, 0 }, 0 }, /* 69 Captain Qwark */
+    { GEMLIK, BOLT, GB, 0, P(13) | BIT(RZ_VISIBOMB) | TRESPASS, { JUMP, 0, 0 }, 0 }, /* 70 shoot the tower */
     /* Oltanis */
-    { OLTANIS, VENDOR, RZ_TESLA_CLAW, GOT, P(14) | DETECTOR, { 0, 0, 0 } },       /* 71 vendor: Tesla Claw */
-    { OLTANIS, INFOBOT, IB(QUARTU), 0, P(14) | GRIND, { 0, 0, 0 } },            /* 72 after the grind rail */
-    { OLTANIS, GADGET, RZ_PDA, GOT, P(14) | MAGNET, { 0, 0, 0 } },                /* 73 Steve's PDA */
-    { OLTANIS, GADGET, RZ_MORPH_O_RAY, 0, P(14) | SWING, { 0, 0, 0 } },         /* 74 the Morph-o-Ray */
-    { OLTANIS, BOLT, GB, 0, P(14) | GRIND | SWING, { 0, 0, 0 } },               /* 75 along the main path */
-    { OLTANIS, BOLT, GB, 0, P(14) | MAGNET, { 0, 0, 0 } },                      /* 76 down the ice on the Magneboot path */
-    { OLTANIS, BOLT, GB, 0, P(14) | MAGNET, { 0, 0, 0 } },                      /* 77 the ledge on the Magneboot path */
-    { OLTANIS, BOLT, GB, 0, P(14) | GRIND | SWING | MAGNET, { 0, 0, 0 } },      /* 78 after every objective */
+    { OLTANIS, VENDOR, RZ_TESLA_CLAW, GOT, P(14) | DETECTOR, { 0, 0, 0 }, 0 },    /* 71 vendor: Tesla Claw */
+    { OLTANIS, INFOBOT, IB(QUARTU), 0, P(14) | GRIND, { 0, 0, 0 }, 0 },         /* 72 after the grind rail */
+    { OLTANIS, GADGET, RZ_PDA, GOT, P(14) | MAGNET, { 0, 0, 0 }, 0 },             /* 73 Steve's PDA */
+    { OLTANIS, GADGET, RZ_MORPH_O_RAY, 0, P(14) | SWING, { 0, 0, 0 }, 0 },      /* 74 the Morph-o-Ray */
+    { OLTANIS, BOLT, GB, 0, P(14) | GRIND | SWING, { 0, 0, 0 }, 1 },            /* 75 along the main path */
+    { OLTANIS, BOLT, GB, 0, P(14) | MAGNET, { 0, 0, 0 }, 2 },                   /* 76 down the ice on the Magneboot path */
+    { OLTANIS, BOLT, GB, 0, P(14) | MAGNET, { 0, 0, 0 }, 3 },                   /* 77 the ledge on the Magneboot path */
+    { OLTANIS, BOLT, GB, 0, P(14) | GRIND | SWING | MAGNET, { 0, 0, 0 }, 0 },   /* 78 after every objective */
     /* Quartu */
-    { QUARTU, INFOBOT, IB(KALEBO), 0, P(15) | SWING, { 0, 0, 0 } },             /* 79 after the Giant Clank fight */
-    { QUARTU, GADGET, RZ_BOLT_GRABBER, 0, P(15) | HYDRO | O2, { 0, 0, 0 } },    /* 80 after the underwater section */
-    { QUARTU, INFOBOT, IB(FLEET), GOT, P(15) | HOLOGUISE | SWING | THRUSTER, { 0, 0, 0 } },  /* 81 Clank's mother */
-    { QUARTU, BOLT, GB, 0, P(15) | HOLOGUISE | SWING | THRUSTER, { 0, 0, 0 } }, /* 82 behind Clank's mother */
-    { QUARTU, BOLT, GB, 0, P(15) | BIT(RZ_CODEBOT) | SWING, { 0, 0, 0 } },      /* 83 behind the Codebot door */
+    { QUARTU, INFOBOT, IB(KALEBO), 0, P(15) | SWING, { 0, 0, 0 }, 0 },          /* 79 after the Giant Clank fight */
+    { QUARTU, GADGET, RZ_BOLT_GRABBER, 0, P(15) | HYDRO | O2, { 0, 0, 0 }, 0 }, /* 80 after the underwater section */
+    { QUARTU, INFOBOT, IB(FLEET), GOT, P(15) | HOLOGUISE | SWING | THRUSTER, { 0, 0, 0 }, 0 }, /* 81 Clank's mother */
+    { QUARTU, BOLT, GB, 0, P(15) | HOLOGUISE | SWING | THRUSTER, { 0, 0, 0 }, 0 }, /* 82 behind Clank's mother */
+    { QUARTU, BOLT, GB, 0, P(15) | BIT(RZ_CODEBOT) | SWING, { 0, 0, 0 }, 1 },   /* 83 behind the Codebot door */
     /* Kalebo III */
-    { KALEBO, GADGET, RZ_HOLOGUISE, WON, P(16) | BOARD | SWING | GRIND, { 0, 0, 0 } },  /* 84 the hoverboard race */
-    { KALEBO, GADGET, RZ_MAP_O_MATIC, 0, P(16) | GRIND, { 0, 0, 0 } },          /* 85 after the grind rail */
-    { KALEBO, BOLT, GB, 0, P(16) | GRIND, { 0, 0, 0 } },                        /* 86 on the grind rail */
-    { KALEBO, BOLT, GB, 0, P(16) | GRIND, { 0, 0, 0 } },                        /* 87 the employee break room */
+    { KALEBO, GADGET, RZ_HOLOGUISE, WON, P(16) | BOARD | SWING | GRIND, { 0, 0, 0 }, 0 }, /* 84 the hoverboard race */
+    { KALEBO, GADGET, RZ_MAP_O_MATIC, 0, P(16) | GRIND, { 0, 0, 0 }, 0 },       /* 85 after the grind rail */
+    { KALEBO, BOLT, GB, 0, P(16) | GRIND, { 0, 0, 0 }, 1 },                     /* 86 on the grind rail */
+    { KALEBO, BOLT, GB, 0, P(16) | GRIND, { 0, 0, 0 }, 0 },                     /* 87 the employee break room */
     /* Drek's Fleet */
-    { FLEET, INFOBOT, IB(VELDIN), 0, P(17) | MAGNET | HELMET | HOLOGUISE | SWING, { 0, 0, 0 } },  /* 88 the main ship */
-    { FLEET, GADGET, RZ_CODEBOT, 0, P(17) | O2 | HYDRO, { 0, 0, 0 } },          /* 89 after the water section */
-    { FLEET, BOLT, GB, 0, P(17) | O2 | HYDRO, { 0, 0, 0 } },                    /* 90 in the water section */
-    { FLEET, BOLT, GB, 0, P(17) | MAGNET | HELMET | HOLOGUISE | SWING, { 0, 0, 0 } },  /* 91 the robot guards' side path */
+    { FLEET, INFOBOT, IB(VELDIN), 0, P(17) | MAGNET | HELMET | HOLOGUISE | SWING, { 0, 0, 0 }, 0 }, /* 88 the main ship */
+    { FLEET, GADGET, RZ_CODEBOT, 0, P(17) | O2 | HYDRO, { 0, 0, 0 }, 0 },       /* 89 after the water section */
+    { FLEET, BOLT, GB, 0, P(17) | O2 | HYDRO, { 0, 0, 0 }, 0 },                 /* 90 in the water section */
+    { FLEET, BOLT, GB, 0, P(17) | MAGNET | HELMET | HOLOGUISE | SWING, { 0, 0, 0 }, 1 }, /* 91 the robot guards' side path */
     /* Veldin */
-    { VELDIN, BOLT, GB, 0, VELDIN_ALL | BIT(RZ_TAUNTER), { 0, 0, 0 } },         /* 92 the Taunter and the horny toad */
-    { VELDIN, BOLT, GB, 0, VELDIN_ALL, { 0, 0, 0 } },                           /* 93 the platforms */
-    { VELDIN, BOLT, GB, 0, VELDIN_ALL | GRIND | SWING, { 0, 0, 0 } },           /* 94 after the short grind rail */
+    { VELDIN, BOLT, GB, 0, VELDIN_ALL | BIT(RZ_TAUNTER), { 0, 0, 0 }, 0 },      /* 92 the Taunter and the horny toad */
+    { VELDIN, BOLT, GB, 0, VELDIN_ALL, { 0, 0, 0 }, 1 },                        /* 93 the platforms */
+    { VELDIN, BOLT, GB, 0, VELDIN_ALL | GRIND | SWING, { 0, 0, 0 }, 2 },        /* 94 after the short grind rail */
 };
 
 static const char *const item_names[RZ_ITEM_KINDS] = {
@@ -263,46 +263,13 @@ s32 rz_check_for_vanilla(s32 item)
 
 s32 rz_check_for_bolt(s32 level, s32 spot)
 {
-    s32 i, spots_seen = 0;
+    s32 i;
     for (i = 0; i < RZ_CHECKS_BASE; i++) {
-        if (checks[i].kind == RZ_KIND_GOLD_BOLT && checks[i].planet == level) {
-            if (spots_seen == spot) {
-                return i;
-            }
-            spots_seen++;
+        if (checks[i].kind == RZ_KIND_GOLD_BOLT && checks[i].planet == level && checks[i].spot == spot) {
+            return i;
         }
     }
     return -1;
-}
-
-/* A level's Gold Bolt spots' rules, conjoined (randomizer.h). */
-static struct RzCheck bolt_rules[RZ_PLANETS];
-static s32 bolt_rules_ready;
-
-static void prepare_bolt_rules(void)
-{
-    s32 i, group, slot;
-    for (i = 0; i < RZ_PLANETS; i++) {
-        bolt_rules[i].all = 0;
-        bolt_rules[i].any[0] = 0;
-        bolt_rules[i].any[1] = 0;
-        bolt_rules[i].any[2] = 0;
-    }
-    for (i = 0; i < RZ_CHECKS_BASE; i++) {
-        struct RzCheck *merged = &bolt_rules[checks[i].planet];
-        if (checks[i].kind != RZ_KIND_GOLD_BOLT) {
-            continue;
-        }
-        merged->all |= checks[i].all;
-        for (group = 0; group < 3 && checks[i].any[group] != 0; group++) {
-            for (slot = 0; slot < 3 && merged->any[slot] != 0 && merged->any[slot] != checks[i].any[group]; slot++) {
-            }
-            if (slot < 3) {
-                merged->any[slot] = checks[i].any[group];
-            }
-        }
-    }
-    bolt_rules_ready = 1;
 }
 
 const struct RzCheck *rz_check(s32 index)
@@ -393,12 +360,6 @@ static void shuffle(struct Rng *rng, u8 *items, s32 count)
 static s32 rule_met(const struct RzCheck *check, u64 have)
 {
     s32 group;
-    if (check->kind == RZ_KIND_GOLD_BOLT) {
-        if (!bolt_rules_ready) {
-            prepare_bolt_rules();
-        }
-        check = &bolt_rules[check->planet];
-    }
     if ((have & check->all) != check->all) {
         return 0;
     }
@@ -421,6 +382,7 @@ static void bonus_check(const struct RzLayout *layout, struct RzCheck *out)
     out->any[0] = 0;
     out->any[1] = 0;
     out->any[2] = 0;
+    out->spot = 0;
 }
 
 static const struct RzCheck *check_of(const struct RzLayout *layout, s32 index, struct RzCheck *bonus)

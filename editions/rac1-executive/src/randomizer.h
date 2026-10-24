@@ -19,7 +19,7 @@
 
 /* The logic version in every seed code: bump it on any change to the
  * rules, the pool or the algorithm, so a shared code gives the same game. */
-#define RZ_LOGIC_VERSION    1
+#define RZ_LOGIC_VERSION    2
 #define RZ_VERSION_MAX      15          /* 4 bits */
 #define RZ_WEAPON_MODES     4           /* 2 bits reserved; only RZ_WEAPON_VANILLA is implemented */
 #define RZ_WEAPON_VANILLA   0
@@ -78,6 +78,7 @@ struct RzCheck {
     u8 how;                             /* RzHow */
     u64 all;                            /* every bit needed, the planet's infobot included */
     u64 any[3];                         /* OR groups, each needing one of its bits; 0 ends the list */
+    u8 spot;                            /* a Gold Bolt's flag, D_0014BFC0[planet][spot] (its moby's pvars+0); 0 otherwise */
 };
 
 struct RzLayout {
@@ -94,10 +95,7 @@ struct RzLayout {
 };
 
 /* The tables. rz_check(i) for i < RZ_CHECKS_BASE; the bonus check's record
- * is built from the layout. A Gold Bolt spot's rule, as the fill and the
- * sweep use it, is the conjunction of its level's spots' rules: which flag
- * (0-3) the game gives which of Panda291's spots is not known yet, and a
- * spot taken for a harder one only places an item later than it could. */
+ * is built from the layout. */
 const struct RzCheck *rz_check(s32 index);
 const char *rz_item_name(s32 item);                 /* English, for tests and debug output */
 u64 rz_item_bit(s32 item);                          /* 0 for a Gold Bolt or the Charge Boots */
@@ -107,7 +105,7 @@ u64 rz_drek_rule(void);                             /* the goal's bits */
 s32 rz_item_game_id(s32 item);
 s32 rz_item_of_game_id(s32 game_id);                /* the RzItem of an inventory id; RZ_ITEM_NONE for none */
 s32 rz_check_for_vanilla(s32 item);                 /* the check whose retail reward is ITEM; -1 for none */
-/* LEVEL's Gold Bolt SPOT (the game's flag, 0-3), taken as the spot of that rank in table order; -1 for none. */
+/* The check of LEVEL's Gold Bolt with flag SPOT (0-3); -1 for none. */
 s32 rz_check_for_bolt(s32 level, s32 spot);
 
 /* The layout for SEED: deterministic, the same every time. Returns 0 if no

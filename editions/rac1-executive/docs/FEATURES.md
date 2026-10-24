@@ -3255,7 +3255,7 @@ infobot. The Charge Boots are a dead end nothing needs.
 **Seed codes.** Nine presses of eleven buttons, as digits 0-10: Up, Right,
 Down, Left, Cross, Circle, Square, L1, L2, R1, R2. The first eight are
 seed * 64 + weapon mode * 16 + logic version in base 11, most significant
-first: 4 bits of version (RZ_LOGIC_VERSION, 1; bump it on any change to
+first: 4 bits of version (RZ_LOGIC_VERSION, 2; bump it on any change to
 rules, pool or algorithm), 2 bits reserved for the starting weapon modes
 (only vanilla is implemented, any other is refused), 3,349,357 seeds. The
 ninth makes 1 * d0 + 2 * d1 + ... + 9 * d8 a multiple of 11, which catches
@@ -3462,7 +3462,10 @@ The item retail gives names the check: every item is given at exactly one
 check (`src/randomizer.c`'s table, which the host tests check), an infobot
 by the planet it unlocks (Eudora's henchman unlocks Blarg Station, the
 exploding ship there Rilgar, the bouncer Umbris: the game's own calls), a
-Gold Bolt by its level and flag.
+Gold Bolt by its level and flag. Each Gold Bolt moby carries its flag as
+the s32 at its pvars+0 (GoldBoltUpdate's `vars->id`); the table's `spot`
+column pairs each of Panda291's spots with that flag, from the level data's
+positions, so each spot has its own rule.
 
 **Where the code is.** src/randomizer_play.c holds the checks, the
 collected view and the autosaves; src/randomizer_text.c the banners and
@@ -3751,9 +3754,7 @@ look like its neighbours).
 **Not yet.** One Batalia bolt that another class awards (class 0x305 in its
 level code, which sets the flag without GoldBoltUpdate): the save hook
 collects a spot whose flag is set at the level's next autosave, which
-should cover it, untried on Batalia; the Gold Bolt spots' flags (0-3) are
-matched to Panda291's spots by table order, so each spot's rule is the
-conjunction of its level's spots' rules until the flags are mapped. World
+should cover it, untried on Batalia. World
 pickups keep the model of the item retail put there, by decision: the
 banner on picking one up names the item received.
 
