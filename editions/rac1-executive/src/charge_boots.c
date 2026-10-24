@@ -281,6 +281,7 @@ void ee_pause_entry_c(s32 arg, u32 ra)
         }
     }
     LVL(L, func_00219C70, PauseFn)(arg);
+    ee_rz_pause_open(L);                /* the Randomizer's Save and Load pages (src/goodies.c), once the entry built the panels */
 }
 
 /* Saves a retail game can load. The equipped array is saved (block 0x20)

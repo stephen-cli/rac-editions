@@ -29,7 +29,7 @@ the in-place image.
 ## The mod segment (resident code in C)
 
 `tools/modseg.py` compiles `src/*.c` with the game's own compiler (SN GCC
-2.95.3, `-O2 -G0`), links it at **0x000A0000** against the game's symbols,
+2.95.3, `-O2 -G0`), links it at **0x0009E000** against the game's symbols,
 and writes a flat image that OpenRAC's `tools/boot_elf.py --segment` carries
 in the boot executable as a second loadable segment. The console's ELF
 loader places it in RAM at boot; level programs replace memory from 0x15F000
@@ -69,7 +69,12 @@ moves the directory record (verified booting in PCSX2 from sector 2058000).
   (tools/ramscan.py): 0x84000-0x95560 holds the PS2 kernel's ELF loader
   (left over from boot, never touched by the game), 0x95561-0x10007F is all
   zero, and the disassembly references nothing in 0x80000-0xFFFFF. So the
-  segment has 0xA0000-0xFFFFF (384 KB). The game's level-load staging buffer
+  segment had 0xA0000-0xFFFFF (384 KB). In practice a segment ending at
+  0xF2580 left the title screen deaf to the pad in PCSX2, though that memory
+  reads zero at boot and on the title screen, while ends of 0xF2380 and
+  below worked; the base moved down to 0x9E000 on 2026-10-25 (a build there
+  had already run on the owner's PS3), and tools/modseg.py stops a build
+  ending past 0xF2380 (SEGMENT_END_LIMIT). The game's level-load staging buffer
   is at 0xFE0000 (whole level data range), the frontend's near 0x1FF7FF0;
   both in the upper half of RAM.
 - The mod segment is the default route; the cave shim of x4 remains as
@@ -3290,6 +3295,25 @@ itself once the record changed (rz3, "The autosaves"). Its offset in the file, 8
 + 19 level blobs + the blob header + record 0xBB9's 12 bytes + 8, is
 computed from the tables (ee_rz_record_offset).
 
+**The Seed line in a level (2026-10-25).** The pause menu's Save and Load
+pages (the executable's pages D_001D1948 and D_001D19D0, relinked into each
+level) share the title's name box widget (D_001D1B08) and name panel
+(sequence 0x7F on both pages). The executable's data is relinked into a
+level as one block, so a title-screen address keeps its offset from the
+menu record (LEVEL_DATA menu_state) there (exe_data in src/goodies.c). When
+the pause menu opens (the edition's pause entry hook, src/charge_boots.c),
+the name box's draw goes to a per-level stub (src/rz_hooks.s,
+ee_rz_name_draw_table) that runs DrawSaveLevelName and then the same Seed
+line the title draws; the seed symbols get their metrics in the level's
+font tables. Their pixels cannot be painted at run time as on the title
+screen, since a level's fonts live in video memory only, so
+tools/splice_boots.py paints them into each level's three font textures
+on the disc (gen_glyphs.paint, the title's own art). The name panel is
+stretched a line as on the title screen, from the draw of the front page's
+first row (D_001CE938, also through a per-level stub), since the pause menu
+builds its panel mobys after its entry and a panel keeps the sequence it
+started with. Checked in PCSX2 on the Save and Load pages of a level.
+
 **Starting one.** The Randomizer's New Game page is retail's New Game page
 (title, the five slots, the selected save's planet picture, the card's
 status text, "Select / Exit") with a copy of its slot list (`D_001D50E8`)
@@ -3329,8 +3353,8 @@ card is idle with its summaries read (the level's copy of the menu record
 has the idle ticks, LEVEL_DATA `menu_state`) and the summaries differ from
 the last scan's (level and play time per slot: a save just made on the Save
 page, another card, a title scan made before the summaries were read) the
-slots are read again inside the draw. The Seed line is still the title
-screen's only. The first in-level build showed no badge (the owner's
+slots are read again inside the draw. The Seed line shows on the pause
+pages too since 2026-10-25 (the next paragraph but one). The first in-level build showed no badge (the owner's
 report): the record's offset in a slot's file comes from the save layout
 tables (D_001A05C0, D_001A08C0 in the executable), which each level program
 has at another address, so the in-level scan read no record from any slot
@@ -3833,3 +3857,4 @@ caller draws it. Side effect, accepted: a HelpDesk line on that planet
 naming the item reads "???" too. The vendor's menu being up is a flag the
 list hook sets and the gameplay frame clears (no gameplay frame runs while
 the vendor is open). Not yet tried in play.
+

@@ -55,7 +55,14 @@ KINDS = [
     ("ee_rz_vendor_holo_add", "ee_rz_vendor_holo_add_c", ["j     {c}", "addiu $7, $0, {n}"]),
     # the moby update loop's jalr $3: the moby is in $4; the update function becomes the hook's second argument
     ("ee_rz_moby_update", "ee_rz_moby_update_c", ["addiu $6, $0, {n}", "j     {c}", "addu  $5, $3, $0"]),
+    # the pause menu's name box draw: not a patched call but a widget's draw pointer, which src/goodies.c sets
+    # from the table below when the pause menu opens in a level
+    ("ee_rz_name_draw", "ee_rz_pause_name_c", ["j     {c}", "addiu $5, $0, {n}"]),
+    # the pause menu's front page's first row's draw, the same way
+    ("ee_rz_pause_row_draw", "ee_rz_pause_row_c", ["j     {c}", "addiu $5, $0, {n}"]),
 ]
+# kinds whose 19 stubs are also listed in a word table, for a data patch
+TABLES = ["ee_rz_name_draw", "ee_rz_pause_row_draw"]
 
 
 def stubs() -> str:
@@ -66,6 +73,10 @@ def stubs() -> str:
             out.append(f".globl {name}_{level:02d}\n{name}_{level:02d}:\n")
             for instruction in instructions:
                 out.append("    " + instruction.format(c=hook, n=level) + "\n")
+    for name in TABLES:
+        out.append(f".align 2\n.globl {name}_table\n{name}_table:\n")
+        for level in range(LEVELS):
+            out.append(f"    .word {name}_{level:02d}\n")
     return "".join(out)
 
 

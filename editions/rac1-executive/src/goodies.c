@@ -123,7 +123,8 @@ extern void func_00122598(s32);                                              /* 
 #define TITLE_OPTIONS   0x001D4AB8
 #define TITLE_LIST_STRIDE 0x50
 #define TITLE_PLACEHOLDER 0x001CE678 /* the start menu's screens 0 and 1: an empty list, no update or draw */
-#define PANELS          ((volatile u32 *)0x001D6120)     /* the 14 panel mobys */
+#define PANELS_ADDRESS  0x001D6120                       /* the 14 panel mobys */
+#define PANELS          ((volatile u32 *)PANELS_ADDRESS)
 #define PANEL_ROW       0           /* the Goodies row's screen and panel */
 #define PANEL_ROW_PARKED 0          /* the start menu's sequence for panel 0: parked */
 #define ROW_FIRST_PANEL 2           /* New Game, Load Game, Options: panels 2-4 */
@@ -1389,6 +1390,40 @@ extern void func_00118D80(s32);         /* FlushCache (core) */
 #define EFFECT_TABLE    0x0018D540
 static const u32 font_metrics[3] = { 0x001DF3D0, 0x001DF770, 0x001DFB10 };   /* normal, small, large */
 
+/* The executable's data (the menus' pages and widgets, the fonts' metrics, the panel table) is relinked into
+ * each level program as one block, so a title-screen address has the same offset from the menu record
+ * (LEVEL_DATA menu_state) there; the title's two programs keep it in place. */
+#define TITLE_MENU_STATE 0x001D5F70
+#define LEVEL_PROGRAMS   19
+
+static u32 exe_data(s32 L, u32 title_address)
+{
+    if (L < LEVEL_PROGRAMS) {
+        return (u32)LVL_DATA(L, menu_state, u8 *) + (title_address - TITLE_MENU_STATE);
+    }
+    return title_address;
+}
+
+/* The glyphs' metrics (cell u, v, and advance) into program L's three font metrics tables, once. */
+static void install_glyph_metrics(s32 L)
+{
+    s32 font, g;
+    for (font = 0; font < 3; font++) {
+        volatile u8 *metrics = (volatile u8 *)exe_data(L, font_metrics[font]);
+        if (metrics[4 * ee_glyph_places[0][0] + 3] != 0) {
+            continue;
+        }
+        for (g = 0; g < EE_GLYPHS; g++) {
+            metrics[4 * ee_glyph_places[g][0]] = ee_glyph_places[g][1];
+            metrics[4 * ee_glyph_places[g][0] + 1] = ee_glyph_places[g][2];
+            metrics[4 * ee_glyph_places[g][0] + 2] = 0;
+            metrics[4 * ee_glyph_places[g][0] + 3] = ee_glyph_places[g][3];
+        }
+    }
+}
+
+/* The title screen's glyphs: their pixels into the three sheets in the effect bank, and their metrics. A
+ * level's fonts have the pixels from the disc (tools/splice_boots.py paints them) and get the metrics only. */
 static void install_glyphs(void)
 {
     s32 font, g, x, y;
@@ -1398,7 +1433,6 @@ static void install_glyphs(void)
     for (font = 0; font < 3; font++) {
         u32 offset = *(volatile u16 *)(EFFECT_TABLE + 16 * (font + 1) + 8) << 4;
         volatile u8 *sheet = (volatile u8 *)(EFFECT_BANK + offset);
-        volatile u8 *metrics = (volatile u8 *)font_metrics[font];
         for (g = 0; g < EE_GLYPHS; g++) {
             u32 u = ee_glyph_places[g][1];
             u32 v = ee_glyph_places[g][2];
@@ -1407,12 +1441,9 @@ static void install_glyphs(void)
                     sheet[(v + y) * 256 + u + x] = ee_glyph_cells[font][g][y][x];
                 }
             }
-            metrics[4 * ee_glyph_places[g][0]] = u;
-            metrics[4 * ee_glyph_places[g][0] + 1] = v;
-            metrics[4 * ee_glyph_places[g][0] + 2] = 0;
-            metrics[4 * ee_glyph_places[g][0] + 3] = ee_glyph_places[g][3];
         }
     }
+    install_glyph_metrics(title_program);
     func_00118D80(0);
 }
 
@@ -1590,6 +1621,7 @@ s32 ee_rz_slots_draw(void *widget)
  * card is idle with its summaries read and they differ from the last scan's
  * (a save just made on the Save page, another card, the title's scan made
  * before the summaries were read). */
+static void pause_name_stretch(s32 L);
 volatile u32 ee_debug_rz_pause[4];      /* PINE: draws, draws with the card idle, scans, rz_saves */
 
 void ee_rz_slots_end_c(s32 L)
@@ -1605,6 +1637,7 @@ void ee_rz_slots_end_c(s32 L)
         }
         ee_debug_rz_pause[3] = (u32)rz_saves;
         if (rz_saves) {
+            pause_name_stretch(L);
             draw_badges(L);
         }
     }
@@ -1625,9 +1658,8 @@ static void seed_line(const struct RzSlot *slot, char *out)
 
 /* The width of TEXT in the normal font: its metrics' advances (the seed
  * symbols' 25 each; FontPrint draws codes below 0x20 as 24-wide cells). */
-static s32 text_width(const char *text)
+static s32 text_width(const char *text, const volatile u8 *metrics)
 {
-    const volatile u8 *metrics = (const volatile u8 *)font_metrics[0];
     s32 w = 0;
     while (*text) {
         w += metrics[4 * (u8)*text + 3];
@@ -1646,46 +1678,131 @@ static s32 text_width(const char *text)
  * box is 322 pixels wide and the line about 280; a translation that would
  * not fit is drawn smaller through the scaled font print
  * (Font_DrawString). */
-s32 ee_rz_name_draw(void *widget)
+static void draw_seed_line(const u32 *words, const struct RzSlot *rz, s32 L)
 {
-    u32 *words = (u32 *)widget;
-    u32 *list = (u32 *)*(volatile u32 *)(MENU_CURRENT + PAGE_FOCUS);
-    s32 slot = list ? (s32)list[WIDGET_SLOT] : 0;
-    const struct RzSlot *rz;
-    const char *label;
+    const volatile u8 *metrics = (const volatile u8 *)exe_data(L, font_metrics[0]);
+    const char *label = LVL(L, func_001FE540, MsgFn)(EE_TEXT_SEED);
     char line[RZ_CODE_LENGTH + 1];
-    s32 r, width, visible, label_w, glyph_w, total;
-    f32 scale, x, y;
+    s32 width = (s32)words[WIDGET_WIDTH];
+    s32 label_w = text_width(label, metrics);
+    s32 total = label_w + SEED_GAP + RZ_CODE_LENGTH * GLYPH_ADVANCE;
+    f32 scale = total + 2 * TEXT_MARGIN <= width ? 1.0f : (f32)(width - 2 * TEXT_MARGIN) / (f32)total;
+    f32 x = ((f32)width - (f32)total * scale) * 0.5f;
+    f32 y = (f32)(NAME_FIRST_Y + 2 * NAME_LINE);
     u64 tex;
-    install_glyphs();
-    r = ((WidgetFn)retail_name_draw)(widget);
-    slot = slot < 0 ? 0 : slot >= MC_SLOTS ? MC_SLOTS - 1 : slot;
-    rz = &slots[slot].rz;
-    if (!rz_saves || !rz->present || !card_ready() || MC_SLOT_LEVEL(slot) == -1) {
-        return r;
-    }
-    width = (s32)words[WIDGET_WIDTH];
-    visible = width;
-    label = LVL(title_program, func_001FE540, MsgFn)(EE_TEXT_SEED);
-    label_w = text_width(label);
-    glyph_w = RZ_CODE_LENGTH * GLYPH_ADVANCE;
-    total = label_w + SEED_GAP + glyph_w;
-    scale = total + 2 * TEXT_MARGIN <= visible ? 1.0f : (f32)(visible - 2 * TEXT_MARGIN) / (f32)total;
-    x = ((f32)visible - (f32)total * scale) * 0.5f;
-    y = (f32)(NAME_FIRST_Y + 2 * NAME_LINE);
     ee_debug_rz[0] = (u32)width;
     ee_debug_rz[1] = words[WIDGET_HEIGHT];
     ee_debug_rz[2] = (u32)total;
     ee_debug_rz[3] = (u32)(s32)(scale * 1000.0f);      /* through s32: the compiler has no float-to-unsigned helper here */
     seed_line(rz, line);
-    LVL(title_program, func_001F4630, PagingFn)(0);
-    tex = LVL(title_program, func_001F4868, EffectTexFn)(FONT_NORMAL_TEX);
-    LVL(title_program, func_001F69F0, ScaledPrintFn)(TEXT_NORMAL, label, -1, tex, (const void *)font_metrics[0], x, y,
-                                                      scale);
-    LVL(title_program, func_001F69F0, ScaledPrintFn)(TEXT_NORMAL, line, -1, tex, (const void *)font_metrics[0],
-                                                      x + (f32)(label_w + SEED_GAP) * scale, y, scale);
-    LVL(title_program, func_001F4748, VoidFn)();
+    LVL(L, func_001F4630, PagingFn)(0);
+    tex = LVL(L, func_001F4868, EffectTexFn)(FONT_NORMAL_TEX);
+    LVL(L, func_001F69F0, ScaledPrintFn)(TEXT_NORMAL, label, -1, tex, (const void *)metrics, x, y, scale);
+    LVL(L, func_001F69F0, ScaledPrintFn)(TEXT_NORMAL, line, -1, tex, (const void *)metrics,
+                                         x + (f32)(label_w + SEED_GAP) * scale, y, scale);
+    LVL(L, func_001F4748, VoidFn)();
+}
+
+/* The slot the focused slot list is on, clamped to the five. */
+static s32 focused_slot(u32 menu_record)
+{
+    u32 page = *(volatile u32 *)(menu_record + 4);
+    u32 *list = page != 0 ? (u32 *)*(volatile u32 *)(page + PAGE_FOCUS) : 0;
+    s32 slot = list != 0 ? (s32)list[WIDGET_SLOT] : 0;
+    return slot < 0 ? 0 : slot >= MC_SLOTS ? MC_SLOTS - 1 : slot;
+}
+
+s32 ee_rz_name_draw(void *widget)
+{
+    s32 slot = focused_slot(TITLE_MENU_STATE);
+    const struct RzSlot *rz = &slots[slot].rz;
+    s32 r;
+    install_glyphs();
+    r = ((WidgetFn)retail_name_draw)(widget);
+    if (rz_saves && rz->present && card_ready() && MC_SLOT_LEVEL(slot) != -1) {
+        draw_seed_line((const u32 *)widget, rz, title_program);
+    }
     return r;
+}
+
+/* The name box's draw on the pause menu's Save and Load pages in level L (src/rz_hooks.s stubs, set into the
+ * widget by ee_rz_pause_open): retail's DrawSaveLevelName, then the Seed line, under the pages' own conditions
+ * for showing a slot (the card idle for 11 of the menu record's ticks, a PS2 card). The slots were scanned by
+ * the slot list's draw (ee_rz_slots_end_c), which comes before this one in the page. */
+DECLARE_LVL(func_00223E40);             /* DrawSaveLevelName(widget) */
+
+s32 ee_rz_pause_name_c(void *widget, s32 L)
+{
+    u32 menu_record = (u32)LVL_DATA(L, menu_state, u8 *);
+    s32 ticks = *(volatile s32 *)(menu_record + MENU_TICKS_OFFSET);
+    s32 slot = focused_slot(menu_record);
+    const struct RzSlot *rz = &slots[slot].rz;
+    s32 r = LVL(L, func_00223E40, WidgetFn)(widget);
+    if (rz_saves && rz->present && MC_STATE < 3 && MC_REQUEST < 0 && ticks >= 11 && MC_TYPE == 2
+        && MC_SLOT_LEVEL(slot) != -1) {
+        draw_seed_line((const u32 *)widget, rz, L);
+    }
+    return r;
+}
+
+/* The pause menu opening in level L (src/charge_boots.c's pause entry hook). The Save and Load pages (the
+ * executable's pages D_001D1948 and D_001D19D0, relinked into the level) share the title screen's name box
+ * widget, whose draw now goes through ee_rz_pause_name_c; the seed symbols get their metrics (their pixels are
+ * in the level's fonts from the disc); and with a Randomizer save on the card the name panel, which both pages
+ * play as sequence PAUSE_NAME_SEQ, is stretched down a line as the title screen's is. The title's sequence
+ * copies belong to its program and are forgotten here; the title installs its own again when it opens. */
+#define PAUSE_NAME_SEQ  0x7F            /* both pause pages' moby_anims[NAME_PANEL] */
+#define PAUSE_FIRST_ROW 0x001CE938      /* the pause menu's front page's (D_001CE808) first row: Weapons */
+extern const u32 ee_rz_name_draw_table[LEVEL_PROGRAMS];       /* the stubs, by level (src/rz_hooks.s) */
+extern const u32 ee_rz_pause_row_draw_table[LEVEL_PROGRAMS];
+static u32 retail_row_draw[LEVEL_PROGRAMS];                    /* DrawMenuItemList, each level program's */
+static s32 pause_program = -1;
+
+/* The pause pages' name panel stretched a line, once a Randomizer save is known and the panel mobys exist. The
+ * pause menu builds them after its entry, and a panel keeps the sequence it started with, so this runs from the
+ * front page's first row's draw (ee_rz_pause_row_c), every frame the front page shows, before any page with the
+ * name panel can open; and from the slot list's draw, for a save the card scan found only then. */
+static void pause_name_stretch(s32 L)
+{
+    u32 panel, cls;
+    if (!rz_saves || is_installed(PAUSE_NAME_SEQ)) {
+        return;
+    }
+    panel = *(volatile u32 *)exe_data(L, PANELS_ADDRESS + 4 * PANEL_ROW);
+    if (panel == 0 || (cls = *(u32 *)(panel + 0x24)) == 0 || *(u8 *)(cls + 0xC) <= PAUSE_NAME_SEQ) {
+        return;
+    }
+    class_sequences = (u32 *)(cls + 0x48);
+    raise_sequence(PAUSE_NAME_SEQ, 0, 0, 1);
+}
+
+/* The front page's first row's draw in level L (src/rz_hooks.s stubs): the stretch, then retail's. */
+s32 ee_rz_pause_row_c(void *widget, s32 L)
+{
+    pause_name_stretch(L);
+    return ((WidgetFn)retail_row_draw[L])(widget);
+}
+
+void ee_rz_pause_open(s32 L)
+{
+    u32 *name_box;
+    u32 *row;
+    if (L >= LEVEL_PROGRAMS) {
+        return;
+    }
+    row = (u32 *)exe_data(L, PAUSE_FIRST_ROW);
+    if (row[WIDGET_DRAW] != ee_rz_pause_row_draw_table[L]) {
+        retail_row_draw[L] = row[WIDGET_DRAW];
+        row[WIDGET_DRAW] = ee_rz_pause_row_draw_table[L];
+    }
+    if (L != pause_program) {
+        pause_program = L;
+        installed = 0;
+    }
+    name_box = (u32 *)exe_data(L, NAME_BOX);
+    name_box[WIDGET_DRAW] = ee_rz_name_draw_table[L];
+    install_glyph_metrics(L);
+    pause_name_stretch(L);
 }
 
 /* The save pages' widgets, in this program's data: the two slot lists' draw

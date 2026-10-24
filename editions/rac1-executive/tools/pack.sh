@@ -77,7 +77,7 @@ python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" emit                # 
 python "$HERE/tools/gen_helpdesk.py" --openrac "$OPENRAC"                     # the HelpDesk lines, cut from the disc's own (audio/helpdesk.json)
 python "$HERE/tools/modseg.py" --openrac "$OPENRAC"
 echo "== 3/5 bootable executable with the mod segment"
-python tools/boot_elf.py --segment "A0000:$(cygpath -w "$HERE/build/modseg/modseg.bin" 2>/dev/null || echo "$HERE/build/modseg/modseg.bin")"
+python tools/boot_elf.py --segment "9E000:$(cygpath -w "$HERE/build/modseg/modseg.bin" 2>/dev/null || echo "$HERE/build/modseg/modseg.bin")"
 python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" patch-elf build-sn/SCES_509.16   # the boot frontend's flight hooks (frontbin's: overlay_patch.py)
 
 if [ "$ROUTE" = patch ]; then

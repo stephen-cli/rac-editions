@@ -117,6 +117,26 @@ def sheets(openrac: Path):
         return out
 
 
+def cells(pixels, width, colours):
+    """The seven cells for a sheet, in GLYPHS' order; raises if a cell's place is not empty."""
+    blank = pixels[0xFF]
+    for _, u, v, _, _ in GLYPHS:
+        if any(pixels[(v + y) * width + u + x] != blank for y in range(CELL_H) for x in range(CELL_W)):
+            raise SystemExit(f"the font's cell at u 0x{u:X}, v 0x{v:X} is not empty")
+    return [glyph(blank, colours, which) if kind == "arm" else face(pixels, width, blank, which)
+            for _, _, _, kind, which in GLYPHS]
+
+
+def paint(pixels: bytes, width: int, colours) -> bytes:
+    """The sheet with the glyphs painted into its free corner: the levels' fonts (tools/splice_boots.py); the
+    title screen's get theirs at run time from gen_glyphs.c (src/goodies.c)."""
+    out = bytearray(pixels)
+    for (_, u, v, _, _), cell in zip(GLYPHS, cells(pixels, width, colours)):
+        for y in range(CELL_H):
+            out[(v + y) * width + u:(v + y) * width + u + CELL_W] = bytes(cell[y])
+    return bytes(out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
@@ -127,12 +147,8 @@ def main() -> int:
     for font, (colours, pixels, width, height) in sorted(sheets(args.openrac).items()):
         if (width, height) != (256, 128):
             raise SystemExit(f"font {font} is {width} x {height}, not the 256 x 128 sheet expected")
-        for _, u, v, _, _ in GLYPHS:
-            if any(pixels[(v + y) * width + u + x] != pixels[0xFF] for y in range(CELL_H) for x in range(CELL_W)):
-                raise SystemExit(f"font {font}: the cell at u 0x{u:X}, v 0x{v:X} is not empty")
         lines.append("  {")
-        for _, _, _, kind, which in GLYPHS:
-            cell = glyph(pixels[0xFF], colours, which) if kind == "arm" else face(pixels, width, pixels[0xFF], which)
+        for cell in cells(pixels, width, colours):
             lines.append("    {" + ", ".join("{" + ", ".join(str(p) for p in row) + "}" for row in cell) + "},")
         lines.append("  },")
     lines.append("};")

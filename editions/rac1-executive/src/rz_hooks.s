@@ -1490,3 +1490,201 @@ ee_rz_moby_update_18:
     addiu $6, $0, 18
     j     ee_rz_moby_update_c
     addu  $5, $3, $0
+.extern ee_rz_pause_name_c
+.globl ee_rz_name_draw_00
+ee_rz_name_draw_00:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 0
+.globl ee_rz_name_draw_01
+ee_rz_name_draw_01:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 1
+.globl ee_rz_name_draw_02
+ee_rz_name_draw_02:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 2
+.globl ee_rz_name_draw_03
+ee_rz_name_draw_03:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 3
+.globl ee_rz_name_draw_04
+ee_rz_name_draw_04:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 4
+.globl ee_rz_name_draw_05
+ee_rz_name_draw_05:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 5
+.globl ee_rz_name_draw_06
+ee_rz_name_draw_06:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 6
+.globl ee_rz_name_draw_07
+ee_rz_name_draw_07:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 7
+.globl ee_rz_name_draw_08
+ee_rz_name_draw_08:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 8
+.globl ee_rz_name_draw_09
+ee_rz_name_draw_09:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 9
+.globl ee_rz_name_draw_10
+ee_rz_name_draw_10:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 10
+.globl ee_rz_name_draw_11
+ee_rz_name_draw_11:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 11
+.globl ee_rz_name_draw_12
+ee_rz_name_draw_12:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 12
+.globl ee_rz_name_draw_13
+ee_rz_name_draw_13:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 13
+.globl ee_rz_name_draw_14
+ee_rz_name_draw_14:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 14
+.globl ee_rz_name_draw_15
+ee_rz_name_draw_15:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 15
+.globl ee_rz_name_draw_16
+ee_rz_name_draw_16:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 16
+.globl ee_rz_name_draw_17
+ee_rz_name_draw_17:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 17
+.globl ee_rz_name_draw_18
+ee_rz_name_draw_18:
+    j     ee_rz_pause_name_c
+    addiu $5, $0, 18
+.extern ee_rz_pause_row_c
+.globl ee_rz_pause_row_draw_00
+ee_rz_pause_row_draw_00:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 0
+.globl ee_rz_pause_row_draw_01
+ee_rz_pause_row_draw_01:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 1
+.globl ee_rz_pause_row_draw_02
+ee_rz_pause_row_draw_02:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 2
+.globl ee_rz_pause_row_draw_03
+ee_rz_pause_row_draw_03:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 3
+.globl ee_rz_pause_row_draw_04
+ee_rz_pause_row_draw_04:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 4
+.globl ee_rz_pause_row_draw_05
+ee_rz_pause_row_draw_05:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 5
+.globl ee_rz_pause_row_draw_06
+ee_rz_pause_row_draw_06:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 6
+.globl ee_rz_pause_row_draw_07
+ee_rz_pause_row_draw_07:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 7
+.globl ee_rz_pause_row_draw_08
+ee_rz_pause_row_draw_08:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 8
+.globl ee_rz_pause_row_draw_09
+ee_rz_pause_row_draw_09:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 9
+.globl ee_rz_pause_row_draw_10
+ee_rz_pause_row_draw_10:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 10
+.globl ee_rz_pause_row_draw_11
+ee_rz_pause_row_draw_11:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 11
+.globl ee_rz_pause_row_draw_12
+ee_rz_pause_row_draw_12:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 12
+.globl ee_rz_pause_row_draw_13
+ee_rz_pause_row_draw_13:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 13
+.globl ee_rz_pause_row_draw_14
+ee_rz_pause_row_draw_14:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 14
+.globl ee_rz_pause_row_draw_15
+ee_rz_pause_row_draw_15:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 15
+.globl ee_rz_pause_row_draw_16
+ee_rz_pause_row_draw_16:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 16
+.globl ee_rz_pause_row_draw_17
+ee_rz_pause_row_draw_17:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 17
+.globl ee_rz_pause_row_draw_18
+ee_rz_pause_row_draw_18:
+    j     ee_rz_pause_row_c
+    addiu $5, $0, 18
+.align 2
+.globl ee_rz_name_draw_table
+ee_rz_name_draw_table:
+    .word ee_rz_name_draw_00
+    .word ee_rz_name_draw_01
+    .word ee_rz_name_draw_02
+    .word ee_rz_name_draw_03
+    .word ee_rz_name_draw_04
+    .word ee_rz_name_draw_05
+    .word ee_rz_name_draw_06
+    .word ee_rz_name_draw_07
+    .word ee_rz_name_draw_08
+    .word ee_rz_name_draw_09
+    .word ee_rz_name_draw_10
+    .word ee_rz_name_draw_11
+    .word ee_rz_name_draw_12
+    .word ee_rz_name_draw_13
+    .word ee_rz_name_draw_14
+    .word ee_rz_name_draw_15
+    .word ee_rz_name_draw_16
+    .word ee_rz_name_draw_17
+    .word ee_rz_name_draw_18
+.align 2
+.globl ee_rz_pause_row_draw_table
+ee_rz_pause_row_draw_table:
+    .word ee_rz_pause_row_draw_00
+    .word ee_rz_pause_row_draw_01
+    .word ee_rz_pause_row_draw_02
+    .word ee_rz_pause_row_draw_03
+    .word ee_rz_pause_row_draw_04
+    .word ee_rz_pause_row_draw_05
+    .word ee_rz_pause_row_draw_06
+    .word ee_rz_pause_row_draw_07
+    .word ee_rz_pause_row_draw_08
+    .word ee_rz_pause_row_draw_09
+    .word ee_rz_pause_row_draw_10
+    .word ee_rz_pause_row_draw_11
+    .word ee_rz_pause_row_draw_12
+    .word ee_rz_pause_row_draw_13
+    .word ee_rz_pause_row_draw_14
+    .word ee_rz_pause_row_draw_15
+    .word ee_rz_pause_row_draw_16
+    .word ee_rz_pause_row_draw_17
+    .word ee_rz_pause_row_draw_18

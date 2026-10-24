@@ -4,6 +4,14 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-25 (the Seed line in a level)
+
+### 🎲 The seed on the pause menu's Save and Load pages (rz2) — Working on the console
+
+**What changed.** With a Randomizer save on the card, the pause menu's Save and Load pages show the selected slot's seed code under its planet and time, with the D-pad glyphs of the title screen's Reuse Seed box, in a name box one line taller. The level programs hold no fonts in RAM, so the glyphs are painted into each level's three menu fonts on the disc (`tools/splice_boots.py` paint_fonts, from `tools/gen_glyphs.py`) and the metrics installed at runtime; the box stretch runs from the front page's first row draw, since the panel mobies exist only after the pause entry. The mod segment's base moved from 0xA0000 to 0x9E000: a build ending at 0xF2580 left the title screen deaf to the pad, and `tools/modseg.py` now refuses a build ending past 0xF2380, the highest end known to boot.
+
+**Findings that affect other items.** The executable's data moves as one block in every level program (menu_state's delta), checked for the font metrics and the panel table in all 19; the HUD arena and the view record are in other blocks.
+
 ## 2026-10-25 (the Randomizer: Gold Bolt spots mapped)
 
 ### 🎲 Gold Bolt spots' own rules (rz1) — Built, host tests pass; awaiting a test in game

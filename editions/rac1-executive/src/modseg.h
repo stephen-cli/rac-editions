@@ -294,6 +294,7 @@ s32 ee_rz_received_special(s32 flag);                       /* FLAG: the byte of
 void ee_rz_set_received_special(s32 flag);
 /* rz3: each gameplay frame, from src/charge_dash.c's frame hook. */
 void ee_rz_frame(s32 L);
+void ee_rz_pause_open(s32 L);                               /* the pause menu opening in a level (src/goodies.c) */
 void ee_rz_record_autosave(s32 L);                          /* the record's page to the card once it changed (from ee_rz_frame) */
 
 #endif

@@ -2,7 +2,9 @@
 """
 Add the Charge Boots class to every level of an image without re-laying out
 the disc: each level's own data archive gets the class and its one texture,
-and is written back over the old one, in the sectors it had.
+and is written back over the old one, in the sectors it had. While a level's
+core is decoded, the seed code's glyphs are painted into its three menu
+fonts as well (paint_fonts), for the pause menu's Seed line.
 
 A level's data archive (level header +0x08, read whole by func_00204C60 into
 a buffer sized from it) holds eleven sections listed at its start as
@@ -200,6 +202,28 @@ def shift_textures(index: bytearray, at: int, delta: int) -> int:
     return moved
 
 
+FONT_TEXTURES = (1, 2, 3)           # the level's effect textures that are the menu fonts (normal, small, large)
+
+
+def paint_fonts(index: bytes, core: bytes) -> bytes:
+    """The core with the seed code's glyphs (tools/gen_glyphs.py) painted into the level's three menu fonts: the
+    pause menu's Save and Load pages show a Randomizer save's seed (src/goodies.c), and a level draws text from
+    its own copies of the fonts, which have the same empty corner and palette as the title screen's."""
+    import gen_glyphs
+    from formats import Texture
+    _, fx_table = struct.unpack_from("<II", index, 0x58)
+    bank, = struct.unpack_from("<I", index, 0x68)
+    out = bytearray(core)
+    for i in FONT_TEXTURES:
+        pal, pix, w, h = struct.unpack_from("<4i", index, fx_table + 16 * i)
+        if (w, h) != (256, 128):
+            raise SystemExit(f"effect texture {i} is {w}x{h}, not a 256x128 font")
+        sheet = core[bank + pix:bank + pix + w * h]
+        colours = Texture(w, h, sheet, core[bank + pal:bank + pal + 1024]).colours
+        out[bank + pix:bank + pix + w * h] = gen_glyphs.paint(sheet, w, colours)
+    return bytes(out)
+
+
 def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palette: bytes,
                  width: int, height: int, wad, wrench: Path, work: Path, stage: int = 4) -> tuple[bytes, dict]:
     """STAGE (for isolating a load failure): 1 insert the bytes into the core only, 2 also add
@@ -240,6 +264,7 @@ def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palett
     retail_core = wad(stream)
     if len(retail_core) != core_size:
         raise SystemExit("the core data does not decode to the size its index gives")
+    retail_core = paint_fonts(index, retail_core)
     textures_base, = struct.unpack_from("<I", index, 0x60)
     resident_end, = struct.unpack_from("<I", index, 0x7C)
     moby_starts = [struct.unpack_from("<i", e)[0] for e in classes if struct.unpack_from("<i", e)[0] > 0]

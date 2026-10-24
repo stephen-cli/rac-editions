@@ -27,7 +27,7 @@ Symbols:
 Outputs in build/modseg/: modseg.elf, modseg.bin (the segment image),
 modseg.sym (exported function -> address, for tools/overlay_patch.py).
 
-  python tools/modseg.py [--openrac DIR] [--base 0xA0000]
+  python tools/modseg.py [--openrac DIR] [--base 0x9E000]
 """
 import argparse
 import re
@@ -107,7 +107,12 @@ PROGRAMS = 21                     # 19 levels, the boot executable, frontbin (FE
 # addresses, so a func_XXXXXXXX or D_XXXXXXXX above that is a different
 # address in every level and must go through a per-level table.
 CORE_END = 0x15F000
-DEFAULT_BASE = 0x000A0000
+DEFAULT_BASE = 0x0009E000
+# The highest end a booting build has had. A segment ending at 0xF2580 (base 0xA0000) left the title screen
+# deaf to the pad in PCSX2, while the same code ending at 0xF0580 (base 0x9E000) and a build ending at 0xF2380
+# worked; the memory there reads zero at boot and on the title screen, so what uses it is unknown. The base moved
+# down 8 KB to 0x9E000 (2026-10-25), which the owner's PS3 had already run, and a build past this end stops.
+SEGMENT_END_LIMIT = 0x000F2380
 
 
 def run(cmd, cwd=None):
@@ -289,6 +294,9 @@ SECTIONS
     data = bytearray(binary.read_bytes())
     data += bytes(end - args.base - len(data)) if end - args.base > len(data) else b""
     data += bytes((-len(data)) % 16)
+    if args.base + len(data) > SEGMENT_END_LIMIT:
+        raise SystemExit(f"the mod segment ends at 0x{args.base + len(data):08X}, past 0x{SEGMENT_END_LIMIT:08X}, "
+                         "the highest end known to boot (SEGMENT_END_LIMIT)")
     binary.write_bytes(data)
     syms = exported(elf)
     (out / "modseg.sym").write_text("".join(f"{n}\t0x{a:08X}\n" for n, a in sorted(syms.items(), key=lambda x: x[1])))
