@@ -1,11 +1,11 @@
-/* Entry points for the Randomizer's hooks (src/randomizer_play.c), one per
+/* Entry points for the Randomizer's hooks (src/randomizer_*.c), one per
  * level for each hooked call, so that the C hook knows which level program
  * made the call: tools/overlay_patch.py (feature randomizer) sends level L's
  * call sites to the stubs numbered L. Each passes L in the first free
  * argument register after the call's own arguments ($4-$7), and the moby
  * update loop's stub passes the update function the loop was about to call
- * ($3, the jalr's register) as well. Written by a generator, kept as source.
- * Numeric register names: the SN assembler takes no aliases. */
+ * ($3, the jalr's register) as well. Written by tools/gen_rz_hooks.py, kept
+ * as source. Numeric register names: the SN assembler takes no aliases. */
 .set noreorder
 .text
 .extern ee_rz_give_item_c
