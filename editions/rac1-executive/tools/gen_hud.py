@@ -319,8 +319,8 @@ def mystery_tile() -> tuple[bytes, bytes]:
                 continue
             u, v = x / (size - 1), y / (size - 1)
             tl, tr, bl, br = TILE_CORNERS
-            cov[y][x] = tuple(round(tl[i] * (1 - u) * (1 - v) + tr[i] * u * (1 - v) + bl[i] * (1 - u) * v + br[i] * u * v)
-                              for i in range(3))
+            cov[y][x] = tuple(round(tl[i] * (1 - u) * (1 - v) + tr[i] * u * (1 - v)
+                                    + bl[i] * (1 - u) * v + br[i] * u * v) for i in range(3))
     pixels = []
     for y in range(SIZE):
         for x in range(SIZE):

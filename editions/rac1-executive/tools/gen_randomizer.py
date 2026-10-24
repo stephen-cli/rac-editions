@@ -284,7 +284,8 @@ def patches(level: int, at) -> list[tuple[int, int | None, int]]:
     # (the Magneboots pickup on a revisit of Orxon decided there without the collected view)
     load = lv.place[LOAD_PASS] + LOAD_PASS_CALL
     if lv.word(load) != JALR_V1:
-        raise SystemExit(f"level {level}: MobyLoadTimeUpdatePass + 0x{LOAD_PASS_CALL:X} is not jalr $3 ({lv.word(load):08X})")
+        raise SystemExit(f"level {level}: MobyLoadTimeUpdatePass + 0x{LOAD_PASS_CALL:X} is not jalr $3 "
+                         f"({lv.word(load):08X})")
     out.append((load, JALR_V1, jal(modseg_symbol(f"ee_rz_moby_update_{level:02d}"))))
     return out
 

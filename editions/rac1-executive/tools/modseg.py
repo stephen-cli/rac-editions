@@ -87,7 +87,8 @@ LEVEL_DATA = {
     # rz3: the level's item info table (D_L00_001C43B0 in level 0: 37 records of 0x18, the ammo price at +8) and
     # its item sound table (D_L00_001C2488: a word per item, stride 0x14), from VendorBuildItemList's lui/addiu pairs
     "vendor_items": ("func_L00_0029B770", 0x78, 0x80),
-    "vendor_pose": ("func_L00_0029C9E8", 0xA0, 0xAC),      # Vendor_InitItemDisplay's per-item panel offsets (0x30 an item)
+    # Vendor_InitItemDisplay's per-item offsets of the panel's model (D_001C8C20, 0x30 an item)
+    "vendor_pose": ("func_L00_0029C9E8", 0xA0, 0xAC),
     "vendor_sounds": ("func_L00_0029B770", 0x74, 0x7C),
     # rz2: the save layout tables (D_001A05C0 the game's records, D_001A08C0 a level page's: {address, size, id, 0}
     # to a zero address), from memcard_RestoreGame's lui/addiu pairs; the Randomizer's record offset in a file
