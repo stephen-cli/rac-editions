@@ -4,6 +4,22 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-25 (freezes at big explosions)
+
+### 💥 Freezes when a warship or a tank breaks up — Fixed in the build; awaiting the owner's test on the console
+
+**What changed.** Rilgar's first Extermitank froze the PS3 a moment after exploding (first visit, normal save), and the warship's break-up at the end of Blarg Station crashed PCSX2 with "Jump to unaligned address" at a PC of the form 0x4F00xFFF, reproducibly from a savestate. The cause is memory layout, not a hook: the game's effect records (sparks, debris, 64 bytes each) live in a pool the level allocator places last, right below the stack, sized for 2,048 records on retail's layout. The Charge Boots class the edition adds to every level's core moves everything after the core up by about 62 KB, so a pool that fills past about 1,770 records writes over the stack; the warship reached 1,817 in one frame. The allocator now searches 1,024 slots (`tools/overlay_patch.py` feature `effect_pool`, three constants per level), which keeps the same headroom as retail. The same savestate ran through the whole explosion with the constants lowered in memory. Three diagnostic images and a font-painting test image built on the way are superseded.
+
+**Decisions taken.**
+
+- The cap, rather than 62 KB less level data: the class blob is 46 KB and its texture 16 KB, with no obvious cut. A burst of more than 1,024 live effects loses its latest sparks; normal play on Blarg Station had 118 live and 502 high water before the break-up.
+
+**Findings that affect other items.**
+
+- Anything that enlarges a level's resident data moves this pool toward the stack: a check to make for any future level-data change.
+- Hangs that PCSX2 cannot report can be read from a savestate: the EE registers, the kernel's saved context and the stack are in the file (FEATURES.md has the recipe). PCSX2's recompiler ignores writes to code it has compiled; the EE interpreter honours them, which the memory-level bisection needs.
+- The 16:9 packet walker, the Seed line's pause patch and the mod segment's new base were each checked and cleared along the way; the pause patch's one-block relocation rule holds in all 19 level programs.
+
 ## 2026-10-25 (the Seed line in a level)
 
 ### 🎲 The seed on the pause menu's Save and Load pages (rz2) — Working on the console

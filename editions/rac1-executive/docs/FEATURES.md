@@ -3857,4 +3857,47 @@ caller draws it. Side effect, accepted: a HelpDesk line on that planet
 naming the item reads "???" too. The vendor's menu being up is a flag the
 list hook sets and the gameplay frame clears (no gameplay frame runs while
 the vendor is open). Not yet tried in play.
+## The effect pool and the stack: freezes at big explosions (2026-10-25) — fixed; awaiting the owner's test on the console
 
+**Symptom.** Two freezes with the same shape: Rilgar's first Extermitank
+on a first visit (PS3, a moment after the explosion begins; not seen in
+PCSX2 on a save past that point) and the Nebula G34 warship's break-up at
+the end of Blarg Station, which PCSX2 reports as an R5900 exception, "Jump
+to unaligned address" at a PC like 0x4F006FFF, 0x4F007FFF or 0x4F008FFF, in
+a normal save, with 16:9 on or off, with the enemies killed or not, and
+with every level-code hook put back to retail's words in memory (the EE
+interpreter: PCSX2's recompiler ignores writes to code it has compiled).
+Flying away from the warship had worked on an earlier build.
+
+**Cause.** The game keeps its effect records (sparks, debris, glows: 64
+bytes each, the type byte indexing D_001CE100's update table, run by
+func_00218A80 every frame) in a pool that a bitmap allots
+(func_L00_00268760 searches 0x800 slots over D_L00_001B1C00). The level's
+bump allocator (func_L00_002422D8, from a pointer the loaded level
+provides) hands the pool out last, and it runs up toward the stack at the
+top of RAM: on retail's layout 0x800 records end 48 KB below 0x2000000.
+The Charge Boots class in every level's core (tools/splice_boots.py) moves
+everything after the core up by the core's growth (level 6: 0xF500), so a
+pool that fills past about 1,770 records writes over the stack. The
+warship's break-up reached 1,817 within one frame (count 0x719 at
+gp-0x6B0C, base 0x1FE34C0 at gp-0x6B14, the pool's end past 0x1FFFB40
+with the stack pointer at 0x1FFFBA0): the callees' saved registers came
+back as particle floats, a load through s2 = 0x4800000B faulted
+(BadVAddr 0x48000026, EPC in func_L00_0026BB18, one type's update) and the
+caller's s5 = 0x4F006FFF became the jump the recompiler reports. Read from
+a PCSX2 savestate of the hang: its "PCSX2 Internal Structures.dat" holds
+the EE registers (zstd members; the CP0 block is found by the EE's PRId
+0x2E20), eeMemory.bin the RAM, so the kernel's saved context, the faulting
+function and the stack walk came from the file, not the debugger. The
+same state, resumed after the allocator's three constants were lowered in
+memory, ran through the whole explosion.
+
+**Fix (tools/overlay_patch.py effect_pool).** func_L00_00268760's three
+constants (addi $1, $24, -0x800; addi $6, $0, 0x800; addi $10, $24,
+-0x800) become 0x400 in every level: the pool keeps 51 KB of headroom
+below the top of RAM, as retail's 48 KB. A burst of more than 1,024 live
+effects loses its latest sparks; the normal count on Blarg Station before
+the break-up was 118 live, 502 high water. The alternative, 62 KB less in
+every core, has no obvious source: the class blob is 46 KB and its texture
+16 KB. The level-data growth is the kind of change to check for again:
+anything that enlarges a level's resident data moves this pool.

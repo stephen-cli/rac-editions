@@ -369,6 +369,43 @@ def health_backing(at):
     return [(site, load, addiu(2, ZERO, HEALTH_ROW_STEP))]
 
 
+# The effect records: 0x40 bytes each, allotted from a bitmap (D_L00_001B1C00) by
+# func_L00_00268760, which searches EFFECT_RECORDS_RETAIL slots. The level's bump
+# allocator (func_L00_002422D8) places their pool last, after everything the loaded
+# level needs, and the pool runs up toward the stack at the top of RAM: on retail's
+# layout 0x800 records end 48 KB below it. The Charge Boots class in every level's
+# core (tools/splice_boots.py) moves everything after the core up by the core's
+# growth (level 6: 0xF500), so a pool that fills up writes records over the stack:
+# the warship's break-up on Blarg Station reached 1817 records and the game jumped
+# through a saved register that now held particle data (PCSX2 "jump to unaligned
+# address 0x4F00xFFF", a freeze on the console; 2026-10-25, from a savestate of the
+# hang). The allocator's three constants become EFFECT_RECORDS, which keeps the
+# same headroom as retail; a burst past that many effects loses its latest sparks.
+EFFECT_RECORDS_RETAIL = 0x800
+EFFECT_RECORDS = 0x400
+EFFECT_POOL_SITES = (
+    (0x10, 0x23010000),    # addi $1, $24, -N   (the search's wrap)
+    (0x2C, 0x20060000),    # addi $6, $0, N     (slots to search)
+    (0x9C, 0x230A0000),    # addi $10, $24, -N  (the second pass's wrap)
+)
+
+
+def effect_pool(at):
+    """The effect record pool holds EFFECT_RECORDS instead of 0x800, so that it stays
+    below the stack with the Charge Boots class in the level's core (see above)."""
+    f = at("func_L00_00268760")
+    out = []
+    for offset, opcode in EFFECT_POOL_SITES:
+        old, = at.words(f + offset, 1)
+        sign = -1 if offset != 0x2C else 1
+        expect = opcode | ((sign * EFFECT_RECORDS_RETAIL) & 0xFFFF)
+        if old != expect:
+            raise SystemExit(f"level {at.level}: the effect allocator's constant at 0x{f + offset:X} is "
+                             f"{old:08X}, expected {expect:08X}")
+        out.append((f + offset, old, opcode | ((sign * EFFECT_RECORDS) & 0xFFFF)))
+    return out
+
+
 SND_SET_MASTER_VOLUME = 0x0012E348     # core: the same address in every program
 DADDU_A0_ZERO = 0x0000202D             # daddu $4, $0, $0: group 0
 # The snd_SetMasterVolume calls the Movie volume takes over (src/movie_volume.c,
@@ -789,6 +826,7 @@ FEATURES = {
     "comet_strike_jump": comet_strike_jump,
     "strafe": strafe,
     "strafe_camera": strafe_camera,
+    "effect_pool": effect_pool,
 }
 DEFAULT_FEATURES = [
     "edition_text",
@@ -808,6 +846,7 @@ DEFAULT_FEATURES = [
     "item_preview",
     "widescreen",
     "randomizer",
+    "effect_pool",
 ]
 
 
