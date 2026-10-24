@@ -3751,6 +3751,28 @@ their frames: a diagonal gradient from (129, 135, 242) at the top left to
 (64, 68, 164) at the bottom right, without the rim (the owner: it should
 look like its neighbours).
 
+**The PS2 vendor-exit freeze (2026-10-25).** On a PS2 (an HW-BC PS3; never
+in PCSX2) leaving any vendor in a Randomizer save froze the game, in every
+seed, with or without a purchase. Bisected with builds that switched hooks
+off: every display hook off, fine; the list rewrite off, froze; the chicken
+hooks off, fine; the hologram pose hooks off, froze; the panel chicken
+alone, fine; the hologram chicken alone, fine; both chickens, froze; the
+panel chicken with the hologram as the stand model, froze; both chickens
+with the stand's slot holding the weapon at 2%, fine. So the game freezes
+when no model of the vendor's weapon class is drawn during the visit: the
+vendor loads that class into the gadget buffer on opening
+(LoadMobyClassResources in Vendor_InitItemDisplay, which the edition lets
+through) and Ratchet's own weapon class back on leaving (VendorMenuUpdate's
+exit, 8 frames after the Triangle press), and drawing a model of the loaded
+class does bookkeeping that the reload relies on; which bookkeeping exactly
+was not found. The display's third slot, the stand under the panel's
+model (already hidden since the chicken stands on the panel's floor), now
+holds the entry's weapon, drawn as a speck, so the class is drawn every
+frame. Not the cause: the mod segment's size (relinked 8 KB lower, still
+froze), the code cleanup (the build before it froze), the autosave hooks
+(leaving a vendor saves nothing), the chicken's shadow and collision flags.
+Confirmed fixed on the owner's PS3.
+
 **Not yet.** One Batalia bolt that another class awards (class 0x305 in its
 level code, which sets the flag without GoldBoltUpdate): the save hook
 collects a spot whose flag is set at the level's next autosave, which
@@ -3769,15 +3791,12 @@ costs the Blaster's 2,500 bolts whatever it gives). Ammo entries, which are
 the weapons owned, stay as they are. The chicken on the panel's stand is
 posed upright facing the camera (the item tables tilt a weapon for the box,
 which showed the chicken from above), at 0.6 of its size and a little
-lower, through the display's placement call after the pose is set; its
-stand, a second chicken, is moved below the display's view (the first
-build scaled it to 0, and the Novalis vendor froze on opening in a new
-game with that build, the cursor on the Pyrocitor's mystery entry and the
-stand at scale 0 in the frozen state; the zero scale was the cause, the
-one display change no run had shown working, and the owner confirmed the
-vendor opens again with the stand moved instead; the slogan's empty string
-is safe, the game pads it and moves on to an advert); the hologram keeps
-its pose. The
+lower, through the display's placement call after the pose is set; the
+stand's slot holds the entry's weapon at 2% of its size, a speck (see "The
+PS2 vendor-exit freeze" below; the first build scaled a stand chicken to 0,
+and the Novalis vendor froze on opening with it, so a scale of 0 is not
+safe for the drawing; the slogan's empty string is safe, the game pads it
+and moves on to an advert); the hologram keeps its pose. The
 selected item's slogan on the scrolling line ("BLASTER! POINT IT MORE OR
 LESS AT THE BAD GUYS...", msg_string in VendorMenuUpdate, four calls) is
 blank for a purchase entry, so the line moves on to the vendor's own

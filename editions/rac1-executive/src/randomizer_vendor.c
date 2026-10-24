@@ -76,8 +76,8 @@ struct VendorEntry {
 #define CHICKEN_CLASS   270             /* the Morph-o-Ray's chicken (MorphorayChickenUpdate), in every level */
 #define CHICKEN_SCALE   0.6f            /* a weapon-sized chicken is too tall for the panel */
 #define CHICKEN_LOWER   0.15f           /* its origin is at its feet, so it comes down a little */
-#define STAND_AWAY      40.0f           /* the stand (a second chicken) goes below the display's view: a scale of 0
-                                         * froze the game when the vendor opened */
+#define WEAPON_SPECK    0.02f           /* the weapon's model in the stand's slot, at 2% of its size: see
+                                         * ee_rz_vendor_model_c; a scale of 0 froze the game on opening */
 
 static s32 purchase_item = -1;          /* a check was bought: the vendor's item id, */
 static s32 reward_item;                 /* and the item id the check gave, -1 for one that is no item */
@@ -264,11 +264,31 @@ const char *ee_rz_vendor_slogan_c(s32 id, s32 L)
     return LVL(L, func_001FE540, MsgFn)(id);
 }
 
-/* InitMobyInstance in Vendor_InitItemDisplay: the panel's model, its stand and the hologram are the chicken. */
+/* InitMobyInstance in Vendor_InitItemDisplay, for the panel's model, its stand and the hologram in turn.
+ *
+ * The panel's model and the hologram are the chicken. The stand's slot gets the weapon itself, drawn as a speck
+ * (ee_rz_vendor_place_c), because the game needs a model of the weapon's class drawn during the visit: on a PS2
+ * (never in PCSX2) leaving the vendor froze the game whenever neither display model was the weapon, with a
+ * chicken in both places or a chicken and the stand; with the weapon in either place it left fine. The vendor
+ * loads the weapon's class into the gadget buffer on opening and Ratchet's own back on leaving, and drawing a
+ * model of the loaded class does bookkeeping that reload relies on. The stand itself is not missed: the chicken
+ * stands on the panel's floor. */
+static s32 entry_weapon_class;         /* the entry's weapon class, from the panel's call for the stand's */
+
 void ee_rz_vendor_model_c(void *moby, s32 class_id, s32 L)
 {
     if (mystery_selected(L)) {
-        class_id = CHICKEN_CLASS;
+        u8 *display = *(u8 **)(LVL_DATA(L, vendor_state, u8 *) + VENDOR_DISPLAY);
+        if ((u8 *)moby == display + DISPLAY_PANEL) {
+            entry_weapon_class = class_id;
+            class_id = CHICKEN_CLASS;
+        } else if ((u8 *)moby == display + DISPLAY_STAND) {
+            if (entry_weapon_class > 0) {
+                class_id = entry_weapon_class;
+            }
+        } else {
+            class_id = CHICKEN_CLASS;
+        }
     }
     LVL(L, func_0020D440, InitMobyFn)(moby, class_id);
 }
@@ -300,7 +320,7 @@ static void undo_item_offset(u8 *panel, s32 item, const u8 *camera, s32 L)
 
 /* The display's placement of a model in Vendor_InitItemDisplay, once its pose is set from the item's tables (which
  * tilt a weapon for the panel): the panel's chicken stands upright facing the camera, smaller and a little lower;
- * its stand is moved out of view. */
+ * the weapon in the stand's slot shrinks to a speck. */
 void ee_rz_vendor_place_c(void *moby, s32 L)
 {
     if (mystery_selected(L)) {
@@ -317,7 +337,7 @@ void ee_rz_vendor_place_c(void *moby, s32 L)
             *moby_float(model, MOBY_SCALE) *= CHICKEN_SCALE;
             *moby_float(model, MOBY_POS_Z) -= CHICKEN_LOWER;
         } else if (model == display + DISPLAY_STAND) {
-            *moby_float(model, MOBY_POS_Z) -= STAND_AWAY;
+            *moby_float(model, MOBY_SCALE) *= WEAPON_SPECK;
         }
     }
     LVL(L, func_L00_00251E30, PlaceFn)(moby);
