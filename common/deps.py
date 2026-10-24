@@ -65,11 +65,11 @@ def check(deps: dict, dirs: dict[str, Path], strict: bool = False) -> int:
             bad |= strict
         vendor = dep.get("vendor")
         if vendor:
-            for f in vendor["files"]:
-                want = blob(repo, pin, f"{vendor['from']}/{f}")
+            for source, f in vendor["files"].items():
+                want = blob(repo, pin, source)
                 have = ROOT / vendor["to"] / f
                 if want is None or not have.exists() or have.read_bytes() != want:
-                    print(f"{name}:   {vendor['to']}/{f} differs from {vendor['from']}/{f} at the pin (deps.py vendor)")
+                    print(f"{name}:   {vendor['to']}/{f} differs from {source} at the pin (deps.py vendor)")
                     bad = 1
     return bad
 
@@ -93,24 +93,35 @@ def vendor(deps: dict, dirs: dict[str, Path]) -> int:
     v, pin = dep["vendor"], dep["commit"]
     out = ROOT / v["to"]
     out.mkdir(parents=True, exist_ok=True)
-    for f in v["files"]:
-        data = blob(dirs["openrac"], pin, f"{v['from']}/{f}")
+    for source, f in v["files"].items():
+        data = blob(dirs["openrac"], pin, source)
         if data is None:
-            print(f"{v['from']}/{f} not found at {pin[:12]} in {dirs['openrac']}", file=sys.stderr)
+            print(f"{source} not found at {pin[:12]} in {dirs['openrac']}", file=sys.stderr)
             return 1
+        (out / f).parent.mkdir(parents=True, exist_ok=True)
         (out / f).write_bytes(data)
+    # openrac_common finds its root (repo_root) as the directory holding games/ and either
+    # OpenRAC's AGENTS.md or the STANDALONE note of a bundled copy, the launcher's kind.
+    (out / "STANDALONE").write_text(
+        "OpenRAC's disc readers as rac-editions carries them (common/deps.py vendor).\n"
+        f"commit: {pin}\n"
+    )
     (out / "README.md").write_text(
         "# OpenRAC's disc readers\n\n"
-        f"Copied unchanged from OpenRAC's `{v['from']}/` at commit `{pin}`\n"
-        f"({dep['url']}), under its MIT license ([LICENSE](LICENSE)). The editions'\n"
-        "tools import these instead of an OpenRAC checkout, so making an edition\n"
-        "from a player's discs needs no OpenRAC.\n\n"
+        f"Copied unchanged from OpenRAC at commit `{pin}`\n"
+        f"({dep['url']}): the readers in its `editor/`, at the top here, under the\n"
+        "MIT license ([LICENSE](LICENSE)); the `tools/openrac_common` helpers they\n"
+        "import and the `games/*/game.json` manifests they read, under the GNU GPL v3\n"
+        "or later, as rac-editions is. The editions' tools import these instead of an\n"
+        "OpenRAC checkout, so making an edition from a player's discs needs no OpenRAC.\n"
+        "The `STANDALONE` note marks this directory as the readers' OpenRAC root, as\n"
+        "in the launcher's bundled copy.\n\n"
         "Do not edit them here: change them in OpenRAC, move the pin\n"
         "(`python common/deps.py lock`) and copy them again\n"
         "(`python common/deps.py vendor`). `python common/deps.py check` reports a\n"
         "copy that differs from the pinned commit's.\n"
     )
-    print(f"copied {len(v['files'])} files from {v['from']}/ at {pin[:12]} to {v['to']}/")
+    print(f"copied {len(v['files'])} files from OpenRAC at {pin[:12]} to {v['to']}/")
     return 0
 
 

@@ -5,19 +5,40 @@ their data out the same way: only three files are named on the disc, and
 everything else is addressed by absolute 2048-byte sectors through the table
 the game reads at startup. What differs between them is in VERSIONS: the
 executable, the gameplay copy each game reads and one table's address.
+
+The file system is read by openrac_common's iso9660 (its directory records),
+through Disc's bounded reads and with checks stricter than a PS2 disc needs,
+which stay here: a primary volume descriptor of version 1 with 2048-byte
+logical blocks, one root directory of files (no subdirectory, no multi-extent
+file), and a SYSTEM.CNF read only when it boots from cdrom0:\\ (BOOT).
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 import hashlib
+import io
 from pathlib import Path
 import re
+import sys
 
-from formats import FormatError, span, unpack
+sys.path.insert(1, str(next(p for p in Path(__file__).resolve().parents if (p / "tools/openrac_common").is_dir()) / "tools"))
+from openrac_common import iso9660  # noqa: E402
+
+from formats import FormatError, unpack  # noqa: E402
+import util  # noqa: E402
 
 SECTOR = 2048
 LEVEL_COUNT = 19
 LEVEL_HEADER_SIZE = 0x2434
 LEVEL_RANGES = ("data", "gameplay_ntsc", "gameplay_pal", "occlusion")
+
+# The volume descriptor both discs start with: type 1 (primary), "CD001", version 1; and its
+# logical block size, which must be SECTOR (ECMA-119 8.4.1 to 8.4.3, 8.4.12).
+PRIMARY_DESCRIPTOR = b"\x01CD001\x01"
+LOGICAL_BLOCK_SIZE = 128
+# A record's flags that the root directory of these discs never has: a subdirectory, or a file
+# of more than one extent (ECMA-119 9.1.6).
+FLAG_MULTI_EXTENT = 0x80
 
 # Global table groups: (offset, slots, name, unit of the second word).
 # Names follow Wrench's RacWadInfo; "lba" groups store sectors only.
@@ -53,10 +74,12 @@ GROUPS = (
 
 @dataclass(frozen=True)
 class Version:
-    """One disc of the game: what identifies it and where it keeps what the readers need."""
+    """One disc of the game: what identifies it and where it keeps what the readers need. What
+    identifies it (region to executable_sha1) is read from games/rac1/game.json
+    (util.disc_identity); where it keeps things is known here."""
     key: str                # OpenRAC's name for it (games/rac1/game.json, launcher/actions.json)
-    region: str
-    label: str
+    region: str             # "PAL", "NTSC-U"
+    label: str              # "PAL v2.00": the region and the disc's version
     executable: str         # the boot executable, named after the serial
     executable_size: int
     executable_sha1: str
@@ -69,15 +92,15 @@ class Version:
 
 
 # PAL: func_0012F3F8 reads the table into D_00137C80, func_0012F4A8 the level table (D_0013A548).
-PAL = Version("pal", "PAL", "PAL v2.00", "SCES_509.16", 1388100,
-              "79956931bd62fafd8d20fa2eae796dbaf2e15e83", "gameplay_pal", 0x165600)
+PAL = Version(key="pal", **util.disc_identity("rac1", "pal"), gameplay="gameplay_pal", normal_table=0x165600)
 # NTSC-U: the same table of contents (ReRAC's docs/formats/disc_layout.md, sections 2.2 to 2.4;
 # ISC License, Copyright (c) 2026 ReRAC contributors: six sectors at 1500, 0x2960 bytes copied to
 # D_00137B80). Its game loads the NTSC gameplay copy: the NTSC decomp's load_level_gameplay reads
 # the level header that follows the table (+0x2970, header 0x10) unless pal_mode is set.
-NTSC = Version("ntsc", "NTSC-U", "NTSC-U v1.00", "SCUS_971.99", 1383028,
-               "72fd1de379dafd8f243dceeb3be50980f3fd3cd5", "gameplay_ntsc", 0x165500)
+NTSC = Version(key="ntsc", **util.disc_identity("rac1", "ntsc"), gameplay="gameplay_ntsc", normal_table=0x165500)
 VERSIONS = (PAL, NTSC)
+# The executable SYSTEM.CNF boots, from the disc only: stricter than iso9660.parse_boot2, which
+# takes any device.
 BOOT = re.compile(rb"BOOT2\s*=\s*cdrom0:\\([^;\r\n]+)")
 
 
@@ -112,30 +135,35 @@ class Disc:
     def sectors(self, lba: int, count: int) -> bytes:
         return self.read(lba * SECTOR, count * SECTOR)
 
-    def files(self) -> list[dict]:
-        """The root directory; this disc has no subdirectories."""
-        pvd = self.read(16 * SECTOR, SECTOR)
-        if pvd[:7] != b"\x01CD001\x01" or unpack("<H", pvd, 128)[0] != SECTOR:
+    def root_directory(self) -> tuple[int, int]:
+        """(first sector, size in bytes) of the root directory, once the volume descriptor is
+        known to be a primary one of version 1 with 2048-byte logical blocks."""
+        pvd = self.read(iso9660.PVD_SECTOR * SECTOR, SECTOR)
+        if pvd[:len(PRIMARY_DESCRIPTOR)] != PRIMARY_DESCRIPTOR or unpack("<H", pvd, LOGICAL_BLOCK_SIZE)[0] != SECTOR:
             raise FormatError("expected ISO 9660 with 2048-byte sectors")
-        lba, size = unpack("<I", pvd, 158)[0], unpack("<I", pvd, 166)[0]
+        return iso9660.root_directory(self.file)
+
+    def records(self, lba: int, size: int) -> Iterator[tuple[bytes, int, int, int]]:
+        """(raw name, first sector, size, flags) of each record of the directory at LBA of SIZE
+        bytes but its own and its parent's, in the disc's order: iso9660.records over the bytes
+        this disc's bounded read gives, its errors raised as FormatError."""
         directory = self.read(lba * SECTOR, size)
-        records, pos = [], 0
-        while pos < len(directory):
-            length = directory[pos]
-            if not length:  # Records never cross a sector; zeros pad to the next.
-                pos = (pos // SECTOR + 1) * SECTOR
-                continue
-            record = span(directory, pos, length)
-            name = span(record, 33, span(record, 0, 33)[32])
-            pos += length
-            if name in (b"\0", b"\1"):
-                continue
-            if record[25] & 0x82:
+        try:
+            for record in iso9660.records(io.BytesIO(directory), 0, len(directory)):
+                if record[0] not in iso9660.SELF_AND_PARENT:
+                    yield record
+        except iso9660.IsoError as exc:
+            raise FormatError(str(exc)) from None
+
+    def files(self) -> list[dict]:
+        """The root directory's files: {"name" (without its ";1"), "lba", "bytes"}. This disc has
+        no subdirectories, and a disc that has one, or a file in several extents, is refused."""
+        files = []
+        for name, lba, size, flags in self.records(*self.root_directory()):
+            if flags & (iso9660.FLAG_DIRECTORY | FLAG_MULTI_EXTENT):
                 raise FormatError("unexpected subdirectory or multi-extent file")
-            records.append({"name": name.decode("ascii").split(";")[0],
-                            "lba": unpack("<I", record, 2)[0],
-                            "bytes": unpack("<I", record, 10)[0]})
-        return records
+            files.append({"name": name.decode("ascii").split(";")[0], "lba": lba, "bytes": size})
+        return files
 
     def identify(self) -> tuple[Version, dict]:
         """The version, from the executable SYSTEM.CNF boots (or the one known executable on the

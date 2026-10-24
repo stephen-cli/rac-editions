@@ -1,0 +1,76 @@
+{
+  "id": "rac2",
+  "title": "Ratchet & Clank: Going Commando",
+  "year": 2003,
+  "titles": {
+    "pal": "Ratchet & Clank 2: Locked and Loaded"
+  },
+  "versions": {
+    "ntsc": {
+      "region": "NTSC-U (North America)",
+      "serial": "SCUS_972.68",
+      "bytematch": "OpenRAC/rac2-decomp",
+      "disc": {
+        "file": "SCUS_972.68.iso",
+        "volume": "RATCHETANDCLANK2",
+        "version": "1.01",
+        "video": "NTSC",
+        "size": 3828350976,
+        "crc32": "6d1fc798",
+        "md5": "3cbbb5127ee8a0be93ef0876f7781ee8",
+        "sha1": "f2cfaf0eb12b3c0d8fd6db7aa49ce032e8a6020b",
+        "sha256": "9db2e33e276133cc283647fa3279b37911955e123d6199d10065547eaa9b1ce5"
+      },
+      "boot": {
+        "file": "SCUS_972.68",
+        "size": 2618684,
+        "crc32": "0fa89158",
+        "md5": "e514263cd9b01cad088839fbe8585e1e",
+        "sha1": "bacda860cbd6723142e86db56f197e47e728970f",
+        "sha256": "36d5814d8d95328d5839612ccdf7a2e7ecac0b6f868d3ad4bb2e98411f734b4a"
+      },
+      "target": "The boot executable SCUS_972.68 and its 27 level programs: every program rebuilds byte for byte from splat's assembly, with the C in src/ linked in place of its functions (one definition per function, at every place it has).",
+      "source": {
+        "name": "rac2-decomp",
+        "repo": "https://github.com/OpenRAC/rac2-gc-decomp",
+        "branch": "master",
+        "checkout": "../rac2-decomp",
+        "license": "GPL-3.0",
+        "exclude": [],
+        "commit": "8bc9d785bfec96fbc41c608ce625427912813ca5",
+        "date": "2026-10-20",
+        "imported": "2026-10-20"
+      },
+      "build": {
+        "host": "macOS, Linux or Windows through Docker (linux/386 image with Wine and the build tools); SN ProDG 2.0's assembler and linker you supply",
+        "readme": "games/rac2/ntsc/docs/BUILDING.md"
+      },
+      "progress": {
+        "report": "games/rac2/ntsc/progress/report.json",
+        "format": "objdiff",
+        "note": "Every distinct function of the boot executable and the 27 level programs counted once (a function many levels share is one function); matched when its C links into a program that equals retail."
+      },
+      "inputs": [],
+      "setup": "in games/rac2/ntsc: python3 tools/levels.py dump (baserom/SCUS_972.68.iso), tools/compiler/build.sh, python3 tools/compiler/sdk/build.py, then python3 tools/build.py all (docs/BUILDING.md; bash tools/docker/run.sh <command> on hosts without the tools)",
+      "xmap": {
+        "code": [
+          {
+            "program": "boot",
+            "path": "games/rac2/ntsc/baserom/SCUS_972.68",
+            "format": "elf"
+          },
+          {
+            "program": "level",
+            "glob": "games/rac2/ntsc/baserom/levels/*_*",
+            "format": "rac2-level"
+          }
+        ],
+        "matched": {
+          "kind": "objdiff",
+          "report": "games/rac2/ntsc/progress/report.json"
+        },
+        "setup": "python3 tools/levels.py dump in games/rac2/ntsc"
+      }
+    }
+  }
+}

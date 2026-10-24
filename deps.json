@@ -2,11 +2,33 @@
   "openrac": {
     "url": "https://github.com/stephen-cli/OpenRAC",
     "branch": "executive-edition",
-    "commit": "31aebd33931e983e29cbead2ee3d55026a428735",
+    "commit": "a4edca52f5f9568b63f4819b3f4aa097f331abc0",
     "vendor": {
-      "from": "editor",
       "to": "common/openrac_editor",
-      "files": ["LICENSE", "disc.py", "formats.py", "games.py", "level.py", "mesh.py", "moby_anim.py", "moby_class.py", "wads.py"]
+      "files": {
+        "editor/LICENSE": "LICENSE",
+        "editor/disc.py": "disc.py",
+        "editor/formats.py": "formats.py",
+        "editor/games.py": "games.py",
+        "editor/level.py": "level.py",
+        "editor/mesh.py": "mesh.py",
+        "editor/moby_anim.py": "moby_anim.py",
+        "editor/moby_class.py": "moby_class.py",
+        "editor/util.py": "util.py",
+        "editor/wads.py": "wads.py",
+        "tools/openrac_common/__init__.py": "tools/openrac_common/__init__.py",
+        "tools/openrac_common/digest.py": "tools/openrac_common/digest.py",
+        "tools/openrac_common/files.py": "tools/openrac_common/files.py",
+        "tools/openrac_common/games.py": "tools/openrac_common/games.py",
+        "tools/openrac_common/iso9660.py": "tools/openrac_common/iso9660.py",
+        "tools/openrac_common/paths.py": "tools/openrac_common/paths.py",
+        "tools/openrac_common/proc.py": "tools/openrac_common/proc.py",
+        "tools/openrac_common/tables.py": "tools/openrac_common/tables.py",
+        "games/rac1/game.json": "games/rac1/game.json",
+        "games/rac2/game.json": "games/rac2/game.json",
+        "games/rac3/game.json": "games/rac3/game.json",
+        "games/rac4/game.json": "games/rac4/game.json"
+      }
     }
   },
   "wrench": {

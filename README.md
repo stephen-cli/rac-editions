@@ -55,7 +55,8 @@ C:\rac\rac-editions
 the pins are pushed; each edition's build runs it first. Only building needs
 these checkouts. The OpenRAC modules that read the discs are carried in
 [common/openrac_editor](common/openrac_editor/README.md), copied unchanged
-from the pinned commit (MIT), so the installer needs no OpenRAC. To move to
+from the pinned commit with the helpers and game manifests they read, so the
+installer needs no OpenRAC. To move to
 newer OpenRAC: `python common/deps.py lock`, then `python common/deps.py vendor`.
 
 ## Checks

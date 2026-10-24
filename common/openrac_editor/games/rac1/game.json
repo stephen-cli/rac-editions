@@ -1,0 +1,291 @@
+{
+  "id": "rac1",
+  "title": "Ratchet & Clank",
+  "year": 2002,
+  "titles": {
+    "pal": "Ratchet & Clank"
+  },
+  "versions": {
+    "pal": {
+      "dir": "games/rac1",
+      "region": "PAL (Europe)",
+      "serial": "SCES_509.16",
+      "bytematch": "OpenRAC/rac1-decomp",
+      "disc": {
+        "file": "SCES_509.16.iso",
+        "volume": "RATCHETANDCLANK",
+        "version": "2.00",
+        "video": "PAL",
+        "size": 4214784000,
+        "crc32": "e417c4b2",
+        "md5": "32b8347b2bb80cd30d30ba0601ebb0ee",
+        "sha1": "ef304c641c7cd426ba492707dda5974679befbc0",
+        "sha256": "0f18a6c84cd8d727ec8c21000a236ed5ce2f279cbb8d0682fa9747199ef73260"
+      },
+      "boot": {
+        "file": "SCES_509.16",
+        "size": 1388100,
+        "crc32": "3b34cb54",
+        "md5": "d86429e2eca4e1da7d7f1cc656af2574",
+        "sha1": "79956931bd62fafd8d20fa2eae796dbaf2e15e83",
+        "sha256": "17f8a846329fd10798cb97847e9610e5eecd1867668420ed627b2292a96b122b"
+      },
+      "target": "The boot executable SCES_509.16 and the 19 level programs (overlays), matched function by function.",
+      "source": {
+        "name": "rac1-decomp",
+        "repo": "https://github.com/OpenRAC/rac1-decomp",
+        "branch": "main",
+        "checkout": "../rac1-decomp",
+        "license": "GPL-3.0 (third-party parts keep theirs)",
+        "exclude": [
+          ".agents",
+          "tools/extract",
+          "docs/GDSCRIPT_CONVENTIONS.md"
+        ],
+        "commit": "de14440819093b81c00a1e219d4fef54d6fccd16",
+        "date": "2026-10-23",
+        "imported": "2026-10-24"
+      },
+      "build": {
+        "host": "macOS or Linux through Docker (linux/386 image with Wine); SN ProDG toolchain you supply",
+        "readme": "games/rac1/README.md"
+      },
+      "progress": {
+        "report": "games/rac1/progress/report.json",
+        "format": "objdiff",
+        "note": "The boot executable and all 19 level programs. Handwritten assembly and linker remnants count as finished; staged near misses (nonmatching/) give the fuzzy figure."
+      },
+      "inputs": [
+        {
+          "from": "disc",
+          "path": "games/rac1/baserom/SCES_509.16.iso"
+        },
+        {
+          "from": "boot",
+          "path": "games/rac1/baserom/SCES_509.16"
+        },
+        {
+          "from": "toolchains",
+          "path": "games/rac1/toolchain"
+        }
+      ],
+      "setup": "in games/rac1: bash tools/docker/run.sh bash tools/setup_asm.sh, then bash tools/docker/run.sh bash tools/build_sn.sh (its README; toolchains/README.md for the compilers)",
+      "xmap": {
+        "code": [
+          {
+            "program": "boot",
+            "path": "games/rac1/baserom/SCES_509.16",
+            "format": "elf"
+          },
+          {
+            "program": "level",
+            "glob": "games/rac1/baserom/overlays/level_*",
+            "format": "rac1-level"
+          }
+        ],
+        "matched": {
+          "kind": "objdiff",
+          "report": "games/rac1/progress/report.json",
+          "not_c": [
+            "games/rac1/config/handwritten_asm.txt",
+            "games/rac1/config/linker_remnants.txt"
+          ],
+          "names": "games/rac1/config/names.tsv"
+        },
+        "setup": "python3 tools/openrac.py setup rac1/pal, then python3 tools/overlays.py dump in games/rac1"
+      },
+      "port": {
+        "root": "games/rac1",
+        "gp": "0x166D00",
+        "catalogue": "games/rac1/config/overlays/functions.tsv",
+        "report": "games/rac1/progress/report.json",
+        "level_data_from": "0x15F000",
+        "check": {
+          "command": "bash tools/docker/run.sh python tools/integrate.py {manifest}",
+          "log": "build-sn/try/{name}/log.txt",
+          "scratch": "build-sn/port"
+        },
+        "never": [
+          "shared/port/rac1-pal.never.txt",
+          "shared/port/rac1-pal.undecided.txt"
+        ],
+        "never_sources": [
+          "games/rac1/src/game/movie"
+        ],
+        "sources": "games/rac1/src",
+        "include": [
+          "games/rac1/include"
+        ],
+        "defines": [],
+        "shared_headers": [
+          "common.h",
+          "include_asm.h",
+          "names.h"
+        ],
+        "refuse_headers": [
+          "structs.h"
+        ],
+        "phrases": [
+          [
+            "\\blong\\b",
+            "long long"
+          ]
+        ],
+        "credit": "Adapted from rac1-decomp (GPL-3.0), the PAL decompilation, by OpenRAC's tools/port.py: {file}, {name}.",
+        "allow": {
+          "func_00116168": [
+            "do/while (0)"
+          ],
+          "func_001161B0": [
+            "do/while (0)"
+          ],
+          "func_001126D8": [
+            "do/while (0)"
+          ]
+        }
+      }
+    },
+    "ntsc": {
+      "region": "NTSC-U (North America)",
+      "serial": "SCUS_971.99",
+      "bytematch": "lombyte-project/Lombyte",
+      "disc": {
+        "file": "SCUS_971.99.iso",
+        "volume": "RATCHETANDCLANK",
+        "version": "1.00",
+        "video": "NTSC",
+        "size": 4214095872,
+        "crc32": "960318d0",
+        "md5": "a62a8ae0e44c2580be38c82f48b7d181",
+        "sha1": "aee9275384f739c9b24cd5de6f7e200292db7b01",
+        "sha256": "ab849fe7cc9cc81c487d61b0d3ea15b5849943481b6a6ebf4d9aa9cf7bc40d9d"
+      },
+      "boot": {
+        "file": "SCUS_971.99",
+        "size": 1383028,
+        "crc32": "bb737a9f",
+        "md5": "0c081d4e0353b419d95e5f95eb0ebacb",
+        "sha1": "72fd1de379dafd8f243dceeb3be50980f3fd3cd5",
+        "sha256": "e050581032e4bb3f20341307da5b69b76f1574910519155380ea771e55c3c0c9"
+      },
+      "target": "The boot executable SCUS_971.99 and the 19 level programs, as per-function units.",
+      "source": {
+        "name": "Lombyte",
+        "repo": "https://github.com/lombyte-project/Lombyte",
+        "branch": "main",
+        "checkout": "../rac1-decomp-ntsc",
+        "license": "GPL-3.0 (GPL-2.0 and newlib parts keep theirs)",
+        "exclude": [],
+        "commit": "8d22ee2420f43c245f7f25a9bb3df81aa2eb1c3a",
+        "date": "2026-10-20",
+        "imported": "2026-10-20"
+      },
+      "build": {
+        "host": "Linux or WSL; macOS through ./setup.sh --docker; toolchains downloaded and built by setup.sh",
+        "readme": "games/rac1/ntsc/README.md"
+      },
+      "progress": {
+        "report": "progress/sources/rac1-ntsc.json",
+        "format": "objdiff",
+        "note": "Lombyte commits no report: its CI publishes one on the project's progress branch, which `openrac.py progress --fetch` copies to progress/sources/. Byte-weighted over the boot executable and the 19 level programs.",
+        "fetch": {
+          "branch": "progress",
+          "path": "report.json"
+        }
+      },
+      "inputs": [
+        {
+          "from": "disc",
+          "path": "games/rac1/ntsc/dumps/SCUS_971.99.iso"
+        },
+        {
+          "from": "boot",
+          "path": "games/rac1/ntsc/config/us/SCUS_971.99"
+        }
+      ],
+      "setup": "in games/rac1/ntsc: ./setup.sh --elf config/us/SCUS_971.99 (Linux or WSL; add --docker on macOS), then make elf",
+      "xmap": {
+        "code": [
+          {
+            "program": "boot",
+            "path": "games/rac1/ntsc/config/us/SCUS_971.99",
+            "format": "elf"
+          },
+          {
+            "program": "level",
+            "glob": "games/rac1/ntsc/config/us/overlays/level_*",
+            "format": "rac1-level"
+          }
+        ],
+        "matched": {
+          "kind": "objdiff",
+          "report": "progress/sources/rac1-ntsc.json",
+          "boot_offset_delta": 1044608
+        },
+        "setup": "python3 tools/openrac.py setup rac1/ntsc, then the project's setup.sh, which extracts the level overlays"
+      },
+      "port": {
+        "root": "games/rac1/ntsc",
+        "sources": "games/rac1/ntsc/src",
+        "include": [
+          "games/rac1/ntsc/include"
+        ],
+        "defines": [
+          "MATCHING_DECOMP",
+          "BUILD_US_VERSION"
+        ],
+        "gp": "0x166C00",
+        "catalogue": "games/rac1/ntsc/config/overlays/us/functions.tsv",
+        "symbols": "games/rac1/ntsc/config/us/symbol_addrs.txt",
+        "shared_headers": [
+          "types.h",
+          "qcopy.h",
+          "sda.h",
+          "asm.h"
+        ],
+        "types": {
+          "b32": "s32",
+          "vs8": "volatile s8",
+          "vu8": "volatile u8",
+          "vs16": "volatile s16",
+          "vu16": "volatile u16",
+          "vs32": "volatile s32",
+          "vu32": "volatile u32",
+          "vs64": "volatile s64",
+          "vu64": "volatile u64"
+        },
+        "credit": "Adapted from Lombyte (GPL-3.0) for PAL by OpenRAC's tools/port.py: {file}, {name}.",
+        "phrases": [
+          [
+            "\\blong\\s+long\\b",
+            "long"
+          ]
+        ],
+        "level_data_from": "0x15EF00",
+        "report": "progress/sources/rac1-ntsc.json",
+        "names": {
+          "function": "FUN_{addr:08x}"
+        },
+        "alias": "always",
+        "small_data": "sda",
+        "headers": {
+          "MACRO_ADDR": "sda.h",
+          "NOT_SDA": "sda.h",
+          "qcopy": "qcopy.h"
+        },
+        "check": {
+          "kind": "guard",
+          "sources": "src/overlays",
+          "stub": "INCLUDE_ASM(\"config/us/overlays/asm/{name}.s\", {name});",
+          "command": "bash host/run.sh python3 scripts/check-unit.py {name} --json",
+          "scratch": "build/port",
+          "alternatives": [
+            {
+              "macro_addr": "mixed"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

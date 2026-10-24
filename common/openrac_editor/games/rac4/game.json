@@ -1,0 +1,85 @@
+{
+  "id": "rac4",
+  "title": "Ratchet: Deadlocked",
+  "year": 2005,
+  "titles": {
+    "pal": "Ratchet: Gladiator"
+  },
+  "versions": {
+    "ntsc": {
+      "region": "NTSC-U (North America)",
+      "serial": "SCUS_974.65",
+      "bytematch": "OpenRAC/rac4-decomp",
+      "disc": {
+        "file": "SCUS_974.65.iso",
+        "volume": "RATCHETDEADLOCKED",
+        "version": "1.00",
+        "video": "NTSC",
+        "size": 4356898816,
+        "crc32": "66eb35f4",
+        "md5": "c1e1992076becc7de5aa70ef1de8bcd0",
+        "sha1": "a85482348f741d848dd2ff4e4c3ba7c2c40f431d",
+        "sha256": "dda48512e9b7609f69a49146ab239c4ebda7f13cf3d06397f19f6f3ce155a42b"
+      },
+      "boot": {
+        "file": "SCUS_974.65",
+        "size": 1692216,
+        "crc32": "eebbaace",
+        "md5": "9e33838c3939099d614963063544df3e",
+        "sha1": "aa91b1c3b9b1a244320c47580b77342ef9856e95",
+        "sha256": "2f305ab0ed47f148f599ef8769a534adf4080307aa11ab26a7966dedec897ed6"
+      },
+      "target": "The game image packed inside the boot executable SCUS_974.65 (core, network and resident level code: 8,027 functions) and the 47 level overlays (24 campaign, 23 multiplayer), compared function by function; there is no linked image yet.",
+      "inputs": [
+        {
+          "from": "boot",
+          "path": "games/rac4/ntsc/baserom/SCUS_974.65"
+        },
+        {
+          "from": "toolchains",
+          "path": "games/rac4/ntsc/toolchain"
+        }
+      ],
+      "setup": "in games/rac4/ntsc: bash tools/setup_asm.sh, bash tools/docker/run.sh bash tools/build.sh, then venv/bin/python tools/audit_matches.py (its README; toolchains/README.md for the compilers)",
+      "source": {
+        "name": "rac-deadlocked-decomp",
+        "repo": "https://github.com/OpenRAC/rac-deadlocked-decomp",
+        "branch": "main",
+        "checkout": "../rac4-decomp",
+        "license": "MIT (GPL libgcc, newlib libm)",
+        "exclude": [],
+        "commit": "dedfcd416a1b8e195978df6b038e0d4cd927f4b7",
+        "date": "2026-10-05",
+        "imported": "2026-10-04"
+      },
+      "build": {
+        "host": "macOS or Linux through Docker (rac1/pal's linux/386 image with Wine); SN ProDG toolchain you supply",
+        "readme": "games/rac4/ntsc/README.md"
+      },
+      "progress": {
+        "report": "games/rac4/ntsc/progress/report.json",
+        "format": "objdiff",
+        "note": "Functions are compared one by one with most 16-bit immediates masked (symbols, struct offsets and small constants are not checked), and nothing is linked yet, so this is a looser proof than the other games'. Overlay code identical to resident code is counted once."
+      },
+      "xmap": {
+        "code": [
+          {
+            "program": "boot",
+            "path": "games/rac4/ntsc/baserom/SCUS_974.65.elf",
+            "format": "elf"
+          },
+          {
+            "program": "level",
+            "glob": "build/rac4/wrench_out/levels/*/*/overlay.elf",
+            "format": "elf"
+          }
+        ],
+        "matched": {
+          "kind": "objdiff",
+          "report": "games/rac4/ntsc/progress/report.json"
+        },
+        "setup": "bash tools/setup_asm.sh in games/rac4/ntsc, and wrenchbuild unpack baserom/SCUS_974.65.iso -o build/rac4/wrench_out -g dl -r us"
+      }
+    }
+  }
+}

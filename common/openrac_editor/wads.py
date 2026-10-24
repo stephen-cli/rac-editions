@@ -20,11 +20,19 @@ has, which level.load_wad_level reads with the shared readers.
 
 from dataclasses import dataclass
 import hashlib
+from pathlib import Path
+import sys
 
-from disc import BOOT, SECTOR, Disc
-from formats import FormatError, span, unpack
+sys.path.insert(1, str(next(p for p in Path(__file__).resolve().parents if (p / "tools/openrac_common").is_dir()) / "tools"))
+from openrac_common import iso9660  # noqa: E402
+
+from disc import BOOT, SECTOR, Disc  # noqa: E402
+from formats import FormatError, span, unpack  # noqa: E402
+import util  # noqa: E402
 
 TOC_LBA = 1001
+# How much of the root directory walk reads: these discs' are a sector or two.
+ROOT_SECTORS = 16
 # How much of the table of contents is read (Wrench's TOC_MAX_SIZE); the level headers end
 # before +0x72000 on these discs.
 TOC_LIMIT = 0x200000
@@ -38,7 +46,9 @@ HEADER_KINDS = {0x60: LEVEL, 0xc68: LEVEL, 0x1018: AUDIO, 0x1818: AUDIO, 0x2a0: 
 
 @dataclass(frozen=True)
 class Version:
-    """One disc: the game, what identifies it, and the shape of its level files."""
+    """One disc: the game, what identifies it, and the shape of its level files. What identifies
+    it (region to executable_sha1) is read from games/<game>/game.json (util.disc_identity); the
+    shape of its level files is known here."""
     game: str               # rac2, rac3, rac4 (games/<game>/game.json)
     key: str                # the version's name there (ntsc)
     region: str
@@ -49,12 +59,9 @@ class Version:
     level_header: int       # the level header's size: 0x60 (Going Commando, Up Your Arsenal) or 0xc68 (Deadlocked)
 
 
-RAC2_NTSC = Version("rac2", "ntsc", "NTSC-U", "NTSC-U v1.01", "SCUS_972.68", 2618684,
-                    "bacda860cbd6723142e86db56f197e47e728970f", 0x60)
-RAC3_NTSC = Version("rac3", "ntsc", "NTSC-U", "NTSC-U v1.00", "SCUS_973.53", 771008,
-                    "601012bb03ef1213ad1253baebae8a071b8a7df7", 0x60)
-RAC4_NTSC = Version("rac4", "ntsc", "NTSC-U", "NTSC-U v1.00", "SCUS_974.65", 1692216,
-                    "aa91b1c3b9b1a244320c47580b77342ef9856e95", 0xc68)
+RAC2_NTSC = Version(game="rac2", key="ntsc", **util.disc_identity("rac2", "ntsc"), level_header=0x60)
+RAC3_NTSC = Version(game="rac3", key="ntsc", **util.disc_identity("rac3", "ntsc"), level_header=0x60)
+RAC4_NTSC = Version(game="rac4", key="ntsc", **util.disc_identity("rac4", "ntsc"), level_header=0xc68)
 VERSIONS = (RAC2_NTSC, RAC3_NTSC, RAC4_NTSC)
 
 
@@ -83,26 +90,12 @@ def identify(disc: Disc) -> Version | None:
 
 
 def walk(disc: Disc) -> list[tuple[str, int, int]]:
-    """(path, sector, size) of the root directory's entries; a directory is listed (its name
-    ending in /), not entered: these discs have some, and they hold nothing the readers need."""
-    pvd = disc.read(16 * SECTOR, SECTOR)
-    if pvd[:7] != b"\x01CD001\x01" or unpack("<H", pvd, 128)[0] != SECTOR:
-        raise FormatError("expected ISO 9660 with 2048-byte sectors")
-    lba, size = unpack("<I", pvd, 158)[0], unpack("<I", pvd, 166)[0]
-    directory, pos, out = disc.read(lba * SECTOR, min(size, 16 * SECTOR)), 0, []
-    while pos < len(directory):
-        length = directory[pos]
-        if not length:
-            pos = (pos // SECTOR + 1) * SECTOR
-            continue
-        record = span(directory, pos, length)
-        raw = span(record, 33, record[32])
-        pos += length
-        if raw in (b"\0", b"\1"):
-            continue
-        name = raw.decode("latin-1").split(";")[0]
-        out.append((name + ("/" if record[25] & 2 else ""), unpack("<I", record, 2)[0], unpack("<I", record, 10)[0]))
-    return out
+    """(path, sector, size) of the root directory's entries, from its first ROOT_SECTORS sectors;
+    a directory is listed (its name ending in /), not entered: these discs have some, and they
+    hold nothing the readers need. The volume descriptor is checked as disc.Disc checks it."""
+    lba, size = disc.root_directory()
+    return [(iso9660.plain_name(raw) + ("/" if flags & iso9660.FLAG_DIRECTORY else ""), extent, length)
+            for raw, extent, length, flags in disc.records(lba, min(size, ROOT_SECTORS * SECTOR))]
 
 
 class WadDisc:

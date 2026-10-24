@@ -14,6 +14,13 @@ class FormatError(ValueError):
     """Data outside the layouts this extractor supports."""
 
 
+def check(ok: bool, message: str) -> None:
+    """FormatError(MESSAGE) unless OK: a layout's rule, stated where it is read (collision.py and
+    moby_collision.py had one each)."""
+    if not ok:
+        raise FormatError(message)
+
+
 def span(data: bytes, offset: int, size: int) -> bytes:
     """data[offset:offset + size], or FormatError if any byte is missing."""
     if offset < 0 or size < 0 or offset + size > len(data):

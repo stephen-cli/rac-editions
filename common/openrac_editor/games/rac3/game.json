@@ -1,0 +1,89 @@
+{
+  "id": "rac3",
+  "title": "Ratchet & Clank: Up Your Arsenal",
+  "year": 2004,
+  "titles": {
+    "pal": "Ratchet & Clank 3"
+  },
+  "versions": {
+    "ntsc": {
+      "region": "NTSC-U (North America)",
+      "serial": "SCUS_973.53",
+      "bytematch": "OpenRAC/rac3-decomp",
+      "disc": {
+        "file": "SCUS_973.53.iso",
+        "volume": "RATCHETANDCLANK3",
+        "version": "1.00",
+        "video": "NTSC",
+        "size": 4379377664,
+        "crc32": "2b9b91f7",
+        "md5": "ba9f2b38c7346e7b6e5b8e87717d5893",
+        "sha1": "b080139c5a94688ef9472b78d5f5585a756d1ee4",
+        "sha256": "d2bb15c7c5b2205db868713fc0362c2b10e87751ca5bcc4e96c1e244a8c42444"
+      },
+      "boot": {
+        "file": "SCUS_973.53",
+        "size": 771008,
+        "crc32": "01affd24",
+        "md5": "c6075c4a296f656648bc9f64f4f1b09b",
+        "sha1": "601012bb03ef1213ad1253baebae8a071b8a7df7",
+        "sha256": "200068cb4186715521cdc1c20bc6c5a88054d0da54aa336ffdb2022633351c7d"
+      },
+      "target": "Three programs extracted from the disc with Wrench, each rebuilt byte for byte: frontbin.elf (the frontend and menu program), boot_elf.elf (the main executable) and i5bootn.elf (the launcher); the level programs are counted for progress.",
+      "source": {
+        "name": "rac3-uya-decomp",
+        "repo": "https://github.com/OpenRAC/rac3-uya-decomp",
+        "branch": "main",
+        "checkout": "../rac3-decomp",
+        "license": "GPL-3.0",
+        "exclude": [
+          "localdecomp/server.py.bak_0926"
+        ],
+        "commit": "bfd8278e8c735d5c095d1f066a6ab7fb87a1a13d",
+        "date": "2026-10-07",
+        "imported": "2026-10-07"
+      },
+      "build": {
+        "host": "Windows with SN ee-gcc 2.95.3 v1.36 (and Sony 2.9-ee-991111 for library ranges); macOS (wibo-macos, natively) and Linux through tools/build.py with wibo",
+        "readme": "games/rac3/ntsc/README.md"
+      },
+      "progress": {
+        "report": "games/rac3/ntsc/progress_report.json",
+        "format": "objdiff",
+        "note": "The committed report is from 2026-10-01. At bfd8278, tools/pr_check.py --target all counts frontbin 1,800 of 1,867 entries final (1,419 functions in C), boot_elf 2,265 of 2,809 (1,580 in C) and i5bootn 191 of 199 (35 in C); the level programs are counted but not compiled yet."
+      },
+      "inputs": [
+        {
+          "from": "link",
+          "path": "toolchains/eegcc_2.95.3_sn_v1.36",
+          "target": "toolchains/sn-prodg-3.01/usr/local/sce/ee/gcc"
+        }
+      ],
+      "setup": "extract frontbin.elf with Wrench into games/rac3/ntsc/ (games/rac3/README.md), then in games/rac3/ntsc: python3 tools/setup_asm.py and python3 tools/build.py --toolchain ../../../toolchains/eegcc_2.95.3_sn_v1.36 --runner <wibo>",
+      "xmap": {
+        "code": [
+          {
+            "program": "boot",
+            "path": "build/rac3/wrench_out/uya_scus_973_53/boot_elf.elf",
+            "format": "elf"
+          },
+          {
+            "program": "frontbin",
+            "path": "build/rac3/wrench_out/uya_scus_973_53/globals/misc/frontbin.elf",
+            "format": "elf"
+          },
+          {
+            "program": "level",
+            "glob": "build/rac3/wrench_out/uya_scus_973_53/levels/*/*/overlay.elf",
+            "format": "elf"
+          }
+        ],
+        "matched": {
+          "kind": "rac3",
+          "program": "frontbin"
+        },
+        "setup": "wrenchbuild unpack baserom/SCUS_973.53.iso -o build/rac3/wrench_out -s (games/rac3/README.md)"
+      }
+    }
+  }
+}
