@@ -3741,12 +3741,13 @@ their frames: a diagonal gradient from (129, 135, 242) at the top left to
 look like its neighbours).
 
 **Not yet.** One Batalia bolt that another class awards (class 0x305 in its
-level code, which sets the flag without GoldBoltUpdate); the Gold Bolt
-spots' flags (0-3) are matched to Panda291's spots by table order, so each
-spot's rule is the conjunction of its level's spots' rules until the flags
-are mapped; the world's pickups still wear the model of the item retail put
-there (the owner's design has them become the item the seed put there: a
-later step).
+level code, which sets the flag without GoldBoltUpdate): the save hook
+collects a spot whose flag is set at the level's next autosave, which
+should cover it, untried on Batalia; the Gold Bolt spots' flags (0-3) are
+matched to Panda291's spots by table order, so each spot's rule is the
+conjunction of its level's spots' rules until the flags are mapped. World
+pickups keep the model of the item retail put there, by decision: the
+banner on picking one up names the item received.
 
 ## rz4: the vendors' mystery entries and the givers' prompts (2026-10-24) — built; awaiting the owner's test
 
