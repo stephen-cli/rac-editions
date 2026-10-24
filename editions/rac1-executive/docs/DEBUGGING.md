@@ -19,7 +19,10 @@ live once a level has loaded. To drive the title and menus too, patch the
 executable's own copy in the built image for a debug session: the word at
 `0x21812C` (`func_00217F68 + 0x1C4`, `jal func_002181F0`) to a `jal` of
 `ee_pad_parse`; the hook calls the executable's parser when entered from
-there. Do not ship such an image.
+there. Do not ship such an image. For a session, writing that one word over
+PINE after power-on does the same without touching the image (frontbin, after
+quitting a level, has the function elsewhere); put the retail word back and
+`pad_off()` before handing the emulator over.
 
 ## The trace
 
