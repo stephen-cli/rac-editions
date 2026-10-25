@@ -4,6 +4,14 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-26 (the Randomizer: seed codes and the start)
+
+### 🎲 Seed codes carry only Random or not (rz) — Working
+
+**What changed.** A seed code no longer says Novalis or Veldin: the two give the same layout, so the player's own Starting Planet chooses between the tutorial and Novalis when entering a code, while a Random code still lands everyone on the planet its seed picks. Codes hold 1,674,678 seeds, up from 1,116,452; the logic version is 4, so earlier codes are refused, and existing saves keep playing as made. The Options page is unchanged.
+
+**Decisions taken.** Starting bolts stay 0 for Veldin and 750 for any other start, set by the save at New Game, not by the code.
+
 ## 2026-10-25 (the Randomizer: Starting Planet)
 
 ### 🎲 Starting Planet: Novalis, Veldin or Random (rz) — Working

@@ -278,7 +278,7 @@ struct RzSlot {
     u8 weapon_mode;
     u8 with_boots;
     u32 seed;
-    u8 start_mode;                      /* RzStart: the seed code carries it */
+    u8 start_mode;                      /* RzStart: the seed code carries whether it is Random */
 };
 u32 ee_save_checksum(const u8 *data, s32 length);          /* memcard_Checksum, func_0020BB10 */
 s32 ee_rz_record_offset(s32 program);                       /* the record's offset in a slot's file; -1 if the tables changed */

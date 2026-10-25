@@ -536,9 +536,9 @@ s32 rz_generate(u32 seed, s32 with_boots, s32 start_mode, struct RzLayout *out)
 
 /* --- Seed codes ------------------------------------------------------------- */
 
-void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, s32 start_mode, u8 digits[RZ_CODE_LENGTH])
+void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, s32 random_start, u8 digits[RZ_CODE_LENGTH])
 {
-    u32 value = (seed * RZ_START_MODES + (u32)start_mode) * 64 + (u32)weapon_mode * 16 + (u32)version;
+    u32 value = (seed * 2 + (random_start != 0)) * 64 + (u32)weapon_mode * 16 + (u32)version;
     s32 i, sum = 0;
     for (i = RZ_CODE_LENGTH - 2; i >= 0; i--) {
         digits[i] = (u8)(value % RZ_CODE_BUTTONS);
@@ -551,7 +551,7 @@ void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, s32 start_mode, u8 d
     digits[RZ_CODE_LENGTH - 1] = (u8)(((RZ_CODE_BUTTONS - sum % RZ_CODE_BUTTONS) * 5) % RZ_CODE_BUTTONS);
 }
 
-s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32 *weapon_mode, s32 *start_mode)
+s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32 *weapon_mode, s32 *random_start)
 {
     u32 value = 0;
     s32 i, sum = 0;
@@ -569,7 +569,7 @@ s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32
     }
     *version = (s32)(value & 15);
     *weapon_mode = (s32)((value >> 4) & 3);
-    *start_mode = (s32)((value >> 6) % RZ_START_MODES);
-    *seed = (value >> 6) / RZ_START_MODES;
+    *random_start = (s32)((value >> 6) & 1);
+    *seed = value >> 7;
     return *version == RZ_LOGIC_VERSION && *weapon_mode == RZ_WEAPON_VANILLA && *seed < RZ_SEED_LIMIT;
 }

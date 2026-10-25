@@ -3975,3 +3975,17 @@ list, Ratchet with Clank and the Bomb Glove. A Veldin start goes to level
 0 with 0 bolts and no planet unlocked. The Reuse Seed code of seed 12345
 with Random landed on Aridia with 750 bolts, as the host tests predict.
 Not yet run on real hardware.
+
+## rz: seed codes tell only Random from the other starts (2026-10-26) — working
+
+**What changed.** Novalis and Veldin starts give the same layout, so a seed
+code no longer tells them apart: its first eight presses carry
+(seed * 2 + random start) * 64 + weapon mode * 16 + logic version, the
+random-start bit 1 for Random. Reuse Seed with a code of the other kind
+starts in the tutorial or on Novalis as the player's own Starting Planet
+says (Novalis when it is Random); a Random code lands on the planet its seed
+picks, the same for everyone. The Randomizer Options page is unchanged.
+1,674,678 seeds per code, up from 1,116,452; the logic version is 4, so
+version 3 codes are refused, and saves keep playing as made (the record
+holds the start mode and planet). `rz_code_encode`/`rz_code_decode` take and
+give the random-start bit rather than a start mode.

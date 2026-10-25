@@ -1659,13 +1659,15 @@ s32 ee_seed_box_update(struct MenuList *box)
     }
     if (seed_length == RZ_CODE_LENGTH) {
         u32 seed;
-        s32 version, mode, start;
+        s32 version, mode, random_start;
         if (!(pressed & seed_buttons[0])) {                 /* Cross confirms; nothing else counts */
             return 0;
         }
-        if (rz_code_decode(seed_digits, &seed, &version, &mode, &start)) {
+        if (rz_code_decode(seed_digits, &seed, &version, &mode, &random_start)) {
             clear_seed_box();
-            ee_rz_set_seed(seed, start, 1);
+            /* the code says Random or not; Novalis or Veldin is the player's own setting (one layout) */
+            ee_rz_set_seed(seed, random_start ? RZ_START_RANDOM
+                                 : start_setting == RZ_START_VELDIN ? RZ_START_VELDIN : RZ_START_NOVALIS, 1);
             /* as the list's action 4 (Pause_TextListUpdate) opens New Game */
             menu_sound(0, box->moby);
             MENU_LOAD_KIND = 0;
@@ -1834,7 +1836,7 @@ static void seed_line(const struct RzSlot *slot, char *out)
 {
     u8 digits[RZ_CODE_LENGTH];
     s32 i;
-    rz_code_encode(slot->seed, slot->version, slot->weapon_mode, slot->start_mode, digits);
+    rz_code_encode(slot->seed, slot->version, slot->weapon_mode, slot->start_mode == RZ_START_RANDOM, digits);
     for (i = 0; i < RZ_CODE_LENGTH; i++) {
         out[i] = (char)seed_glyph_of_digit[digits[i]];
     }

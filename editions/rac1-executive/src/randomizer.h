@@ -21,11 +21,11 @@
 
 /* The logic version in every seed code: bump it on any change to the
  * rules, the pool or the algorithm, so a shared code gives the same game. */
-#define RZ_LOGIC_VERSION    3
+#define RZ_LOGIC_VERSION    4
 #define RZ_VERSION_MAX      15          /* 4 bits */
 #define RZ_WEAPON_MODES     4           /* 2 bits reserved; only RZ_WEAPON_VANILLA is implemented */
 #define RZ_WEAPON_VANILLA   0
-#define RZ_SEED_LIMIT       1116452     /* 11^8 / (3 * 64): the seeds a code can carry */
+#define RZ_SEED_LIMIT       1674678     /* 11^8 / (2 * 64): the seeds a code can carry */
 #define RZ_CODE_LENGTH      9           /* 8 data presses and a check press */
 #define RZ_CODE_BUTTONS     11
 
@@ -39,8 +39,10 @@
 /* Where a seed starts (the Randomizer Options page's Starting Planet). Veldin
  * is retail's start, the tutorial, which holds no checks; the others skip it
  * and land on their planet with the Bomb Glove and RZ_START_BOLTS. Novalis
- * and Veldin give the same layout; Random starts on a planet the seed picks
- * among those with several checks open from the start. */
+ * and Veldin give the same layout, so a seed code tells only Random from
+ * them and the player's own setting chooses between the two; Random starts
+ * on a planet the seed picks among those with several checks open from the
+ * start. */
 enum RzStart {
     RZ_START_NOVALIS,
     RZ_START_VELDIN,
@@ -135,13 +137,13 @@ s32 rz_layout_complete(const struct RzLayout *layout);
 
 /* Seed codes. A code is 9 presses of the 11 buttons, as digits 0..10: Up,
  * Right, Down, Left, Cross, Circle, Square, L1, L2, R1, R2. The first 8 are
- * (seed * 3 + start_mode) * 64 + weapon_mode * 16 + version in base 11,
- * most significant first; the 9th makes the weighted sum (1 * d0 + 2 * d1
- * + ... + 9 * d8) a multiple of 11, which catches every single wrong press
- * and every swap of two neighbouring presses. rz_code_decode gives 0 for a
- * code that fails the check or carries an unsupported version or weapon
- * mode. */
-void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, s32 start_mode, u8 digits[RZ_CODE_LENGTH]);
-s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32 *weapon_mode, s32 *start_mode);
+ * (seed * 2 + random_start) * 64 + weapon_mode * 16 + version in base 11,
+ * most significant first, random_start 1 for RZ_START_RANDOM and 0 for
+ * Novalis or Veldin; the 9th makes the weighted sum (1 * d0 + 2 * d1 + ...
+ * + 9 * d8) a multiple of 11, which catches every single wrong press and
+ * every swap of two neighbouring presses. rz_code_decode gives 0 for a code
+ * that fails the check or carries an unsupported version or weapon mode. */
+void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, s32 random_start, u8 digits[RZ_CODE_LENGTH]);
+s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32 *weapon_mode, s32 *random_start);
 
 #endif

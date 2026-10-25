@@ -131,15 +131,15 @@ static void test_codes(int seeds)
 {
     u8 d[RZ_CODE_LENGTH], e[RZ_CODE_LENGTH];
     u32 seed, got;
-    int version, mode, start, got_start, i, j, step;
+    int version, mode, random_start, got_start, i, j, step;
     for (step = 0, seed = 0; seed < RZ_SEED_LIMIT; seed += 1 + (u32)step, step = (step * 7 + 3) % 1000) {
-        start = (int)(seed % RZ_START_MODES);
-        rz_code_encode(seed, RZ_LOGIC_VERSION, RZ_WEAPON_VANILLA, start, d);
+        random_start = (int)(seed % 2);
+        rz_code_encode(seed, RZ_LOGIC_VERSION, RZ_WEAPON_VANILLA, random_start, d);
         for (i = 0; i < RZ_CODE_LENGTH; i++) {
             CHECK(d[i] < RZ_CODE_BUTTONS, "seed %u digit %d is %d", seed, i, d[i]);
         }
         CHECK(rz_code_decode(d, &got, &version, &mode, &got_start) && got == seed && version == RZ_LOGIC_VERSION
-              && mode == RZ_WEAPON_VANILLA && got_start == start, "seed %u (start %d) does not round-trip", seed, start);
+              && mode == RZ_WEAPON_VANILLA && got_start == random_start, "seed %u (random %d) does not round-trip", seed, random_start);
         if ((int)(seed % 2311) < seeds / 100 + 1) {
             for (i = 0; i < RZ_CODE_LENGTH; i++) {               /* every single wrong press */
                 for (j = 0; j < RZ_CODE_BUTTONS; j++) {
@@ -165,15 +165,15 @@ static void test_codes(int seeds)
             }
         }
     }
-    rz_code_encode(5, RZ_LOGIC_VERSION + 1, RZ_WEAPON_VANILLA, RZ_START_NOVALIS, d);
+    rz_code_encode(5, RZ_LOGIC_VERSION + 1, RZ_WEAPON_VANILLA, 0, d);
     CHECK(!rz_code_decode(d, &got, &version, &mode, &got_start) && version == RZ_LOGIC_VERSION + 1, "another version is accepted");
-    rz_code_encode(5, RZ_LOGIC_VERSION, 1, RZ_START_NOVALIS, d);
+    rz_code_encode(5, RZ_LOGIC_VERSION, 1, 0, d);
     CHECK(!rz_code_decode(d, &got, &version, &mode, &got_start) && mode == 1, "another weapon mode is accepted");
-    rz_code_encode(RZ_SEED_LIMIT - 1, RZ_LOGIC_VERSION, RZ_WEAPON_VANILLA, RZ_START_RANDOM, d);
-    CHECK(rz_code_decode(d, &got, &version, &mode, &got_start) && got == RZ_SEED_LIMIT - 1 && got_start == RZ_START_RANDOM, "the last seed does not round-trip");
+    rz_code_encode(RZ_SEED_LIMIT - 1, RZ_LOGIC_VERSION, RZ_WEAPON_VANILLA, 1, d);
+    CHECK(rz_code_decode(d, &got, &version, &mode, &got_start) && got == RZ_SEED_LIMIT - 1 && got_start == 1, "the last seed does not round-trip");
     memset(d, 10, sizeof(d));
     rz_code_decode(d, &got, &version, &mode, &got_start);
-    CHECK(got < 11u * 11 * 11 * 11 * 11 * 11 * 11 * 11 / (64 * RZ_START_MODES) + 1, "all R2 overflows");
+    CHECK(got < 11u * 11 * 11 * 11 * 11 * 11 * 11 * 11 / 128 + 1, "all R2 overflows");
 }
 
 static void print_layout(u32 seed, int with_boots, int start)
