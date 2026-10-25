@@ -78,6 +78,8 @@ struct VendorEntry {
 #define CHICKEN_LOWER   0.15f           /* its origin is at its feet, so it comes down a little */
 #define WEAPON_SPECK    0.02f           /* the weapon's model in the stand's slot, at 2% of its size: see
                                          * ee_rz_vendor_model_c; a scale of 0 froze the game on opening */
+#define DRONE_CLASS     0x1DF           /* the Drone Device's panel model: the drone itself, resident in the
+                                         * level; the vendor loads no class for that entry */
 
 static s32 purchase_item = -1;          /* a check was bought: the vendor's item id, */
 static s32 reward_item;                 /* and the item id the check gave, -1 for one that is no item */
@@ -272,7 +274,12 @@ const char *ee_rz_vendor_slogan_c(s32 id, s32 L)
  * chicken in both places or a chicken and the stand; with the weapon in either place it left fine. The vendor
  * loads the weapon's class into the gadget buffer on opening and Ratchet's own back on leaving, and drawing a
  * model of the loaded class does bookkeeping that reload relies on. The stand itself is not missed: the chicken
- * stands on the panel's floor. */
+ * stands on the panel's floor.
+ *
+ * The Drone Device is the exception. The vendor loads no class for it and shows the drone, a class resident in
+ * the level, which the panel and hologram animate once and stop, and whose collision they clear; the stand's slot
+ * does neither. The drone there froze the game on leaving the vendor once the entry had been selected (PS3,
+ * 2026-10-26), so its stand keeps retail's own class, at the speck's size. */
 static s32 entry_weapon_class;         /* the entry's weapon class, from the panel's call for the stand's */
 
 void ee_rz_vendor_model_c(void *moby, s32 class_id, s32 L)
@@ -283,7 +290,7 @@ void ee_rz_vendor_model_c(void *moby, s32 class_id, s32 L)
             entry_weapon_class = class_id;
             class_id = CHICKEN_CLASS;
         } else if ((u8 *)moby == display + DISPLAY_STAND) {
-            if (entry_weapon_class > 0) {
+            if (entry_weapon_class > 0 && entry_weapon_class != DRONE_CLASS) {
                 class_id = entry_weapon_class;
             }
         } else {

@@ -4073,3 +4073,20 @@ Tested in PCSX2 on Kerwan, Aridia and Gaspar: the pause menu and quick
 select stay clean beside a stand-in, and leaving a spot and coming back
 keeps one stand-in per host. Played on the console on levels with their own
 infobot class only.
+
+## rz4: the Drone Device's vendor entry froze the game on leaving (2026-10-26) — fixed; confirmed on PS3
+
+**Cause.** Vendor_InitItemDisplay (func_L00_0029C9E8) loads the entry's
+weapon class into the gadget buffer and shows it, except for the Drone
+Device (item 24): it loads nothing and shows class 0x1DF, the drone itself,
+which the level keeps resident. A mystery entry's stand slot holds the
+panel's class as a speck (see "The PS2 vendor-exit freeze" above), so for
+the Drone Device it held the drone. The display animates its panel and
+hologram models once, stops them (anim_speed 0) and clears their
+collision, but leaves the stand as it is, which suits a still model. The
+drone there kept its animation and its collision, and leaving the vendor
+after selecting the entry froze the game on a PS3 (never in PCSX2).
+
+**Fix.** The Drone Device's stand slot keeps retail's own class (1447), at
+the speck's size. The vendor loaded no class for the entry, so no model of
+a loaded class needs drawing.
