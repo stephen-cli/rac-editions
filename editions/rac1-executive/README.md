@@ -61,8 +61,10 @@ holds only the edition's code, tools and notes, never game data.
 - **Randomizer.** Beat the game (or have a Randomizer save on the card)
   to unlock Goodies on the title screen, where you can start a Randomizer
   save: the infobots, gadgets, weapons and Gold Bolts are shuffled across
-  the galaxy, and every seed can be finished. A seed code lets you replay
-  or share a layout. Its Options page sets the starting planet: Novalis
+  the galaxy, and every seed can be finished. A Gold Bolt or an item lying
+  in a level that holds an infobot shows an infobot, and picking it up
+  skips the usual animation. A seed code lets you replay or share a
+  layout. Its Options page sets the starting planet: Novalis
   (the default, past the tutorial with 750 bolts), Veldin (the original
   start) or a random planet. Start alone skips cutscenes, as in Challenge
   Mode.

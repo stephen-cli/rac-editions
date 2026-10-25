@@ -53,6 +53,7 @@ DECLARE_LVL(func_0020BFC8);             /* memcard_Save(slot, flags) */
 DECLARE_LVL(func_002160E0);             /* count_nonzero_entries_up_to_40: the Gold Bolts collected */
 DECLARE_LVL(func_0020E6B8);             /* the first moby of the update list */
 DECLARE_LVL(func_0020D678);             /* DeleteMoby(moby) */
+DECLARE_LVL(func_0020D348);             /* CreateMoby(class_id) */
 DECLARE_LVL(func_L00_0023D9C0);         /* InitLevelResidentState: a level's load, a reload of the same level too */
 typedef void (*GiveFn)(s32, s32);
 typedef void (*PlanetFn)(s32);
@@ -61,11 +62,31 @@ typedef s32 (*CountFn)(void);
 typedef void (*UpdateFn)(void *);
 typedef void *(*FirstMobyFn)(void);
 typedef void (*DeleteFn)(void *);
+typedef void *(*CreateFn)(s32);
 
 #define PLANET_COUNT    20
 #define LEVELS          19
 #define GOLD_SPOTS      4               /* Gold Bolt spots per level */
 #define REFRESH_FRAMES  120             /* how often ee_rz_frame reads the record again */
+
+/* A Gold Bolt spot whose item is an infobot shows an infobot (carry_stand_in): a moby of the infobot class, which
+ * every level has (tools/extra_classes.py splices it into the five without it), made at the spot by CreateMoby so
+ * that its animation state is the class's own, stands in for the bolt. Its own update is never run (on those five
+ * levels the class has none): the spot's carries it, turning it with its yaw kept within -pi..pi as the game keeps
+ * its angles (a yaw that grew past them broke its matrix, and it drew nowhere or as stray polygons over the menus).
+ * The bolt keeps GoldBoltUpdate, its check and its sparkle, drawn at scale 0; its touch takes it at once, the way the
+ * spots retail marks quiet do, without Ratchet's hold-up and the camera's cut, and the infobot banner follows
+ * (receive). Swapping the bolt's own class pointer instead left its animation state the bolt's, and MobyProc looped
+ * on it. */
+#define GOLD_CLASS      1134            /* GoldBoltUpdate, func_L01_00309078 */
+#define INFOBOT_CLASS   750
+#define GOLD_QUIET      0xC             /* its pvars: nonzero, the touch takes the bolt without the sequence */
+#define MOBY_SCALE_F(m) (*(volatile f32 *)((u8 *)(m) + MOBY_SCALE))
+#define MOBY_YAW(m)     (*(volatile f32 *)((u8 *)(m) + MOBY_ROT + 8))
+#define MOBY_DRAW_DIST(m) (*(volatile s16 *)((u8 *)(m) + 0x32))
+#define MOBY_UPDATE_DIST(m) (*(volatile u8 *)((u8 *)(m) + 0x30))
+#define STAND_IN_TURN   0.02f           /* the stand-in's yaw a frame */
+#define PI_F            3.1415927f
 
 /* Helga on Kerwan and her lift (ee_rz_moby_update_c). */
 #define KERWAN          3
@@ -508,6 +529,213 @@ void ee_rz_level_init_c(s32 L)
     LVL(L, func_L00_0023D9C0, VoidFn)();
 }
 
+static s32 is_infobot(s32 item)
+{
+    return item >= RZ_INFOBOT_NOVALIS && item <= RZ_INFOBOT_VELDIN;
+}
+
+/* The stand-ins of this visit: one per Gold Bolt spot, then one for the level's world pickup (PICKUPS); 0 none.
+ * Each names its host as its spawner (MOBY_PARENT). A stand-in can be gone without this code deleting it (on
+ * Aridia one 190 units from the hero had its slot cleared, and the slot then went to another class), so it is
+ * checked before every use: a slot that no longer holds a live infobot of that host is forgotten, never written,
+ * and a new stand-in is made at the host's next update. */
+#define PICKUP_STAND_IN GOLD_SPOTS
+#define STAND_INS       (GOLD_SPOTS + 1)
+#define MOBY_PARENT(m)  (*(void *volatile *)((u8 *)(m) + 0xB8))
+static u8 *stand_in[STAND_INS];
+static void *stand_in_host[STAND_INS];
+static f32 host_scale[STAND_INS];       /* the host's own scale, from before it was drawn at 0 */
+
+static void forget_stand_ins(void)
+{
+    s32 i;
+    for (i = 0; i < STAND_INS; i++) {
+        stand_in[i] = 0;
+        stand_in_host[i] = 0;
+        host_scale[i] = 0.0f;
+    }
+}
+
+static s32 holds_stand_in(u8 *m, void *host)
+{
+    return MOBY_CLASS(m) == INFOBOT_CLASS && MOBY_STATE(m) >= 0 && MOBY_PARENT(m) == host;
+}
+
+/* Stand-in I of HOST, or 0 when there is none or the game has removed it. */
+static u8 *live_stand_in(s32 i, void *host)
+{
+    u8 *m = stand_in[i];
+    if (m != 0 && !holds_stand_in(m, host)) {
+        stand_in[i] = 0;
+        m = 0;
+    }
+    return m;
+}
+
+static s32 is_stand_in(void *moby)
+{
+    s32 i;
+    for (i = 0; i < STAND_INS; i++) {
+        if (stand_in[i] == (u8 *)moby && holds_stand_in((u8 *)moby, stand_in_host[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void drop_stand_in(s32 i, void *host, s32 L)
+{
+    u8 *m = live_stand_in(i, host);
+    if (m != 0) {
+        LVL(L, func_0020D678, DeleteFn)(m);
+        stand_in[i] = 0;
+    }
+}
+
+DECLARE_LVL_DATA(class_slot_by_id);     /* u8 per class id, 0xFF none */
+DECLARE_LVL_DATA(class_resources);      /* per slot: the class's data, 0 not loaded */
+
+static s32 has_infobot_class(s32 L)
+{
+    u8 slot = LVL_DATA(L, class_slot_by_id, u8 *)[INFOBOT_CLASS];
+    return slot != 0xFF && LVL_DATA(L, class_resources, u32 *)[slot] != 0;
+}
+
+/* After the update of MOBY, a moby showing an infobot: once it is gone, so is stand-in I; while it is there, the
+ * stand-in, made when there is none and drawn from as far as MOBY is, stands where it is and turns, and MOBY's own
+ * model is drawn at scale 0. Without a stand-in (a level without the infobot's class, an image without
+ * tools/extra_classes.py's splice, or no free moby), MOBY keeps its model. */
+static void carry_stand_in(s32 i, void *moby, s32 L)
+{
+    u8 *m;
+    f32 yaw;
+    if (MOBY_STATE(moby) < 0) {             /* collected, or deleted at its first update as collected before */
+        drop_stand_in(i, moby, L);
+        return;
+    }
+    m = live_stand_in(i, moby);
+    if (m == 0 && has_infobot_class(L)) {
+        m = LVL(L, func_0020D348, CreateFn)(INFOBOT_CLASS);
+        stand_in[i] = m;
+        stand_in_host[i] = moby;
+        if (m != 0) {
+            MOBY_PARENT(m) = moby;
+            MOBY_UPDATE_DIST(m) = MOBY_UPDATE_DIST(moby);
+            MOBY_DRAW_DIST(m) = MOBY_DRAW_DIST(moby);
+            MOBY_YAW(m) = MOBY_YAW(moby);
+        }
+    }
+    if (m == 0) {
+        if (MOBY_SCALE_F(moby) == 0.0f && host_scale[i] != 0.0f) {
+            MOBY_SCALE_F(moby) = host_scale[i];
+        }
+        return;
+    }
+    *(volatile f32 *)(m + MOBY_POS) = *(volatile f32 *)((u8 *)moby + MOBY_POS);
+    *(volatile f32 *)(m + MOBY_POS + 4) = *(volatile f32 *)((u8 *)moby + MOBY_POS + 4);
+    *(volatile f32 *)(m + MOBY_POS_Z) = *(volatile f32 *)((u8 *)moby + MOBY_POS_Z);
+    yaw = MOBY_YAW(m) + STAND_IN_TURN;
+    if (yaw > PI_F) {
+        yaw -= 2.0f * PI_F;
+    }
+    MOBY_YAW(m) = yaw;
+    if (MOBY_SCALE_F(moby) != 0.0f) {
+        host_scale[i] = MOBY_SCALE_F(moby);
+        MOBY_SCALE_F(moby) = 0.0f;
+    }
+}
+
+/* A Gold Bolt spot's update. With an infobot for its item, the spot takes the touch quietly and shows a stand-in
+ * (GOLD_CLASS above). */
+static void gold_spot_update(void *moby, UpdateFn update, s32 L)
+{
+    s32 spot = *(volatile s32 *)MOBY_PVARS(moby);
+    s32 check = rz_check_for_bolt(L, spot);
+    if (check < 0 || !is_infobot(ee_rz_layout_item(check)) || spot < 0 || spot >= GOLD_SPOTS) {
+        update(moby);
+        return;
+    }
+    *(volatile s32 *)(MOBY_PVARS(moby) + GOLD_QUIET) = 1;
+    update(moby);
+    carry_stand_in(spot, moby, L);
+}
+
+/* The world pickups: an item lying in a level, which on its touch starts a cutscene showing the item (and, for the
+ * Trespasser and the Hydrodisplacer, Ratchet's hold-up after it), then gives it, saves and deletes itself. With an
+ * infobot for its check, the touch is taken here, before the pickup's update can see it: the check collected (the
+ * infobot's banner), the pickup's mission trigger done as its own touch does, the autosave, the pickup and its
+ * stand-in deleted; until then an infobot stands in for the pickup as for a Gold Bolt (GOLD_CLASS above). The test
+ * is the pickup's own (its update's distance to the hero,
+ * from its idle state 1; the Raritanium has no states), a little wider so that it always comes first. The Map-o-
+ * Matic's giver is a character (WatcherUpdate), not a pickup. Radii from each update's disassembly (2026-10-25). */
+struct PickupSite {
+    u8 level;
+    u8 item;                                /* the vanilla item, which names the check */
+    u16 class_id;
+    f32 radius;
+    u8 stateless;
+};
+static const struct PickupSite PICKUPS[] = {
+    { 2, RZ_TRESPASSER, 1005, 1.0f, 0 },    /* Moby1005Update */
+    { 4, RZ_SUCK_CANNON, 1120, 3.0f, 0 },   /* func_L04_002E2DF0 */
+    { 6, RZ_HYDRODISPLACER, 1016, 1.0f, 0 }, /* Moby1005Update */
+    { 9, RZ_PILOTS_HELMET, 1290, 3.0f, 0 }, /* Moby1290Update */
+    { 10, RZ_MAGNEBOOTS, 18, 5.0f, 0 },     /* SpinningPickupUpdate */
+    { 12, RZ_RARITANIUM, 37, 2.0f, 1 },     /* Moby37Update */
+    { 14, RZ_MORPH_O_RAY, 1354, 1.0f, 0 },  /* CollectiblePickupUpdate */
+    { 15, RZ_BOLT_GRABBER, 1388, 3.0f, 0 }, /* Moby1388Update */
+    { 17, RZ_CODEBOT, 1428, 3.0f, 0 },      /* Moby1428Update */
+};
+#define PICKUP_SITES    (sizeof(PICKUPS) / sizeof(PICKUPS[0]))
+#define PICKUP_IDLE     1
+#define PICKUP_SLACK    0.5f                /* the touch test's margin over the pickup's own */
+#define PICKUP_HEIGHT   2.5f                /* the most height between Ratchet and the pickup (theirs: 2) */
+#define HERO_POS        ((volatile f32 *)(HERO_BASE + 0x80))
+#define MOBY_MISSION(m) (*(volatile u8 *)((u8 *)(m) + 0xB0))
+DECLARE_LVL(func_L00_002512D8);         /* SetLevelTriggerDone(mission) */
+typedef void (*MissionFn)(s32);
+
+/* MOBY's check if it is level L's world pickup and its check gives an infobot not collected yet; -1 otherwise. */
+static s32 pickup_check(void *moby, s32 L, const struct PickupSite **site)
+{
+    u32 i;
+    for (i = 0; i < PICKUP_SITES; i++) {
+        if (PICKUPS[i].level == L && PICKUPS[i].class_id == (u16)MOBY_CLASS(moby)) {
+            s32 check = rz_check_for_vanilla(PICKUPS[i].item);
+            if (check >= 0 && is_infobot(ee_rz_layout_item(check)) && !ee_rz_check_collected(check)) {
+                *site = &PICKUPS[i];
+                return check;
+            }
+            return -1;
+        }
+    }
+    return -1;
+}
+
+static s32 pickup_touched(void *moby, const struct PickupSite *site)
+{
+    volatile f32 *pos = (volatile f32 *)((u8 *)moby + MOBY_POS);
+    f32 dx = HERO_POS[0] - pos[0];
+    f32 dy = HERO_POS[1] - pos[1];
+    f32 dz = HERO_POS[2] - pos[2];
+    f32 r = site->radius + PICKUP_SLACK;
+    if (!site->stateless && MOBY_STATE(moby) != PICKUP_IDLE) {
+        return 0;
+    }
+    return dx * dx + dy * dy < r * r && dz < PICKUP_HEIGHT && -dz < PICKUP_HEIGHT && HERO_HEALTH > 0;
+}
+
+static void take_pickup(void *moby, s32 check, s32 L)
+{
+    if (MOBY_MISSION(moby) != 0xFF) {
+        LVL(L, func_L00_002512D8, MissionFn)(MOBY_MISSION(moby));
+    }
+    collect(check, L);
+    ee_rz_save_c(0, -1, L);
+    drop_stand_in(PICKUP_STAND_IN, moby, L);
+    LVL(L, func_0020D678, DeleteFn)(moby);
+}
+
 static s32 class_listed(s32 L, s32 class_id)
 {
     const u16 *list = L >= 0 && L < LEVELS ? ee_rz_classes[L] : 0;
@@ -538,17 +766,38 @@ static void start_helga_lift(s32 lift_index)
 void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
 {
     s32 helga_lift = -1;
+    s32 pickup = 0;
     if (L != active_level) {                /* an update before the level's init hook has run */
         read_record(L);
     }
     if (L != fixes_level) {
         fixes_level = L;
+        forget_stand_ins();
         if (active) {
             o2_early_fixes(L);
         }
     }
+    if (active && MOBY_CLASS(moby) == GOLD_CLASS) {
+        gold_spot_update(moby, update, L);
+        return;
+    }
+    if (MOBY_CLASS(moby) == INFOBOT_CLASS && is_stand_in(moby)) {
+        return;                             /* carried by its spot's or its pickup's update */
+    }
+    if (active) {
+        const struct PickupSite *site;
+        s32 check = pickup_check(moby, L, &site);
+        if (check >= 0 && pickup_touched(moby, site)) {
+            take_pickup(moby, check, L);
+            return;
+        }
+        pickup = check >= 0;
+    }
     if (!active || !class_listed(L, MOBY_CLASS(moby))) {
         update(moby);
+        if (pickup) {
+            carry_stand_in(PICKUP_STAND_IN, moby, L);
+        }
         return;
     }
     if (L == KERWAN && MOBY_CLASS(moby) == HELGA_CLASS) {
@@ -559,6 +808,9 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
     view_apply();
     update(moby);
     view_restore(L);
+    if (pickup) {
+        carry_stand_in(PICKUP_STAND_IN, moby, L);
+    }
     if (helga_lift >= 0 && granted == rz_check_for_vanilla(RZ_SWINGSHOT) && !INVENTORY[SWINGSHOT_ID]) {
         start_helga_lift(helga_lift);
     }

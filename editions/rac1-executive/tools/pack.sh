@@ -8,6 +8,7 @@
 #             level code patched in place, the Charge Boots class (R&C2's model)
 #             spliced into every level's data archive in place (tools/splice_boots.py),
 #             Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py),
+#             the infobot class spliced into the five levels without it (tools/extra_classes.py),
 #             and the edition's HelpDesk lines added at the end (tools/splice_helpdesk.py)
 #             -> editions/rac1-executive/build/iso/executive-edition.iso
 #   --wrench  experimental: wrench full re-layout (the edition's wrench fork): game bank +
@@ -93,7 +94,9 @@ if [ "$ROUTE" = patch ]; then
   python "$HERE/tools/splice_boots.py" "$out" --openrac "$OPENRAC"
   echo "== 5c/5 Kalebo III's GADGETRON sign spliced into its data (tools/splice_sign.py)"
   python "$HERE/tools/splice_sign.py" "$out" --openrac "$OPENRAC"
-  echo "== 5d/5 the edition's HelpDesk lines in new sectors at the end (tools/splice_helpdesk.py)"
+  echo "== 5d/5 the infobot class spliced into the levels without it (tools/extra_classes.py)"
+  python "$HERE/tools/extra_classes.py" splice "$out" --openrac "$OPENRAC" --wrench "$WRENCH/bin/wrenchbuild.exe"
+  echo "== 5e/5 the edition's HelpDesk lines in new sectors at the end (tools/splice_helpdesk.py)"
   python "$HERE/tools/splice_helpdesk.py" "$out"
   echo "-> $out"
   exit 0

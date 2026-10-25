@@ -4014,3 +4014,62 @@ one such load in a level.
 arrival cutscene returned to play (control mode 24 to 0) within half a
 second; with the word cleared over PINE, Start alone left the cutscene
 running.
+
+## rz: infobots at Gold Bolt spots and world pickups (2026-10-26) — working on the console; not yet played on the five spliced levels
+
+**What it does.** In a Randomizer save, a Gold Bolt spot or a world pickup
+whose check holds an infobot shows a turning infobot instead of the bolt or
+the item. Its touch takes the check at once, without Ratchet's hold-up, the
+camera's cut or the pickup's cutscene; the infobot banner follows and the
+game saves.
+
+**Gold Bolt spots.** GoldBoltUpdate (func_L01_00309078, class 1134) keeps
+the spot's id at pvars+0, and takes a touch quietly, without the hold-up
+(hero state 0x72) and the camera cut, when pvars+0xC is nonzero, as retail
+does for some spots. The moby update hook (ee_rz_moby_update_c) sets that
+word for a spot whose check holds an infobot.
+
+**World pickups.** The Trespasser (class 1005), Suck Cannon (1120),
+Hydrodisplacer (1016), Pilot's Helmet (1290), Magneboots (18), Raritanium
+(37), Morph-o-Ray (1354), Bolt Grabber (1388) and Codebot (1428) each start
+a cutscene on touch. Before such a pickup's update runs, the hook makes the
+pickup's own test (the hero within its update's radius plus 0.5 and 2.5
+units of height, the pickup in its idle state 1), and for an infobot check
+collects the check, marks the pickup's mission trigger done as its touch
+would (SetLevelTriggerDone, func_L00_002512D8), autosaves and deletes the
+pickup. The Map-o-Matic is not among them: an NPC gives it.
+
+**The stand-in.** CreateMoby (func_0020D348) makes a moby of class 750, the
+infobot, for the spot or pickup, with its host's update and draw distances.
+The host's update carries it every frame: its position, and its yaw turned
+by 0.02 and kept within -π..π, the range the game's angle functions expect
+(a yaw past it breaks the moby's matrix, and it draws nowhere or as stray
+polygons over the pause menu). The stand-in's own update never runs, and
+the host draws at scale 0 only while its stand-in exists. The game can
+clear a moby it made once the hero is far off, then give the slot to
+another class, and it compacts its moby array, so a stored pointer goes
+stale on its own: each stand-in names its host as its spawner (moby+0xB8)
+and is checked before every write. One that is gone is forgotten, never
+written, and made again at the host's next update; without one, the host
+keeps its own model.
+
+**The class in every level.** Aridia's, Gaspar's, Pokitaru's, Kalebo III's
+and Veldin's data lack class 750. tools/extra_classes.py (pack.sh's 5d
+step) copies Novalis's blob (0x15140 bytes) and its two textures' pixels
+(0x5000 bytes) into each of those cores where the moby classes end, as
+tools/splice_boots.py does for the Charge Boots: the class table grows in
+place, the texture and GS RAM upload tables get the new entries, the
+palettes go into GS RAM, the sound block gets a span per class, and an
+archive that outgrows its sectors moves to the end of the image. The tables
+are read again after the core's offsets shift, since the boots' texture and
+the gadget blobs lie past the insertion. The cores grow by 0x1A200 bytes,
+which moves the heap and its last block, the effect pool, that much nearer
+the stack; those levels keep at least 0x40000 bytes below it. Loading the
+class at run time instead, into a third part of the gadget buffer, took
+that room from the HUD arena (0x64000 bytes, of which the menu icons' bank
+needs 0x4FD00 decompressed), and the icons decompressed over address 0.
+
+Tested in PCSX2 on Kerwan, Aridia and Gaspar: the pause menu and quick
+select stay clean beside a stand-in, and leaving a spot and coming back
+keeps one stand-in per host. Played on the console on levels with their own
+infobot class only.
