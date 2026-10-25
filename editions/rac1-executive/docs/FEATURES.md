@@ -3902,3 +3902,76 @@ the break-up was 118 live, 502 high water. The alternative, 62 KB less in
 every core, has no obvious source: the class blob is 46 KB and its texture
 16 KB. The level-data growth is the kind of change to check for again:
 anything that enlarges a level's resident data moves this pool.
+
+## rz: the Randomizer's Starting Planet (2026-10-25) — confirmed working
+
+**What it does.** The Randomizer page gets a third row, Options, under
+Reuse Seed. It opens Randomizer Options, a page with one row, Starting
+Planet, which Cross steps through Novalis, Veldin and Random. Novalis is the
+default. Veldin is retail's start: the tutorial, then the flight to Novalis.
+Novalis skips the tutorial and lands on Novalis with 750 bolts. Random lands
+on a planet the seed picks among Novalis, Aridia, Kerwan, Blarg, Batalia and
+Orxon, also with 750 bolts. A Randomizer New Game takes the setting; a
+Reuse Seed code carries its own.
+
+**The logic.** A start other than Novalis takes that planet's infobot out
+of the pool and puts Novalis's in, so checks and items still pair up; the
+start's items are the planet's infobot and the Bomb Glove. Random's planets
+are those with at least two checks open from the start alone: Eudora,
+Rilgar, Umbris, Gemlik, Oltanis, Quartu, Kalebo III, the Fleet and Veldin
+open none, Gaspar and Hoven one. The planet comes from its own state of the
+seed's generator, so it stays the same across re-rolled fills. Novalis and
+Veldin give the same layout. `RzLayout` and the record keep the start mode
+and the logic's start planet (the record's former padding).
+
+**The seed code.** The first eight presses carry
+(seed * 3 + start mode) * 64 + weapon mode * 16 + logic version in base 11:
+1,116,452 seeds. The logic version is 3, so version 2 codes are refused;
+saves made under version 2 keep playing as made. A code overrides the
+Randomizer Options page: Reuse Seed starts as the code says, and a Random
+code lands on the same planet for everyone. Eight presses of base 11 hold
+214,358,881 values and this uses all of them, so a further option chosen
+at seed time needs fewer seeds per value or a tenth press.
+
+**Starting past the tutorial.** After the new-game reset
+(RestoreGameFromStream, func_00209DC0, which ee_fe_reset_c wraps) the
+record goes into page 19 and the game state gets the start planet as its
+level (D_0015EE84), that planet unlocked the way UnlockPlanet
+(func_L00_00261848) does it without its banner (its byte in D_0013DE48 and
+the next entry of the galactic map's list D_0013D618), and gBolts
+(D_0015EE98) = 750. GameBootSequence hands D_0015EE84 to the level load,
+as Load Game's saves do; the opening movies play only for a first load of
+level 0, and the Veldin-to-Novalis movies only when leaving level 0, so
+neither plays. The disc's initial state already owns the Bomb Glove (10
+bombs, on the quick select), as a retail new game does. The new save on the
+card holds all of it (memcard_MakeWholeSave runs after the reset). Against
+an early retail save on Novalis the game records differ only in bolts,
+statistics and options.
+
+**The page.** A copy of the Video Options page: its title box with
+"Randomizer Options", a copy of its toggle list (ToggleList_PadInput,
+func_00221E60: Cross flips the row's byte, the row shows its first text
+while the byte is nonzero) over one row, and its prompt box. The row's byte
+stays 1 and its first text is the setting's name, so a flip is a step to
+the next value (ee_rz_options_update). With three rows the Randomizer
+page's list box is the Options page's own, so the Video page's retail
+sequences take the boxes there and back.
+
+**Where the setting lives.** Bits 1-2 of the flags in the edition's record
+on the card (the main file's last 16 bytes, beside the Drek bit), so it
+holds across power-offs for every save. Leaving the page writes a changed
+setting once, in the background: one libmc command per frame in the card
+machine's idle turns, as the card scan reads (four blocking commands at
+once held the pages still for about a second). Without a card or a save
+directory it stays for the session. The card scan reads it with the
+record.
+
+**Verified in PCSX2** on copies of a test card: the Randomizer page shows
+three rows; Cross steps the row through Veldin, Random and back to Novalis;
+Random stays on the card (flags 4) and the next power-on's New Game used it;
+New Games landed on Novalis (Random's pick for one seed) and on Kerwan
+(another), each with 750 bolts, the planet alone on the galactic map's
+list, Ratchet with Clank and the Bomb Glove. A Veldin start goes to level
+0 with 0 bolts and no planet unlocked. The Reuse Seed code of seed 12345
+with Random landed on Aridia with 750 bolts, as the host tests predict.
+Not yet run on real hardware.

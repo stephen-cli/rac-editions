@@ -8,7 +8,9 @@
  * Logic.py, ItemPool.py), transcribed check by check. Every planet is gated
  * by its infobot, Novalis is the starting planet and the Bomb Glove the
  * starting weapon, Drek is the goal and not a check. 94 checks hold 94
- * items: 17 infobots, 37 gadgets and weapons, 40 Gold Bolts. With the
+ * items: 17 infobots, 37 gadgets and weapons, 40 Gold Bolts. A seed may
+ * start on another planet instead (RZ_START_RANDOM): that planet's infobot
+ * leaves the pool and Novalis's joins it, so the counts stay. With the
  * Charge Boots in the build they join the pool as a dead end that nothing
  * needs, and a bonus vendor entry on a seed-chosen planet is the 95th
  * check (rz5, rz4). */
@@ -19,11 +21,11 @@
 
 /* The logic version in every seed code: bump it on any change to the
  * rules, the pool or the algorithm, so a shared code gives the same game. */
-#define RZ_LOGIC_VERSION    2
+#define RZ_LOGIC_VERSION    3
 #define RZ_VERSION_MAX      15          /* 4 bits */
 #define RZ_WEAPON_MODES     4           /* 2 bits reserved; only RZ_WEAPON_VANILLA is implemented */
 #define RZ_WEAPON_VANILLA   0
-#define RZ_SEED_LIMIT       3349357     /* 11^8 / 64: the seeds a code can carry */
+#define RZ_SEED_LIMIT       1116452     /* 11^8 / (3 * 64): the seeds a code can carry */
 #define RZ_CODE_LENGTH      9           /* 8 data presses and a check press */
 #define RZ_CODE_BUTTONS     11
 
@@ -33,6 +35,19 @@
 #define RZ_ITEMS_BASE       94
 #define RZ_ITEMS_MAX        95          /* with the Charge Boots */
 #define RZ_GOLD_BOLTS       40
+
+/* Where a seed starts (the Randomizer Options page's Starting Planet). Veldin
+ * is retail's start, the tutorial, which holds no checks; the others skip it
+ * and land on their planet with the Bomb Glove and RZ_START_BOLTS. Novalis
+ * and Veldin give the same layout; Random starts on a planet the seed picks
+ * among those with several checks open from the start. */
+enum RzStart {
+    RZ_START_NOVALIS,
+    RZ_START_VELDIN,
+    RZ_START_RANDOM,
+    RZ_START_MODES
+};
+#define RZ_START_BOLTS      750
 
 /* Items. The infobots come first, planet by planet, then the gadgets and
  * weapons; those 56 are the logical items, one bit each of a u64. The Gold
@@ -90,7 +105,8 @@ struct RzLayout {
     u8 bonus_planet;                    /* the bonus vendor check's planet, 1..18 */
     u8 bonus_price;                     /* 0: 2,500 bolts, 1: 5,000 */
     u8 attempts;                        /* fills tried before one passed the sweep */
-    u8 pad;
+    u8 start_mode;                      /* RzStart */
+    u8 start_planet;                    /* the planet the logic starts on, 1..18 (Novalis for a Veldin start) */
     u8 item[RZ_CHECKS_MAX];             /* RzItem per check */
 };
 
@@ -108,9 +124,10 @@ s32 rz_check_for_vanilla(s32 item);                 /* the check whose retail re
 /* The check of LEVEL's Gold Bolt with flag SPOT (0-3); -1 for none. */
 s32 rz_check_for_bolt(s32 level, s32 spot);
 
-/* The layout for SEED: deterministic, the same every time. Returns 0 if no
- * fill passed the sweep (which the tests say never happens). */
-s32 rz_generate(u32 seed, s32 with_boots, struct RzLayout *out);
+/* The layout for SEED starting as START_MODE (RzStart): deterministic, the
+ * same every time. Returns 0 if no fill passed the sweep (which the tests
+ * say never happens). */
+s32 rz_generate(u32 seed, s32 with_boots, s32 start_mode, struct RzLayout *out);
 
 /* Everything collected from the start, every check reached and Drek's rule
  * met: 1 if so. */
@@ -118,12 +135,13 @@ s32 rz_layout_complete(const struct RzLayout *layout);
 
 /* Seed codes. A code is 9 presses of the 11 buttons, as digits 0..10: Up,
  * Right, Down, Left, Cross, Circle, Square, L1, L2, R1, R2. The first 8 are
- * seed * 64 + weapon_mode * 16 + version in base 11, most significant
- * first; the 9th makes the weighted sum (1 * d0 + 2 * d1 + ... + 9 * d8) a
- * multiple of 11, which catches every single wrong press and every swap of
- * two neighbouring presses. rz_code_decode gives 0 for a code that fails
- * the check or carries an unsupported version or weapon mode. */
-void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, u8 digits[RZ_CODE_LENGTH]);
-s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32 *weapon_mode);
+ * (seed * 3 + start_mode) * 64 + weapon_mode * 16 + version in base 11,
+ * most significant first; the 9th makes the weighted sum (1 * d0 + 2 * d1
+ * + ... + 9 * d8) a multiple of 11, which catches every single wrong press
+ * and every swap of two neighbouring presses. rz_code_decode gives 0 for a
+ * code that fails the check or carries an unsupported version or weapon
+ * mode. */
+void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, s32 start_mode, u8 digits[RZ_CODE_LENGTH]);
+s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32 *weapon_mode, s32 *start_mode);
 
 #endif

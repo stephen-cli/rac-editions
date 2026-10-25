@@ -248,6 +248,11 @@ void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra);   /* entered through the tr
 #define EE_TEXT_RANDOMIZER      0x5410  /* "Randomizer" */
 #define EE_TEXT_REUSE_SEED      0x5411  /* "Reuse Seed" */
 #define EE_TEXT_SEED_INPUT      0x5412  /* the Reuse Seed box's buttons, from ee_seed_text() */
+#define EE_TEXT_RZ_OPTIONS      0x5421  /* "Randomizer Options" */
+#define EE_TEXT_START_PLANET    0x5422  /* "Starting Planet" */
+#define EE_TEXT_START_NOVALIS   0x5423  /* "Novalis": the Starting Planet row's values, in RzStart order */
+#define EE_TEXT_START_VELDIN    0x5424  /* "Veldin" */
+#define EE_TEXT_START_RANDOM    0x5425  /* "Random" */
 const char *ee_seed_text(void);
 
 /* rz1/rz2: the Randomizer (src/randomizer.h, src/randomizer.c for the logic;
@@ -273,13 +278,14 @@ struct RzSlot {
     u8 weapon_mode;
     u8 with_boots;
     u32 seed;
+    u8 start_mode;                      /* RzStart: the seed code carries it */
 };
 u32 ee_save_checksum(const u8 *data, s32 length);          /* memcard_Checksum, func_0020BB10 */
 s32 ee_rz_record_offset(s32 program);                       /* the record's offset in a slot's file; -1 if the tables changed */
 s32 ee_rz_record_parse(const u8 *bytes, struct RzSlot *out);   /* EE_RZ_RECORD_SIZE bytes from there */
 s32 ee_rz_active(void);                                     /* the game in memory is a Randomizer save */
 void ee_rz_arm(s32 on);                                     /* the next new-game reset starts a Randomizer game */
-void ee_rz_set_seed(u32 seed, s32 given);                   /* with this seed (Reuse Seed), or a fresh one */
+void ee_rz_set_seed(u32 seed, s32 start_mode, s32 given);   /* with this seed (Reuse Seed), or a fresh one; starting as START_MODE */
 void ee_rz_after_reset(s32 L);                              /* from ee_fe_reset_c, once the reset has run */
 /* The record's play state (src/randomizer_save.c), read and changed in place by src/randomizer_play.c and its neighbours. */
 s32 ee_rz_layout_item(s32 check);                           /* the RzItem the seed put at CHECK */
@@ -291,8 +297,7 @@ s32 ee_rz_bonus_seen(void);                                 /* its entry has bee
 void ee_rz_set_bonus_seen(void);
 void ee_rz_add_gold(void);
 s32 ee_rz_received_special(s32 flag);                       /* FLAG: the byte of D_0013D490 the item sets in retail */
-void ee_rz_set_received_special(s32 flag);
-/* rz3: each gameplay frame, from src/charge_dash.c's frame hook. */
+void ee_rz_set_received_special(s32 flag);/* rz3: each gameplay frame, from src/charge_dash.c's frame hook. */
 void ee_rz_frame(s32 L);
 void ee_rz_pause_open(s32 L);                               /* the pause menu opening in a level (src/goodies.c) */
 void ee_rz_record_autosave(s32 L);                          /* the record's page to the card once it changed (from ee_rz_frame) */

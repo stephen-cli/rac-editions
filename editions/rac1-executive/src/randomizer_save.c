@@ -30,7 +30,19 @@
  * the card. The seed is the one Reuse Seed decoded, or a fresh one from
  * the clock and the menu's tick. The layout itself (the item of each
  * check) is stored, not recomputed, so a later logic version still plays
- * an old save as it was made. The record also keeps what the player has
+ * an old save as it was made.
+ *
+ * Where it starts. A Veldin start is retail's new game: the tutorial, then
+ * the flight to Novalis. Any other start (src/randomizer.h, RzStart) skips
+ * the tutorial: the reset game state gets the start planet as its level
+ * (D_0015EE84, which the boot sequence after the title screen,
+ * GameBootSequence, hands to the level load as Load Game's saves do; the
+ * opening movies play only for a first load of level 0), the planet
+ * unlocked as UnlockPlanet (func_L00_00261848) unlocks it, with no banner,
+ * and RZ_START_BOLTS bolts. The disc's initial state already holds the
+ * Bomb Glove (owned, 10 bombs, on the quick select), as a retail new game
+ * starts with it. All of it is in the new save memcard_MakeWholeSave
+ * writes. The record also keeps what the player has
  * collected and received (src/randomizer_play.c): a bit per check, the
  * Gold Bolts received, the special items received; those change in place,
  * with the checksum redone, and the save carries them. */
@@ -52,7 +64,9 @@ struct RzRecord {
     u8 bonus_planet;
     u8 bonus_price;
     u8 checks;
-    u8 pad[3];
+    u8 start_mode;                      /* RzStart */
+    u8 start_planet;                    /* the logic's starting planet */
+    u8 pad;
     u8 item[RZ_CHECKS_MAX + 1];
     u8 collected[(RZ_CHECKS_MAX + 7) / 8];  /* a bit per check */
     u8 gold;                            /* Gold Bolts received */
@@ -99,12 +113,20 @@ static s32 record_dirty;                /* the page changed since the card last 
 /* For the PINE test scripts (docs/DEBUGGING.md): record autosaves started; frames one waited for the machine. */
 volatile u32 ee_debug_rz_card[2];
 
+/* The game state a start past the tutorial sets (core data). */
+#define CURRENT_LEVEL   (*(volatile s32 *)0x0015EE84)    /* the level the boot sequence loads */
+#define BOLTS           (*(volatile s32 *)0x0015EE98)    /* gBolts */
+#define PLANETS         ((volatile u8 *)0x0013DE48)      /* unlocked, per planet */
+#define GALAXY_LIST     ((volatile s32 *)0x0013D618)     /* gGalaxyList: the galactic map's planets, in unlock order */
+#define PLANET_SLOTS    20
+
 extern void func_00121A80(void *clock);              /* sceCdReadClock into 8 bytes (core) */
 #define MENU_TICKS      (*(volatile s32 *)0x001D60C4)   /* D_001D5F70 + 0x154: the menus' ticks since the card idled */
 
 static u8 armed;                        /* a Randomizer new game is being created */
 static u8 seed_given;                   /* with this seed (Reuse Seed) rather than a fresh one */
 static u32 given_seed;
+static s32 given_start;                 /* RzStart: the code's, or the Randomizer Options page's for a fresh seed */
 
 /* memcard_Checksum (func_0020BB10): a 16-bit shift register, seeded with
  * the CRC-32 polynomial, over the bytes. */
@@ -169,6 +191,7 @@ s32 ee_rz_record_parse(const u8 *bytes, struct RzSlot *out)
     out->weapon_mode = 0;
     out->with_boots = 0;
     out->seed = 0;
+    out->start_mode = 0;
     if (!record_valid(record)) {
         return 0;
     }
@@ -177,6 +200,7 @@ s32 ee_rz_record_parse(const u8 *bytes, struct RzSlot *out)
     out->weapon_mode = record->weapon_mode;
     out->with_boots = (record->flags & RZ_FLAG_BOOTS) != 0;
     out->seed = record->seed;
+    out->start_mode = record->start_mode;
     return 1;
 }
 
@@ -302,10 +326,11 @@ void ee_rz_arm(s32 on)
     armed = on != 0;
 }
 
-void ee_rz_set_seed(u32 seed, s32 given)
+void ee_rz_set_seed(u32 seed, s32 start_mode, s32 given)
 {
     seed_given = given != 0;
     given_seed = seed;
+    given_start = start_mode >= 0 && start_mode < RZ_START_MODES ? start_mode : RZ_START_NOVALIS;
 }
 
 /* A seed from the clock (sceCdReadClock: {status, second, minute, hour, pad,
@@ -343,6 +368,8 @@ static void write_record(const struct RzLayout *layout)
     record.bonus_planet = layout->bonus_planet;
     record.bonus_price = layout->bonus_price;
     record.checks = layout->checks;
+    record.start_mode = layout->start_mode;
+    record.start_planet = layout->start_planet;
     for (i = 0; i < RZ_CHECKS_MAX; i++) {
         record.item[i] = layout->item[i];
     }
@@ -351,6 +378,24 @@ static void write_record(const struct RzLayout *layout)
         ((volatile u8 *)EE_RZ_PAGE)[i] = ((u8 *)&record)[i];
     }
     record_dirty = 1;
+}
+
+/* A start past the tutorial, in the reset game state: the start planet as
+ * the level to load and unlocked (UnlockPlanet's two writes: its byte, and
+ * the next entry of the galactic map's list), and the starting bolts. */
+static void start_past_tutorial(const struct RzLayout *layout)
+{
+    s32 planet = layout->start_planet;
+    s32 i, unlocked = 0;
+    if (!PLANETS[planet]) {
+        for (i = 0; i < PLANET_SLOTS; i++) {
+            unlocked += PLANETS[i] != 0;
+        }
+        PLANETS[planet] = 1;
+        GALAXY_LIST[unlocked] = planet;
+    }
+    CURRENT_LEVEL = planet;
+    BOLTS = RZ_START_BOLTS;
 }
 
 void ee_rz_after_reset(s32 L)
@@ -364,7 +409,10 @@ void ee_rz_after_reset(s32 L)
     armed = 0;
     seed = seed_given ? given_seed : fresh_seed();
     seed_given = 0;
-    if (rz_generate(seed, EE_RANDOMIZER_CHARGE_BOOTS, &layout)) {
+    if (rz_generate(seed, EE_RANDOMIZER_CHARGE_BOOTS, given_start, &layout)) {
         write_record(&layout);
+        if (layout.start_mode != RZ_START_VELDIN) {
+            start_past_tutorial(&layout);
+        }
     }
 }

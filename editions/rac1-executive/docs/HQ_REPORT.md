@@ -4,6 +4,22 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-25 (the Randomizer: Starting Planet)
+
+### 🎲 Starting Planet: Novalis, Veldin or Random (rz) — Working
+
+**What changed.** The Randomizer page has a third row, Options, which opens Randomizer Options with one row: Starting Planet, stepped by Cross through Novalis (the default), Veldin and Random. Veldin is the original start, the tutorial. Novalis skips the tutorial and starts on Novalis with 750 bolts. Random starts with 750 bolts on a planet the seed picks among Novalis, Aridia, Kerwan, Blarg, Batalia and Orxon; that planet's infobot leaves the pool and Novalis's joins it. The setting is kept on the memory card in the edition's record, beside the Drek flag, so it holds across power-offs for every save; leaving the page writes it in the background, a card command per frame (four blocking commands at once froze the menu for about a second). The skip sets the new game's level, unlocks the start planet on the galactic map and sets the bolts before the new save is written; the original new-game state already holds the Bomb Glove.
+
+**Decisions taken.**
+
+- Random picks only planets with at least two checks open from the start; Gaspar and Hoven (one each) and the planets with none are left out.
+- The seed code carries the start: (seed × 3 + start) × 64 + weapon mode × 16 + version. Seeds per code drop from 3,349,357 to 1,116,452; the logic version is 3, so version 2 codes are refused, and version 2 saves keep playing as made.
+
+**Findings that affect other items.**
+
+- The game state after the new-game reset is a complete game start: setting its level (0x15EE84) is enough for the boot sequence to load another planet, without the opening movies.
+- A seed code overrides the Options page, and a Random code lands on the same planet for everyone. The code's eight data presses are now full: any further seed-time option (the reserved weapon modes aside) needs fewer seeds per code or a tenth press.
+
 ## 2026-10-25 (Goodies unlocked by a Randomizer save)
 
 ### 🎁 Goodies on the title screen (rz6) — Unlocked by a Randomizer save too; working

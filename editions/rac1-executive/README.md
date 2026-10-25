@@ -62,7 +62,9 @@ holds only the edition's code, tools and notes, never game data.
   to unlock Goodies on the title screen, where you can start a Randomizer
   save: the infobots, gadgets, weapons and Gold Bolts are shuffled across
   the galaxy, and every seed can be finished. A seed code lets you replay
-  or share a layout.
+  or share a layout. Its Options page sets the starting planet: Novalis
+  (the default, past the tutorial with 750 bolts), Veldin (the original
+  start) or a random planet.
 
 ### Fixes to the original game
 

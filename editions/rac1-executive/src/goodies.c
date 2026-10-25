@@ -113,6 +113,8 @@ extern void func_00122598(s32);                                              /* 
 #define EDITION_MAGIC   0x47444545  /* "EEDG" */
 #define EDITION_VERSION 1
 #define EDITION_DREK    1           /* flags: Drek has been beaten */
+#define EDITION_START_SHIFT 1       /* flags bits 1-2: the Randomizer Options page's Starting Planet (RzStart) */
+#define EDITION_START_MASK  (3 << EDITION_START_SHIFT)
 
 #define SAVE_HEAD       0x40        /* a save file's first bytes: sizes, blob header, records 0-2 */
 #define SAVE_COMPLETES  (0x30 / 4)  /* the completion count's word in them */
@@ -176,7 +178,7 @@ extern void func_00122598(s32);                                              /* 
 #define TEXT_RED        0x800F0FFF  /* the HUD's red (0xFF0F0FFF) at the menus' alpha */
 #define FONT_HEIGHT     12          /* the list draw's normal font: a row's text sits row_height - 6 - 1 from its top */
 #define GOODIES_LIST_HALF    1250   /* the list box's half height for one row (Options' is 3770 for three) */
-#define RANDOMIZER_LIST_HALF 2100   /* for two rows */
+#define TEXT_OPTIONS    0x4EE7      /* "Options", the start menu's own word */
 /* Sequence ids no page plays (checked over the executable's page records):
  * the Goodies, Randomizer and Reuse Seed pages' boxes (title, list, prompt),
  * the Randomizer New Game page's boxes, and its title box as retail has it
@@ -275,6 +277,15 @@ struct SlotScan {
 
 static u8 drek_pending;             /* beaten this session, not yet on the card */
 static u8 card_flags;               /* the record's flags as last read */
+static u8 start_setting;            /* the Starting Planet (RzStart): the record's, or as changed this session */
+static u8 start_unsaved;            /* changed on the Randomizer Options page and not yet on the card */
+
+/* The Starting Planet the record's FLAGS hold; Novalis for none. */
+static s32 start_of_flags(s32 flags)
+{
+    s32 start = (flags & EDITION_START_MASK) >> EDITION_START_SHIFT;
+    return start < RZ_START_MODES ? start : RZ_START_NOVALIS;
+}
 static u8 card_buffer[EE_RZ_RECORD_SIZE] __attribute__((aligned(64)));
 static struct SlotScan slots[MC_SLOTS];
 static s32 rz_saves;                /* Randomizer saves on the card as last scanned */
@@ -484,6 +495,9 @@ static void scan_next_file(void)
         }
         rz_saves = staging_rz_saves;
         card_flags = staging_flags;
+        if (!start_unsaved) {
+            start_setting = start_of_flags(card_flags);
+        }
         scan_valid = 1;
         ee_debug_card[2]++;
     }
@@ -586,10 +600,108 @@ static s32 scan_poll(s32 wait)
 }
 
 /* The scan's command, if one runs, finished: the card is free for another caller. */
+/* The edition's record written in the background, a libmc command per
+ * frame in the card machine's idle turns (ee_title_card_c), as the scan
+ * reads: write_record's four blocking commands stall the pages for about a
+ * second. It runs while the start menu is open too: the Randomizer pages
+ * ask the machine for nothing, and the machine waits while a command of the
+ * job's runs. */
+enum RecordStep {
+    RECORD_IDLE,
+    RECORD_OPEN,
+    RECORD_SEEK,
+    RECORD_WRITE,
+    RECORD_CLOSE
+};
+
+static struct {
+    u8 step;
+    u8 in_flight;
+    s32 fd;
+    s32 flags;              /* the flags it writes */
+    s32 command;
+    s32 result;
+} record_job;
+static u8 record_job_buffer[16] __attribute__((aligned(64)));
+
+static void record_job_start(s32 flags)
+{
+    u32 *words = (u32 *)record_job_buffer;
+    words[0] = EDITION_MAGIC;
+    words[1] = EDITION_VERSION;
+    words[2] = flags;
+    words[3] = ee_save_checksum(record_job_buffer, 12);
+    record_job.flags = flags;
+    record_job.step = RECORD_OPEN;
+}
+
+/* The current step's command: 0 once issued. */
+static s32 record_job_issue(void)
+{
+    switch (record_job.step) {
+    case RECORD_OPEN:
+        return func_001238B0(MC_PORT, MC_SLOT, MC_MAIN_FILE, MC_OPEN_WRITE);
+    case RECORD_SEEK:
+        return func_00123AC8(record_job.fd, EDITION_OFFSET, 0);
+    case RECORD_WRITE:
+        return func_00123D48(record_job.fd, record_job_buffer, 16);
+    }
+    return func_00123A10(record_job.fd);
+}
+
+/* The current step's RESULT (-1 when it went to another sceMcSync caller), and the step after it. A record
+ * written becomes the card's flags; a Starting Planet changed again meanwhile stays unsaved for the next job. */
+static void record_job_result(s32 result)
+{
+    switch (record_job.step) {
+    case RECORD_OPEN:
+        if (result < 0) {
+            record_job.step = RECORD_IDLE;      /* no save directory, or no card: the setting stays for the session */
+            return;
+        }
+        record_job.fd = result;
+        record_job.step = RECORD_SEEK;
+        return;
+    case RECORD_SEEK:
+        record_job.step = result == EDITION_OFFSET ? RECORD_WRITE : RECORD_CLOSE;
+        return;
+    case RECORD_WRITE:
+        if (result == 16) {
+            card_flags = (u8)record_job.flags;
+            start_unsaved = start_of_flags(record_job.flags) != start_setting;
+        }
+        record_job.step = RECORD_CLOSE;
+        return;
+    }
+    record_job.step = RECORD_IDLE;
+}
+
+/* The job's running command: 1 once it has finished and the job has moved on, 0 while it runs. WAIT waits. */
+static s32 record_job_poll(s32 wait)
+{
+    s32 status;
+    for (;;) {
+        status = func_00123F30(1, &record_job.command, &record_job.result);
+        if (status != 0 || !wait) {
+            break;
+        }
+        func_00122598(0);
+    }
+    if (status == 0) {
+        return 0;
+    }
+    record_job.in_flight = 0;
+    record_job_result(status < 0 ? -1 : record_job.result);
+    return 1;
+}
+
 static void scan_settle(void)
 {
     if (scan.in_flight) {
         scan_poll(1);
+    }
+    if (record_job.in_flight) {
+        record_job_poll(1);
     }
 }
 
@@ -1141,7 +1253,9 @@ static void set_half_width(Layout layout, s32 half)
 /* The Goodies pages' sequences, each box morphing as the Options page's
  * sub-pages do (morph_sequence): Goodies from the start menu's rows to the
  * Options page's layout with a list box one row high, Randomizer from there
- * to a list two rows high, Reuse Seed from there to the Video Options
+ * to the Options page's own layout (three rows: New Game, Reuse Seed,
+ * Options; Randomizer Options plays the Video Options page's retail
+ * sequences from it), Reuse Seed from there to the Video Options
  * page's layout with its list box narrowed to the nine symbols (SEED_BOX_PX,
  * in record units through the name box's measured width) and its prompt
  * box the Options page's, two rows for Confirm and Exit. The Randomizer's
@@ -1175,7 +1289,6 @@ static s32 install_randomizer_sequences(void)
         }
     }
     set_half_height(goodies[1], GOODIES_LIST_HALF);
-    set_half_height(randomizer[1], RANDOMIZER_LIST_HALF);
     {
         Layout name;
         u32 seq = retail_sequence(new_game->moby_anims[NAME_PANEL]);
@@ -1211,16 +1324,39 @@ static u32 goodies_page[PAGE_WORDS];
 static u32 randomizer_page[PAGE_WORDS];
 static u32 reuse_page[PAGE_WORDS];
 static u32 new_game_page[PAGE_WORDS];
+static u32 rz_options_page[PAGE_WORDS];
 static u32 goodies_title[WIDGET_WORDS];
 static u32 randomizer_title[WIDGET_WORDS];
 static u32 reuse_title[WIDGET_WORDS];
+static u32 rz_options_title[WIDGET_WORDS];
 static u32 rz_slots[WIDGET_WORDS];      /* the Randomizer New Game's slot list: retail's, its update and draw wrapped */
+static u32 rz_options_toggle[WIDGET_WORDS];    /* the Video Options page's toggle list, over start_entries */
 static struct MenuList goodies_menu;
 static struct MenuList randomizer_menu;
 static struct MenuList seed_box;
 static struct MenuList reuse_prompt;    /* "Exit" while entering, "Confirm" and "Exit" once nine are in */
 static struct MenuItem goodies_menu_items[2];
-static struct MenuItem randomizer_items[3];
+static struct MenuItem randomizer_items[4];
+
+/* A toggle list's row (ToggleList_PadInput): its label, the byte it flips,
+ * the text shown while the byte is nonzero and while it is 0, and flags (1:
+ * the Video page's mode switch). A row with label 0 ends the list. */
+struct ToggleEntry {
+    s32 label;
+    u8 *byte;
+    s32 on_text;
+    s32 off_text;
+    s32 flags;
+};
+#define TOGGLE_ENTRIES_WORD (0x34 / 4)  /* a toggle list's rows */
+#define TOGGLE_CURSOR_WORD  (0x38 / 4)  /* its selected row */
+static u8 start_shown = 1;
+static const s32 start_texts[RZ_START_MODES] = { EE_TEXT_START_NOVALIS, EE_TEXT_START_VELDIN, EE_TEXT_START_RANDOM };
+static struct ToggleEntry start_entries[2] = {
+    { EE_TEXT_START_PLANET, &start_shown, EE_TEXT_START_NOVALIS, EE_TEXT_START_NOVALIS, 0 },
+    { 0, 0, 0, 0, 0 },
+};
+static u32 retail_toggle_update;        /* ToggleList_PadInput, this program's */
 static struct MenuItem seed_items[2] = { { EE_TEXT_SEED_INPUT, ACTION_OPEN, 0, 0, 0 }, { 0, 0, 0, 0, 0 } };
 static struct MenuItem reuse_prompt_items[3];
 static u32 retail_seed_box_draw;        /* DrawMenuItemList, this program's */
@@ -1277,10 +1413,12 @@ s32 ee_rz_slots_update(void *widget);
 s32 ee_rz_slots_draw(void *widget);
 s32 ee_rz_name_draw(void *widget);
 s32 ee_rz_menu_update(void *list);
+s32 ee_rz_options_update(void *widget);
 
 static void build_pages(void)
 {
     struct MenuPage *page;
+    struct MenuPage *video = (struct MenuPage *)VIDEO_PAGE;
     s32 j;
     copy_words(goodies_title, OPTIONS_TITLE, WIDGET_WORDS);
     goodies_title[0x34 / 4] = TEXT_GOODIES;
@@ -1288,12 +1426,15 @@ static void build_pages(void)
     randomizer_title[0x34 / 4] = EE_TEXT_RANDOMIZER;
     copy_words(reuse_title, VIDEO_TITLE, WIDGET_WORDS);
     reuse_title[0x34 / 4] = EE_TEXT_REUSE_SEED;
+    copy_words(rz_options_title, VIDEO_TITLE, WIDGET_WORDS);
+    rz_options_title[0x34 / 4] = EE_TEXT_RZ_OPTIONS;
 
     set_item(&goodies_menu_items[0], EE_TEXT_RANDOMIZER, ACTION_OPEN, (u32)randomizer_page);
     set_item(&goodies_menu_items[1], 0, 0, 0);
     set_item(&randomizer_items[0], TEXT_NEW_GAME, ACTION_FREEZE, (u32)new_game_page);
     set_item(&randomizer_items[1], EE_TEXT_REUSE_SEED, ACTION_OPEN, (u32)reuse_page);
-    set_item(&randomizer_items[2], 0, 0, 0);
+    set_item(&randomizer_items[2], TEXT_OPTIONS, ACTION_OPEN, (u32)rz_options_page);
+    set_item(&randomizer_items[3], 0, 0, 0);
     make_list(&goodies_menu, goodies_menu_items);
     make_list(&randomizer_menu, randomizer_items);
     retail_list_update = randomizer_menu.update;
@@ -1327,6 +1468,20 @@ static void build_pages(void)
     for (j = 0; j < 3; j++) {
         page->moby_anims[ROW_FIRST_PANEL + j] = reuse_ids[j];
     }
+
+    /* Randomizer Options: the Video Options page with its own title and the
+     * Starting Planet's row in a copy of its toggle list; the Randomizer
+     * page's boxes are the Options page's, so the Video page's own
+     * sequences take them there and back */
+    copy_words(rz_options_toggle, video->focus, WIDGET_WORDS);
+    retail_toggle_update = rz_options_toggle[0];
+    rz_options_toggle[0] = (u32)ee_rz_options_update;
+    rz_options_toggle[LIST_ENTER] = 0;
+    rz_options_toggle[TOGGLE_ENTRIES_WORD] = (u32)start_entries;
+    rz_options_toggle[TOGGLE_CURSOR_WORD] = 0;
+    start_entries[0].on_text = start_texts[start_setting];
+    make_page(rz_options_page, VIDEO_PAGE, (u32)randomizer_page, (u32)rz_options_title, (u32)rz_options_toggle,
+              video->screens[ROW_FIRST_PANEL + 2]);
 
     /* retail's New Game page with the slot list copied: its update arms a
      * Randomizer game (ee_rz_slots_update), its draw adds the badges */
@@ -1504,13 +1659,13 @@ s32 ee_seed_box_update(struct MenuList *box)
     }
     if (seed_length == RZ_CODE_LENGTH) {
         u32 seed;
-        s32 version, mode;
+        s32 version, mode, start;
         if (!(pressed & seed_buttons[0])) {                 /* Cross confirms; nothing else counts */
             return 0;
         }
-        if (rz_code_decode(seed_digits, &seed, &version, &mode)) {
+        if (rz_code_decode(seed_digits, &seed, &version, &mode, &start)) {
             clear_seed_box();
-            ee_rz_set_seed(seed, 1);
+            ee_rz_set_seed(seed, start, 1);
             /* as the list's action 4 (Pause_TextListUpdate) opens New Game */
             menu_sound(0, box->moby);
             MENU_LOAD_KIND = 0;
@@ -1557,12 +1712,41 @@ s32 ee_seed_box_draw(struct MenuList *box)
 
 /* --- The Randomizer's save pages ------------------------------------------- */
 
-/* The Randomizer page's list: a New Game chosen here starts from a fresh seed. */
+/* The Randomizer page's list: a New Game chosen here starts from a fresh
+ * seed, where the Starting Planet says. */
 s32 ee_rz_menu_update(void *list)
 {
-    ee_rz_set_seed(0, 0);
+    ee_rz_set_seed(0, start_setting, 0);
     ee_rz_arm(0);
     return ((WidgetFn)retail_list_update)(list);
+}
+
+/* The Starting Planet's row: retail's toggle (ToggleList_PadInput,
+ * func_00221E60), which flips its byte on Cross and shows the entry's first
+ * text while the byte is nonzero. The byte is kept at 1 and the first text
+ * is the setting's name, so a flip is a step to the next setting. Leaving
+ * the page puts a changed setting in the edition's record on the card, in
+ * the background (record_job); with no card, or no save directory yet, it
+ * stays for the session. */
+s32 ee_rz_options_update(void *widget)
+{
+    static u8 save_tried;               /* once per change: a card without the save directory refuses every time */
+    s32 r;
+    start_shown = 1;
+    r = ((WidgetFn)retail_toggle_update)(widget);
+    if (!start_shown) {
+        start_setting = (u8)((start_setting + 1) % RZ_START_MODES);
+        start_unsaved = 1;              /* kept over the next scan's value until it is on the card */
+        save_tried = 0;
+        start_shown = 1;
+    }
+    start_entries[0].on_text = start_texts[start_setting];
+    if (start_unsaved && !save_tried && record_job.step == RECORD_IDLE
+        && MENU_NEXT == ((struct MenuPage *)rz_options_page)->back) {
+        save_tried = 1;
+        record_job_start((card_flags & ~EDITION_START_MASK) | (start_setting << EDITION_START_SHIFT));
+    }
+    return r;
 }
 
 /* The Randomizer New Game's slot list: retail's update, with a Randomizer
@@ -1650,7 +1834,7 @@ static void seed_line(const struct RzSlot *slot, char *out)
 {
     u8 digits[RZ_CODE_LENGTH];
     s32 i;
-    rz_code_encode(slot->seed, slot->version, slot->weapon_mode, digits);
+    rz_code_encode(slot->seed, slot->version, slot->weapon_mode, slot->start_mode, digits);
     for (i = 0; i < RZ_CODE_LENGTH; i++) {
         out[i] = (char)seed_glyph_of_digit[digits[i]];
     }
@@ -1827,7 +2011,7 @@ static void patch_widgets(void)
     name[WIDGET_DRAW] = (u32)ee_rz_name_draw;
     ((u32 *)CONFIRM_PAGE)[PAGE_BACK_WORD] = NEW_GAME_PAGE;
     ee_rz_arm(0);
-    ee_rz_set_seed(0, 0);
+    ee_rz_set_seed(0, start_setting, 0);
     clear_seed_box();
 }
 
@@ -1933,7 +2117,8 @@ void ee_title_menu_open_c(s32 L)
  * pages ask the machine for their own sequences, and New Game or Load Game
  * leave the title screen through loops that run the machine directly. The
  * scan starts again when the card changes; a scan the PRESS START screen
- * did not finish is finished when the start menu opens (goodies_unlocked). */
+ * did not finish is finished when the start menu opens (goodies_unlocked).
+ * A record write (record_job) steps in the same turns, menu open or not. */
 DECLARE_LVL(func_00209E68);             /* MemCard_UpdateState */
 #define MENU_UPDATES    (*(volatile s32 *)0x001D6080)    /* D_001D5F70 + 0x110: Pause_Update's count, held at 0x7D00 */
 static s32 menu_updates_seen;
@@ -1952,6 +2137,16 @@ void ee_title_card_c(s32 L)
     ee_debug_card[0]++;
     if (scan.in_flight && !scan_poll(0)) {
         return;
+    }
+    if (record_job.in_flight && !record_job_poll(0)) {
+        return;
+    }
+    if (record_job.step != RECORD_IDLE && machine_idle()) {
+        if (record_job_issue() == 0) {
+            record_job.in_flight = 1;
+            return;
+        }
+        record_job.step = RECORD_IDLE;      /* libmc refused it */
     }
     if (!menu_open && machine_idle()) {
         if (scan.file == SCAN_DONE && (!scan_valid || card_changed())) {

@@ -225,8 +225,19 @@ static const s8 game_ids[RZ_ITEM_KINDS] = {
     -1, 36,                                                                        /* Gold Bolt; the Charge Boots are item 36 */
 };
 
-#define START_ITEMS     (P(NOVALIS) | BIT(RZ_BOMB_GLOVE))
 #define MAX_ATTEMPTS    64
+
+/* RZ_START_RANDOM's planets: those with at least two checks open with the
+ * start's items alone (the planet's infobot and the Bomb Glove), so a run
+ * never hangs on one first check. Eudora, Rilgar, Umbris, Gemlik, Oltanis,
+ * Quartu, Kalebo, the Fleet and Veldin open none; Gaspar and Hoven one. */
+static const u8 random_starts[] = { NOVALIS, ARIDIA, KERWAN, BLARG, BATALIA, ORXON };
+
+/* What the player has before any check: the start planet and the Bomb Glove. */
+static u64 start_items(const struct RzLayout *layout)
+{
+    return P(layout->start_planet) | BIT(RZ_BOMB_GLOVE);
+}
 
 s32 rz_item_game_id(s32 item)
 {
@@ -426,8 +437,10 @@ static s32 fill(struct RzLayout *layout, struct Rng *rng)
     for (i = 0; i < layout->checks; i++) {
         layout->item[i] = RZ_ITEM_NONE;
     }
-    for (item = RZ_INFOBOT_NOVALIS + 1; item <= RZ_INFOBOT_VELDIN; item++) {   /* Novalis is the start */
-        progression[progression_count++] = (u8)item;
+    for (item = RZ_INFOBOT_NOVALIS; item <= RZ_INFOBOT_VELDIN; item++) {
+        if (item != IB(layout->start_planet)) {                              /* the start's planet is open */
+            progression[progression_count++] = (u8)item;
+        }
     }
     for (item = RZ_INFOBOT_VELDIN + 1; item < RZ_LOGICAL_ITEMS; item++) {
         if (item == RZ_BOMB_GLOVE) {
@@ -452,7 +465,7 @@ static s32 fill(struct RzLayout *layout, struct Rng *rng)
     shuffle(rng, rest, rest_count);
 
     while (progression_count > 0) {
-        u64 have = START_ITEMS;
+        u64 have = start_items(layout);
         s32 candidate_count = 0;
         item = progression[--progression_count];
         for (i = 0; i < progression_count; i++) {
@@ -480,7 +493,7 @@ static s32 fill(struct RzLayout *layout, struct Rng *rng)
 s32 rz_layout_complete(const struct RzLayout *layout)
 {
     u8 reached[RZ_CHECKS_MAX];
-    u64 have = sweep(layout, START_ITEMS, reached);
+    u64 have = sweep(layout, start_items(layout), reached);
     s32 i;
     for (i = 0; i < layout->checks; i++) {
         if (!reached[i]) {
@@ -490,7 +503,7 @@ s32 rz_layout_complete(const struct RzLayout *layout)
     return (have & rz_drek_rule()) == rz_drek_rule();
 }
 
-s32 rz_generate(u32 seed, s32 with_boots, struct RzLayout *out)
+s32 rz_generate(u32 seed, s32 with_boots, s32 start_mode, struct RzLayout *out)
 {
     struct Rng rng;
     s32 attempt;
@@ -503,7 +516,12 @@ s32 rz_generate(u32 seed, s32 with_boots, struct RzLayout *out)
     out->weapon_mode = RZ_WEAPON_VANILLA;
     out->with_boots = with_boots != 0;
     out->checks = with_boots ? RZ_CHECKS_MAX : RZ_CHECKS_BASE;
-    out->pad = 0;
+    out->start_mode = (u8)start_mode;
+    out->start_planet = NOVALIS;
+    if (start_mode == RZ_START_RANDOM) {
+        rng_seed(&rng, seed, MAX_ATTEMPTS);     /* a state no fill uses, so the planet stays across fills */
+        out->start_planet = random_starts[rng_below(&rng, (s32)sizeof(random_starts))];
+    }
     for (attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         rng_seed(&rng, seed, attempt);
         out->bonus_planet = (u8)(1 + rng_below(&rng, RZ_PLANETS - 1));
@@ -518,9 +536,9 @@ s32 rz_generate(u32 seed, s32 with_boots, struct RzLayout *out)
 
 /* --- Seed codes ------------------------------------------------------------- */
 
-void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, u8 digits[RZ_CODE_LENGTH])
+void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, s32 start_mode, u8 digits[RZ_CODE_LENGTH])
 {
-    u32 value = seed * 64 + (u32)weapon_mode * 16 + (u32)version;
+    u32 value = (seed * RZ_START_MODES + (u32)start_mode) * 64 + (u32)weapon_mode * 16 + (u32)version;
     s32 i, sum = 0;
     for (i = RZ_CODE_LENGTH - 2; i >= 0; i--) {
         digits[i] = (u8)(value % RZ_CODE_BUTTONS);
@@ -533,7 +551,7 @@ void rz_code_encode(u32 seed, s32 version, s32 weapon_mode, u8 digits[RZ_CODE_LE
     digits[RZ_CODE_LENGTH - 1] = (u8)(((RZ_CODE_BUTTONS - sum % RZ_CODE_BUTTONS) * 5) % RZ_CODE_BUTTONS);
 }
 
-s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32 *weapon_mode)
+s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32 *weapon_mode, s32 *start_mode)
 {
     u32 value = 0;
     s32 i, sum = 0;
@@ -551,6 +569,7 @@ s32 rz_code_decode(const u8 digits[RZ_CODE_LENGTH], u32 *seed, s32 *version, s32
     }
     *version = (s32)(value & 15);
     *weapon_mode = (s32)((value >> 4) & 3);
-    *seed = value >> 6;
+    *start_mode = (s32)((value >> 6) % RZ_START_MODES);
+    *seed = (value >> 6) / RZ_START_MODES;
     return *version == RZ_LOGIC_VERSION && *weapon_mode == RZ_WEAPON_VANILLA && *seed < RZ_SEED_LIMIT;
 }

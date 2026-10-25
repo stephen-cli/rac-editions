@@ -3,7 +3,7 @@
 # src/randomizer.c), with gcc: the machine's, or WSL's where only that has one.
 #
 #   bash tools/test_randomizer.sh [SEEDS]          # SEEDS layouts per pool, 2000 by default
-#   bash tools/test_randomizer.sh SEED BOOTS       # print one layout (BOOTS 0 or 1)
+#   bash tools/test_randomizer.sh SEED BOOTS [START]   # print one layout (BOOTS 0 or 1, START an RzStart)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 OUT=$HERE/build/tests
