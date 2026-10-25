@@ -4,7 +4,8 @@
  * The row appears under Options on the title screen's start menu once Drek
  * has been beaten in the edition, or once the memory card holds a Challenge
  * Mode save (a save whose completion count is above 0, the Load Game list's
- * "R" badge). Nothing announces it. It is not the pause menu's Goodies.
+ * "R" badge) or a Randomizer save (one with a Randomizer record, the green
+ * R). Nothing announces it. It is not the pause menu's Goodies.
  *
  * Where the flag lives. The save directory BESCES-50916RATCHET holds
  * save0.bin-save4.bin (one per slot) and a 15360-byte file named like the
@@ -681,9 +682,9 @@ void ee_drek_beaten(s32 menu)
 }
 
 /* The unlock: Drek beaten (on the card or this session), or a Challenge
- * Mode save on the card. The title screen's background scan has usually
- * read the card by now; whatever it has left runs here, as does a scan of a
- * card that has changed since. */
+ * Mode or Randomizer save on the card. The title screen's background scan
+ * has usually read the card by now; whatever it has left runs here, as does
+ * a scan of a card that has changed since. */
 static s32 goodies_unlocked(void)
 {
     s32 slot;
@@ -699,7 +700,7 @@ static s32 goodies_unlocked(void)
     } else if (!scan_valid) {
         return drek_pending;
     }
-    if (drek_pending || (card_flags & EDITION_DREK)) {
+    if (drek_pending || (card_flags & EDITION_DREK) || rz_saves) {
         return 1;
     }
     for (slot = 0; slot < MC_SLOTS; slot++) {

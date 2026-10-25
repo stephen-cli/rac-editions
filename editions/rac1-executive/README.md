@@ -58,10 +58,11 @@ holds only the edition's code, tools and notes, never game data.
   They unlock with all ten Gold Weapons, along with the 'Making Of' video.
 - **GADGETRON.** Kalebo III's rotating sign reads GADGETRON, as in the
   American release, instead of the PAL release's GALACTRON.
-- **Randomizer.** Beat the game to unlock Goodies on the title screen,
-  where you can start a Randomizer save: the infobots, gadgets, weapons and
-  Gold Bolts are shuffled across the galaxy, and every seed can be
-  finished. A seed code lets you replay or share a layout.
+- **Randomizer.** Beat the game (or have a Randomizer save on the card)
+  to unlock Goodies on the title screen, where you can start a Randomizer
+  save: the infobots, gadgets, weapons and Gold Bolts are shuffled across
+  the galaxy, and every seed can be finished. A seed code lets you replay
+  or share a layout.
 
 ### Fixes to the original game
 

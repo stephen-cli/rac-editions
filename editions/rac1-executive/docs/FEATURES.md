@@ -2879,10 +2879,12 @@ the third-person auto-aim ring) tested in game too.
 **What it does.** The title screen's start menu gets a fourth row, Goodies,
 under Options, once the game has been beaten: Drek defeated in the edition,
 or a Challenge Mode save on the memory card (a save whose completion count
-`0x15EF20` is above 0, the Load Game list's "R" badge). Either is enough,
-and nothing announces it. Locked, the menu is retail's three rows. The row
-is the randomizer's entry point and does nothing yet when selected. It is
-not the pause menu's Goodies. Code: `src/goodies.c`.
+`0x15EF20` is above 0, the Load Game list's "R" badge), or a Randomizer
+save on the card (a slot with a Randomizer record, the green R), whether or
+not that seed was finished. Any one is enough, and nothing announces it.
+Locked, the menu is retail's three rows. The row is the randomizer's entry
+point and does nothing yet when selected. It is not the pause menu's
+Goodies. Code: `src/goodies.c`.
 
 **Where the flag lives.** The save directory `BESCES-50916RATCHET` holds
 `save0.bin`-`save4.bin` (slots 1-5) and a 15360-byte file named like the

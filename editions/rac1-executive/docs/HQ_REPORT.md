@@ -4,6 +4,12 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-25 (Goodies unlocked by a Randomizer save)
+
+### 🎁 Goodies on the title screen (rz6) — Unlocked by a Randomizer save too; working
+
+**What changed.** The title screen's Goodies row now also appears when the memory card holds a Randomizer save, even without Drek beaten or a Challenge Mode save. The start menu's card scan already reads each slot's Randomizer record for the green R badge; the unlock now counts it too. Checked in PCSX2 on a card whose only special saves are Randomizer ones (Goodies shown) and on one with neither kind (hidden).
+
 ## 2026-10-25 (freezes at big explosions)
 
 ### 💥 Freezes when a warship or a tank breaks up — Fixed in the build; awaiting the owner's test on the console
