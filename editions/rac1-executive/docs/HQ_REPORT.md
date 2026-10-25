@@ -12,6 +12,12 @@ changed, decisions taken, findings that affect other items.
 
 **Decisions taken.** Starting bolts stay 0 for Veldin and 750 for any other start, set by the save at New Game, not by the code.
 
+## 2026-10-26 (the Randomizer: cutscene skip)
+
+### ⏩ Start skips cutscenes in a Randomizer save (rz) — Working
+
+**What changed.** In a Randomizer save, Start alone skips in-level cutscenes and movies, as in Challenge Mode; without it the four shoulder buttons must be held with Start. The two places the game decides (the in-level cutscene update and the movie player) test the completion count for the Start-only skip; in every level that load now reads an edition word that also holds "this is a Randomizer save". Challenge Mode's other perks (doubled bolts, cheat codes) stay its own. Checked in PCSX2 on the Novalis arrival cutscene, with a control run that had the word cleared.
+
 ## 2026-10-25 (the Randomizer: Starting Planet)
 
 ### 🎲 Starting Planet: Novalis, Veldin or Random (rz) — Working

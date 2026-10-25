@@ -64,7 +64,8 @@ holds only the edition's code, tools and notes, never game data.
   the galaxy, and every seed can be finished. A seed code lets you replay
   or share a layout. Its Options page sets the starting planet: Novalis
   (the default, past the tutorial with 750 bolts), Veldin (the original
-  start) or a random planet.
+  start) or a random planet. Start alone skips cutscenes, as in Challenge
+  Mode.
 
 ### Fixes to the original game
 

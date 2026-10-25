@@ -3989,3 +3989,28 @@ picks, the same for everyone. The Randomizer Options page is unchanged.
 version 3 codes are refused, and saves keep playing as made (the record
 holds the start mode and planet). `rz_code_encode`/`rz_code_decode` take and
 give the random-start bit rather than a start mode.
+
+## rz: Start skips cutscenes in a Randomizer save (2026-10-26) — working
+
+**What it does.** In a Randomizer save, Start alone ends an in-level
+cutscene or a movie, as in Challenge Mode; elsewhere retail still wants all
+four shoulder buttons held with it.
+
+**How.** The in-level cutscene update (CutsceneModeUpdate,
+func_L00_0029A300) and the movie player (read_mpeg, func_0023B740) end on
+Start alone when the Challenge Mode flag D_0015EFA0 is set, the completion
+count D_0015EF20 is above 0, a level is loading (D_0015EFD8) or no level is
+loaded; each tests the count once, with lui $2, 0x16; lw $2, -0x10E0($2).
+tools/overlay_patch.py (feature cutscene_skip) points that pair in every
+level program at ee_cutscene_skip (src/randomizer_play.c), which read_record
+sets to the count's test or a Randomizer save as each level loads, before
+its cutscenes, and whenever the record is read again. Raising the count or
+the flag instead would bring Challenge Mode's other perks: the doubled
+bolts (func_L00_00261B00), the cheat codes (Cheats_PollCodes) and its
+prices. The feature stops the build if either function holds other than
+one such load in a level.
+
+**Verified in PCSX2** on a new Randomizer save: Start during the Novalis
+arrival cutscene returned to play (control mode 24 to 0) within half a
+second; with the word cleared over PINE, Start alone left the cutscene
+running.

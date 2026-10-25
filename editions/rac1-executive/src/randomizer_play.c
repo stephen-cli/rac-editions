@@ -89,6 +89,20 @@ volatile u32 ee_debug_rz_play[4];
 
 static s32 active;                      /* the game in memory is a Randomizer save */
 static s32 active_level = -1;           /* the level `active` was read for */
+
+/* Start skips cutscenes and movies (rz: Challenge Mode's skip). The in-level
+ * cutscene update (CutsceneModeUpdate, func_L00_0029A300) and the movie
+ * player (read_mpeg, func_0023B740) let Start alone end a cutscene when the
+ * Challenge Mode flag D_0015EFA0 is set, the game has been completed
+ * (D_0015EF20 > 0), a level is loading or no level is loaded; otherwise all
+ * four shoulder buttons must be held with it. tools/overlay_patch.py
+ * (cutscene_skip) points each program's load of D_0015EF20 there at this
+ * word, which holds that count's test or a Randomizer save, so Challenge
+ * Mode's other perks (the doubled bolts, the cheat codes) stay its own. It
+ * is set as each level loads, before any cutscene of the level runs, and
+ * whenever the record is read again. */
+#define COMPLETES       (*(volatile s32 *)0x0015EF20)
+volatile s32 ee_cutscene_skip;
 static s32 fixes_level = -1;            /* the level whose early-O2 fixes have run on this visit */
 static s32 view_on;                     /* the collected view is in place */
 static u8 real_inventory[ITEMS];        /* the real arrays while the view is on */
@@ -473,6 +487,7 @@ static void read_record(s32 L)
 {
     active = ee_rz_active();
     active_level = L;
+    ee_cutscene_skip = COMPLETES != 0 || active;
     ee_debug_rz_play[0] = (u32)active;
 }
 

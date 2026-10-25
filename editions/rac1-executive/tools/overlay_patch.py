@@ -406,6 +406,30 @@ def effect_pool(at):
     return out
 
 
+# The completion count's load in the two Start-skip tests: lui $2, %hi; lw $2, %lo($2).
+COMPLETES_LOAD = (lui(2, hi_lo(COMPLETES)[0]), lw(2, 2, hi_lo(COMPLETES)[1]))
+CUTSCENE_SKIP_FUNCS = ("func_L00_0029A300", "func_0023B740")   # CutsceneModeUpdate, read_mpeg
+
+
+def cutscene_skip(at):
+    """Start alone skips cutscenes and movies in a Randomizer save, as in Challenge
+    Mode (src/randomizer_play.c, ee_cutscene_skip). The in-level cutscene update and
+    the movie player each test the completion count once for the Start-only skip;
+    that load becomes a load of ee_cutscene_skip, which holds the count's test or a
+    Randomizer save. Each function must hold exactly one such load."""
+    hi, lo = hi_lo(modseg_symbol("ee_cutscene_skip"))
+    out = []
+    for name in CUTSCENE_SKIP_FUNCS:
+        f = at(name)
+        code = at.words(f, at.size(name) // 4)
+        hits = [k for k in range(len(code) - 1) if (code[k], code[k + 1]) == COMPLETES_LOAD]
+        if len(hits) != 1:
+            raise SystemExit(f"level {at.level}: {name} holds {len(hits)} loads of the completion count, expected 1")
+        site = f + 4 * hits[0]
+        out += [(site, COMPLETES_LOAD[0], lui(2, hi)), (site + 4, COMPLETES_LOAD[1], lw(2, 2, lo))]
+    return out
+
+
 SND_SET_MASTER_VOLUME = 0x0012E348     # core: the same address in every program
 DADDU_A0_ZERO = 0x0000202D             # daddu $4, $0, $0: group 0
 # The snd_SetMasterVolume calls the Movie volume takes over (src/movie_volume.c,
@@ -827,6 +851,7 @@ FEATURES = {
     "strafe": strafe,
     "strafe_camera": strafe_camera,
     "effect_pool": effect_pool,
+    "cutscene_skip": cutscene_skip,
 }
 DEFAULT_FEATURES = [
     "edition_text",
@@ -847,6 +872,7 @@ DEFAULT_FEATURES = [
     "widescreen",
     "randomizer",
     "effect_pool",
+    "cutscene_skip",
 ]
 
 
