@@ -4220,3 +4220,59 @@ quantity to the same upper bound retail's right press stops at: bolts over
 the ammo price (item info +0x8, or +0xA when the vendor record's +0x40 is
 set) and the item's maximum (+0xE) less the ammo held (0x13D530, an s32
 per item). Nothing is saved, so saves stay retail's.
+
+## Hoven's force fields block Ratchet until their tri-pads are done (2026-10-26) — fixed; confirmed working
+
+Hoven has three force fields (class 1345), each in front of a set of three
+tri-pads (timed activation pads, class 886): on the floor for two of them,
+on a wall for the third. In retail Ratchet walks straight through a field
+before its pads are done. Now a field stops him, from either side, until
+its pads are done; then it lets him through as before. It does no damage:
+the field's code never hurt Ratchet.
+
+**What was wrong.** The field's update (func_L12_00309590, OpenRAC's
+update_moby_draw_and_monitor_linked_state) watches one pad of its set
+(pvars word 0, a moby index). While that pad's group is not done (state
+!= 7) the field stays in state 1 and draws its five electric bars from a
+draw callback (draw_hoven_jittered_quad_layers, func_L12_00309730: bars at
+heights 1 to 5 of the field's own frame, each from y -3 to 3 in the plane
+x = 0). Once the group reaches state 7 it clears its collision (moby +
+0x94) and goes to state 2. So the field was meant to block until then, but
+its class's collision data never could: the box's eight vertices all sit
+at z = +32767, which leaves a flat square, and at the class's scale
+(1/4800) that square is 1.3 cm across. Moby collision vertices are 16-bit
+in world units of scale / 1024 (the collision kernels multiply the moby's
+rows by its scale, + 0x2C, against a position x 1024), so no vertex
+values reach a 6 x 5 unit wall at that scale.
+
+**Fix.** In state 1 the field calls IsBSphereVisibleScaled(m, 48.0)
+(func_L01_00276680) every frame; overlay_patch.py's `hoven_fields`
+feature sends that call (func_L12_00309590 + 0x94) to
+ee_hoven_field_visible (src/hoven_fields.c), which makes the same call
+and, on a field's first one, rebuilds its collision:
+
+- the class's collision box (shared by the three fields) gets new vertex
+  values around the bars, keeping its face list and face types: x
+  +-0.25, y +-3, z -0.5 to 5.5;
+- the field's scale becomes 0.25 (4096 vertex units a world unit), and
+  its local bounding sphere (+ 0xF0) covers the box, which
+  refresh_moby_spatial_bounds (func_0020ED48) turns into the world sphere
+  and the moby grid cells the collision queries look in;
+- the field gets mode bit 0x01 (+ 0x34), with which MobyProc does not draw
+  a moby. The class's own mesh is a 1 cm placeholder quad, invisible in
+  retail, that MobyProc draws at the moby's scale; at 0.25 it became a
+  flickering grey slab about 12 units across. The bars come from the
+  draw callback, which uses the field's position and rows only.
+
+The hero's body query (flags 0x324) skips only faces of type 3, so the
+box's types (0xE9, 0xFF) block him. Nothing is saved: each load of Hoven
+reads the disc's data and the hook builds the wall again.
+
+**Tested in PCSX2** on a real save (a fresh Challenge Mode run, flown to
+Hoven; Ratchet placed in front of a field with RAM writes, then moved
+with the stick): he stops 0.7 units short of a field's plane (his
+capsule's radius plus the wall's half thickness) from either side and
+stays there; no grey slab. Standing on the three floor pads of the second
+field's set took the group to state 7; the field cleared its collision
+and Ratchet walked through. The wall-mounted pads of the first field
+(struck, hero state 0x11) were not tested.

@@ -347,6 +347,27 @@ def commercials(at):
     return [(site, 0xA4400060, NOP)]
 
 
+HOVEN_FIELD_SITE = 0x94   # func_L12_00309590 + 0x94: jal IsBSphereVisibleScaled (func_L01_00276680), state 1
+
+
+def hoven_fields(at):
+    """Hoven's three force fields (class 1345) block Ratchet until their
+    tri-pads are done. In retail they never did: the class's collision box
+    is flat and 1.3 cm across (all eight vertices at one z, at the class
+    scale 1/4800). The field's update (func_L12_00309590) calls
+    IsBSphereVisibleScaled each frame of state 1, the state it keeps until
+    the pads are done; that call goes to ee_hoven_field_visible
+    (src/hoven_fields.c), which rebuilds the field's collision around its
+    drawn bars once and then makes the same call. Level 12 only."""
+    if at.level != 12:
+        return []
+    site = at("func_L12_00309590") + HOVEN_FIELD_SITE
+    old, = at.words(site, 1)
+    if old != jal(at("func_L01_00276680")):
+        raise SystemExit(f"level 12: the force field's visibility call is not at 0x{site:X} ({old:08X})")
+    return [(site, old, jal(modseg_symbol("ee_hoven_field_visible")))]
+
+
 HEALTH_ROW_SITE = 0x23A47C - 0x23A1A0   # in HudHealthDraw: lw $2, D_0015F8EC (delay slot of beqz $19)
 HEALTH_ROW_STEP = 32                    # the orb tables' second row (D_0017E560, D_0017E578) is 32 px down
 
@@ -858,6 +879,7 @@ FEATURES = {
     "commercials": commercials,
     "health_backing": health_backing,
     "oltanis_lightning": oltanis_lightning,
+    "hoven_fields": hoven_fields,
     "goodies": goodies,
     "movie_volume": movie_volume,
     "item_preview": item_preview,
@@ -877,6 +899,7 @@ DEFAULT_FEATURES = [
     "commercials",
     "health_backing",
     "oltanis_lightning",
+    "hoven_fields",
     "goodies",
     "movie_volume",
     "comet_strike_run",
