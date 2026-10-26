@@ -4143,11 +4143,22 @@ panel rests at its end rather than replaying the page's. The box now
 follows the last card read both ways, with that sequence stretched at the
 name box's end as the title's is, and a copy the class table no longer
 points at is made again (pause_name_fit). The title screen's name box keeps the
-height the start menu gave it until the next PRESS START. The card swap is
-untested (PCSX2 cannot swap cards here); the pause Save page shows the
+height the start menu gave it until the next PRESS START. The pause Save
+page shows the
 badges and the stretched box with a Randomizer save on the card, and
 keeps the stretched box with the whole seed after a save over a Randomizer
 slot, the question's box at retail's size.
+
+**The card swap, second round.** On the PS3 a swapped card still showed
+the first card's green Rs, over its EMPTY slots too. A scan records the
+card's summary of the slots when it starts; one that stopped before
+reading the card (libmc refusing a command, or the title loop's check for
+a card the machine has yet to accept) published nothing, and its summary
+then stood for a card it never read, so the card never counted as changed
+again. Such a scan now forgets its summary (scan_abort), the title's
+rescan waits for the machine to have checked the card twice (card_ok), as
+the background scan does, and a badge is drawn only on a slot the page
+shows a save in. Confirmed on PS3: Rando, Drek Defeat and back.
 
 ## Vendor ammo: the dialog opens at the most ammo the player can buy (2026-10-26) — working
 

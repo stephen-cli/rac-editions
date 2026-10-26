@@ -731,6 +731,21 @@ static void scan_start(s32 program)
     }
 }
 
+/* A scan that ends without reading the card (no card yet, or libmc refusing a command) publishes nothing, so the
+ * slots keep the last card's badges and seeds; the summary scan_start recorded is forgotten, so that the card
+ * counts as changed and is read once it can be. Kept, it hid another card for good: its summary already stood
+ * for a scan that never read it. */
+#define SUMMARY_UNREAD  (-2)        /* no level: the summary of a slot no scan has read */
+
+static void scan_abort(void)
+{
+    s32 slot;
+    scan.file = SCAN_DONE;
+    for (slot = 0; slot < MC_SLOTS; slot++) {
+        scan_summary[2 * slot] = SUMMARY_UNREAD;
+    }
+}
+
 /* The scan's remaining steps, each run to its end. The card must be taken (card_take). */
 static void scan_run(void)
 {
@@ -740,7 +755,7 @@ static void scan_run(void)
                 if (scan.step != STEP_OPEN) {
                     card_finish(func_00123A10(scan.fd));
                 }
-                scan.file = SCAN_DONE;      /* libmc refused it; the title screen tries again later */
+                scan_abort();               /* libmc refused it; the card is read again later */
                 return;
             }
             scan.in_flight = 1;
@@ -1768,13 +1783,15 @@ s32 ee_rz_slots_update(void *widget)
 /* A green R on each slot holding a Randomizer save, where
  * Pause_DrawSaveSlots puts the Challenge Mode R, at the rows it uses (4,
  * then 0x30 and a gap of 0x24 in 50 Hz, 0x1B otherwise), inside the
- * caller's paging; PROGRAM runs the drawing. */
+ * caller's paging; PROGRAM runs the drawing. Only on a slot the page shows
+ * a save in (the card's summary names a level), as for the seed line: a
+ * scan of an earlier card left its badges over another card's EMPTY. */
 static void draw_badges(s32 program)
 {
     s32 row = SLOT_ROW + (PAL_MODE ? 0x24 : 0x1B);
     s32 i, y;
     for (i = 0, y = 4; i < MC_SLOTS; i++, y += row) {
-        if (slots[i].rz.present) {
+        if (slots[i].rz.present && MC_SLOT_LEVEL(i) != -1) {
             s32 frame = LVL(program, func_00200198, IconFn)(EE_ICON_RANDOMIZER, 0);
             LVL(program, func_00200468, SpriteFn)(frame, BADGE_X, y, BADGE_SIZE, BADGE_SIZE, 0x80);
         }
@@ -1787,7 +1804,8 @@ static void draw_badges(s32 program)
  * to retail's page. The slots are scanned again, inside the draw, once the
  * card is idle and the machine's summary of the slots differs from the last
  * scan's: another card put in while the page is open, which the page reads
- * again and shows. */
+ * again and shows. The machine must have checked the card twice (card_ok),
+ * as for the background scan: libmc reads no card it has yet to accept. */
 s32 ee_rz_slots_draw(void *widget)
 {
     s32 r;
@@ -1796,7 +1814,7 @@ s32 ee_rz_slots_draw(void *widget)
         ((u32 *)CONFIRM_PAGE)[PAGE_BACK_WORD] = NEW_GAME_PAGE;
     }
     r = ((WidgetFn)retail_slots_draw)(widget);
-    if (card_ready() && scan.file == SCAN_DONE && summary_changed() && card_take()) {
+    if (card_ready() && card_ok() && scan.file == SCAN_DONE && summary_changed() && card_take()) {
         scan_start(title_program);
         scan_run();
     }
@@ -2192,7 +2210,7 @@ void ee_title_card_c(s32 L)
             scan_start(L);
         }
         if (scan.file != SCAN_DONE && scan.step == STEP_OPEN && !card_ok()) {
-            scan.file = SCAN_DONE;          /* no card, or one the machine has yet to check twice: none read */
+            scan_abort();                   /* no card, or one the machine has yet to check twice: none read */
             scan_valid = 1;
         }
         if (scan.file != SCAN_DONE && scan_issue() == 0) {
