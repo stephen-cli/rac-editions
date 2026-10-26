@@ -51,7 +51,6 @@ DECLARE_LVL(func_L00_00261848);         /* UnlockPlanet(planet) */
 DECLARE_LVL(func_L00_00263DB0);         /* ShowPlanetBanner(planet) */
 DECLARE_LVL(func_0020BFC8);             /* memcard_Save(slot, flags) */
 DECLARE_LVL(func_002160E0);             /* count_nonzero_entries_up_to_40: the Gold Bolts collected */
-DECLARE_LVL(func_0020E6B8);             /* the first moby of the update list */
 DECLARE_LVL(func_0020D678);             /* DeleteMoby(moby) */
 DECLARE_LVL(func_0020D348);             /* CreateMoby(class_id) */
 DECLARE_LVL(func_L00_0023D9C0);         /* InitLevelResidentState: a level's load, a reload of the same level too */
@@ -60,7 +59,6 @@ typedef void (*PlanetFn)(s32);
 typedef s32 (*SaveFn)(s32, s32);
 typedef s32 (*CountFn)(void);
 typedef void (*UpdateFn)(void *);
-typedef void *(*FirstMobyFn)(void);
 typedef void (*DeleteFn)(void *);
 typedef void *(*CreateFn)(s32);
 
@@ -139,6 +137,8 @@ static s32 suppress_planet_banner;      /* a planet whose retail banner the next
 static s32 banner_due;                  /* a check was collected this frame: a giver's own banner after it is ours */
 static s32 last_check;                  /* that check, */
 static s32 last_item;                   /* and its item */
+static s32 granted = -1;                /* the check collected during the moby update under way, -1 none */
+
 /* The Nanotech vendor (NanotechVendorUpdate, func_L10_002E9718) sets the upgrade's flag at the purchase, and on a
  * later update autosaves and shows "Premium Nanotech acquired" (or the Ultra's) through ShowBanner, which would
  * replace the banner of the item its check gave. That ShowBanner call is hooked too (tools/gen_randomizer.py,
@@ -146,8 +146,6 @@ static s32 last_item;                   /* and its item */
 #define TEXT_PREMIUM_BOUGHT 0x271C
 #define TEXT_ULTRA_BOUGHT   0x271D
 static s32 nanotech_check = -1;         /* the Nanotech check bought, its banner still due; -1 none */
-
-static s32 granted = -1;                /* the check collected during the moby update under way, -1 none */
 
 s32 rz_play_active(void)
 {
@@ -289,9 +287,9 @@ static void view_restore(s32 L)
         } else if (FLAGS[i] && !ee_rz_check_collected(check)) {
             ee_rz_set_collected(check);
             FLAGS[i] = real_flags[i];
-                nanotech_check = check;
             if (i == FLAG_PREMIUM || i == FLAG_ULTRA) {
                 set_health_maximum();
+                nanotech_check = check;
             }
             receive(check, ee_rz_layout_item(check), L);
             real_flags[i] = FLAGS[i];
@@ -402,11 +400,11 @@ void ee_rz_item_banner_c(s32 text, s32 ticks, s32 L)
     if (active && pending_item != RZ_ITEM_NONE) {
         pending_banner_shown = 1;
         rz_show_item_banner(pending_check, pending_item, L);
+        return;
+    }
     if (active && nanotech_check >= 0 && (text == TEXT_PREMIUM_BOUGHT || text == TEXT_ULTRA_BOUGHT)) {
         rz_show_item_banner(nanotech_check, ee_rz_layout_item(nanotech_check), L);
         nanotech_check = -1;
-        return;
-    }
         return;
     }
     if (active && banner_due) {
@@ -481,24 +479,56 @@ s32 ee_rz_gold_count_c(s32 L)
  * them on PS3 when the mask is owned: Orxon's level triggers 1 and 4 done, its save bits of the gates and the
  * infobot set (bytes 30, 35, 102 and 103 of its 256), the gadgebot door (uid 83), the main gate (673) and the two
  * minor gates (812, 813) deleted; Blarg Station's trigger 1 done, which spawns the bridge lowered. The same here,
- * once per visit, at the level's first moby update, before any gate's own first update reads them. */
+ * once per visit, at the level's first moby update, before any gate's own first update reads them. Orxon's landing
+ * site also holds Clank (class 87, uid 9), who stands there for the visit retail plays as Clank and would stand
+ * beside Ratchet, who carries him; he is deleted too. So is the gate into the room of Pokitaru's infobot (class
+ * 353, uid 800): in retail the last gadgebot lock (uid 261, ten gadgebots) mans a turret (class 1346,
+ * LinkedTurretUpdate) that shoots the Blarg ships and a wall, then opens that gate; the ships and the wall can
+ * stay, and Ratchet leaves the room another way. The search covers every moby the level placed (the table
+ * from MOBY_TABLE to LEVEL_MOBYS_END), not the update list: a moby joins that list at its first update, and the
+ * gadgebot door and Clank, too far from the landing site, had not had one yet.
+ *
+ * The Clank section's lab doors (class 1015, HeightGlideUpdate, func_L10_002DA468) open when a gadgebot lock
+ * (class 1302, func_L06_00309170) or a pressure button (class 1031, func_L10_002DA678) moves them from state 2
+ * (shut) to 3 (rising; 4 open). Both count as done once their level trigger is: a button every frame, a lock once,
+ * at its second update, for the doors that are in state 2 by then. A door starts in state 0, reaching 2 at its
+ * own first update, and the door behind lock 66 (uid 1) had not had it when its lock fired: it stayed shut for
+ * good, and the Magneboots and Pokitaru's infobot behind it out of Ratchet's reach. So with the mask early every
+ * lab door in state 2 is opened (open_lab_door). */
+#define LEVEL_MOBYS_END (*(volatile u32 *)0x0016005C)     /* the end of the level's placed mobys; spawned ones follow */
+#define LAB_DOOR_CLASS  1015
+#define DOOR_SHUT       2
+#define DOOR_RISING     3
+
 static void delete_mobys_with_uid(s32 uid, s32 L)
 {
-    u8 *moby = (u8 *)LVL(L, func_0020E6B8, FirstMobyFn)();
-    while (moby != 0) {
-        u8 *next = (u8 *)MOBY_NEXT(moby);
+    u32 moby;
+    for (moby = MOBY_TABLE; moby < LEVEL_MOBYS_END; moby += MOBY_SIZE) {
         if (MOBY_STATE(moby) >= 0 && MOBY_UID(moby) == uid) {
-            LVL(L, func_0020D678, DeleteFn)(moby);
+            LVL(L, func_0020D678, DeleteFn)((void *)moby);
         }
-        moby = next;
+    }
+}
+
+/* The O2 Mask is owned: Ratchet plays Orxon, and Blarg Station's Clank side is done. */
+static s32 o2_early(void)
+{
+    return rz_play_owned(rz_item_game_id(RZ_O2_MASK));
+}
+
+/* Before a moby's update in level L: a shut lab door of Orxon's Clank section opens. */
+static void open_lab_door(void *moby, s32 L)
+{
+    if (L == ORXON && MOBY_CLASS(moby) == LAB_DOOR_CLASS && MOBY_STATE(moby) == DOOR_SHUT && o2_early()) {
+        MOBY_STATE(moby) = DOOR_RISING;
     }
 }
 
 static void o2_early_fixes(s32 L)
 {
-    static const u16 ORXON_GATES[4] = { 83, 673, 812, 813 };
+    static const u16 ORXON_REMOVED[6] = { 83, 673, 812, 813, 9, 800 };  /* the gates, Clank, the infobot room's gate */
     s32 i;
-    if (!INVENTORY[rz_item_game_id(RZ_O2_MASK)]) {
+    if (!o2_early()) {
         return;
     }
     if (L == BLARG) {
@@ -510,8 +540,8 @@ static void o2_early_fixes(s32 L)
         LEVEL_BITS[ORXON * 256 + 35] |= 0x02;
         LEVEL_BITS[ORXON * 256 + 102] |= 0x30;
         LEVEL_BITS[ORXON * 256 + 103] |= 0x01;
-        for (i = 0; i < 4; i++) {
-            delete_mobys_with_uid(ORXON_GATES[i], L);
+        for (i = 0; i < 6; i++) {
+            delete_mobys_with_uid(ORXON_REMOVED[i], L);
         }
     }
 }
@@ -536,6 +566,7 @@ void ee_rz_level_init_c(s32 L)
     fixes_level = -1;
     banner_due = 0;
     granted = -1;
+    nanotech_check = -1;
     rz_vendor_forget_purchase();
     read_record(L);
     if (active && L == ee_rz_bonus_planet()) {
@@ -566,7 +597,6 @@ static void forget_stand_ins(void)
     s32 i;
     for (i = 0; i < STAND_INS; i++) {
         stand_in[i] = 0;
-    nanotech_check = -1;
         stand_in_host[i] = 0;
         host_scale[i] = 0.0f;
     }
@@ -792,6 +822,9 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
         if (active) {
             o2_early_fixes(L);
         }
+    }
+    if (active) {
+        open_lab_door(moby, L);
     }
     if (active && MOBY_CLASS(moby) == GOLD_CLASS) {
         gold_spot_update(moby, update, L);

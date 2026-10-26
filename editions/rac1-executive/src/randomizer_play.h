@@ -53,7 +53,6 @@
 #define MOBY_SCALE      0x2C
 #define MOBY_ROT        0x40            /* x, y, z */
 #define MOBY_STATE(m)   (*(volatile s8 *)((u8 *)(m) + 0x20))    /* negative: dead */
-#define MOBY_NEXT(m)    (*(volatile u32 *)((u8 *)(m) + 0x28))   /* the update list's next moby */
 #define MOBY_PVARS(m)   (*(volatile u32 *)((u8 *)(m) + 0x78))
 #define MOBY_CLASS(m)   (*(volatile u16 *)((u8 *)(m) + 0xA6))   /* oclass */
 #define MOBY_UID(m)     (*(volatile u16 *)((u8 *)(m) + 0xB2))   /* the level instance's uid, its save id */
