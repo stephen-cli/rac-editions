@@ -44,9 +44,10 @@
  * what the machine would have seen, then runs its commands to the end one
  * by one, as MemCard_CheckFreeSpace (func_00209BB8) does. It leaves the
  * card alone while the machine runs a longer sequence of its own (a
- * directory scan, a save). What it read stays until the next start menu: a
- * card swapped while the menu is open shows its badges and seeds at the
- * next PRESS START.
+ * directory scan, a save). A card swapped while a save page is open is read
+ * again from the slot list's draw, once the machine has read its slots
+ * (ee_rz_slots_draw): its badges and seeds show on that page. The name box
+ * keeps the height the start menu gave it until the next PRESS START.
  *
  * The row. The start menu (page D_001D4948) is three one-row text lists,
  * New Game, Load Game and Options, in panels 2-4 (screens 2-4), linked up
@@ -1783,7 +1784,10 @@ static void draw_badges(s32 program)
 /* The slot lists' draw (New Game's, the Randomizer's copy of it, Load
  * Game's): retail's, then the badges. Retail's New Game page drawing the
  * list means retail's flow: nothing armed, and the overwrite question back
- * to retail's page. */
+ * to retail's page. The slots are scanned again, inside the draw, once the
+ * card is idle and the machine's summary of the slots differs from the last
+ * scan's: another card put in while the page is open, which the page reads
+ * again and shows. */
 s32 ee_rz_slots_draw(void *widget)
 {
     s32 r;
@@ -1792,6 +1796,10 @@ s32 ee_rz_slots_draw(void *widget)
         ((u32 *)CONFIRM_PAGE)[PAGE_BACK_WORD] = NEW_GAME_PAGE;
     }
     r = ((WidgetFn)retail_slots_draw)(widget);
+    if (card_ready() && scan.file == SCAN_DONE && summary_changed() && card_take()) {
+        scan_start(title_program);
+        scan_run();
+    }
     if (!rz_saves || !card_ready()) {
         return r;
     }
@@ -1804,27 +1812,37 @@ s32 ee_rz_slots_draw(void *widget)
 /* The end of Pause_DrawSaveSlots in level L (its DoGifPaging call,
  * src/rz_hooks.s): the pause menu's Save and Load pages show the badges
  * too. The level's copy of the menu record has the idle ticks the title's
- * card_ready reads; the slots are scanned again, inside the draw, when the
- * card is idle with its summaries read and they differ from the last scan's
- * (a save just made on the Save page, another card, the title's scan made
- * before the summaries were read). */
-static void pause_name_stretch(s32 L);
+ * card_ready reads; the slots are scanned again (pause_rescan), inside the
+ * draw, when the card is idle with its summaries read and they differ from
+ * the last scan's (a save just made on the Save page, another card, the
+ * title's scan made before the summaries were read). */
+static void pause_name_fit(s32 L);
 volatile u32 ee_debug_rz_pause[4];      /* PINE: draws, draws with the card idle, scans, rz_saves */
+
+/* The card idle in level L, a PS2 card with its summaries read: the slots scanned again if those differ from the
+ * last scan's. 0 while the card is not idle. */
+static s32 pause_rescan(s32 L)
+{
+    s32 ticks = *(volatile s32 *)(LVL_DATA(L, menu_state, u8 *) + MENU_TICKS_OFFSET);
+    if (MC_STATE >= 3 || MC_REQUEST >= 0 || ticks < 11 || MC_TYPE != 2 || MC_SUMMARY_STATE != 2) {
+        return 0;
+    }
+    if (scan.file == SCAN_DONE && summary_changed() && card_take()) {
+        ee_debug_rz_pause[2]++;
+        scan_start(L);
+        scan_run();
+    }
+    ee_debug_rz_pause[3] = (u32)rz_saves;
+    return 1;
+}
 
 void ee_rz_slots_end_c(s32 L)
 {
-    s32 ticks = *(volatile s32 *)(LVL_DATA(L, menu_state, u8 *) + MENU_TICKS_OFFSET);
     ee_debug_rz_pause[0]++;
-    if (MC_STATE < 3 && MC_REQUEST < 0 && ticks >= 11 && MC_TYPE == 2 && MC_SUMMARY_STATE == 2) {
+    if (pause_rescan(L)) {
         ee_debug_rz_pause[1]++;
-        if (summary_changed() && card_take()) {
-            ee_debug_rz_pause[2]++;
-            scan_start(L);
-            scan_run();
-        }
-        ee_debug_rz_pause[3] = (u32)rz_saves;
+        pause_name_fit(L);
         if (rz_saves) {
-            pause_name_stretch(L);
             draw_badges(L);
         }
     }
@@ -1945,28 +1963,47 @@ extern const u32 ee_rz_pause_row_draw_table[LEVEL_PROGRAMS];
 static u32 retail_row_draw[LEVEL_PROGRAMS];                    /* DrawMenuItemList, each level program's */
 static s32 pause_program = -1;
 
-/* The pause pages' name panel stretched a line, once a Randomizer save is known and the panel mobys exist. The
- * pause menu builds them after its entry, and a panel keeps the sequence it started with, so this runs from the
- * front page's first row's draw (ee_rz_pause_row_c), every frame the front page shows, before any page with the
- * name panel can open; and from the slot list's draw, for a save the card scan found only then. */
-static void pause_name_stretch(s32 L)
+/* The pause pages' name panel: stretched a line while the last card scan found a Randomizer save, retail's height
+ * otherwise. A panel plays its sequence by id, reading the frames from its class's sequence table as it goes, so
+ * the table's entry decides the height even while the panel shows. This runs once the panel mobys exist (the
+ * pause menu builds them after its entry): from the front page's first row's draw (ee_rz_pause_row_c), every
+ * frame the front page shows, before any page with the name panel can open; and from the slot list's draw, after
+ * a scan of another card. The Save page's overwrite question plays its own sequence on the panel
+ * (SEQ_CONFIRM_NAME, as the title's confirm page does), from the name box out to the question's box and back,
+ * and after a save the panel rests at its end rather than replaying the page's: that sequence is stretched at the
+ * name box's end too, as the title's is (install_name_stretch). A level loaded again (a Load Game of a save on the
+ * same planet) brings fresh class data, whose table no longer points at the copies: they are forgotten and made
+ * again if they are wanted. */
+static void pause_name_fit(s32 L)
 {
-    u32 panel, cls;
-    if (!rz_saves || is_installed(PAUSE_NAME_SEQ)) {
+    u32 panel = *(volatile u32 *)exe_data(L, PANELS_ADDRESS + 4 * PANEL_ROW);
+    u32 cls;
+    s32 stretched;
+    if (panel == 0 || (cls = *(u32 *)(panel + 0x24)) == 0 || *(u8 *)(cls + 0xC) <= SEQ_CONFIRM_NAME) {
         return;
     }
-    panel = *(volatile u32 *)exe_data(L, PANELS_ADDRESS + 4 * PANEL_ROW);
-    if (panel == 0 || (cls = *(u32 *)(panel + 0x24)) == 0 || *(u8 *)(cls + 0xC) <= PAUSE_NAME_SEQ) {
-        return;
+    if (class_sequences != (u32 *)(cls + 0x48)) {
+        class_sequences = (u32 *)(cls + 0x48);
+        installed = 0;
     }
-    class_sequences = (u32 *)(cls + 0x48);
-    raise_sequence(PAUSE_NAME_SEQ, 0, 0, 1);
+    stretched = installed == 2
+                && seq_id[0] == PAUSE_NAME_SEQ && class_sequences[PAUSE_NAME_SEQ] == seq_installed[0]
+                && seq_id[1] == SEQ_CONFIRM_NAME && class_sequences[SEQ_CONFIRM_NAME] == seq_installed[1];
+    if (!stretched && installed > 0) {
+        restore_sequences();                /* writes back only what the table still points at */
+    }
+    if (rz_saves && !stretched) {
+        raise_sequence(PAUSE_NAME_SEQ, 0, 0, 1);
+        raise_sequence(SEQ_CONFIRM_NAME, 0, 0, -1);
+    } else if (!rz_saves && stretched) {
+        restore_sequences();
+    }
 }
 
-/* The front page's first row's draw in level L (src/rz_hooks.s stubs): the stretch, then retail's. */
+/* The front page's first row's draw in level L (src/rz_hooks.s stubs): the name panel fit, then retail's. */
 s32 ee_rz_pause_row_c(void *widget, s32 L)
 {
-    pause_name_stretch(L);
+    pause_name_fit(L);
     return ((WidgetFn)retail_row_draw[L])(widget);
 }
 
@@ -1989,7 +2026,7 @@ void ee_rz_pause_open(s32 L)
     name_box = (u32 *)exe_data(L, NAME_BOX);
     name_box[WIDGET_DRAW] = ee_rz_name_draw_table[L];
     install_glyph_metrics(L);
-    pause_name_stretch(L);
+    pause_name_fit(L);
 }
 
 /* The save pages' widgets, in this program's data: the two slot lists' draw

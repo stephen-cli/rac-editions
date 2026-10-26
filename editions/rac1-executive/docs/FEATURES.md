@@ -4090,3 +4090,61 @@ after selecting the entry froze the game on a PS3 (never in PCSX2).
 **Fix.** The Drone Device's stand slot keeps retail's own class (1447), at
 the speck's size. The vendor loaded no class for the entry, so no model of
 a loaded class needs drawing.
+
+## rz: Orxon as Ratchet, the Nanotech banner and the save pages after a card swap (2026-10-26) — fixed; awaiting the console test
+
+**Orxon with the O2 Mask early.** Two faults remained after the early-O2
+fixes (see "The O2 Mask early" above). The Clank section's lab doors
+(class 1015, HeightGlideUpdate, func_L10_002DA468) start in state 0, reach
+state 2 (shut) at their first update and open when a gadgebot lock (class
+1302, func_L06_00309170) or a pressure button (class 1031,
+func_L10_002DA678) moves them to state 3 (rising; 4 open). Both count as
+done once their level trigger (1) is: a button every frame, a lock once,
+at its second update, for the doors in state 2 by then. The door behind
+lock 66 (uid 1) is too far from the landing site to have had its first
+update when its lock fires, so it stayed shut for good, and the Magneboots
+and Pokitaru's infobot behind it were out of Ratchet's reach. With the mask
+early, every lab door in state 2 now goes to state 3 before its update
+(open_lab_door). Second, the deletions walked the moby update list, which a
+moby joins at its first update: the gadgebot door (uid 83) and Clank, who
+stands at the landing site for the visit retail plays as Clank (class 87,
+uid 9), were never deleted. The search now covers every moby the level
+placed (the table from `D_00160058` to `D_0016005C`, where the spawned ones
+begin), and Clank is deleted too. So is the gate into the room of
+Pokitaru's infobot (class 353, uid 800): in retail the last gadgebot lock
+(uid 261, ten gadgebots) mans a turret (class 1346, LinkedTurretUpdate)
+that shoots the Blarg ships and a wall, then opens that gate; the ships and
+the wall stay, and Ratchet leaves the room another way. Tested in PCSX2 (the O2 Mask given in RAM
+on a save that had not seen Orxon's Clank section): Clank and the gadgebot
+door gone, the infobot room's gate gone, all eight lab doors open as Ratchet reaches
+them.
+
+**The Nanotech vendor's banner.** NanotechVendorUpdate (func_L10_002E9718)
+sets the upgrade's flag at the purchase, which gives the check's item and
+its banner, then on a later update autosaves and shows "Premium Nanotech
+acquired" (0x271C, or 0x271D) through ShowBanner, which replaced the
+item's banner. That call is now hooked (tools/gen_randomizer.py,
+FLAG_BANNER_FUNCTIONS) and shows the Randomizer's banner for the check
+bought. Tested in PCSX2: a Premium Nanotech check holding Gaspar's infobot
+shows "Infobot for Planet Gaspar acquired" after the vendor's autosave.
+
+**The save pages after a card swap.** The title screen's New Game and Load
+Game pages kept the green R badges and seed lines of the card read at PRESS
+START. Their slot list's draw now reads the card again once the machine's
+summary of the slots differs from the last read, as the pause pages'
+already did. The pause pages' name box was stretched for the seed line once
+a Randomizer save was known and never returned to retail's height, and a
+Load Game of a save on the same planet (fresh class data, the stretch gone)
+left it short because the copy still counted as installed. And after a
+save over a slot the box came back short: the overwrite question plays its
+own sequence on the name panel (SEQ_CONFIRM_NAME, 0x84, as on the title
+screen), from the name box out to the question's box and back, and the
+panel rests at its end rather than replaying the page's. The box now
+follows the last card read both ways, with that sequence stretched at the
+name box's end as the title's is, and a copy the class table no longer
+points at is made again (pause_name_fit). The title screen's name box keeps the
+height the start menu gave it until the next PRESS START. The card swap is
+untested (PCSX2 cannot swap cards here); the pause Save page shows the
+badges and the stretched box with a Randomizer save on the card, and
+keeps the stretched box with the whole seed after a save over a Randomizer
+slot, the question's box at retail's size.
