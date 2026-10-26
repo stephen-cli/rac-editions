@@ -4091,7 +4091,7 @@ after selecting the entry froze the game on a PS3 (never in PCSX2).
 the speck's size. The vendor loaded no class for the entry, so no model of
 a loaded class needs drawing.
 
-## rz: Orxon as Ratchet, the Nanotech banner and the save pages after a card swap (2026-10-26) — fixed; awaiting the console test
+## rz: Orxon as Ratchet, the Nanotech banner and the save pages after a card swap (2026-10-26) — fixed; confirmed on PS3
 
 **Orxon with the O2 Mask early.** Two faults remained after the early-O2
 fixes (see "The O2 Mask early" above). The Clank section's lab doors
