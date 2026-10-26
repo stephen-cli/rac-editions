@@ -1,6 +1,6 @@
 # OpenRAC's disc readers
 
-Copied unchanged from OpenRAC at commit `a4edca52f5f9568b63f4819b3f4aa097f331abc0`
+Copied unchanged from OpenRAC at commit `44e5b57af92e01521190b357691abae8aaa9e512`
 (https://github.com/stephen-cli/OpenRAC): the readers in its `editor/`, at the top here, under the
 MIT license ([LICENSE](LICENSE)); the `tools/openrac_common` helpers they
 import and the `games/*/game.json` manifests they read, under the GNU GPL v3

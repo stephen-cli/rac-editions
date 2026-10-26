@@ -2,7 +2,7 @@
   "openrac": {
     "url": "https://github.com/stephen-cli/OpenRAC",
     "branch": "executive-edition",
-    "commit": "a4edca52f5f9568b63f4819b3f4aa097f331abc0",
+    "commit": "44e5b57af92e01521190b357691abae8aaa9e512",
     "vendor": {
       "to": "common/openrac_editor",
       "files": {

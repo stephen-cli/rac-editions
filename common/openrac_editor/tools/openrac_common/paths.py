@@ -19,19 +19,19 @@ them against the text below):
   sys.path.insert(1, str(next(p for p in Path(__file__).resolve().parents if (p / "tools/openrac_common").is_dir()) / "tools"))
   from openrac_common import paths  # noqa: E402
 
-It finds the package by the folder that holds it, not by AGENTS.md, so it works in a checkout
-and in the launcher's bundled copy alike (both carry tools/openrac_common; only a checkout has
-AGENTS.md). It puts tools/ second on the path: after the script's own folder, whose modules keep
-their names (editor/port.py beside tools/port.py), and before the installed packages, so a
-module tools/ holds is not shadowed by one installed under the same name.
+It finds the package by the folder that holds it, not by CONTRIBUTING.md, so it works in a
+checkout and in the launcher's bundled copy alike (both carry tools/openrac_common; only a checkout
+has CONTRIBUTING.md). It puts tools/ second on the path: after the script's own folder, whose
+modules keep their names (editor/port.py beside tools/port.py), and before the installed packages,
+so a module tools/ holds is not shadowed by one installed under the same name.
 """
 from pathlib import Path
 
-# A checkout of OpenRAC has AGENTS.md at its top, beside games/.
-CHECKOUT_MARKER = "AGENTS.md"
+# A checkout of OpenRAC has CONTRIBUTING.md at its top, beside games/.
+CHECKOUT_MARKER = "CONTRIBUTING.md"
 
-# The launcher's bundled copy of the tools (tools/bundle_standalone.py) has no AGENTS.md: its top
-# holds games/*/game.json and a STANDALONE note, and the tools in it look for their root there.
+# The launcher's bundled copy of the tools (tools/bundle_standalone.py) has no CONTRIBUTING.md: its
+# top holds games/*/game.json and a STANDALONE note, and the tools in it look for their root there.
 # Accepting it is decided, not a leftover: the copy's tools move onto this package with the rest
 # (P1-05), and the launcher recognises the copy by the same file (launcher/core/src/detect.rs).
 STANDALONE_MARKER = "STANDALONE"

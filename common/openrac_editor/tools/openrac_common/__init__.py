@@ -16,7 +16,7 @@ A script in tools/ imports it directly (`from openrac_common import games`): Pyt
 script's own folder on the path. A script elsewhere puts tools/ on the path once, from its own
 place, and then imports it the same way:
 
-  sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents if (p / "AGENTS.md").is_file()) / "tools"))
+  sys.path.insert(1, str(next(p for p in Path(__file__).resolve().parents if (p / "tools/openrac_common").is_dir()) / "tools"))
 
 Rules for this package: standard library only, Python 3.10 and newer (CI runs 3.12); it imports
 none of its callers, reads no environment variable and prints only what a caller asks for

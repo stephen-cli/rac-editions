@@ -1,8 +1,21 @@
 """The mesh type every decoder produces and the glTF writer consumes."""
 
 from dataclasses import dataclass, field
+import math
 
 Vec3 = tuple[float, float, float]
+
+
+def spherical_normal(azimuth: int, elevation: int) -> Vec3:
+    """Decode spherical angles in 256ths of a turn, as the moby and terrain readers do."""
+    a, e = azimuth * math.pi / 128, elevation * math.pi / 128
+    return (math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))
+
+
+def unit_normal(normal: Vec3) -> Vec3:
+    """Normalise an authored vector; zero stays zero for the renderer's invalid-normal fallback."""
+    length = math.sqrt(sum(component * component for component in normal))
+    return tuple(component / length for component in normal) if length else (0.0, 0.0, 0.0)
 
 
 @dataclass

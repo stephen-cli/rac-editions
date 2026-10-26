@@ -21,7 +21,7 @@ import struct
 
 from formats import wad, FormatError, Texture, span, unpack
 import games
-from mesh import Mesh
+from mesh import Mesh, spherical_normal as normal
 from moby_anim import Skeleton, class_sequences, ratchet_sequences, skeleton
 
 HEADER_SIZE = 0x48
@@ -61,12 +61,6 @@ class MobyClass:
     # with the level's chrome or glass map (texture keys METAL_CHROME / METAL_GLASS); its skins
     # are in metal.skins like the main mesh's. None for a class without metal packets.
     metal: Mesh | None = None
-
-
-def normal(azimuth: int, elevation: int) -> tuple[float, float, float]:
-    """Spherical angles in 256ths of a turn, as ReRAC decodes them from VU0 code."""
-    a, e = azimuth * math.pi / 128, elevation * math.pi / 128
-    return (math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))
 
 
 def unpacks(data: bytes) -> list[tuple[int, int, int, bytes]]:
