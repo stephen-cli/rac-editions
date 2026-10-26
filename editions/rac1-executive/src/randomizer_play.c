@@ -139,6 +139,14 @@ static s32 suppress_planet_banner;      /* a planet whose retail banner the next
 static s32 banner_due;                  /* a check was collected this frame: a giver's own banner after it is ours */
 static s32 last_check;                  /* that check, */
 static s32 last_item;                   /* and its item */
+/* The Nanotech vendor (NanotechVendorUpdate, func_L10_002E9718) sets the upgrade's flag at the purchase, and on a
+ * later update autosaves and shows "Premium Nanotech acquired" (or the Ultra's) through ShowBanner, which would
+ * replace the banner of the item its check gave. That ShowBanner call is hooked too (tools/gen_randomizer.py,
+ * FLAG_BANNER_FUNCTIONS) and shows the Randomizer's banner for the check instead. */
+#define TEXT_PREMIUM_BOUGHT 0x271C
+#define TEXT_ULTRA_BOUGHT   0x271D
+static s32 nanotech_check = -1;         /* the Nanotech check bought, its banner still due; -1 none */
+
 static s32 granted = -1;                /* the check collected during the moby update under way, -1 none */
 
 s32 rz_play_active(void)
@@ -281,6 +289,7 @@ static void view_restore(s32 L)
         } else if (FLAGS[i] && !ee_rz_check_collected(check)) {
             ee_rz_set_collected(check);
             FLAGS[i] = real_flags[i];
+                nanotech_check = check;
             if (i == FLAG_PREMIUM || i == FLAG_ULTRA) {
                 set_health_maximum();
             }
@@ -386,12 +395,18 @@ void ee_rz_unlock_planet_c(s32 planet, s32 L)
 }
 
 /* ShowBanner(text, ticks) inside GiveItem, and in a giver's own function (Al's "You got the Heli-Pack upgrade!"
- * right after his GiveItem): the Randomizer's banner for the item it is giving, or gave this frame. */
+ * right after his GiveItem, the Nanotech vendor's after its autosave): the Randomizer's banner for the item it is
+ * giving, or gave this frame, or the Nanotech check bought. */
 void ee_rz_item_banner_c(s32 text, s32 ticks, s32 L)
 {
     if (active && pending_item != RZ_ITEM_NONE) {
         pending_banner_shown = 1;
         rz_show_item_banner(pending_check, pending_item, L);
+    if (active && nanotech_check >= 0 && (text == TEXT_PREMIUM_BOUGHT || text == TEXT_ULTRA_BOUGHT)) {
+        rz_show_item_banner(nanotech_check, ee_rz_layout_item(nanotech_check), L);
+        nanotech_check = -1;
+        return;
+    }
         return;
     }
     if (active && banner_due) {
@@ -551,6 +566,7 @@ static void forget_stand_ins(void)
     s32 i;
     for (i = 0; i < STAND_INS; i++) {
         stand_in[i] = 0;
+    nanotech_check = -1;
         stand_in_host[i] = 0;
         host_scale[i] = 0.0f;
     }

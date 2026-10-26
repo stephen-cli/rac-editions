@@ -88,6 +88,9 @@ GIVER_FUNCTIONS = ("func_L00_002D7298",    # InfobotUpdate: deletes itself once 
                    "func_L11_002CC950",    # Moby37Update: the Raritanium
                    "func_L00_002A5218",    # Moby1005Update: the Trespasser and Hydrodisplacer pickups
                    "func_L00_002C2A20")    # class 188's update, whose helper Moby188_StateStep gives an item
+# Givers that set a flag and show their own banner on a later update, after their autosave: the
+# Nanotech vendor's "Premium/Ultra Nanotech" message would replace the Randomizer's banner.
+FLAG_BANNER_FUNCTIONS = ("func_L10_002E9718",)   # NanotechVendorUpdate
 LEVELS = 19
 
 
@@ -202,6 +205,11 @@ def sites(lv: Level) -> dict:
             if bounds is not None and bounds[0] != start:
                 out["item_banner"] += [a for a in lv.calls(lv.place[SHOW_BANNER], bounds[0], bounds[0] + bounds[1])
                                        if a not in out["item_banner"]]
+    for name in FLAG_BANNER_FUNCTIONS:
+        if name in lv.place:
+            begin = lv.place[name]
+            out["item_banner"] += [a for a in lv.calls(lv.place[SHOW_BANNER], begin, begin + lv.sizes[name])
+                                   if a not in out["item_banner"]]
     out["item_banner"].sort()
     start = lv.place[PAUSE_SLOTS]
     out["slots_end"] = lv.calls(lv.place[END_PAGING], start, start + lv.sizes[PAUSE_SLOTS])
