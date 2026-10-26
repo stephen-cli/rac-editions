@@ -752,7 +752,7 @@ def widescreen(at):
             # the title cards before the story's movies (PlayStoryTransition's strips and pictures)
             *[(at("func_00232EF0") + off, jal(at(fn)), jal(modseg_symbol("ee_ws_br_story_card")))
               for off, fn in STORY_CARD_SITES],
-            (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + ship_hud_patches(at) + \
+            (cam["site"], cam["expect"], modseg_symbol(cam["symbol"]))] + callback_hud_patches(at) + \
         trespasser_patches(at) + timer_patches(at)
 
 
@@ -762,31 +762,36 @@ STORY_CARD_SITES = ((0x1E0, "func_00232A00"), (0x228, "func_001F5800"), (0x280, 
                     (0x2C0, "func_001F5800"), (0x30C, "func_00232A00"), (0x33C, "func_001F5800"))
 
 
-# The ship levels register their HUD's draw callback each frame with a lui/addiu
-# pair of $a0: {level: (function, lui offsets, addiu offset)}.
-SHIP_HUD_SITES = {
-    11: ("func_L11_00313D00", (0x924, 0x934), 0x948),   # func_L11_00313218 (a bnel's delay slot holds one lui)
-    13: ("func_L13_002BB3E8", (0xE34,), 0xE48),         # func_L13_002BAA68
-    17: ("func_L17_002EDE50", (0xC00,), 0xC14),         # func_L17_002ED498
+# The HUDs drawn by a draw callback (src/widescreen.c callback_hud): their moby
+# registers the callback each frame with a lui/addiu pair building its address in
+# $a0 for AddDrawCallback: {level: (function, lui offsets, addiu offset, callback)}.
+CALLBACK_HUD_SITES = {
+    8: ("func_L08_002E16A0", (0xD34, 0xD74), 0xD80, "func_L08_002E0258"),   # the cannon (lui $v1, one in a delay slot)
+    11: ("func_L11_00313D00", (0x924, 0x934), 0x948, "func_L11_00313218"),  # the ship (one lui in a bnel's delay slot)
+    12: ("func_L12_00304920", (0x390,), 0x39C, "func_L12_003055F8"),        # the turret
+    13: ("func_L13_002BB3E8", (0xE34,), 0xE48, "func_L13_002BAA68"),        # the ship
+    17: ("func_L17_002EDE50", (0xC00,), 0xC14, "func_L17_002ED498"),        # the ship
 }
+LUI, ADDIU, A0 = 0x0F, 0x09, 4
 
 
-def ship_hud_patches(at):
-    """q4: the ship's HUD callback goes through ee_ws_br_ship_NN (src/widescreen.c ship_hud)."""
-    if at.level not in SHIP_HUD_SITES:
+def callback_hud_patches(at):
+    """q4: a HUD's draw callback registers as ee_ws_br_hud_NN, which brackets it (src/widescreen.c callback_hud)."""
+    if at.level not in CALLBACK_HUD_SITES:
         return []
-    fn, luis, lo_site = SHIP_HUD_SITES[at.level]
+    fn, luis, lo_site, callback = CALLBACK_HUD_SITES[at.level]
     f = at(fn)
-    hi, lo = hi_lo(modseg_symbol(f"ee_ws_br_ship_{at.level}"))
+    hi, lo = hi_lo(modseg_symbol(f"ee_ws_br_hud_{at.level}"))
+    old_hi, old_lo = hi_lo(at(callback))
     out = []
     for o in luis:
         old, = at.words(f + o, 1)
-        if old >> 16 != 0x3C04:
-            raise SystemExit(f"level {at.level}: {fn} + 0x{o:X} is not lui $a0")
+        if old >> 26 != LUI or old & 0xFFFF != old_hi:
+            raise SystemExit(f"level {at.level}: {fn} + 0x{o:X} is not lui %hi({callback})")
         out.append((f + o, old, (old & 0xFFFF0000) | hi))
     old, = at.words(f + lo_site, 1)
-    if old >> 16 != 0x2484:
-        raise SystemExit(f"level {at.level}: {fn} + 0x{lo_site:X} is not addiu $a0, $a0")
+    if old >> 26 != ADDIU or (old >> 16) & 31 != A0 or old & 0xFFFF != old_lo:
+        raise SystemExit(f"level {at.level}: {fn} + 0x{lo_site:X} is not addiu $a0, %lo({callback})")
     out.append((f + lo_site, old, (old & 0xFFFF0000) | lo))
     return out
 

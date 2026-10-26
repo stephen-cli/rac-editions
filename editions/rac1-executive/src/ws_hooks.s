@@ -232,17 +232,25 @@ ee_ws_panel_texture:
 ee_ws_credits_picture:
     j     ee_ws_credits_picture_c
     addu  $5, $31, $0
-/* The ship levels' HUD callbacks: site 32 + the level. */
-.globl ee_ws_br_ship_11
-ee_ws_br_ship_11:
+/* The HUDs drawn by a draw callback (the turrets', the ship levels'): site 32 + the level. */
+.globl ee_ws_br_hud_8
+ee_ws_br_hud_8:
+    j     ee_ws_bracket
+    addiu $25, $0, 40
+.globl ee_ws_br_hud_11
+ee_ws_br_hud_11:
     j     ee_ws_bracket
     addiu $25, $0, 43
-.globl ee_ws_br_ship_13
-ee_ws_br_ship_13:
+.globl ee_ws_br_hud_12
+ee_ws_br_hud_12:
+    j     ee_ws_bracket
+    addiu $25, $0, 44
+.globl ee_ws_br_hud_13
+ee_ws_br_hud_13:
     j     ee_ws_bracket
     addiu $25, $0, 45
-.globl ee_ws_br_ship_17
-ee_ws_br_ship_17:
+.globl ee_ws_br_hud_17
+ee_ws_br_hud_17:
     j     ee_ws_bracket
     addiu $25, $0, 49
 

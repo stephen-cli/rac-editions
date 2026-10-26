@@ -2874,6 +2874,44 @@ pixels in 16:9 against 183 x 114 in 4:3, width ratio 0.754, height and
 centre unchanged. Off-centre reticles (the green target ring on an enemy,
 the third-person auto-aim ring) tested in game too.
 
+## q4: the turrets' HUD keeps its shape in 16:9 (2026-10-26) — fixed, measured in PCSX2
+
+**What was wrong.** In 16:9 the HUD of the turrets Ratchet mans on Batalia
+and Hoven came out a third wider than tall, its radial health dial an
+ellipse. The turret draws it from a draw callback it registers every frame
+while manned (AddDrawCallback), not from a HUD slot, so nothing squeezed it.
+On Batalia the cannon's update (`func_L08_002E16A0`, class 440) registers
+DrawCannonHud (`func_L08_002E0258`): a radar of the targets at the bottom
+right (centre +180, +140 from the screen's centre), the 32-segment health
+dial at the bottom left (-180, +140; segments from radius 40, coloured from
+red through yellow to green by health / 200) and two needles at the centre
+that turn with the barrel's yaw x 4 and pitch x 8. On Hoven
+`hoven_turret_update` (`func_L12_00304920`, class 1267) registers DrawGauge
+(`func_L12_003055F8`): the same dial (-192, +148) and needles, no radar.
+Gaspar's turret (`func_L09_00306030`) has no such HUD: it queues a weapon
+reticle only, which the reticle fix already squeezes.
+
+**Fix.** These are handled like the ship levels' HUD, which is drawn the
+same way: the registration's lui/addiu pair now names `ee_ws_br_hud_8` /
+`ee_ws_br_hud_12` (site 32 + level, `callback_hud` in src/widescreen.c,
+`CALLBACK_HUD_SITES` in tools/overlay_patch.py), and the drawing is squeezed
+with each draw call moved by where it sits (CHAIN_AUTO): the dial and the
+radar go out to the 16:9 corners as the HUD slots do, the needles stay
+centred. The ship HUD's names (`ship_hud`, `ee_ws_br_ship_NN`,
+`SHIP_HUD_SITES`) became these, as the mechanism is no longer ship-only;
+the patch check now compares the old lui/addiu immediates with the
+callback's own address, since Batalia builds it in `$v1` (one lui in a
+branch's delay slot) rather than in `$a0`.
+
+**Measured in PCSX2** (16:9 toggled over PINE with the turret manned,
+nothing saved; Batalia from Mcd003 slot 1, Hoven from slot 3, a fresh
+Challenge run whose turret is not yet done): the dial's frame is 405 pixels
+wide in 16:9 against 541 with the setting off, ratio 0.749 on both planets,
+height unchanged (Hoven 333 against 338, Batalia the same by eye in
+crops); Batalia's radar 405 against 541 too. Each sits 0.75 of its 4:3
+distance from the screen's edge, less EDGE_OFFSET's 2-pixel margin. The
+ship levels' HUD shares the change of names only; not re-tested in game.
+
 ## rz6/rz2: the title screen's Goodies menu, unlocked by beating Drek, and the Randomizer pages (2026-10-23) — confirmed working
 
 **What it does.** The title screen's start menu gets a fourth row, Goodies,

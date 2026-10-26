@@ -1079,7 +1079,7 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 #define WS_SITE_STORY_CARD    12    /* func_00232EF0: a title card's strip or text (STORY_CARD_SITES) */
 #define WS_SITE_TITLE         13    /* func_001EB7C0 + 0x19C / + 0x210: the title screen's logo, PRESS START */
 #define WS_SITE_RETICLE       14    /* func_001EE6E0 + 0x118: one weapon reticle (func_001EE3B0) */
-#define WS_SITE_SHIP          32    /* + level: a ship level's HUD, a draw callback (ship_hud) */
+#define WS_SITE_CALLBACK_HUD  32    /* + level: a HUD drawn by a draw callback (callback_hud) */
 #define WS_SITE_TRESPASSER    64    /* + level: the Trespasser puzzle's rings, a draw callback (trespasser_draw) */
 DECLARE_LVL(func_001F5988);
 DECLARE_LVL(func_L00_001F9248);         /* the frame of game mode 4 (the freeze prompt) */
@@ -1122,17 +1122,30 @@ DECLARE_LVL(func_001EB7C0);             /* Transition_DefaultDraw, the title scr
 #define TITLE_LOGO_SITE   0x19C
 #define TITLE_START_SITE  0x210
 
-/* The ship levels draw their HUD (radar, health, missiles, messages) from a
- * draw callback the ship registers every frame (through the registrar 0x1B8
- * before AddDrawCallback), not through HudDraw. The registration's address
- * is pointed at ee_ws_br_ship_NN, and the callback's drawing is squeezed
- * with each draw call moved by where it sits (CHAIN_AUTO): the corners'
- * elements go out to the 16:9 corners as the HUD slots do, messages in the
- * middle stay centred. Pokitaru, Gemlik, Drek's fleet. */
-static u32 ship_hud(s32 L)
+/* Some HUDs are drawn from a draw callback their moby registers every
+ * frame with AddDrawCallback, not through HudDraw's slots:
+ *   - the ship levels' HUD (radar, health, missiles, messages; the ship
+ *     registers it through the registrar 0x1B8): Pokitaru, Gemlik, Drek's
+ *     fleet;
+ *   - the mountable turrets' HUD, while Ratchet mans one: on Batalia,
+ *     DrawCannonHud (func_L08_002E0258, registered by the cannon's update
+ *     func_L08_002E16A0) draws the radar of targets bottom right, the
+ *     32-segment radial health dial bottom left and two needles turning
+ *     with the barrel at the centre; on Hoven, DrawGauge (func_L12_003055F8,
+ *     registered by hoven_turret_update func_L12_00304920) draws the same
+ *     dial and needles.
+ * Their quads are 2D, so in 16:9 the dial came out a third wider than
+ * tall. The registration's address is pointed at ee_ws_br_hud_NN, and the
+ * callback's drawing is squeezed with each draw call moved by where it
+ * sits (CHAIN_AUTO): the corners' elements go out to the 16:9 corners as
+ * the HUD slots do, what sits in the middle (messages, the needles) stays
+ * centred. */
+static u32 callback_hud(s32 L)
 {
     switch (L) {
+    case 8:  return 0x002E0258;         /* func_L08_002E0258 */
     case 11: return 0x00313218;         /* func_L11_00313218 */
+    case 12: return 0x003055F8;         /* func_L12_003055F8 */
     case 13: return 0x002BAA68;         /* func_L13_002BAA68 */
     case 17: return 0x002ED498;         /* func_L17_002ED498 */
     }
@@ -1301,9 +1314,9 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         if (site >= WS_SITE_TRESPASSER) {        /* WS_SITE_TRESPASSER + level */
             L = site - WS_SITE_TRESPASSER;
             target = trespasser_draw(L);
-        } else {                                        /* WS_SITE_SHIP + level */
-            L = site - WS_SITE_SHIP;
-            target = ship_hud(L);
+        } else {                                        /* WS_SITE_CALLBACK_HUD + level */
+            L = site - WS_SITE_CALLBACK_HUD;
+            target = callback_hud(L);
         }
         break;
     }
@@ -1330,7 +1343,7 @@ void ee_ws_bracket_end_c(void)
         ws_force_full = bracket_site == WS_SITE_STORY_CARD;
         ws_centre = bracket_site == WS_SITE_RETICLE ? reticle_centre : GS_CENTRE;
         chain_walk(bracket_start, *cursor_of(bracket_level),
-                   bracket_site >= WS_SITE_SHIP && bracket_site < WS_SITE_TRESPASSER ? CHAIN_AUTO
+                   bracket_site >= WS_SITE_CALLBACK_HUD && bracket_site < WS_SITE_TRESPASSER ? CHAIN_AUTO
                    : bracket_site == WS_SITE_PLANET_NAME ? CHAIN_LEFT : CHAIN_PLAIN);
         ws_force_full = 0;
         ws_centre = GS_CENTRE;
