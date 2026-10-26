@@ -4148,3 +4148,26 @@ untested (PCSX2 cannot swap cards here); the pause Save page shows the
 badges and the stretched box with a Randomizer save on the card, and
 keeps the stretched box with the whole seed after a save over a Randomizer
 slot, the question's box at retail's size.
+
+## Vendor ammo: the dialog opens at the most ammo the player can buy (2026-10-26) — working
+
+Choosing an ammo entry at a Gadgetron vendor opens the buy dialog at the
+largest quantity the player can buy, rather than at 1: the smaller of the
+units the bolts pay for and the units the weapon has room for. Left lowers
+it as in retail. A full weapon, or one the bolts cannot pay a unit of,
+keeps 1, which the dialog refuses as retail does.
+
+The dialog is VendorBuyDialogUpdate (func_L00_0029CDE0; NTSC decomp
+FUN_L00_0029ba78). Its opening state sets the quantity to 1
+(D_L00_00161F30 in level 0, level-local; LEVEL_DATA `vendor_quantity`
+from that lui/sw pair) and decides whether left and right may change it;
+its draw (func_L00_0029FD68) shows the quantity and the total, and the
+purchase buys that many. The opening state's one call of func_L00_00251E30
+(the display's placement of the dialog's moby, + 0xF4,
+EE_SITE_VENDOR_AMMO) comes after the quantity is set and before anything
+reads it; overlay_patch.py's `vendor_ammo` feature sends it to
+ee_vendor_ammo_open (src/vendor_ammo.c), which makes the call and sets the
+quantity to the same upper bound retail's right press stops at: bolts over
+the ammo price (item info +0x8, or +0xA when the vendor record's +0x40 is
+set) and the item's maximum (+0xE) less the ammo held (0x13D530, an s32
+per item). Nothing is saved, so saves stay retail's.

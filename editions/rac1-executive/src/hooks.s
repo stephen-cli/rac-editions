@@ -136,3 +136,11 @@ ee_metal_detector_spawn:
 ee_hud_link_bank:
     j     ee_hud_link_bank_c
     addu  $6, $31, $0
+
+/* The buy dialog's placement of its moby, func_L00_00251E30(moby): one
+ * argument, so the return address goes in $5. */
+.globl ee_vendor_ammo_open
+.extern ee_vendor_ammo_open_c
+ee_vendor_ammo_open:
+    j     ee_vendor_ammo_open_c
+    addu  $5, $31, $0

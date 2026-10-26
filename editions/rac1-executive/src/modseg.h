@@ -243,6 +243,10 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size);
 void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra);   /* entered through the trampoline ee_hud_link_bank */
 #define EE_SITE_HUD_LINK_BANK   0x190   /* func_002032D0 + 0x190: jal LinkHudBank(1, bank) */
 
+/* The vendor's ammo dialog opens at the most ammo the player can buy (src/vendor_ammo.c). */
+void ee_vendor_ammo_open_c(void *moby, u32 ra);         /* entered through the trampoline ee_vendor_ammo_open */
+#define EE_SITE_VENDOR_AMMO     0xF4    /* func_L00_0029CDE0 (VendorBuyDialogUpdate) + 0xF4: jal func_L00_00251E30 */
+
 /* rz2: the title screen's Goodies pages (src/goodies.c) and their strings
  * (text/strings.tsv); the seed box's text is built as buttons are pressed. */
 #define EE_TEXT_RANDOMIZER      0x5410  /* "Randomizer" */

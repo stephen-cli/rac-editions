@@ -562,6 +562,16 @@ def item_preview(at):
     return [(f + PREVIEW_TAIL + 4 * k, old, new) for k, (old, new) in enumerate(zip(retail, patched))]
 
 
+def vendor_ammo(at):
+    """The vendor's ammo dialog opens at the most ammo the player can buy
+    (src/vendor_ammo.c). VendorBuyDialogUpdate's opening state sets the
+    quantity to 1 and then places the dialog's moby with func_L00_00251E30:
+    that call goes to ee_vendor_ammo_open, which places it and raises the
+    quantity."""
+    site = at("func_L00_0029CDE0") + site_offset("EE_SITE_VENDOR_AMMO")
+    return [(site, jal(at("func_L00_00251E30")), jal(modseg_symbol("ee_vendor_ammo_open")))]
+
+
 def charge_boots(at):
     """x2, first step: the Charge Boots item (src/charge_boots.c).
 
@@ -852,6 +862,7 @@ FEATURES = {
     "strafe_camera": strafe_camera,
     "effect_pool": effect_pool,
     "cutscene_skip": cutscene_skip,
+    "vendor_ammo": vendor_ammo,
 }
 DEFAULT_FEATURES = [
     "edition_text",
@@ -873,6 +884,7 @@ DEFAULT_FEATURES = [
     "randomizer",
     "effect_pool",
     "cutscene_skip",
+    "vendor_ammo",
 ]
 
 

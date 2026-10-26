@@ -84,6 +84,8 @@ LEVEL_DATA = {
     # rz3: the vendor's record (D_L00_001CA7C0 in level 0: the item just bought at +0x48, -1 none, which
     # decides the weapon demo on leaving), from VendorBuyDialogUpdate's lui/addiu
     "vendor_state": ("func_L00_0029CDE0", 0x4, 0x14),
+    # the buy dialog's ammo quantity (D_L00_00161F30 in level 0), from the same function's lui/sw that sets it to 1
+    "vendor_quantity": ("func_L00_0029CDE0", 0x50, 0x54),
     # rz3: the level's item info table (D_L00_001C43B0 in level 0: 37 records of 0x18, the ammo price at +8) and
     # its item sound table (D_L00_001C2488: a word per item, stride 0x14), from VendorBuildItemList's lui/addiu pairs
     "vendor_items": ("func_L00_0029B770", 0x78, 0x80),
