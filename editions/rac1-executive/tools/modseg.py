@@ -25,7 +25,8 @@ Symbols:
                                  the game's current-level variable
   lvl_data_NAME                  the same for data, from LEVEL_DATA
 Outputs in build/modseg/: modseg.elf, modseg.bin (the segment image),
-modseg.sym (exported function -> address, for tools/overlay_patch.py).
+modseg.sym (exported function -> address, for tools/overlay_patch.py), modseg.base (the base, in hex, for
+tools/pack.sh to load the segment where it is linked).
 
   python tools/modseg.py [--openrac DIR] [--base 0x9E000]
 """
@@ -300,6 +301,7 @@ SECTIONS
         raise SystemExit(f"the mod segment ends at 0x{args.base + len(data):08X}, past 0x{SEGMENT_END_LIMIT:08X}, "
                          "the highest end known to boot (SEGMENT_END_LIMIT)")
     binary.write_bytes(data)
+    (out / "modseg.base").write_text(f"{args.base:X}\n")     # where it is linked, for pack.sh's boot_elf.py --segment
     syms = exported(elf)
     (out / "modseg.sym").write_text("".join(f"{n}\t0x{a:08X}\n" for n, a in sorted(syms.items(), key=lambda x: x[1])))
     print(f"mod segment: 0x{args.base:08X}..0x{args.base + len(data):08X} ({len(data)} bytes), "
