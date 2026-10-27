@@ -70,11 +70,17 @@ moves the directory record (verified booting in PCSX2 from sector 2058000).
   (left over from boot, never touched by the game), 0x95561-0x10007F is all
   zero, and the disassembly references nothing in 0x80000-0xFFFFF. So the
   segment had 0xA0000-0xFFFFF (384 KB). In practice a segment ending at
-  0xF2580 left the title screen deaf to the pad in PCSX2, though that memory
-  reads zero at boot and on the title screen, while ends of 0xF2380 and
-  below worked; the base moved down to 0x9E000 on 2026-10-25 (a build there
-  had already run on the owner's PS3), and tools/modseg.py stops a build
-  ending past 0xF2380 (SEGMENT_END_LIMIT). The game's level-load staging buffer
+  0xF2580 once left the title screen deaf to the pad in PCSX2, while ends of
+  0xF2380 and below worked; the base moved down to 0x9E000 on 2026-10-25 (a
+  build there had already run on the owner's PS3), and the end was held at
+  0xF2380. A canary build (2026-10-27) filled the segment's tail to 0xFC000
+  with a pattern and read the whole region back over PINE at boot, on the
+  title screen, in a level, after a save and after quitting to the title:
+  nothing but the segment's own variables changed, and the title took the
+  pad. So SEGMENT_END_LIMIT is now 0xFC000 (PCSX2; a PS3 check of the
+  canary image is pending), the base stays at 0x9E000, and 0x95564-0x9E000
+  (the ELF loader ends at 0x95560) stayed zero throughout, room for a lower
+  base if ever needed. The game's level-load staging buffer
   is at 0xFE0000 (whole level data range), the frontend's near 0x1FF7FF0;
   both in the upper half of RAM.
 - The mod segment is the default route; the cave shim of x4 remains as

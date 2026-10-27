@@ -110,12 +110,13 @@ PROGRAMS = 21                     # 19 levels, the boot executable, frontbin (FE
 # addresses, so a func_XXXXXXXX or D_XXXXXXXX above that is a different
 # address in every level and must go through a per-level table.
 CORE_END = 0x15F000
-DEFAULT_BASE = 0x0009E000
-# The highest end a booting build has had. A segment ending at 0xF2580 (base 0xA0000) left the title screen
-# deaf to the pad in PCSX2, while the same code ending at 0xF0580 (base 0x9E000) and a build ending at 0xF2380
-# worked; the memory there reads zero at boot and on the title screen, so what uses it is unknown. The base moved
-# down 8 KB to 0x9E000 (2026-10-25), which the owner's PS3 had already run, and a build past this end stops.
-SEGMENT_END_LIMIT = 0x000F2380
+DEFAULT_BASE = 0x0009E000      # the base the owner's PS3 has run since 2026-10-25
+# The highest end tested. A build filled to 0xFC000 with a canary pattern (2026-10-27) booted in PCSX2, took the
+# pad on the title screen, loaded a level, saved to the card and quit to the title, and nothing but its own
+# variables changed in the segment: no other code writes below 0xFC000. (A segment ending at 0xF2580 had once left
+# the title deaf to the pad, which the canary build did not repeat; the end limit was 0xF2380 until then.) The
+# kernel's ELF loader keeps 0x84000-0x95560, so a base down to 0x96000 has room too, untested on the PS3.
+SEGMENT_END_LIMIT = 0x000FC000
 
 
 def run(cmd, cwd=None):
