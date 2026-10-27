@@ -105,10 +105,11 @@ typedef s32 (*PrepFn)(void *, s32, const void *);
 #define MC_REQUEST_SAVE     0xF
 #define GAME_FLAGS          (*(volatile u32 *)0x0015EFB4)
 #define GAME_FLAG_SAVING    0x200                                   /* memcard_Save sets it for slot 0 */
-#define HIDDEN_PAGE_INDEX 19            /* the level page no level owns: EE_RZ_PAGE */
+#define HIDDEN_PAGE_INDEX 19            /* the level page no level owns: EE_PAGE19 */
 #define HIDDEN_PAGE_BLOCK_ID 0xBBA      /* the level save table's record of a level's moby state */
 
-static s32 record_dirty;                /* the page changed since the card last had it */
+static s32 page_dirty;                  /* the page changed since the card last had it: written on the next frame */
+static s32 page_due_with_save;          /* it changed, to be written after the game's next autosave */
 
 /* For the PINE test scripts (docs/DEBUGGING.md): record autosaves started; frames one waited for the machine. */
 volatile u32 ee_debug_rz_card[2];
@@ -223,19 +224,40 @@ static void rechecksum(void)
         bytes[i] = ((volatile u8 *)EE_RZ_PAGE)[i];
     }
     RECORD.checksum = (u16)ee_save_checksum(bytes, CHECKSUM_BYTES);
-    record_dirty = 1;
+    ee_page19_changed();
 }
 
-/* The record's page to the card, the way memcard_Save autosaves the
- * current level's page: the game's autosaves (the givers', the ship's)
- * never write page 19, so without this a save that only ever autosaved
- * came back from the card with the record as it was at the last full save,
- * its checks uncollected. Under memcard_Save's own conditions: a card with
- * the save's file, an autosave done before (the mask), the machine idle. */
-void ee_rz_record_autosave(s32 L)
+void ee_page19_changed(void)
+{
+    page_dirty = 1;
+}
+
+/* For data that changes often (x1's death counts, at every kill): rather than a card write per change, the page
+ * follows the game's own autosaves, the moments retail keeps its own kill records (the game blob). */
+void ee_page19_changed_with_next_save(void)
+{
+    page_due_with_save = 1;
+}
+
+void ee_page19_game_saved(void)
+{
+    if (page_due_with_save) {
+        page_due_with_save = 0;
+        page_dirty = 1;
+    }
+}
+
+/* The page to the card, the way memcard_Save autosaves the current
+ * level's page: the game's autosaves (the givers', the ship's) never write
+ * page 19, so without this a save that only ever autosaved came back from
+ * the card with the page as it was at the last full save: a Randomizer
+ * record's checks uncollected, x1's death counts behind. Under memcard_Save's
+ * own conditions: a card with the save's file, an autosave done before (the
+ * mask), the machine idle; while the game's own save is in progress it waits. */
+void ee_page19_autosave(s32 L)
 {
     s32 card;
-    if (!record_dirty) {
+    if (!page_dirty) {
         return;
     }
     card = MC_CARD;
@@ -252,7 +274,7 @@ void ee_rz_record_autosave(s32 L)
     GAME_FLAGS |= GAME_FLAG_SAVING;
     MC_REQUEST = MC_REQUEST_SAVE;
     MC_REQUEST_CARD = card;
-    record_dirty = 0;
+    page_dirty = 0;
     ee_debug_rz_card[0]++;
 }
 
@@ -377,7 +399,7 @@ static void write_record(const struct RzLayout *layout)
     for (i = 0; i < EE_RZ_RECORD_SIZE; i++) {
         ((volatile u8 *)EE_RZ_PAGE)[i] = ((u8 *)&record)[i];
     }
-    record_dirty = 1;
+    ee_page19_changed();
 }
 
 /* A start past the tutorial, in the reset game state: the start planet as

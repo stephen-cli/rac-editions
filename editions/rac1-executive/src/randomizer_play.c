@@ -437,7 +437,8 @@ void ee_rz_planet_banner_c(s32 planet, s32 L)
  * that is the collected view, so the view comes off around it, or the card would get the retail items as owned,
  * which a load from the title screen then restored as the save's inventory. A Gold Bolt spot whose flag is set
  * and whose check is not collected gives its item first. The autosave does not write the record's page;
- * ee_rz_record_autosave (src/randomizer_save.c) does, from the next gameplay frame. */
+ * ee_page19_autosave (src/randomizer_save.c) does, from the next gameplay frame, and a page changed since the
+ * last autosave (x1's death counts) is due once this one is done. */
 s32 ee_rz_save_c(s32 slot, s32 flags, s32 L)
 {
     s32 was_on = view_on;
@@ -459,6 +460,7 @@ s32 ee_rz_save_c(s32 slot, s32 flags, s32 L)
     if (was_on) {
         view_apply();
     }
+    ee_page19_game_saved();
     return result;
 }
 
@@ -866,17 +868,15 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
     granted = -1;
 }
 
-/* Each gameplay frame (src/charge_dash.c's frame hook): the record's page to the card once it changed, and the
- * record read again when the level changes and now and then. No gameplay frame runs while the vendor's menu is
- * up, so a frame closes it. */
+/* Each gameplay frame (src/charge_dash.c's frame hook): the save's twentieth page to the card when due (the
+ * record's changes, x1's death counts; any save, Randomizer or not), and the record read again when the level
+ * changes and now and then. No gameplay frame runs while the vendor's menu is up, so a frame closes it. */
 void ee_rz_frame(s32 L)
 {
     static s32 frames_left;
     banner_due = 0;
     rz_vendor_menu_closed();
-    if (active) {
-        ee_rz_record_autosave(L);
-    }
+    ee_page19_autosave(L);
     if (L != active_level || --frames_left <= 0) {
         frames_left = REFRESH_FRAMES;
         read_record(L);

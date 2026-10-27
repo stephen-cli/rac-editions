@@ -209,6 +209,26 @@ s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);
 /* x2: the Charge Boots item each frame: owned once the cheat is unlocked (src/charge_boots.c). */
 void ee_charge_boots_frame(s32 level);
 
+/* The save's twentieth level page, 0x14B7C0-0x14BFBF: level page 19 of save block 0xBBA (a level's 0x800 bytes of
+ * moby state, D_00141FC0 + level * 0x800). The game has nineteen levels, so no level owns it; retail writes it to
+ * the card with every full save and reads it back without looking at it. A new game and the Challenge Mode reset
+ * restore it from the disc's new-game state, all zeros. The edition keeps its saved data there, each block at a
+ * fixed offset, zero meaning nothing recorded:
+ *   0x000-0x1FF  the Randomizer's record (rz2, src/randomizer_save.c; EE_RZ_RECORD_SIZE bytes used)
+ *   0x200-0x6FF  x1: the enemies' death counts, a nibble per enemy tools/gen_enemy_ids.py lists (2,279 of 2,560)
+ *   0x700-0x7FF  free
+ * Retail's autosaves write the game blob and the current level's page only, so the edition writes this page
+ * itself (src/randomizer_save.c): at once for the Randomizer's record, with the game's next autosave for the
+ * death counts. */
+#define EE_PAGE19           0x0014B7C0
+#define EE_PAGE19_BYTES     0x800
+#define EE_DEATHS_PAGE      (EE_PAGE19 + 0x200)
+#define EE_DEATHS_BYTES     0x500
+void ee_page19_changed(void);           /* the page goes to the card on the next gameplay frame */
+void ee_page19_changed_with_next_save(void);     /* the page goes to the card after the game's next autosave */
+void ee_page19_game_saved(void);        /* the game's memcard_Save ran (src/randomizer_play.c's wrapper) */
+void ee_page19_autosave(s32 level);     /* each gameplay frame: the page to the card when due */
+
 /* x2: the Charge Boots cheat, each gameplay frame before the hero update
  * (src/charge_boots.c, called from src/charge_dash.c's frame hook). */
 void ee_charge_cheat_frame(s32 level);
@@ -262,7 +282,7 @@ const char *ee_seed_text(void);
 /* rz1/rz2: the Randomizer (src/randomizer.h, src/randomizer.c for the logic;
  * src/randomizer_save.c for the save; src/goodies.c for the menus). */
 #define EE_RANDOMIZER_CHARGE_BOOTS 1    /* the pool has the Charge Boots, sold as the bonus vendor entry (every build has the boots) */
-#define EE_RZ_PAGE          0x0014B7C0  /* the Randomizer's record: level page 19 of save block 0xBBA, 2 KB no level owns */
+#define EE_RZ_PAGE          (EE_PAGE19 + 0x000)  /* the Randomizer's record (the page's layout: EE_PAGE19) */
 #define EE_RZ_RECORD_SIZE   160
 #define EE_TEXT_SEED        0x5419      /* "Seed" */
 #define EE_TEXT_CONFIRM     0x541A      /* "[cross] Confirm", the Reuse Seed prompt */
@@ -304,6 +324,5 @@ s32 ee_rz_received_special(s32 flag);                       /* FLAG: the byte of
 void ee_rz_set_received_special(s32 flag);/* rz3: each gameplay frame, from src/charge_dash.c's frame hook. */
 void ee_rz_frame(s32 L);
 void ee_rz_pause_open(s32 L);                               /* the pause menu opening in a level (src/goodies.c) */
-void ee_rz_record_autosave(s32 L);                          /* the record's page to the card once it changed (from ee_rz_frame) */
 
 #endif
