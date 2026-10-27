@@ -139,6 +139,38 @@ def metal_detector_10x_modseg(at):
     return [(site, jal(spawn), jal(modseg_symbol("ee_metal_detector_spawn")))]
 
 
+# The bolt drop, func_L00_00261B00(moby, low, high, flags, path): the same code in every level, so the same offsets.
+DROP_FADE = 0x308           # the limiter's 301-351 band: amount * ((360 - rate) / 80)
+FADE_RETAIL = [
+    0x24020050,             # addiu $2, $0, 80
+    0x0202001A,             # div   $0, $16, $2         $16 = 360 - rate
+    0x50400001,             # beql  $2, $0, +1           (divide-by-zero trap)
+    0x000001CD,             # break 0, 7
+    0x00008012,             # mflo  $16                  (360 - rate) / 80: 0 for every rate in the band
+    0x02509018,             # mult  $18, $18, $16        the amount times 0
+]
+FADE_FIXED = [
+    0x02508018,             # mult  $16, $18, $16        amount * (360 - rate)
+    0x24020050,             # addiu $2, $0, 80
+    0x0202001A,             # div   $0, $16, $2
+    NOP,
+    0x00009012,             # mflo  $18                  amount * (360 - rate) / 80
+    NOP,
+]
+
+
+def limiter_fade(at):
+    """The anti-farm limiter's 301-351 band pays the fraction it was written to pay.
+
+    The bolt drop judges respawns' drops by the save's rate of such bolts a
+    minute; from 301 to 351 it means to pay amount * (360 - rate) / 80, a factor
+    from 0.74 down to 0.1 that meets the tiers on both sides. Retail divides
+    first in integers, 0 across the whole band, so every such drop paid the
+    1-bolt minimum. Multiplying first fixes it, as Going Commando's copy does."""
+    drop = at("func_L00_00261B00")
+    return [(drop + DROP_FADE + 4 * i, old, new) for i, (old, new) in enumerate(zip(FADE_RETAIL, FADE_FIXED))]
+
+
 def quick_select_pause(at):
     """q3: pause while quick select is open, with a toggle under Options
     (src/quick_select_pause.c). The frame's HudUpdate call goes to the hook
@@ -874,6 +906,7 @@ FEATURES = {
     "edition_text": edition_text,
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
+    "limiter_fade": limiter_fade,
     "quick_select_pause": quick_select_pause,
     "quick_select_pages": quick_select_pages,
     "commercials": commercials,
@@ -894,6 +927,7 @@ FEATURES = {
 DEFAULT_FEATURES = [
     "edition_text",
     "metal_detector_10x_modseg",
+    "limiter_fade",
     "quick_select_pause",
     "quick_select_pages",
     "commercials",

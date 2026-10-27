@@ -80,6 +80,27 @@ moves the directory record (verified booting in PCSX2 from sector 2058000).
 - The mod segment is the default route; the cave shim of x4 remains as
   feature `metal_detector_10x` for reference.
 
+## Bolt drops: the anti-farm limiter's 301-351 band pays its fraction (2026-10-27) — fixed; patch checked against all 19 levels, not yet seen in play
+
+**What was wrong.** R&C1 judges the bolts a respawned enemy drops (one whose
+mission is done) by an anti-farm limiter in the bolt drop,
+func_L00_00261B00: from the save's rate m of such bolts a minute of active
+play, under 91 it pays x5, up to 149 x4 to x2, 150-300 x1, from 352 a tenth,
+and from 301 to 351 it means to pay amount x (360 - m) / 80, a factor from
+0.74 at 301 down to 0.1 at 352 that meets the tiers on both sides. Retail
+computes `(360 - m) / 80` in integers before multiplying, which is 0 across
+the whole band, and the drop's minimum makes it 1: every drop in that band
+paid 1 bolt, less than the tenth paid by farming faster.
+
+**What changed (feature `limiter_fade`, on in every build).** The six words
+at +0x308 multiply first, `amount x (360 - m)`, then divide by 80, as Going
+Commando's copy of this code does; the divide-by-zero trap the compiler put
+after the constant divisor goes. The bonus band's whole-number steps (x4,
+x3, x2) stay: they are retail's own, and its debug print shows the factor
+as a whole number. The function is the same code in all 19 levels, so the
+offsets are too; tools/overlay_patch.py checks each retail word before
+writing.
+
 ## x4: Metal Detector gives 20x bolts in challenge mode — 10x owner-confirmed 2026-10-17; raised to 20x 2026-10-18, awaiting owner test; also in Randomizer saves since 2026-10-24
 
 **Randomizer saves (owner, 2026-10-24).** The 20x applies in a Randomizer
