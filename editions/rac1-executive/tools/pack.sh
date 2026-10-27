@@ -2,7 +2,10 @@
 # Executive Edition pipeline: OpenRAC build + audits, bootable executable,
 # disc image. Run from anywhere in Git Bash.
 #
-#   bash editions/rac1-executive/tools/pack.sh [--wrench]
+#   bash editions/rac1-executive/tools/pack.sh [--wrench] [--economy skill|classic]
+#
+#   --economy Challenge Mode's bolts: skill (the default: x1 base and the no-hit bolt multiplier, x1) or
+#             classic (retail's doubled drops and limiter); see tools/overlay_patch.py ECONOMIES
 #
 #   default   the patch route: a copy of the owner's image: the executable in new sectors at the end, the
 #             level code patched in place, the Charge Boots class (R&C2's model)
@@ -28,10 +31,18 @@ WRENCH=${WRENCH:-$(cd "$HERE/../../../wrench" && pwd)}
 GAME_BANK=${GAME_BANK:-$OPENRAC/assets/wrench/rac1-pal}   # unpacked with the edition's wrench fork (stash_textures on carried items)
 PAL=$OPENRAC/games/rac1
 ROUTE="patch"
-case "${1:-}" in
-  "") ;;
-  --wrench) ROUTE=wrench ;;
-  *) echo "usage: pack.sh [--wrench]" >&2; exit 2 ;;
+ECONOMY="skill"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --wrench) ROUTE=wrench ;;
+    --economy) ECONOMY=${2:-}; shift ;;
+    *) echo "usage: pack.sh [--wrench] [--economy skill|classic]" >&2; exit 2 ;;
+  esac
+  shift
+done
+case "$ECONOMY" in
+  skill|classic) ;;
+  *) echo "pack.sh: --economy is skill or classic" >&2; exit 2 ;;
 esac
 
 echo "== OpenRAC branch: $(git -C "$OPENRAC" branch --show-current)"
@@ -70,6 +81,7 @@ python "$HERE/tools/gen_sign.py" --openrac "$OPENRAC" --wrench "$WRENCH"     # K
 python "$HERE/tools/gen_items.py" --openrac "$OPENRAC" --boots-class 2000
 python "$HERE/tools/gen_charge.py" --openrac "$OPENRAC"                       # the Charge Boots dash's sites (src/charge_dash.c)
 python "$HERE/tools/gen_qs.py" --openrac "$OPENRAC"                           # the quick-select pages' sites (src/quick_select_pages.c)
+python "$HERE/tools/gen_enemy_ids.py" --openrac "$OPENRAC"                    # x1: each level's enemies, for the death counts (src/bolt_multiplier.c)
 python "$COMMON/rac2_anim.py" --openrac "$OPENRAC" emit 0x8B --name ee_charge_seq -o "$HERE/build/modseg/gen_anim_charge.c"   # R&C2's dash animation
 python "$HERE/tools/gen_hud.py" --openrac "$OPENRAC"
 python "$HERE/tools/gen_glyphs.py" --openrac "$OPENRAC"                       # the D-pad glyphs of the Reuse Seed box (src/goodies.c)
@@ -84,7 +96,7 @@ python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" patch-elf build-sn/SCE
 
 if [ "$ROUTE" = patch ]; then
   echo "== 4/5 level-code patches (tools/overlay_patch.py)"
-  python "$HERE/tools/overlay_patch.py" -o "$HERE/build/patches"
+  python "$HERE/tools/overlay_patch.py" -o "$HERE/build/patches" --economy "$ECONOMY"
   echo "== 5/5 image (executable in new sectors at the end, level patches in place)"
   # An image an emulator has open cannot be overwritten: fall back to a numbered name.
   mkdir -p "$HERE/build/iso"
@@ -112,7 +124,7 @@ while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$HERE/b
   -a rac -o "$out" -h release \
   | grep -vE '^Parsing|^\[ *[0-9]+%\]' || true
 echo "== 5/5 level-code patches against the packed image (tools/overlay_patch.py --iso), written in place"
-python "$HERE/tools/overlay_patch.py" --iso "$out" -o "$HERE/build/patches-wrench"
+python "$HERE/tools/overlay_patch.py" --iso "$out" -o "$HERE/build/patches-wrench" --economy "$ECONOMY"
 python "$COMMON/apply_patches.py" "$out" "$HERE/build/patches-wrench/patches.tsv"
 echo "== 5b/5 the edition's HelpDesk lines in new sectors at the end (tools/splice_helpdesk.py)"
 python "$HERE/tools/splice_helpdesk.py" "$out"

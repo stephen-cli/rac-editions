@@ -107,7 +107,152 @@ as a whole number. The function is the same code in all 19 levels, so the
 offsets are too; tools/overlay_patch.py checks each retail word before
 writing.
 
-## x4: Metal Detector gives 20x bolts in challenge mode — 10x owner-confirmed 2026-10-17; raised to 20x 2026-10-18, awaiting owner test; also in Randomizer saves since 2026-10-24
+## x1: the Challenge Mode bolt multiplier, "skill" economy (2026-10-27) — working in PCSX2, awaiting owner test
+
+**What it does.** In Challenge Mode a kill pays a multiplier that climbs
+while Ratchet is not hit, each step costing more kills than the last, as in
+Going Commando: a step from xm costs 2m^2 + 2 kills, so x2 after 4 kills, x3
+after 14, x4 after 34 and x5 after 68. Any hit drops it back to x1. An enemy
+that has died before pays a falling share of the bonus, by its saved death
+count. The bolt counter shows the multiplier in orange below its bolt icon
+while it is above x1, as Going Commando does, and pops up on each step.
+Challenge Mode no longer doubles every drop: it pays what a first
+playthrough pays, and the multiplier is the way to earn more. This is the
+"skill" economy, the default; `tools/pack.sh --economy classic` builds
+retail's instead (the doubling and retail's limiter; the limiter's 301-351
+fix and the Metal Detector's 10x are in both).
+
+**Going Commando's version (Oozla's program on the USA disc).**
+- The multiplier byte (PlayerStats + 0x3A) climbs in 0x30F7A8: on a kill of
+  one of 64 enemy kinds, outside battle events, while below x20, a kill
+  counter goes up, and when it reaches half the multiplier (rounded up) the
+  multiplier steps up, so x20 takes 100 kills. The hero-hit routine sets it
+  back to 1 whenever a hit does damage (0x2B3858); starting Challenge Mode
+  sets it to 1 (0x34E1D0). A step plays a sound (0x30F89C).
+- The death payout (0x30F920) scales a kill's bolts by the enemy's earlier
+  deaths (0x2D9528: a 3-bit count per placed enemy, nibbles at 0x19B4A8 +
+  level x 0x400 indexed by uid, incremented at each death and saturating at
+  7; the share 100, 50, 40, 30, 25, 20, 15, 10 % from 0x1A89C8, or always
+  100 % for a flagged enemy from 0x1A89D0), then multiplies by the
+  multiplier as it was before that kill's step, for creatures only, and the
+  anti-farm limiter judges the multiplied drop.
+- It keeps retail's Challenge Mode doubling in the bolt drop, and it scales
+  each planet's enemies' health and damage in Challenge Mode (three floats
+  per level at 0x2635C8: Oozla x12 health, x20 damage; Yeedil x2.4 and
+  x4.5), which R&C1 has nothing like.
+
+**Why R&C1's is tuned differently.** R&C1's enemies die faster and hit less
+often, and its Challenge Mode spending is fixed: 150,000 bolts for the RYNO
+and 250,000 for the ten Gold Weapons. Placed bolt values over the 19 levels
+(gameplay instances, one pass) are 75,502 in crates and 46,600 in 1,727
+enemies; retail Challenge Mode doubles that to ~244,000, which matches a
+complete Challenge Mode run's pickups (242,487 on a 100% save). With the
+doubling gone, the Metal Detector at 10x (174,600) and crates at x1, a run
+earns ~297,000 at x1; modelled with hits at random, ~353,000 for a player
+hit every 15 kills (1 % of kills at x5), ~414,000 every 60 kills (28 % at
+x5), ~463,000 every 300 (76 % at x5). Going Commando's x20 on top of the
+doubling would make a run worth over a million. The x1 floor is deliberate:
+a player hit often who skips the Metal Detector earns less than retail.
+
+**How R&C1 pays a kill.** SetDeathBits (func_L00_002584A8) spreads the
+moby's placed bolt value +-25 % and calls the bolt drop,
+func_L00_00261B00(moby, low, high, flags, path): it picks the amount,
+doubled in Challenge Mode, runs the anti-farm limiter on it and throws the
+bolts as 50/20/5/1-bolt pieces through SpawnBolt (func_L00_002A86D8). R&C1's
+base already falls for a repeat: the level loader halves a placed enemy's
+value once it has died before, and a respawn after its mission pays its
+lower post-mission value. The limiter judges drops under 500 from mobys
+whose mission is complete (D_L00_0015FD48[mission] == 0xFF: respawns), by
+the rate m = such bolts per minute of active play, saved in D_0015EF28
+(frames, counted while a pad input came within 15 s) and D_0015EF2C (bolts,
+from pieces SpawnBolt was told came from such a drop). Under 91 a minute it
+pays x5, up to 149 x4 to x2, 150-300 x1, 301-351 a fading fraction (feature
+`limiter_fade`), from 352 a tenth. Retail halves m in Challenge Mode to
+cancel the doubling.
+
+**Spawners.** R&C1's spawners (Gemlik's class 1885, Aridia's sand shark
+nests, Batalia's bomber tanks, one Kerwan helicopter; the only placements
+with flag 0x10, which the per-source bolt tally D_0014D690 tracks) recycle
+a small pool of placed enemies, each with its own uid (Gemlik: four
+robosquawkers per spawner, listed in its pvars), so a per-uid death count
+counts their kills like any other's. The spawner itself is a destroyable
+enemy (166 bolts on Gemlik).
+
+**The changes (feature `bolt_multiplier`, src/bolt_multiplier.c).**
+- In the bolt drop, the same code in every level: the doubling (+0x15C,
+  `sll`) and the halving (+0x1F4, `sra`) become `nop`, together, so the
+  limiter judges Challenge Mode's rate as it judges a first playthrough's.
+- SetDeathBits's call of the drop (+0x32C, EE_SITE_DEATH_DROP) goes to
+  `ee_bolt_drop`. In Challenge Mode (the completion count above 0, or
+  D_0015EFA0), a creature's kill (class type 5 at class + 0x46): the enemy's
+  death count goes up; then, outside the excluded sections, the base drops
+  through retail as before (the limiter sees and counts it), and the bonus,
+  base x (multiplier - 1) x Going Commando's share for the enemy's earlier
+  deaths, drops as its own pieces with flag 0x20, which keeps it out of the
+  limiter; the kill then counts towards the next step. The falloff scales
+  the bonus, not the base, because R&C1's base already falls on a repeat.
+  For a respawn, the bonus takes the limiter's penalty tiers but never its
+  slow-play bonus (R&C1's limiter sits in that tier most of the time, and
+  it would stack on the multiplier), and the bonus counts towards the
+  limiter's rate, as Going Commando's multiplied drops do.
+- Excluded sections neither pay, climb nor reset the multiplier: the hero
+  in state 0x32 (the hero driven by something else: Pokitaru's ship code
+  tests it, Batalia's cannon and Gaspar's mountable turret set it, scripted
+  moments use it, and HudBoltsDraw hides the bolt counter in it) or in
+  vehicle mode 2 or 3 (hero + 0x20A4: Giant Clank, and the vehicle mode of
+  the turret-style hero states 0x53-0x59 and 0x65-0x67).
+- The death counts: a nibble per enemy in the save's twentieth page
+  (EE_DEATHS_PAGE, src/modseg.h: 0x200-0x6FF of the page no level owns).
+  `tools/gen_enemy_ids.py` reads each level's gameplay file and moby class
+  table from the disc and lists its bolt-paying creatures by uid (2,279 over
+  the 19 levels, 25 on Veldin to 207 on Blarg Station), and a kill finds its
+  slot by binary search in its level's list. A full save writes the page; so
+  that every kill does not write to the card, the counts follow the game's
+  own autosaves: the memcard_Save wrapper (`ee_rz_save_c`, every call in
+  level code) marks the page due, and `ee_page19_autosave` writes it on the
+  next gameplay frame. A new game and the Challenge Mode reset restore the
+  page from the disc's new-game state, so the counts restart with each run.
+- The reset: once a frame, from the HUD update hook, the hero's hit points
+  (hero + 0x22A8) going down while the vehicle mode stays the same (entering
+  and leaving Clank swaps the hit points) and outside excluded sections in
+  both frames sets it back to x1. The multiplier lives in the mod segment,
+  not in the save, so saves stay retail's: a session starts at x1, and
+  loading or a level change keep it.
+- The HUD: the bolt counter's slot draws HudBoltsDraw (func_L00_0023A788);
+  each frame the HUD update swaps the slot's draw for the edition's, which
+  draws retail's counter and then "x2"-"x5" in orange, right-aligned under
+  the bolt icon, fading with the counter's text (D_L00_0015F908, read at
+  gp - 0x73F8 as HudBoltsDraw reads it). Re-queuing the counter compares the
+  pending callbacks, not the active one, so the swap survives every pickup.
+  A step queues the counter as CollectBolt does (queue_animation_update(2,
+  0x754E, HudBoltsInit, HudBoltsUpdate, HudBoltsDraw, &gBolts, 9999999)), so
+  it shows. No sound: Going Commando's step sound goes unheard under the
+  gunfire.
+- The level's mission states come from `tools/modseg.py` LEVEL_DATA
+  `mission_state` (the drop's lui/addiu at +0xA4/+0xA8).
+
+**Tested in PCSX2.** On Novalis in a Challenge Mode save: x2 on the fourth
+kill without a hit, the counter popping up with "x2"; an enemy's hit back
+to x1; each kill adding one to the enemy's death count, respawned enemies'
+counts reaching 2; a full save carrying the counts to the card, and after
+further kills the ship's autosave on the flight to Kerwan writing the page
+again (the card's counts equal to RAM's). From the first build: a kill at
+x3 paid above the enemy's x1 range, crates leave the multiplier alone, and
+a normal save pays kills as retail with nothing shown. Not yet tried: an
+excluded section (a turret, a ship, Giant Clank), the bonus's exact falloff
+amounts, a classic build in play, the PS3.
+
+## x4: Metal Detector gives 10x bolts in challenge mode, 20x in a Randomizer save — 10x owner-confirmed 2026-10-17; 20x 2026-10-18; back to 10x in challenge mode with x1 (2026-10-27), awaiting owner test
+
+**2026-10-27, with the bolt multiplier (x1).** Challenge Mode's stashes pay
+10x again (one circlenut a step, 174,600 a run): with retail's doubling gone
+and the multiplier paying on kills, 20x made a run worth ~590,000 against
+400,000 of spending. The stashes ignore the multiplier, so a hit never makes
+digging worth less. A Randomizer save keeps 20x (349,200): it needs the
+RYNO, its vendor checks and the five Gold Weapons sold outside Challenge
+Mode (4 Gold Bolts each plus their bolt price) from a first playthrough's
+income, with few planets open early on. The entry below describes 20x as
+it was built.
 
 **Randomizer saves (owner, 2026-10-24).** The 20x applies in a Randomizer
 save too (`ee_rz_active()`, src/randomizer_save.c: the record is in

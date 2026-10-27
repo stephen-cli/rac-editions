@@ -55,6 +55,7 @@ typedef float f32;
  * numbers drive tools/overlay_patch.py, which reads them from this header. */
 #define EE_SITE_HUD_UPDATE      0x838   /* func_L00_00299250 + 0x838: jal HudUpdate */
 #define EE_SITE_DETECTOR_SPAWN  0x638   /* func_L00_002D4398 + 0x638: jal the bolt spawner */
+#define EE_SITE_DEATH_DROP      0x32C   /* func_L00_002584A8 (SetDeathBits) + 0x32C: jal the bolt drop */
 
 /* Where the quick select pause setting lives (q3): gCheats[11], the last
  * byte of the cheat flags D_0015EEB0 (12 bytes, saved whole as the save's
@@ -208,6 +209,9 @@ s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site);
 
 /* x2: the Charge Boots item each frame: owned once the cheat is unlocked (src/charge_boots.c). */
 void ee_charge_boots_frame(s32 level);
+
+/* x1: the bolt multiplier each frame: its reset on a hit and the bolt counter's draw (src/bolt_multiplier.c). */
+void ee_bolt_multiplier_frame(s32 level);
 
 /* The save's twentieth level page, 0x14B7C0-0x14BFBF: level page 19 of save block 0xBBA (a level's 0x800 bytes of
  * moby state, D_00141FC0 + level * 0x800). The game has nineteen levels, so no level owns it; retail writes it to

@@ -97,6 +97,9 @@ LEVEL_DATA = {
     # to a zero address), from memcard_RestoreGame's lui/addiu pairs; the Randomizer's record offset in a file
     "save_game_table": ("func_00209CE8", 0x4, 0x10),
     "save_level_table": ("func_00209CE8", 0x34, 0x3C),
+    # x1: the level's mission states (D_L00_0015FD48 in level 0: a byte per mission, 0xFF once done), from the
+    # bolt drop's lui/addiu (func_L00_00261B00, which tests a moby's mission there for the anti-farm limiter)
+    "mission_state": ("func_L00_00261B00", 0xA4, 0xA8),
 }
 # Where the title screen's programs have the data, for LEVEL_DATA entries read from a level's
 # own function: the executable function that addresses it there (its address is the same in both).

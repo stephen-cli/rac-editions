@@ -118,6 +118,7 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
 
     LVL(L, func_L00_0023B610, HudUpdateFn)(arg);
     ee_charge_boots_frame(L);          /* x2: the Charge Boots are owned; their box sequence (src/charge_boots.c) */
+    ee_bolt_multiplier_frame(L);       /* x1: the multiplier's reset on a hit, its HUD (src/bolt_multiplier.c) */
     refresh_option_images();
 
     gate = (volatile u32 *)(LVL_DATA(L, update_flags, u32) + 8);

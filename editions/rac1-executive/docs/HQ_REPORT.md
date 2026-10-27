@@ -4,6 +4,33 @@ Running report from the development account, for carrying back into the HQ.
 Newest entries first. Format per the handoff pack: item, new status, what
 changed, decisions taken, findings that affect other items.
 
+## 2026-10-27 (Challenge Mode Plus: the bolt multiplier)
+
+### ✖️ Bolt multiplier in Challenge Mode, the "skill" economy (x1) — Working in PCSX2; awaiting owner test
+
+**What changed.** In Challenge Mode, kills pay a multiplier that climbs while Ratchet is not hit, each step costing more kills than the last (x2 after 4 kills, x3 after 14, x4 after 34, x5 after 68), and drops to x1 on any hit. An enemy that has died before pays a falling share of the bonus (100, 50, 40, 30, 25, 20, 15, then 10 %), by a death count the save keeps per enemy. The bolt counter shows the multiplier in orange under its bolt icon, as in Going Commando, and pops up on each step. Challenge Mode no longer doubles every drop, so it pays like a first playthrough until the multiplier adds to it. The Metal Detector pays 10x in Challenge Mode (was 20x) and stays 20x in Randomizer saves. A build option picks the economy: "skill" (this, the default) or "classic" (retail's doubled drops), `tools/pack.sh --economy`.
+
+**Decisions taken.**
+
+- x5 cap with Going Commando's rising step cost scaled to x5 (2m^2 + 2 kills from xm): x2 comes almost at once, x3 takes a clean stretch, x4 is where good players live, x5 is held by the best. Modelled run income (crates, stashes at 10x, every enemy): ~353,000 for a player hit every 15 kills, ~414,000 every 60, ~463,000 every 300, against 400,000 of Challenge Mode spending.
+- The x1 floor stays: a player hit often who skips the Metal Detector earns less than retail, which is the incentive to play better.
+- The death-count falloff scales the multiplier's bonus, not the base: R&C1's base already falls on a repeat (halved once killed, lower post-mission values). Spawners need nothing special: they recycle placed enemies, each with its own id.
+- Respawns' bonuses take the anti-farm limiter's penalty but not its slow-play bonus, and count towards its rate.
+- Ship combat, turrets, scripted moments and Giant Clank neither pay, climb nor reset the multiplier.
+- No sound on a step. The multiplier is not saved (a session starts at x1); the death counts are, in the save's spare twentieth page, written with the game's own autosaves rather than at every kill.
+- Classic and skill share the Metal Detector's 10x and the limiter fix; one rate, not one per variant.
+
+**Verification.** In PCSX2, on Novalis in a Challenge Mode save: x2 on the fourth kill without a hit, the counter popping up with "x2"; an enemy's hit reset it; each kill raised its enemy's death count, and respawned enemies reached 2; a full save carried the counts to the card, and after more kills the ship's autosave on the flight to Kerwan wrote them again (card and RAM identical). Not yet tried: a turret, ship or Giant Clank section, the exact falloff amounts, a classic build in play, the PS3.
+
+**Owner test.** Challenge Mode save: four kills without a hit (x2 under the bolt counter), keep going to x5 (68 kills), take a hit (gone, x1). Replay an area: repeat kills pay a smaller bonus. Try a turret or ship section (the multiplier stands still) and a normal save (nothing shown). On the PS3, boot `build/iso/executive-edition-canary-FC000.iso` (a test image whose mod segment is padded to 0xFC000) and load a save: if the title takes the pad and a level loads, the raised segment limit holds on hardware.
+
+**Findings that affect other items.**
+
+- Going Commando's multiplier: x20 after 100 kills, reset by any damaging hit, creatures only, not in battle events, with a per-enemy death-count falloff; Going Commando also scales each planet's enemy health and damage in Challenge Mode (Oozla health x12, damage x20). Details in FEATURES.md x1.
+- Measured R&C1 income: one pass of every placed object pays 75,502 from crates and 46,600 from 1,727 enemies; a complete retail Challenge Mode run picks up ~242,000, about five times the old estimate used for x4.
+- The save's twentieth level page now has a layout (src/modseg.h): the Randomizer's record, x1's death counts, and 256 bytes free; one autosave routine writes it for both.
+- The mod segment outgrew its end limit (0xF2380). A canary test in PCSX2 (the segment's tail filled to 0xFC000 with a pattern, read back at boot, title, in a level, after a save and after quitting) showed no other code writes below 0xFC000 and the title takes the pad, so the limit is now 0xFC000 and the base stays at 0x9E000: about 32 KB of room after x1. Memory below the base (0x95564-0x9E000) stayed zero too. A PS3 check of the canary image is pending.
+
 ## 2026-10-26 (the Randomizer: seed codes and the start)
 
 ### 🎲 Seed codes carry only Random or not (rz) — Working

@@ -140,6 +140,8 @@ def metal_detector_10x_modseg(at):
 
 
 # The bolt drop, func_L00_00261B00(moby, low, high, flags, path): the same code in every level, so the same offsets.
+DROP_DOUBLE = 0x15C         # sll $18, $18, 1: the amount doubled in Challenge Mode
+DROP_HALVE = 0x1F4          # sra $3, $2, 1: the limiter's rate halved in Challenge Mode
 DROP_FADE = 0x308           # the limiter's 301-351 band: amount * ((360 - rate) / 80)
 FADE_RETAIL = [
     0x24020050,             # addiu $2, $0, 80
@@ -169,6 +171,21 @@ def limiter_fade(at):
     1-bolt minimum. Multiplying first fixes it, as Going Commando's copy does."""
     drop = at("func_L00_00261B00")
     return [(drop + DROP_FADE + 4 * i, old, new) for i, (old, new) in enumerate(zip(FADE_RETAIL, FADE_FIXED))]
+
+
+def bolt_multiplier(at):
+    """x1: the Challenge Mode bolt multiplier (src/bolt_multiplier.c).
+
+    In the bolt drop: no doubling in Challenge Mode and no halving of the
+    limiter's rate. SetDeathBits's call of the drop goes to ee_bolt_drop
+    (src/hooks.s), which pays the multiplier."""
+    drop = at("func_L00_00261B00")
+    death = at("func_L00_002584A8") + site_offset("EE_SITE_DEATH_DROP")
+    return [
+        (drop + DROP_DOUBLE, 0x00129040, NOP),
+        (drop + DROP_HALVE, 0x00021843, NOP),
+        (death, jal(drop), jal(modseg_symbol("ee_bolt_drop"))),
+    ]
 
 
 def quick_select_pause(at):
@@ -907,6 +924,7 @@ FEATURES = {
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
     "limiter_fade": limiter_fade,
+    "bolt_multiplier": bolt_multiplier,
     "quick_select_pause": quick_select_pause,
     "quick_select_pages": quick_select_pages,
     "commercials": commercials,
@@ -924,10 +942,18 @@ FEATURES = {
     "cutscene_skip": cutscene_skip,
     "vendor_ammo": vendor_ammo,
 }
+# The builder's choice of Challenge Mode economy: the features each leaves out. "skill", the default, is the bolt
+# multiplier (x1 base); "classic" keeps retail's doubling and limiter (the limiter's 301-351 fix is in both, and the
+# Metal Detector pays 10x in both).
+ECONOMIES = {
+    "skill": (),
+    "classic": ("bolt_multiplier",),
+}
 DEFAULT_FEATURES = [
     "edition_text",
     "metal_detector_10x_modseg",
     "limiter_fade",
+    "bolt_multiplier",
     "quick_select_pause",
     "quick_select_pages",
     "commercials",
@@ -1014,7 +1040,10 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--iso", type=Path, default=None,
                     help="image whose level code to patch (default: the retail image); e.g. a wrench-built one")
+    ap.add_argument("--economy", choices=ECONOMIES, default="skill",
+                    help="Challenge Mode's bolts: skill (x1 base, the multiplier) or classic (retail's x2)")
     args = ap.parse_args()
+    args.features = [f for f in args.features if f not in ECONOMIES[args.economy]]
 
     for f in args.features:
         if f not in FEATURES:

@@ -17,3 +17,6 @@ written yet; these are the decisions so far.
   executables byte-identical to retail, so the installer starts from the
   player's own executable and needs no compiler or decompilation build.
 - **One tool for every edition**, set up by itself as far as possible.
+- **Options the player picks.** The Executive Edition's first: Challenge Mode's economy, "skill" (the default:
+  drops as in a first playthrough, and a bolt multiplier for kills without a hit) or "classic" (retail's doubled
+  drops). Today `tools/pack.sh --economy`.

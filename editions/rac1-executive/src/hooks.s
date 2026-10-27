@@ -129,6 +129,14 @@ ee_metal_detector_spawn:
     j     ee_metal_detector_spawn_c
     addu  $10, $31, $0
 
+/* the bolt drop(moby, low, high, flags, path) from SetDeathBits: five
+ * arguments, $4-$8; the return address goes in $9. */
+.globl ee_bolt_drop
+.extern ee_bolt_drop_c
+ee_bolt_drop:
+    j     ee_bolt_drop_c
+    addu  $9, $31, $0
+
 /* LinkHudBank(bank, address): two integer arguments, so the return address
  * goes in $6 (the HUD arena is level-local; the hook needs the level). */
 .globl ee_hud_link_bank
