@@ -17,7 +17,7 @@ changed, decisions taken, findings that affect other items.
 - The death-count falloff scales the multiplier's bonus, not the base: R&C1's base already falls on a repeat (halved once killed, lower post-mission values). Spawners need nothing special: they recycle placed enemies, each with its own id.
 - Respawns' bonuses take the anti-farm limiter's penalty but not its slow-play bonus, and count towards its rate.
 - Ship combat, turrets, scripted moments and Giant Clank neither pay, climb nor reset the multiplier.
-- No sound on a step. The multiplier is not saved (a session starts at x1); the death counts are, in the save's spare twentieth page, written with the game's own autosaves rather than at every kill.
+- No sound on a step. The multiplier, its progress towards the next step and the death counts are saved, in the save's spare twentieth page, written with the game's own autosaves rather than at every kill; loading a save brings back its multiplier, as in Going Commando.
 - Classic and skill share the Metal Detector's 10x and the limiter fix; one rate, not one per variant.
 
 **Verification.** In PCSX2, on Novalis in a Challenge Mode save: x2 on the fourth kill without a hit, the counter popping up with "x2"; an enemy's hit reset it; each kill raised its enemy's death count, and respawned enemies reached 2; a full save carried the counts to the card, and after more kills the ship's autosave on the flight to Kerwan wrote them again (card and RAM identical). Not yet tried: a turret, ship or Giant Clank section, the exact falloff amounts, a classic build in play, the PS3.
@@ -28,7 +28,7 @@ changed, decisions taken, findings that affect other items.
 
 - Going Commando's multiplier: x20 after 100 kills, reset by any damaging hit, creatures only, not in battle events, with a per-enemy death-count falloff; Going Commando also scales each planet's enemy health and damage in Challenge Mode (Oozla health x12, damage x20). Details in FEATURES.md x1.
 - Measured R&C1 income: one pass of every placed object pays 75,502 from crates and 46,600 from 1,727 enemies; a complete retail Challenge Mode run picks up ~242,000, about five times the old estimate used for x4.
-- The save's twentieth level page now has a layout (src/modseg.h): the Randomizer's record, x1's death counts, and 256 bytes free; one autosave routine writes it for both.
+- The save's twentieth level page now has a layout (src/modseg.h): the Randomizer's record, x1's death counts and saved multiplier, and 254 bytes free; one autosave routine writes it for both.
 - The mod segment outgrew its end limit (0xF2380). A canary test in PCSX2 (the segment's tail filled to 0xFC000 with a pattern, read back at boot, title, in a level, after a save and after quitting) showed no other code writes below 0xFC000 and the title takes the pad, so the limit is now 0xFC000 and the base stays at 0x9E000: about 32 KB of room after x1. Memory below the base (0x95564-0x9E000) stayed zero too. A PS3 check of the canary image is pending.
 
 ## 2026-10-26 (the Randomizer: seed codes and the start)

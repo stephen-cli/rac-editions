@@ -61,8 +61,14 @@
  * The reset. Any hit resets it to x1: the hero's hit points (hero + 0x22A8)
  * going down between two frames, while the hero stays in the same vehicle
  * mode (entering and leaving Clank swaps the hit points) and in neither frame
- * in an excluded section. The multiplier itself lives in the mod segment, not
- * in the save: a session starts at x1, and loading or a level change keep it.
+ * in an excluded section, and not across a level change (loading a save
+ * passes through the title and sets the hit points anew).
+ *
+ * The multiplier and the kills since its last step are saved, as Going
+ * Commando saves its multiplier: they live in the save's twentieth page
+ * (EE_MULTIPLIER_PAGE), which goes to the card the way the death counts do,
+ * so loading a save brings back the multiplier it was saved with. A new game
+ * and the Challenge Mode reset start at x1, with the rest of the page.
  *
  * The HUD. While the multiplier is above x1 the bolt counter shows it in the
  * corner below its bolt icon, as Going Commando does, in orange and fading in
@@ -118,8 +124,11 @@ typedef void (*PrintFn)(s32 x, s32 y, u32 colour, const char *text, s32 limit);
 extern const u16 ee_enemy_first[];      /* build/modseg/gen_enemy_ids.c */
 extern const u16 ee_enemy_ids[];
 
-static s32 multiplier = 1;
-static s32 kills;                       /* kills since the last step */
+/* The saved multiplier (src/modseg.h): a byte each, zero in a save that never had one. */
+#define SAVED_MULTIPLIER (((volatile u8 *)EE_MULTIPLIER_PAGE)[0])  /* 0 or 1 for x1 */
+#define SAVED_KILLS      (((volatile u8 *)EE_MULTIPLIER_PAGE)[1])  /* kills since the last step */
+
+static s32 last_level = -1;
 static s32 last_hit_points = -1;
 static s32 last_vehicle_mode = -1;
 static s32 last_excluded;
@@ -128,6 +137,25 @@ static s32 hud_level;                   /* the program whose HUD the swapped dra
 static s32 in_challenge_mode(void)
 {
     return g_completes > 0 || D_CHALLENGE_FLAG != 0;
+}
+
+static s32 current_multiplier(void)
+{
+    s32 multiplier = SAVED_MULTIPLIER;
+    if (multiplier < 1) {
+        return 1;
+    }
+    return multiplier > MAX_MULTIPLIER ? MAX_MULTIPLIER : multiplier;
+}
+
+static void set_multiplier(s32 multiplier, s32 kills)
+{
+    if (SAVED_MULTIPLIER == multiplier && SAVED_KILLS == kills) {
+        return;
+    }
+    SAVED_MULTIPLIER = (u8)multiplier;
+    SAVED_KILLS = (u8)kills;
+    ee_page19_changed_with_next_save();
 }
 
 /* The sections where the multiplier stands still: hard to play without damage, or not Ratchet's own fight. */
@@ -222,14 +250,16 @@ static void show_bolt_counter(s32 L);
 
 static void count_kill(s32 L)
 {
+    s32 multiplier = current_multiplier();
+    s32 kills = SAVED_KILLS + 1;
     if (multiplier >= MAX_MULTIPLIER) {
         return;
     }
-    kills++;
     if (kills >= 2 * multiplier * multiplier + 2) {
-        multiplier++;
-        kills = 0;
+        set_multiplier(multiplier + 1, 0);
         show_bolt_counter(L);
+    } else {
+        set_multiplier(multiplier, kills);
     }
 }
 
@@ -259,7 +289,7 @@ void ee_bolt_drop_c(void *moby, s32 low, s32 high, s32 flags, s32 path, u32 ra)
     }
     amount = low + LVL(L, func_002140B0, RandomFn)(high - low + 1);
     drop(moby, amount, amount, flags, path);
-    bonus = amount * (multiplier - 1) * falloff[deaths] / 100;
+    bonus = amount * (current_multiplier() - 1) * falloff[deaths] / 100;
     respawn = is_respawn(L, moby);
     if (respawn) {
         bonus = bonus * limiter_penalty(L, amount) / 1000;
@@ -313,10 +343,11 @@ void ee_bolt_multiplier_frame(s32 L)
     s32 vehicle_mode = HERO_VEHICLE_MODE;
     s32 excluded = excluded_section();
 
-    if (vehicle_mode == last_vehicle_mode && !excluded && !last_excluded && hit_points < last_hit_points) {
-        multiplier = 1;
-        kills = 0;
+    if (L == last_level && vehicle_mode == last_vehicle_mode && !excluded && !last_excluded
+        && hit_points < last_hit_points && in_challenge_mode()) {
+        set_multiplier(1, 0);
     }
+    last_level = L;
     last_hit_points = hit_points;
     last_vehicle_mode = vehicle_mode;
     last_excluded = excluded;
@@ -347,6 +378,7 @@ static s32 bolts_draw(void *slot)
     s32 L = hud_level;
     u8 *s = (u8 *)slot;
     s32 width = LVL(L, func_L00_0023A788, SlotDrawFn)(slot);
+    s32 multiplier = current_multiplier();
     s32 text_frames, alpha, x, y;
     char text[4];
 

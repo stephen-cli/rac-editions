@@ -220,14 +220,16 @@ void ee_bolt_multiplier_frame(s32 level);
  * fixed offset, zero meaning nothing recorded:
  *   0x000-0x1FF  the Randomizer's record (rz2, src/randomizer_save.c; EE_RZ_RECORD_SIZE bytes used)
  *   0x200-0x6FF  x1: the enemies' death counts, a nibble per enemy tools/gen_enemy_ids.py lists (2,279 of 2,560)
- *   0x700-0x7FF  free
+ *   0x700-0x701  x1: the multiplier (0 for x1) and the kills since its last step
+ *   0x702-0x7FF  free
  * Retail's autosaves write the game blob and the current level's page only, so the edition writes this page
- * itself (src/randomizer_save.c): at once for the Randomizer's record, with the game's next autosave for the
- * death counts. */
+ * itself (src/randomizer_save.c): at once for the Randomizer's record, with the game's next autosave for x1's
+ * data. */
 #define EE_PAGE19           0x0014B7C0
 #define EE_PAGE19_BYTES     0x800
 #define EE_DEATHS_PAGE      (EE_PAGE19 + 0x200)
 #define EE_DEATHS_BYTES     0x500
+#define EE_MULTIPLIER_PAGE  (EE_PAGE19 + 0x700)
 void ee_page19_changed(void);           /* the page goes to the card on the next gameplay frame */
 void ee_page19_changed_with_next_save(void);     /* the page goes to the card after the game's next autosave */
 void ee_page19_game_saved(void);        /* the game's memcard_Save ran (src/randomizer_play.c's wrapper) */

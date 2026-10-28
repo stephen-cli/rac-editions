@@ -215,9 +215,14 @@ enemy (166 bolts on Gemlik).
 - The reset: once a frame, from the HUD update hook, the hero's hit points
   (hero + 0x22A8) going down while the vehicle mode stays the same (entering
   and leaving Clank swaps the hit points) and outside excluded sections in
-  both frames sets it back to x1. The multiplier lives in the mod segment,
-  not in the save, so saves stay retail's: a session starts at x1, and
-  loading or a level change keep it.
+  both frames sets it back to x1; a level change (loading a save passes
+  through the title) starts the comparison afresh.
+- The multiplier is saved, as Going Commando saves its own: it and the
+  kills since its last step are two bytes in the same page (0x700), written
+  the way the death counts are, so loading a save brings back the
+  multiplier and the progress towards the next step it was saved with. A
+  new game and the Challenge Mode reset start at x1; saves without the
+  bytes load at x1.
 - The HUD: the bolt counter's slot draws HudBoltsDraw (func_L00_0023A788);
   each frame the HUD update swaps the slot's draw for the edition's, which
   draws retail's counter and then "x2"-"x5" in orange, right-aligned under
