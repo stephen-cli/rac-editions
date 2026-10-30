@@ -7,15 +7,21 @@ whole in RAM, each listed in the core index's class table with its blob's
 offset. An extra class goes in the same way, as tools/splice_boots.py puts the
 Charge Boots class into every level: the blob and its textures' pixels where
 the moby class blobs end, and a class table entry with its offset, so that the
-level's loader registers it like its own. Today: the infobot (class 750) on the
-five levels without it (Aridia, Gaspar, Pokitaru, Kalebo III, Veldin), taken
-from Novalis's data, for the Randomizer's stand-ins of Gold Bolt spots and
-world pickups that hold an infobot (src/randomizer_play.c).
+level's loader registers it like its own. For the Randomizer's stand-ins of
+items in the world (src/randomizer_world.c): the infobot (class 750) on the
+five levels without it (Aridia, Gaspar, Pokitaru, Kalebo III, Veldin), from
+Novalis's data, and the items that exist on one planet only, each from its
+own planet: the Hoverboard (84, Aridia), the Zoomerator (1002, Rilgar), the
+Nanotech can (645, Orxon), the Codebot (1428, Quartu), the Raritanium (37,
+Hoven).
 
-It costs those levels its 0x15140-byte blob and 0x5000 bytes of pixels in the
-core, which moves the level's heap and its last block, the effect pool, that
-much nearer the stack: with it they keep 0x40000 or more under the stack (Blarg,
-which keeps its own infobot, is the tight level at 82 KB). A first version
+Each moves the level's heap and its last block, the effect pool, nearer the
+stack by its blob and its pixels: the infobot 0x1A200 bytes, the five items
+some 139 KB together. A level too near the stack goes without the items
+(SKIP), and their stand-ins there are the chicken. The engine has room for 224
+classes a level (splice_boots.MAX_CLASSES): a level near that gets the extra
+classes in EXTRA's order while they fit (Batalia all but the Codebot, Gemlik
+the can, the Hoverboard and the Zoomerator). A first version
 carried the blob compressed and loaded it at run time into a third part of the
 gadget buffer, whose room came out of the HUD arena: the menus' icons no longer
 fit there and decompressed over address 0.
@@ -40,8 +46,26 @@ sys.path.insert(0, str(HERE))
 from splice_boots import (SECTOR, TOC_LBA, LEVEL_TABLE, MAX_CLASSES, MAX_SLOT, INDEX_POINTERS,   # noqa: E402
                           table, core_pointers, shift_textures, recompress)
 
-EXTRA = {750: "infobot"}            # class id -> name; what a level gets when its data lacks the class
-SOURCE_LEVEL = 1                    # Novalis: its data has every extra class
+# class id -> (name, the level whose data it is copied from); what a level gets when its data lacks the class, in
+# this order while its class table has room: the infobot first (it hosts checks), then the can (two items' model),
+# the Codebot last (the largest)
+EXTRA = {
+    750: ("infobot", 1),
+    645: ("Nanotech can", 10),      # the Orxon Nanotech vendor's
+    84: ("Hoverboard", 2),          # Skid's, from Aridia's cutscene
+    1002: ("Zoomerator", 5),        # the Rilgar race's prize
+    37: ("Raritanium", 12),         # Hoven's pickup
+    1428: ("Codebot", 15),          # the pickup's, as on Drek's Fleet
+}
+# Levels too near the stack for the one-planet items (their copies would move the effect pool up by some 139 KB):
+# there those items' stand-ins stay the chicken (src/randomizer_world.c). Measured free RAM above the pool in
+# PCSX2, 2026-10-30 (docs/FEATURES.md).
+ONE_PLANET_ITEMS = (84, 1002, 645, 1428, 37)
+SKIP = {
+    5: ONE_PLANET_ITEMS,                # Rilgar: 77 KB
+    6: ONE_PLANET_ITEMS,                # Blarg: 82 KB
+    15: ONE_PLANET_ITEMS,               # Quartu: 135 KB
+}
 LEVELS = 19
 SPAN_FIXED = 2                      # the sound block's spans before the classes': the slot table, the remap
 TAIL_SECTORS = 32                   # after a relocated archive: the stream reader reads past the end
@@ -87,18 +111,22 @@ def assemble(head: bytes, data: dict, names, sections) -> bytes:
     return bytes(out)
 
 
-def missing(index: bytes) -> list[int]:
-    """The extra classes this level's data lacks."""
+def missing(index: bytes, level: int) -> tuple[list[int], list[int]]:
+    """The extra classes LEVEL's data lacks: those it gets, and those its class table has no room for."""
     _, _, classes = table(index, 0x18, 32)
     ids = [struct.unpack_from("<i", e, 4)[0] for e in classes]
-    return [cid for cid in EXTRA if cid not in ids]
+    lacks = [cid for cid in EXTRA if cid not in ids and cid not in SKIP.get(level, ())]
+    room = MAX_CLASSES - len(ids)
+    if 750 in lacks[room:]:
+        raise SystemExit(f"level {level}: no room for the infobot class")
+    return lacks[:room], lacks[room:]
 
 
 def texture_size(w: int, h: int, mips: int) -> int:
     return sum((w >> i) * (h >> i) for i in range(max(mips, 1)))
 
 
-def class_source(core: bytes, index: bytes, gs: bytes, cid: int):
+def class_source(core: bytes, index: bytes, gs: bytes, cid: int, level: int):
     """CID's blob and its textures, from a level that has it: [(entry, pixels, palette, upload)]."""
     _, _, classes = table(index, 0x18, 32)
     _, _, textures = table(index, 0x38, 16)
@@ -108,7 +136,7 @@ def class_source(core: bytes, index: bytes, gs: bytes, cid: int):
     starts = sorted(struct.unpack_from("<i", e)[0] for e in classes if struct.unpack_from("<i", e)[0] > 0)
     entry = next((e for e in classes if struct.unpack_from("<i", e, 4)[0] == cid), None)
     if entry is None or struct.unpack_from("<i", entry)[0] <= 0:
-        raise SystemExit(f"class {cid} has no data in level {SOURCE_LEVEL}")
+        raise SystemExit(f"class {cid} has no data in level {level}")
     start, = struct.unpack_from("<i", entry)
     after = [s for s in starts if s > start]
     blob = core[start:min(after) if after else resident_end]
@@ -177,13 +205,13 @@ def rebuilt_sound_block(index: bytes, classes: int) -> bytes:
     return bytes(out)
 
 
-def splice_level(archive: bytes, names, sources: dict, wad, wrench: Path, work: Path):
+def splice_level(archive: bytes, level: int, names, sources: dict, wad, wrench: Path, work: Path):
     """ARCHIVE with every extra class it lacks, or None when it lacks none. SOURCES: class id ->
     (blob, textures) from class_source. Returns (archive, report)."""
     head, data, sections = parts(archive, names)
     index = bytearray(data["core_index"])
     gs = bytearray(data["gs_ram"])
-    wanted = missing(index)
+    wanted, left_out = missing(index, level)
     if not wanted:
         return None, None
     n_cls, classes_at, classes = table(index, 0x18, 32)
@@ -288,7 +316,7 @@ def splice_level(archive: bytes, names, sources: dict, wad, wrench: Path, work: 
 
     data.update(core_index=bytes(index), gs_ram=bytes(gs), core_data=new_stream)
     out = assemble(head, data, names, sections)
-    return out, {"classes": wanted, "core_grew": delta, "shifted": shifted, "insert": insert_at,
+    return out, {"classes": wanted, "left_out": left_out, "core_grew": delta, "shifted": shifted, "insert": insert_at,
                  "stream_grew": len(new_stream) - stream_size, "archive": len(out) - len(archive)}
 
 
@@ -303,20 +331,21 @@ def splice(args) -> int:
         if f.tell() % SECTOR:
             raise SystemExit("the image is not a whole number of sectors")
         archives = level_archives(f)
-        _, lba, sectors = archives[SOURCE_LEVEL]
-        f.seek(lba * SECTOR)
-        _, data, _ = parts(f.read(sectors * SECTOR), SECTION_NAMES)
-        core = wad(data["core_data"])
-        sources = {cid: class_source(core, data["core_index"], data["gs_ram"], cid) for cid in EXTRA}
-        for cid, (blob, texes) in sources.items():
-            print(f"class {cid} ({EXTRA[cid]}) from level {SOURCE_LEVEL}: {len(blob):#x} bytes, "
+        sources = {}
+        for cid, (name, source) in EXTRA.items():   # all read before any level is spliced
+            _, lba, sectors = archives[source]
+            f.seek(lba * SECTOR)
+            _, data, _ = parts(f.read(sectors * SECTOR), SECTION_NAMES)
+            sources[cid] = class_source(wad(data["core_data"]), data["core_index"], data["gs_ram"], cid, source)
+            blob, texes = sources[cid]
+            print(f"class {cid} ({name}) from level {source}: {len(blob):#x} bytes, "
                   f"{len(texes)} textures ({sum(len(p) for _, p, _, _ in texes):#x} bytes)")
         moved = 0
         for level in range(LEVELS):
             header_lba, data_lba, data_sectors = archives[level]
             f.seek(data_lba * SECTOR)
             archive = f.read(data_sectors * SECTOR)
-            new, info = splice_level(archive, SECTION_NAMES, sources, wad, args.wrench, work)
+            new, info = splice_level(archive, level, SECTION_NAMES, sources, wad, args.wrench, work)
             if new is None:
                 continue
             if len(new) <= len(archive):
@@ -334,6 +363,8 @@ def splice(args) -> int:
             print(f"level {level:2d}: classes {info['classes']} at {info['insert']:#x} "
                   f"({info['shifted']} offsets shifted), core +{info['core_grew']:#x}, "
                   f"archive {info['archive']:+#x} against the one before, {where}")
+            if info["left_out"]:
+                print(f"level {level:2d}: no room in the class table for {info['left_out']}")
         f.seek(0, 2)
         print(f"{args.image.name}: {moved} level archives moved to the end; image {f.tell() // SECTOR} sectors")
     return 0

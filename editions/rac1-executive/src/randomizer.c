@@ -105,7 +105,7 @@ static const struct RzCheck checks[RZ_CHECKS_BASE] = {
     { RILGAR, INFOBOT, IB(UMBRIS), GOT, P(5) | SWING | DISPLACER, { JUMP, 0, 0 }, 0 }, /* 25 the bouncer, Captain Qwark (UnlockPlanet(7)) */
     { RILGAR, GADGET, RZ_ZOOMERATOR, WON, P(5) | BOARD, { JUMP, 0, 0 }, 0 },     /* 26 the hoverboard race */
     { RILGAR, VENDOR, RZ_MINE_GLOVE, GOT, P(5) | DETECTOR, { 0, 0, 0 }, 0 },      /* 27 vendor: Mine Glove */
-    { RILGAR, VENDOR, RZ_RYNO, GOT, P(5) | DETECTOR, { JUMP, 0, 0 }, 0 },         /* 28 the RYNO */
+    { RILGAR, GADGET, RZ_RYNO, GOT, P(5) | DETECTOR, { JUMP, 0, 0 }, 0 },         /* 28 the RYNO salesman */
     { RILGAR, BOLT, GB, 0, P(5), { JUMP, 0, 0 }, 0 },                           /* 29 the maze */
     { RILGAR, BOLT, GB, 0, P(5) | SWING | DISPLACER | O2, { JUMP, 0, 0 }, 1 },  /* 30 the waterworks */
     /* Blarg Tactical Research Station */

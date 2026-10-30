@@ -2,6 +2,8 @@
  *
  *   src/randomizer_play.c    the checks: the hooks that turn a retail grant into the seed's item, the collected
  *                            view the givers see, the autosaves, the early-O2 fixes
+ *   src/randomizer_world.c   what the world shows for a check (the stand-ins of Gold Bolt spots, world pickups and
+ *                            world infobots holding another item) and how it is taken
  *   src/randomizer_text.c    the banners that name what was received, and the givers' prompts with the item's
  *                            name hidden
  *   src/randomizer_vendor.c  the Gadgetron vendor's list, and its mystery entries (the tile, "???", the chicken)
@@ -76,6 +78,15 @@ const char *ee_msg_string_edition(s32 id);          /* src/text.c */
 /* randomizer_play.c */
 s32 rz_play_active(void);                           /* the game in memory is a Randomizer save */
 s32 rz_play_owned(s32 item_id);                     /* the item is really owned, whether or not the view is on */
+void rz_play_collect(s32 check, s32 L);             /* CHECK collected now: its item, once, with its banner */
+s32 ee_rz_save_c(s32 slot, s32 flags, s32 L);       /* memcard_Save, with the collected view off around it */
+
+/* randomizer_world.c */
+void rz_world_forget(void);                         /* a level's visit starts: no stand-ins yet */
+s32 rz_world_before(void *moby, void (*update)(void *), s32 L); /* 1: it ran MOBY's update, or none must run */
+void rz_world_after(void *moby, s32 L);             /* after MOBY's update */
+void rz_world_before_save(s32 L);                   /* memcard_Save is called: a live stand-in bolt's touch */
+void rz_world_frame(s32 L);                         /* each gameplay frame */
 
 /* randomizer_text.c */
 void rz_show_item_banner(s32 check, s32 item, s32 L);   /* "You found the ...!" for ITEM received at CHECK */
@@ -85,5 +96,6 @@ void rz_vendor_note_purchase(s32 vendor_item_id, s32 reward_item_id);  /* a vend
 void rz_vendor_forget_purchase(void);
 void rz_vendor_menu_closed(void);                   /* a gameplay frame ran: the vendor's menu is not up */
 s32 rz_vendor_menu_open(void);
+s32 rz_vendor_purchase_selected(s32 L);              /* the vendor's cursor is on a purchase entry (a check) */
 
 #endif

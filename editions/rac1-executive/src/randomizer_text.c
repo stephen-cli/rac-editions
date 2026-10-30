@@ -17,11 +17,14 @@
  * there ("Buy the Swingshot for 1,000 bolts"), which is not what the check
  * gives. Every string msg_string hands out passes through ee_rz_redact_c
  * (src/text_hook.s), which replaces the name of each uncollected check's
- * item on the current planet with "???", and while the vendor's menu is up
- * the names of every uncollected vendor check's item too, as a vendor sells
- * the stock of every planet visited. The pause menu is left alone (it names
- * the items owned), as are the edition's own strings (its banners name the
- * reward). A HelpDesk line on that planet naming the item reads "???" too. */
+ * item on the current planet with "???" ("Buy ??? for 150,000 bolts" from
+ * Rilgar's RYNO salesman). While the vendor's menu is up only the vendor
+ * checks' names are replaced, those of every planet, as a vendor sells the
+ * stock of every planet visited, and only while the cursor is on a purchase
+ * entry: an ammo entry is for a weapon owned and names it. The pause menu is
+ * left alone (it names the items owned), as are the edition's own strings
+ * (its banners name the reward). A HelpDesk line on that planet naming the
+ * item reads "???" too. */
 #include "randomizer_play.h"
 
 #define LANGUAGES       8               /* the game's language ids, g_language */
@@ -221,6 +224,21 @@ static const char *redact_name(const char *text, const char *name)
     return out;
 }
 
+/* TEXT is retail's banner for an infobot ("Infobot for Planet Aridia acquired"), which a check giving its own
+ * infobot shows: it names what was just got, and the word "Infobot", an infobot check's name, stays. */
+static s32 infobot_banner(const char *text)
+{
+    s32 planet;
+    for (planet = 0; planet < 18; planet++) {
+        const char *banner = word(ee_rz_infobot_banners[planet]);
+        s32 length = banner != 0 ? text_length(banner) : 0;
+        if (length > 0 && starts_with(text, banner, length) && text[length] == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* The name CHECK's giver uses for its item, in the game's language; 0 for a Gold Bolt spot. */
 static const char *check_name(s32 check)
 {
@@ -244,14 +262,15 @@ const char *ee_rz_redact_c(const char *text, s32 id, s32 L)
 {
     s32 check, checks;
     if (text == 0 || !rz_play_active() || L < 0 || L >= LEVELS || edition_string(id)
-        || *(volatile s32 *)LVL_DATA(L, game_mode, u8 *) == MODE_PAUSE) {
+        || *(volatile s32 *)LVL_DATA(L, game_mode, u8 *) == MODE_PAUSE || infobot_banner(text)) {
         return text;
     }
     checks = ee_rz_bonus_planet() != 0 ? RZ_CHECKS_MAX : RZ_CHECKS_BASE;
     for (check = 0; check < checks; check++) {
         const struct RzCheck *row = rz_check(check);
         s32 sold_by_vendor = row == 0 || row->kind == RZ_KIND_VENDOR;
-        s32 relevant = sold_by_vendor ? rz_vendor_menu_open() : row->planet == L;
+        s32 relevant = rz_vendor_menu_open() ? sold_by_vendor && rz_vendor_purchase_selected(L)
+                                             : !sold_by_vendor && row->planet == L;
         const char *name, *redacted_text;
         if (ee_rz_check_collected(check) || !relevant) {
             continue;

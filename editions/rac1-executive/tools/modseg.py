@@ -62,6 +62,12 @@ LEVEL_DATA = {
     "class_slot_by_id": ("func_00226720", 0x4, 0xC),
     # resident class slot -> class data (D_001B3580), from the class loader's lui/addiu
     "class_resources": ("func_00205270", 0x70, 0x13C),
+    # rz: LoadMobyClassResources's state, from its own lui/lw pairs: the directory entry last unpacked (a cache:
+    # the same class again is not unpacked), the decode buffer it went to (0 or 1), and the level's buffer table
+    # (D_00174300 in level 1), whose fifth entry is the base of the two 0x18000-byte decode buffers
+    "class_unpacked": ("func_00205270", 0x4, 0x8),
+    "class_decode_buffer": ("func_00205270", 0xD0, 0xD4),
+    "level_buffers": ("func_00205270", 0x5C, 0xE0),
     # the HUD arena (D_0019A4E8 in the executable: header pointer at +0x18, table pointers at +0x1C..+0x28),
     # from load_hud_banks' lui/addiu
     "hud_arena": ("func_002032D0", 0x84, 0x8C),
@@ -93,6 +99,12 @@ LEVEL_DATA = {
     # Vendor_InitItemDisplay's per-item offsets of the panel's model (D_001C8C20, 0x30 an item)
     "vendor_pose": ("func_L00_0029C9E8", 0xA0, 0xAC),
     "vendor_sounds": ("func_L00_0029B770", 0x74, 0x7C),
+    # rz: the vendor's weapon demos (D_L00_001CA320 in level 0: per item id, the scene the exit plays, -1 none),
+    # from start_vendor_exit_cutscene's lui/addiu
+    "vendor_demos": ("func_L00_0029C070", 0x160, 0x16C),
+    # rz: the vendor hologram's per-item pose (D_L00_001C9C30 in level 0: 0x30 an item id, rot.x and rot.y at
+    # +0x10), from VendorMenuUpdate's lui/addiu
+    "vendor_holo_pose": ("func_L00_0029D988", 0x908, 0x914),
     # rz2: the save layout tables (D_001A05C0 the game's records, D_001A08C0 a level page's: {address, size, id, 0}
     # to a zero address), from memcard_RestoreGame's lui/addiu pairs; the Randomizer's record offset in a file
     "save_game_table": ("func_00209CE8", 0x4, 0x10),
@@ -130,6 +142,17 @@ def run(cmd, cwd=None):
         print(r.stdout + r.stderr, file=sys.stderr)
         raise SystemExit(f"command failed ({r.returncode})")
     return r.stdout
+
+
+# The executable's functions LVL() names only for the title screen's programs: no level has a copy, and their
+# level entries are 0. Any other name the overlay catalogue lacks is an error, not a 0 to jump to: a level's copy of
+# an executable function goes by its func_L00_ name (refresh_moby_spatial_bounds, func_0020ED48 in the executable, is
+# func_L00_00251E30; through LVL() its executable name gave every level 0, and a stand-in Gold Bolt's call jumped
+# there, on Orxon on to 0x44800000).
+TITLE_ONLY = {"func_001EB7C0", "func_0021A610", "func_00219E90"}
+# Level functions Veldin's tutorial (level 0) lacks, which LVL() names only from Randomizer code that runs at a check's
+# host: the tutorial has no checks, and its entry is 0. The Gold Bolt's glow (the chicken stand-in's).
+NOT_IN_TUTORIAL = {"func_L01_00309848", "func_L01_00309928"}
 
 
 def catalogue(openrac: Path) -> dict[str, dict[int, int]]:
@@ -244,11 +267,13 @@ def main() -> int:
                 name = LEVEL_SYM.match(s).group(1)
                 if name in places:
                     addrs = [places[name].get(level) for level in range(19)]
+                    if addrs[0] is None and name in NOT_IN_TUTORIAL:
+                        addrs[0] = 0                  # never called there
                     if any(a is None for a in addrs):
                         missing = [level for level, a in enumerate(addrs) if a is None]
                         raise SystemExit(f"{name} is not in every level (missing {missing});"
                                          " LVL() needs a shared function")
-                elif not name.startswith("func_L") and any(fe[name]):
+                elif name in TITLE_ONLY and any(fe[name]):
                     addrs = [0] * 19                  # only the executable has it: the title screen's
                 else:
                     raise SystemExit(f"{name} is not in the overlay catalogue")

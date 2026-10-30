@@ -3482,7 +3482,7 @@ infobot. The Charge Boots are a dead end nothing needs.
 **Seed codes.** Nine presses of eleven buttons, as digits 0-10: Up, Right,
 Down, Left, Cross, Circle, Square, L1, L2, R1, R2. The first eight are
 seed * 64 + weapon mode * 16 + logic version in base 11, most significant
-first: 4 bits of version (RZ_LOGIC_VERSION, 2; bump it on any change to
+first: 4 bits of version (RZ_LOGIC_VERSION, 4; bump it on any change to
 rules, pool or algorithm), 2 bits reserved for the starting weapon modes
 (only vanilla is implemented, any other is refused), 3,349,357 seeds. The
 ninth makes 1 * d0 + 2 * d1 + ... + 9 * d8 a multiple of 11, which catches
@@ -3622,7 +3622,7 @@ a new code. Triangle backs out at any point.
 
 **Tests.** `bash tools/test_randomizer.sh` (gcc; WSL's where the machine
 has none) builds tests/randomizer_test.c against src/randomizer.c: the
-tables (54 non-bolt checks, 40 bolt spots, 12 vendor entries, every item
+tables (54 non-bolt checks, 40 bolt spots, 11 vendor entries, every item
 retail gives given exactly once but the start's two), 2,000 seeds per pool
 (every layout complete, deterministic, a permutation of the pool; at most
 3 fills were needed; progression items sit at check 42-43 on average of
@@ -4070,10 +4070,12 @@ it first and hands the string, the id and the program to ee_rz_redact_c
 (src/randomizer_play.c), which, in a Randomizer save outside the pause menu
 and for retail's own ids, replaces the name of every uncollected check's
 item on the current planet with "???" (an infobot check's "Infobot"; the
-game's names from the text table, tools/gen_randomizer.py), and while the
-vendor's menu is up the names of every uncollected vendor check's item too,
-since a vendor sells the stock of every planet visited (the Charge Boots by
-the edition's name). The result lives in one of four buffers while the
+game's names from the text table, tools/gen_randomizer.py). While the
+vendor's menu is up it replaces instead the names of every uncollected
+vendor check's item, since a vendor sells the stock of every planet visited
+(the Charge Boots by the edition's name), and only while the cursor is on a
+purchase entry: an ammo entry is for a weapon owned and names it, where
+every weapon's but the Bomb Glove's read "???" before 2026-10-29. The result lives in one of four buffers while the
 caller draws it. Side effect, accepted: a HelpDesk line on that planet
 naming the item reads "???" too. The vendor's menu being up is a flag the
 list hook sets and the gameplay frame clears (no gameplay frame runs while
@@ -4458,3 +4460,291 @@ stays there; no grey slab. Standing on the three floor pads of the second
 field's set took the group to state 7; the field cleared its collision
 and Ratchet walked through. The wall-mounted pads of the first field
 (struck, hero state 0x11) were not tested.
+
+## rz: the hoverboard races, Skid's agent, the RYNO salesman, the vendor's ammo names, the Pilot's Helmet and moved stand-ins (2026-10-29) â€” fixed; awaiting the owner's test
+
+**The collected view covers the planet's own checks.** A giver's reward is
+always a check of its own planet; what else it tests is a prerequisite.
+The view replaced every check's byte, so a prerequisite read as "that
+other check collected" rather than "owned". Skid's agent on Aridia
+(class 786) starts his trade from his dialog table (process_menu_entry,
+func_00217AE8: entry kind 2 tests an item owned, kind 3 an item owned
+and not had, kind 4 a special item's flag); his entry 1 tests
+`D_0013D490[0]`, the Zoomerator, which under the view meant "the Rilgar
+race's check collected", so with the Zoomerator from anywhere else, or
+from the race itself (below), he never traded. The Gadgetron CEO on
+Kalebo III (class 1455, func_L16_002E7C70) tests the Hoverboard's
+inventory byte, which meant "Skid's check collected". The view now
+replaces only the bytes whose check is on the planet being played
+(`in_view`); every other byte keeps the truth, and keeps what the giver
+does to it. The trade's entry does not take the Zoomerator (its flags
+lack bit 8, with which Npc_TryStartDialog clears a kind-4 entry's flag).
+
+**The Rilgar race.** The race's host (UpdateMoby_918, func_L05_00317F80)
+sets the Zoomerator's flag itself at a win, then shows "You won a
+Platinum Zoomerator!" (0x1395) and, for a skill point, 0x53DB, then
+autosaves; it called no GiveItem, so it was never a giver: the win gave
+the real Zoomerator, the check stayed uncollected, and the banner read
+"You won a Platinum ???!" (its name redacted, as the check's). The class
+is a giver now (tools/gen_randomizer.py GIVER_FUNCTIONS): under the view
+its flag test at the race's start reads the check, and the flag it sets
+at a win is the check collected. Its ShowBanner calls are hooked
+(FLAG_BANNER_FUNCTIONS): a banner shown while a special item's byte has
+turned 1 under the view collects that check on the spot, with the
+Randomizer's "You won a ...!" for the seed's item. A save whose race was
+won before this keeps the real Zoomerator and the race's check open: the
+next win collects it.
+
+**The RYNO salesman** (Rilgar, class 925) is a character, not a
+Gadgetron vendor entry: the check's kind is RZ_KIND_GADGET, so his lines
+read "Buy ??? for 150,000 bolts" until it is collected (vendor checks
+are redacted only while the vendor's menu is up). Eleven vendor checks
+remain; the logic and the seed codes are unchanged.
+
+**The vendor's ammo names.** While the vendor's menu is up only the
+vendor checks' names are redacted, and only while the cursor is on a
+purchase entry: an ammo entry names the weapon owned. Every weapon's
+ammo but the Bomb Glove's (no check) read "??? Ammo".
+
+**The Pilot's Helmet pickup** (Moby1290Update, func_L00_002E1850) puts
+the helmet on Ratchet itself after its GiveItem (`D_00141510 = 7`, the
+head slot GiveItem fills for a type-2 item): with the check giving
+something else, Ratchet wore a helmet he did not own. After a giver's
+update, a head slot holding the Pilot's Helmet without the helmet owned
+goes back to what the update's grant left there.
+
+**Stand-ins follow a moved host.** On Eudora, with Ratchet some 80 units
+from the Suck Cannon pickup (class 1120), the game moves the level's
+mobys down a slot (the pickup to the next lower address, the Eudora
+lieutenant into its old one). The stand-in named the old address as its
+host, so it was forgotten, left to run the infobot's own update, and a
+new one was made; with no free moby at that moment (CreateMoby keeps a
+freed slot for two frames) the pickup got its own model back, showing
+the Suck Cannon where the seed had an infobot. A stand-in now carries
+STAND_IN_MARK at its pvars + 0: a marked infobot never runs its update,
+and one whose host moved is found by the old address and follows. A host
+waiting for its stand-in stays drawn at scale 0.
+
+**An infobot for a planet already open.** UnlockPlanet
+(func_L00_00261848) returns at once for a planet already unlocked and
+shows no banner for the current level, so such a grant passed unseen;
+the Randomizer's banner is shown for it.
+
+**Tested in PCSX2** (the test save, the record changed over PINE):
+Eudora's pickup with an infobot from 134 units down to 8: one marked
+stand-in throughout, the pickup at scale 0 before and after the move at
+about 80 units. Skid's agent with the Zoomerator's flag set and the
+race's check open: his dialog took entry 2 (kind 4, the Zoomerator) and
+traded, the Sonic Summoner check collected, the Zoomerator kept; with
+the flag clear, entry 1 and no trade in 120 s. Gaspar's helmet pickup
+giving the PDA: the check collected, the head slot 0, Ratchet in his
+own cap with the PDA. Not tried: a race won (Rilgar or Kalebo III), the
+RYNO salesman's lines, the vendor's ammo names, the Kalebo CEO's offer.
+
+## rz: a check in the world shows its item (2026-10-29) â€” first part built; tested in PCSX2
+
+**What it does.** A Gold Bolt spot, a world pickup or a world infobot whose
+check holds another item than its own shows that item's model in its place,
+and its touch takes the check at once (no item has a cutscene that plays on
+any planet). An infobot holds still, as InfobotUpdate keeps one at rest;
+anything else turns about its upright axis at a quarter turn a second, the
+rate of the game's own pickups. A Gold Bolt at a pickup or an infobot is a
+live bolt, with its turn, its bob and the hold-up of every Gold Bolt; a
+weapon plays the vendor's demo of it.
+Code: `src/randomizer_world.c`, which took over the infobot stand-ins of
+2026-10-26 (src/randomizer_play.c keeps the checks and the collected view).
+
+**The hosts.** Gold Bolt spots (class 1134), the world pickups (the
+Trespasser, Suck Cannon, Hydrodisplacer, Pilot's Helmet, Magneboots,
+Raritanium, Morph-o-Ray, Bolt Grabber and Codebot) and the world infobots
+(class 750, InfobotUpdate) whose check is one of their planet's own (the
+Kerwan train's, Orxon's two, ...). A host whose check holds its own item
+plays as retail. Otherwise its stand-in, a moby of the item's class made by
+CreateMoby, takes the host's place every frame, so it follows a host that
+moves: the Kerwan infobot rides the train in its state 5 and then flies its
+paths. A spot takes its touch quietly (pvars + 0xC); a pickup's touch is
+taken before its update starts its cutscene; an infobot is taken as it turns
+to its message (state 8), deleted, with its check's banner and an autosave.
+
+**The models.** A stand-in's class must be in the level's memory. Every
+level has the infobot, the Gold Bolt, and the gadgets Ratchet wears, each
+the class of its item record (+0x10 of the 0x4C-byte records): the Sonic
+Summoner (433), the O2 Mask (1289), the Pilot's Helmet (1290), the
+Magneboots (173), the Grindboots (195), the Map-o-Matic (614), the Bolt
+Grabber (618), the Persuader (407), the drone of the Drone Device (479) and
+the Charge Boots (2000). The packs are drawn on a Clank (601), as the Gadgets
+page shows them: the Heli-Pack's top rotor and hand rotors (607, deployed by
+its sequence 6, as the Gadgets page plays it), the Thruster-Pack's thrusters
+(608) and the Hydro-Pack's pods (609). The Map-o-Matic, the Bolt Grabber and
+the Persuader are drawn three and four times their size. Clank, the packs and
+those gadgets are attachments of Ratchet's: CreateMoby gives their mobys
+flags the visibility list skips (+0x34 bit 2) and, for some, no animation
+(bit 0x40), so they were drawn nowhere; a stand-in clears both, and plays its
+sequence 1 as the Gadgets page does, without which the pieces skinned to the
+class's joints are shrunk (the Hydro-Pack's back pod). The weapons and the gadgets Ratchet holds live compressed in each
+level's gadget directory, unpacked into one of two 0x18000-byte decode
+buffers only while held or shown by the vendor (LoadMobyClassResources,
+func_00205270, which maps their materials onto textures the level keeps
+resident); the Hoverboard, the Zoomerator, the Nanotech cans, the Codebot, the
+Raritanium exist on one planet only, and are copied into the other levels'
+data (below). A model a level has no room for is the Morph-o-Ray's chicken
+(class 270, in every level).
+
+**The weapons and the gadgets Ratchet holds.** A stand-in unpacks its own
+copy of the class. The gadget directory is the core index's {count, offset}
+at +0x80, entries {core offset, class id, compressed size, 0}; the 21
+classes unpack to 0x5D50-0x16340 bytes (tools/gen_randomizer.py measures
+them from the disc). The copy goes into the free RAM above the effect pool:
+the pool is the last of the level's allocations, the edition's searches
+only its first 0x400 records of 0x40 bytes, and retail leaves 48 KB between
+a full pool and the top of RAM, so from record 0x400 to 64 KB below the top
+nothing is used (several hundred KB on most levels, some 34 KB on Blarg
+Station). The pool's start is a word every level program reads from $gp in
+create_part2 (func_L00_00268760), 0x1601EC or 0x16022C. LoadMobyClassResources
+itself unpacks it, with its decode buffers' base (the fifth entry of the
+level's buffer table) pointed there for the call and its cache of the entry
+last unpacked and its buffer put back after, so it also maps the materials
+onto the level's resident textures and fills the class's runtime table. The
+class's slot is pointed at the copy every frame the stand-in is carried (the
+vendor showing that weapon points it at its own buffer). Six models a visit
+at most; one with no room is the chicken. A weapon's origin is its grip, so
+these stand-ins, and the Persuader, are placed by their bounding sphere's
+centre (+0x00, floats in 1/1024 units), a frame late as they turn.
+
+**The one-planet items.** tools/extra_classes.py copies each class, with its
+textures' pixels and palettes, from its own planet's data into every level
+lacking it, as it copies the infobot: the Hoverboard (84, Aridia's cutscene),
+the Zoomerator (1002, Rilgar), the Nanotech can (645, Orxon's vendor), the
+Codebot (1428, Quartu), the Raritanium (37, Hoven). Together some 139 KB of
+core, which moves the effect pool, and the free RAM above it, that much
+nearer the stack. Free RAM above pool record 0x400, measured in PCSX2 with
+the infobot's copy already in: Rilgar 77 KB, Blarg Station 82 KB, Quartu
+135 KB, Veldin 301 KB, Gemlik 350 KB, the rest 538 KB to 4.2 MB. Rilgar,
+Blarg and Quartu get none of the items (SKIP), so the gadget models keep
+their room there. A level holds 224 classes at most (moby_class_resources):
+Batalia (220 with the boots) gets all but the Codebot, Gemlik (221) the can,
+the Hoverboard and the Zoomerator; the order is EXTRA's, the infobot first.
+The can is drawn at 2.5 times its size.
+
+**Standing upright.** A model is drawn as its class lies, and most weapons lie
+on their side. The vendor's hologram stands each item it sells by a pose
+table (D_L00_001C9C30 in level 0, 0x30 an item id: rot.x and rot.y at +0x10,
+rot.z spinning; LEVEL_DATA vendor_holo_pose, from VendorMenuUpdate,
+func_L00_0029D988), and a stand-in of an item it sells takes the same turn.
+Items it does not sell have no pose there (the Suck Cannon and the
+Morph-o-Ray, found in the world, read 0), and a model can carry its own turn
+instead: those two, the Metal Detector, the Trespasser, the Hologuise and the
+PDA the quarter turn about y the vendor gives most weapons (-pi/2; +pi/2
+stood the two weapons upside down), the Nanotech can a quarter about y. An
+item with an entry in the table stands by it whether the vendor sells it or
+not (the Hydrodisplacer's is -pi/2); the Swingshot's is none, and it stands
+as its class lies. The chicken shown for a
+model with no room keeps its own stance, and has a Gold Bolt's glow
+(initialize_gold_bolt_data at its making, update_gold_bolt_glow_rings each
+frame; the hosts' own glow shines round the other stand-ins, and the
+chicken's own update never runs). Those two are in every level but Veldin's
+tutorial, which has no checks (tools/modseg.py NOT_IN_TUTORIAL). A weapon's class plays its draw (sequence 0, the
+weapon unfolding) when made; the vendor lets it finish, then blends to
+sequence 1 (VendorMenuUpdate's d_blend(hologram, 1, 0, 8)). A stand-in of an
+item the vendor sells starts in sequence 1, so it never unfolds as Ratchet
+comes near (caught mid-draw, the gloves looked tiny). So does every model of
+the gadget directory, as the Gadgets page shows them: the draw carries the
+equip sound, and the Metal Detector at Aridia's island played it over and
+over, heard before the stand-in was in sight.
+
+**The bounding sphere of a new moby.** A stand-in Gold Bolt has its sphere
+set when it is made (refresh_moby_spatial_bounds), or the visibility list
+never takes it and its update never runs. The call went through LVL() under
+the executable's name, func_0020ED48, which the overlay catalogue does not
+list: tools/modseg.py gave such a name 0 for every level (meant for the title
+screen's functions), and the call jumped to address 0. On Orxon that ran on
+to an R5900 jump to 0x44800000 as play began (a seed with a Gold Bolt at its
+infobot and its Magneboots pickup); on Gaspar it happened to come back, the
+sphere never set. A level's copy goes by its func_L00_ name
+(func_L00_00251E30), and modseg.py now stops at a name the catalogue lacks
+unless it is one of the title screen's (TITLE_ONLY).
+
+**Clank and a Gold Bolt.** GoldBoltUpdate takes no touch from Clank (hero
+modes 0 and 3 only); retail puts no Gold Bolt where he goes, but a stand-in
+can be one: Orxon's Magneboots pickup, in its Clank section. Clank's touch
+(GoldBoltUpdate's reach: 3 units, 2 in height) takes a stand-in bolt at once,
+as a pickup holding another item is taken, without Ratchet's hold-up.
+
+**A weapon's demo.** A weapon the vendor sells, found in the world, plays the
+demo the vendor plays when it is bought. On leaving, VendorMenuUpdate runs its
+exit (state 2, 40 frames); for an item with a demo scene
+(`vendor_item_cutscene_index`, D_L00_001CA320 in level 0; -1 none, the RYNO
+among them) start_vendor_exit_cutscene (func_L00_0029C070) places the scene
+in front of the vendor moby, puts the weapon in Ratchet's hand and streams
+the scene, state 3 plays it, and close_vendor_menu puts Ratchet in front of
+the vendor and returns to play. It plays only for a vendor the menu was
+opened on (its mode word +0x40 is 0; the remote vendor the game opens with
+no moby never plays one). So the find, once taken, opens the menu
+(open_vendor_menu, func_L00_0029BA20) on a vendor moby of its own (class 11,
+in every level) made at the find, facing Ratchet and drawn at scale 0, and
+puts the menu straight into its exit with the weapon noted (+0x48); the
+moby is deleted at the first gameplay frame after. The table's entries past
+the vendor's items (ids 28 on) read 0, the Bomb Glove's scene, so only the
+weapons, the Taunter and the Drone Device play one. Every level with checks
+has a vendor. The other items, the hand-held gadgets among them, are taken
+at once.
+
+**The galactic map** runs the level's moby updates too. With the stand-ins
+kept there, leaving Oltanis crashed the game on the map every time (an R5900
+jump to an address made of text), and the same flight without them did not;
+the stand-ins are kept in play and in-level cutscenes only, and on the map a
+stand-in only keeps its own update from running.
+
+**The live bolt.** GoldBoltUpdate keeps its flag at pvars + 0 and takes a
+spot's byte in `D_0014BFC0`. The stand-in bolt borrows spot 3's: the byte is
+cleared for its update and given its value back after, and the touch's
+autosave credits the host's check instead (rz_world_before_save, called by
+the save hook before it reads the spots). The moby update loop
+(MobyUpdateLoop) runs only the mobys of the visibility list
+(build_resident_visibility_list, func_0020E6B8), which takes a moby within
+its update distance (+0x30, 0xFF for always). The bolt keeps its host's
+distance until Ratchet's hold-up starts, and 0xFF from then on: with the
+host's, its updates stopped mid hold-up, the animation unfinished and
+Ratchet held in it; with 0xFF from the start, its first update ran on the
+galactic map, and the game crashed there. It runs only in play (game mode 0).
+A pickup holding a Gold Bolt does not update: hidden, its own touch test
+never runs.
+
+**Bookkeeping.** A stand-in carries a mark at pvars + 0x7C (past every field
+GoldBoltUpdate uses; InfobotUpdate never runs on one) and names its host as
+its spawner (+0xB8). A spot, a pickup or an infobot keeps its stand-in under
+its own identity (its flag, the level's one pickup, its planet), and a
+stand-in whose host the game moved to another slot is found by the old
+address and follows it.
+
+**Tested in PCSX2** (the test save, the record changed over PINE): at
+Gaspar's helmet pickup, every resident model in turn through
+`ee_debug_rz_model` (a class every stand-in takes instead of its item's), the
+pickup hidden; a Gold Bolt there: the hold-up played, the helmet's check
+collected, the Gold Bolt count 3 to 4, spot 3's byte back to 0, the pickup
+gone; Kerwan's train infobot holding the O2 Mask: the mask rode with it,
+and its touch (the infobot set to rest) took the check without a cutscene,
+Ratchet then wearing the mask. Not yet then: the weapons' and the
+one-planet items' own models, the vendor's weapon demo for a weapon found in
+the world, a scale per model (all done since). Then the weapons' models (the Blaster,
+Pyrocitor, RYNO, Swingshot, Trespasser and Hologuise unpacked at that
+pickup), and the demos: the Blaster at the helmet pickup and the Pyrocitor at
+Gaspar's Gold Bolt spot 0 played the vendor's demo at the find, Ratchet then
+in play with the weapon in hand, Gaspar's own vendor untouched.
+
+The one-planet items at that pickup: the Hoverboard, Zoomerator, Raritanium,
+Codebot and both Nanotech cans drawn with their own textures, no exception in
+the log.
+
+Orxon (the seed of the freeze, its save as Clank before the O2 Mask): both
+stand-in bolts set up and turning, no exception; Clank at the Magneboots
+pickup's bolt took it (check 53 collected, Gold Bolts 0 to 1, the pickup and
+its bolt gone). At the helmet pickup: the Blaster, Pyrocitor, RYNO, Mine
+Glove, Walloper and Tesla Claw as the vendor stands them, the Morph-o-Ray
+turned, the Nanotech can upright, the chicken (a seventh weapon) upright.
+
+Round of 2026-10-30 (seed R2 Square L2 R2 R1 Left R2 R2 Right, seed 1616784):
+retail's infobot banner ("Infobot for Planet Aridia acquired", shown when a
+check gives its own infobot, here the Plumber's) is never redacted; the word
+"Infobot" is an infobot check's name, and Novalis's other infobot check was
+still open.

@@ -36,7 +36,7 @@ static void test_tables(void)
     }
     CHECK(bolts == RZ_GOLD_BOLTS, "%d Gold Bolt spots", bolts);
     CHECK(RZ_CHECKS_BASE - bolts == 54, "%d non-bolt checks", RZ_CHECKS_BASE - bolts);
-    CHECK(vendors == 12, "%d vendor checks", vendors);
+    CHECK(vendors == 11, "%d vendor checks", vendors);
     /* every item retail gives is given once, the start's two excepted */
     for (item = RZ_INFOBOT_NOVALIS; item < RZ_LOGICAL_ITEMS; item++) {
         int expected = (item == RZ_INFOBOT_NOVALIS || item == RZ_BOMB_GLOVE) ? 0 : 1;

@@ -223,7 +223,7 @@ void ee_rz_vendor_class_c(s32 class_id, s32 buffer, s32 L)
 /* --- the mystery entries ------------------------------------------------------------------------------------- */
 
 /* The cursor is on a purchase entry, in a Randomizer save. */
-static s32 mystery_selected(s32 L)
+s32 rz_vendor_purchase_selected(s32 L)
 {
     u8 *vendor;
     s32 cursor;
@@ -249,7 +249,7 @@ s32 ee_rz_vendor_icon_c(s32 icon, s32 frame, s32 L)
 /* msg_string in VendorDrawItemPanel (func_00239CF8): the selected purchase's name is "???". */
 const char *ee_rz_vendor_text_c(s32 id, s32 L)
 {
-    if (id != TEXT_AMMO_PROMPT && mystery_selected(L)) {
+    if (id != TEXT_AMMO_PROMPT && rz_vendor_purchase_selected(L)) {
         return ee_msg_string_edition(EE_TEXT_MYSTERY);
     }
     return LVL(L, func_001FE540, MsgFn)(id);
@@ -260,7 +260,7 @@ const char *ee_rz_vendor_text_c(s32 id, s32 L)
  * the scroller moves on to the vendor's own adverts. */
 const char *ee_rz_vendor_slogan_c(s32 id, s32 L)
 {
-    if (mystery_selected(L)) {
+    if (rz_vendor_purchase_selected(L)) {
         return "";
     }
     return LVL(L, func_001FE540, MsgFn)(id);
@@ -284,7 +284,7 @@ static s32 entry_weapon_class;         /* the entry's weapon class, from the pan
 
 void ee_rz_vendor_model_c(void *moby, s32 class_id, s32 L)
 {
-    if (mystery_selected(L)) {
+    if (rz_vendor_purchase_selected(L)) {
         u8 *display = *(u8 **)(LVL_DATA(L, vendor_state, u8 *) + VENDOR_DISPLAY);
         if ((u8 *)moby == display + DISPLAY_PANEL) {
             entry_weapon_class = class_id;
@@ -330,7 +330,7 @@ static void undo_item_offset(u8 *panel, s32 item, const u8 *camera, s32 L)
  * the weapon in the stand's slot shrinks to a speck. */
 void ee_rz_vendor_place_c(void *moby, s32 L)
 {
-    if (mystery_selected(L)) {
+    if (rz_vendor_purchase_selected(L)) {
         u8 *vendor = LVL_DATA(L, vendor_state, u8 *);
         u8 *display = *(u8 **)(vendor + VENDOR_DISPLAY);
         u8 *camera = *(u8 **)(vendor + VENDOR_CAMERA);
@@ -355,7 +355,7 @@ void ee_rz_vendor_place_c(void *moby, s32 L)
  * (z). The pose is rewritten every frame, so nothing builds up. */
 void ee_rz_vendor_holo_c(void *moby, s32 L)
 {
-    if (mystery_selected(L)) {
+    if (rz_vendor_purchase_selected(L)) {
         *moby_float((u8 *)moby, MOBY_ROT) = 0.0f;
         *moby_float((u8 *)moby, MOBY_ROT + 4) = 0.0f;
     }
@@ -367,7 +367,7 @@ void ee_rz_vendor_holo_c(void *moby, s32 L)
  * The chicken goes without both. */
 void ee_rz_vendor_holo_add_c(f32 *out, const f32 *base, const f32 *item_offset, s32 L)
 {
-    if (mystery_selected(L)) {
+    if (rz_vendor_purchase_selected(L)) {
         out[0] = base[0];
         out[1] = base[1];
         out[2] = base[2];
