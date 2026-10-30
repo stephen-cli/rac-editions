@@ -3482,7 +3482,7 @@ infobot. The Charge Boots are a dead end nothing needs.
 **Seed codes.** Nine presses of eleven buttons, as digits 0-10: Up, Right,
 Down, Left, Cross, Circle, Square, L1, L2, R1, R2. The first eight are
 seed * 64 + weapon mode * 16 + logic version in base 11, most significant
-first: 4 bits of version (RZ_LOGIC_VERSION, 4; bump it on any change to
+first: 4 bits of version (RZ_LOGIC_VERSION, 5; bump it on any change to
 rules, pool or algorithm), 2 bits reserved for the starting weapon modes
 (only vanilla is implemented, any other is refused), 3,349,357 seeds. The
 ninth makes 1 * d0 + 2 * d1 + ... + 9 * d8 a multiple of 11, which catches
@@ -4747,4 +4747,7 @@ Round of 2026-10-30 (seed R2 Square L2 R2 R1 Left R2 R2 Right, seed 1616784):
 retail's infobot banner ("Infobot for Planet Aridia acquired", shown when a
 check gives its own infobot, here the Plumber's) is never redacted; the word
 "Infobot" is an infobot check's name, and Novalis's other infobot check was
-still open.
+still open. Orxon's Clank-section infobot (check 51) needs the Devastator,
+the Visibomb or the RYNO in the logic: Ratchet, who plays Orxon once he has
+the O2 Mask, meets two gunships on the way, which Clank's way does not
+(logic version 5).

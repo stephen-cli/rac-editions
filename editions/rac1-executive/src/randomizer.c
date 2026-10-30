@@ -26,6 +26,8 @@
 
 #define JUMP            (BIT(RZ_HELI_PACK) | BIT(RZ_THRUSTER_PACK))
 #define EXPLOSIVE       (BIT(RZ_BOMB_GLOVE) | BIT(RZ_DEVASTATOR))
+#define GUNSHIPS        (BIT(RZ_DEVASTATOR) | BIT(RZ_VISIBOMB) | BIT(RZ_RYNO))  /* Orxon's two over the Clank section's
+                                                                             * infobot, for Ratchet (Clank's way has none) */
 #define LONG_RANGE      (BIT(RZ_BLASTER) | BIT(RZ_DEVASTATOR) | BIT(RZ_VISIBOMB) | BIT(RZ_RYNO))
 #define HELI            BIT(RZ_HELI_PACK)
 #define THRUSTER        BIT(RZ_THRUSTER_PACK)
@@ -133,7 +135,7 @@ static const struct RzCheck checks[RZ_CHECKS_BASE] = {
     { GASPAR, BOLT, GB, 0, P(9), { JUMP, 0, 0 }, 0 },                           /* 49 through the volcano */
     /* Orxon */
     { ORXON, VENDOR, RZ_VISIBOMB, GOT, P(10) | O2 | DETECTOR, { 0, 0, 0 }, 0 },   /* 50 vendor: Visibomb */
-    { ORXON, INFOBOT, IB(POKITARU), 0, P(10), { 0, 0, 0 }, 0 },                 /* 51 the Clank section */
+    { ORXON, INFOBOT, IB(POKITARU), 0, P(10), { GUNSHIPS, 0, 0 }, 0 },          /* 51 the Clank section */
     { ORXON, INFOBOT, IB(HOVEN), 0, P(10) | O2 | HELI | SWING | MAGNET, { 0, 0, 0 }, 0 }, /* 52 as Ratchet */
     { ORXON, GADGET, RZ_MAGNEBOOTS, 0, P(10), { 0, 0, 0 }, 0 },                 /* 53 the Clank section's Magneboots */
     { ORXON, GADGET, RZ_PREMIUM_NANOTECH, GOT, P(10) | O2 | HELI, { 0, 0, 0 }, 0 }, /* 54 Premium Nanotech */

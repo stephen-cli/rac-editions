@@ -21,7 +21,7 @@
 
 /* The logic version in every seed code: bump it on any change to the
  * rules, the pool or the algorithm, so a shared code gives the same game. */
-#define RZ_LOGIC_VERSION    4
+#define RZ_LOGIC_VERSION    5
 #define RZ_VERSION_MAX      15          /* 4 bits */
 #define RZ_WEAPON_MODES     4           /* 2 bits reserved; only RZ_WEAPON_VANILLA is implemented */
 #define RZ_WEAPON_VANILLA   0
