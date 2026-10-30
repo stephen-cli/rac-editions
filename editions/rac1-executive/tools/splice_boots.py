@@ -63,7 +63,9 @@ SECTOR = 2048
 TOC_LBA, LEVEL_TABLE = 1500, 0x28C8
 TAIL_SECTORS = 32
 CLASS_ID = 2000
-MAX_CLASSES = 224          # moby_class_resources[224]
+MAX_CLASSES = 222          # moby_class_resources[224], less the two classes the level's loader registers after
+                           # the table's (the shared overlay's 0x0023FA00, for the level's content variant): a
+                           # table of 223 hung Batalia's and Umbris's load on the loading screen
 MAX_SLOT = 0xFE            # texture slots are bytes; 0xFF ends a class's list
 
 

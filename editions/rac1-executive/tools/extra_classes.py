@@ -18,10 +18,10 @@ Hoven).
 Each moves the level's heap and its last block, the effect pool, nearer the
 stack by its blob and its pixels: the infobot 0x1A200 bytes, the five items
 some 139 KB together. A level too near the stack goes without the items
-(SKIP), and their stand-ins there are the chicken. The engine has room for 224
-classes a level (splice_boots.MAX_CLASSES): a level near that gets the extra
-classes in EXTRA's order while they fit (Batalia all but the Codebot, Gemlik
-the can, the Hoverboard and the Zoomerator). A first version
+(SKIP), and their stand-ins there are the chicken. A level's class table has
+room for 222 classes (splice_boots.MAX_CLASSES): a level near that gets the
+extra classes in EXTRA's order while they fit (Umbris all but the Codebot,
+Batalia the can and the Hoverboard, Gemlik the can). A first version
 carried the blob compressed and loaded it at run time into a third part of the
 gadget buffer, whose room came out of the HUD arena: the menus' icons no longer
 fit there and decompressed over address 0.

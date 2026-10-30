@@ -4621,9 +4621,13 @@ nearer the stack. Free RAM above pool record 0x400, measured in PCSX2 with
 the infobot's copy already in: Rilgar 77 KB, Blarg Station 82 KB, Quartu
 135 KB, Veldin 301 KB, Gemlik 350 KB, the rest 538 KB to 4.2 MB. Rilgar,
 Blarg and Quartu get none of the items (SKIP), so the gadget models keep
-their room there. A level holds 224 classes at most (moby_class_resources):
-Batalia (220 with the boots) gets all but the Codebot, Gemlik (221) the can,
-the Hoverboard and the Zoomerator; the order is EXTRA's, the infobot first.
+their room there. A level's class table holds 222 classes at most: the
+engine has 224 slots (moby_class_resources), and the level's loader
+registers two more classes after the table's (the shared overlay's
+0x0023FA00, for the level's content variant). With 223, Batalia's and
+Umbris's loads hung on the loading screen (2026-10-31; 222 loaded). Umbris
+(218 with the boots) gets all but the Codebot, Batalia (220) the can and the
+Hoverboard, Gemlik (221) the can; the order is EXTRA's, the infobot first.
 The can is drawn at 2.5 times its size.
 
 **Standing upright.** A model is drawn as its class lies, and most weapons lie
@@ -4717,6 +4721,27 @@ its own identity (its flag, the level's one pickup, its planet), and a
 stand-in whose host the game moved to another slot is found by the old
 address and follows it.
 
+**Where a stand-in stands.** At its host's model's middle, not the host's
+origin: a pickup's origin can be on the floor under its model. Aridia's
+Trespasser pickup (class 1005) stands on its platform with its middle 1.84
+units up (its bounding sphere: centre 63.04 over an origin at 61.2, radius
+1.7), and the Magneboots there stood on the floor, tiny. The lift is read
+from the host's own sphere (refresh_moby_spatial_bounds at its own scale)
+before the host is first drawn at scale 0, and kept with the stand-in. The
+boots are Ratchet's own: the Magneboots and the Grindboots 0.27 units across
+(bounding sphere radius), drawn at twice their size about their middle, and
+the Charge Boots 0.24, drawn at 2.25 times. That puts all three at about 0.55,
+between the Taunter (0.48) and the Pyrocitor (0.67), measured at the Aridia
+spot; at 3 times (0.8) the boots outsized every weapon.
+
+**A dormant infobot.** InfobotUpdate's first state hides an infobot whose
+pvars + 0 is 0 (+0x34 bits 0x41, state 1) until the level wakes it. Blarg
+Station has two Rilgar infobots: one locked in the warship's room, one at
+the warship's shuttle that wakes once Ratchet is back from the
+self-destruct. Both are the planet's check, under the same key, and a stand-in
+Gold Bolt went to the dormant one at the shuttle, takeable before the
+warship. A dormant infobot shows no stand-in and hands back one it carried.
+
 **Tested in PCSX2** (the test save, the record changed over PINE): at
 Gaspar's helmet pickup, every resident model in turn through
 `ee_debug_rz_model` (a class every stand-in takes instead of its item's), the
@@ -4751,3 +4776,12 @@ still open. Orxon's Clank-section infobot (check 51) needs the Devastator,
 the Visibomb or the RYNO in the logic: Ratchet, who plays Orxon once he has
 the O2 Mask, meets two gunships on the way, which Clank's way does not
 (logic version 5).
+
+Round of 2026-10-31 (the same seed's layout on the test save, PCSX2):
+Umbris, Batalia and Gemlik, at 222 classes, load and play; the Magneboots at
+Aridia's Trespasser pickup stand on its platform at 3 times their size;
+Blarg Station's stand-in Gold Bolt is with the warship room's infobot, the
+shuttle's dormant one showing nothing. A vendor freeze on Blarg Station and
+Metropolis, gone once the RYNO was found, did not reproduce (the layout, the
+items owned, the Taunter or the Metal Detector in hand, the Charge Boots
+entry listed, the RYNO's model unpacked at its Metropolis spot).

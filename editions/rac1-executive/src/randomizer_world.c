@@ -70,6 +70,7 @@ typedef void (*LoadFn)(s32, s32);
 #define INFOBOT_CLASS   750             /* InfobotUpdate, func_L00_002D7298 */
 #define INFOBOT_PLANET  0x4             /* its pvars: the planet it unlocks */
 #define INFOBOT_TOUCHED 8               /* its state once Ratchet reaches it: its message follows */
+#define INFOBOT_DORMANT 1               /* its state while hidden, until the level wakes it (leave) */
 #define CHICKEN_CLASS   270             /* the Morph-o-Ray's chicken (MorphorayChickenUpdate), in every level */
 
 #define MOBY_SCALE_F(m) (*(volatile f32 *)((u8 *)(m) + MOBY_SCALE))
@@ -142,8 +143,10 @@ struct ItemModel {
  * record, gen_items.py's table), what the vendor shows for a weapon, the pickup or the cutscene prop for the rest.
  * The packs are drawn on Clank (601), each its record's class: the Heli-Pack's (0x25F) is its top rotor and the
  * rotors that take the place of Clank's hands, deployed by its sequence 6 as the Gadgets page plays it, the
- * Thruster-Pack's (0x260) his thrusters, the Hydro-Pack's (0x261) his hydro pods. The Map-o-Matic, the Bolt Grabber and the Persuader are drawn larger: on
- * Ratchet they are a few centimetres across. A Gold Bolt is a live bolt (carry_bolt), not a model. */
+ * Thruster-Pack's (0x260) his thrusters, the Hydro-Pack's (0x261) his hydro pods. The Map-o-Matic, the Bolt Grabber,
+ * the Persuader and the boots are drawn larger: on Ratchet they are a few centimetres across (the Magneboots' bounding
+ * sphere 0.27 units, the Trespasser pickup's 1.7). The three boots come out about 0.55 across, between the Taunter
+ * (0.48) and the Pyrocitor (0.67): at 3 times, 0.8, they outsized every weapon. A Gold Bolt is a live bolt (carry_bolt), not a model. */
 static const struct ItemModel MODELS[RZ_ITEM_KINDS] = {
     [RZ_HELI_PACK] = { 607, SPIN, RESIDENT, 1.0f, ANIMATE | ON_CLANK, 6 },
     [RZ_THRUSTER_PACK] = { 608, SPIN, RESIDENT, 1.0f, ANIMATE | ON_CLANK },
@@ -155,8 +158,8 @@ static const struct ItemModel MODELS[RZ_ITEM_KINDS] = {
     [RZ_HYDRODISPLACER] = { 1251, SPIN, GADGET, 1.0f, CENTRE },
     [RZ_TRESPASSER] = { 188, SPIN, GADGET, 1.0f, CENTRE, 0, 0.0f, -1.5707964f },
     [RZ_METAL_DETECTOR] = { 585, SPIN, GADGET, 1.0f, CENTRE, 0, 0.0f, -1.5707964f },
-    [RZ_MAGNEBOOTS] = { 173, SPIN, RESIDENT, 1.0f },
-    [RZ_GRINDBOOTS] = { 195, SPIN, RESIDENT, 1.0f },
+    [RZ_MAGNEBOOTS] = { 173, SPIN, RESIDENT, 2.0f, CENTRE },
+    [RZ_GRINDBOOTS] = { 195, SPIN, RESIDENT, 2.0f, CENTRE },
     [RZ_HOVERBOARD] = { 84, SPIN, COPIED, 1.0f, CENTRE },
     [RZ_HOLOGUISE] = { 483, SPIN, GADGET, 1.0f, CENTRE, 0, 0.0f, -1.5707964f },
     [RZ_PDA] = { 619, SPIN, GADGET, 1.0f, CENTRE, 0, 0.0f, -1.5707964f },
@@ -183,7 +186,7 @@ static const struct ItemModel MODELS[RZ_ITEM_KINDS] = {
     [RZ_MORPH_O_RAY] = { 185, SPIN, GADGET, 1.0f, CENTRE, 0, 0.0f, -1.5707964f },
     [RZ_RYNO] = { 454, SPIN, GADGET, 1.0f, CENTRE },
     [RZ_DECOY_GLOVE] = { 562, SPIN, GADGET, 1.0f, CENTRE },
-    [RZ_CHARGE_BOOTS] = { 2000, SPIN, RESIDENT, 1.0f, ANIMATE },
+    [RZ_CHARGE_BOOTS] = { 2000, SPIN, RESIDENT, 2.25f, ANIMATE | CENTRE },
 };
 static const struct ItemModel INFOBOT_MODEL = { INFOBOT_CLASS, STILL, RESIDENT, 1.0f };
 static const struct ItemModel CHICKEN_MODEL = { CHICKEN_CLASS, SPIN, RESIDENT, 1.0f };
@@ -327,6 +330,8 @@ struct StandIn {
     u16 class_id;
     u8 motion;
     u8 flags;
+    u8 lift_known;
+    f32 lift;                           /* the host's own model's middle above its origin (host_lift) */
     const struct ItemModel *model_ref;  /* the model it shows */
 };
 static struct StandIn stand_ins[STAND_INS];
@@ -390,6 +395,7 @@ static struct StandIn *entry_of(u16 key)
         free_entry->host = 0;
         free_entry->model = 0;
         free_entry->body = 0;
+        free_entry->lift_known = 0;
     }
     return free_entry;
 }
@@ -545,7 +551,7 @@ static void carry_bolt(struct StandIn *e, void *host, s32 L)
         *(volatile s32 *)(MOBY_PVARS(m) + GOLD_ID) = BORROWED_SPOT;
         *(volatile f32 *)(m + MOBY_POS) = *(volatile f32 *)((u8 *)host + MOBY_POS);
         *(volatile f32 *)(m + MOBY_POS + 4) = *(volatile f32 *)((u8 *)host + MOBY_POS + 4);
-        *(volatile f32 *)(m + MOBY_POS_Z) = *(volatile f32 *)((u8 *)host + MOBY_POS_Z);
+        *(volatile f32 *)(m + MOBY_POS_Z) = *(volatile f32 *)((u8 *)host + MOBY_POS_Z) + e->lift;
         LVL(L, func_L00_00251E30, BoundsFn)(m);
         e->class_id = GOLD_CLASS;
     }
@@ -553,30 +559,46 @@ static void carry_bolt(struct StandIn *e, void *host, s32 L)
         volatile f32 *home = (volatile f32 *)(MOBY_PVARS(m) + GOLD_HOME);
         home[0] = *(volatile f32 *)((u8 *)host + MOBY_POS);
         home[1] = *(volatile f32 *)((u8 *)host + MOBY_POS + 4);
-        home[2] = *(volatile f32 *)((u8 *)host + MOBY_POS_Z);
+        home[2] = *(volatile f32 *)((u8 *)host + MOBY_POS_Z) + e->lift;
         home[3] = LVL(L, func_L00_001FF860, AtanFn)(HERO_POS[0] - home[0], HERO_POS[1] - home[1]);
         *(volatile f32 *)(m + MOBY_POS) = home[0];
         *(volatile f32 *)(m + MOBY_POS + 4) = home[1];
     }
 }
 
-/* PART placed where HOST is, turned as MODEL turns. */
-static void place(u8 *part, const u8 *model, void *host)
+#define CENTRE_MAX      8.0f            /* the most a model's middle is from its origin, in units */
+
+/* How far above its origin HOST's own model has its middle, from its bounding sphere (+0x00, floats in 1/1024 units)
+ * at its own place, turn and scale: the stand-in stands there, as the item it replaces would. A pickup's origin can
+ * be on the floor under its model (Aridia's Trespasser: its middle 1.84 units up), a Gold Bolt's and an infobot's is
+ * their middle. Read before the host is first drawn at scale 0; 0 for a host already hidden. */
+static f32 host_lift(void *host, s32 L)
+{
+    volatile f32 *sphere = (volatile f32 *)host;
+    f32 lift;
+    if (MOBY_SCALE_F(host) <= 0.0f) {
+        return 0.0f;
+    }
+    LVL(L, func_L00_00251E30, BoundsFn)(host);
+    lift = sphere[2] / 1024.0f - *(volatile f32 *)((u8 *)host + MOBY_POS_Z);
+    return sphere[3] > 0.0f && lift < CENTRE_MAX && lift > -CENTRE_MAX ? lift : 0.0f;
+}
+
+/* PART placed where HOST's model has its middle (LIFT above its origin), turned as MODEL turns. */
+static void place(u8 *part, const u8 *model, void *host, f32 lift)
 {
     s32 axis;
     *(volatile f32 *)(part + MOBY_POS) = *(volatile f32 *)((u8 *)host + MOBY_POS);
     *(volatile f32 *)(part + MOBY_POS + 4) = *(volatile f32 *)((u8 *)host + MOBY_POS + 4);
-    *(volatile f32 *)(part + MOBY_POS_Z) = *(volatile f32 *)((u8 *)host + MOBY_POS_Z);
+    *(volatile f32 *)(part + MOBY_POS_Z) = *(volatile f32 *)((u8 *)host + MOBY_POS_Z) + lift;
     for (axis = 0; axis < 3 && part != model; axis++) {
         MOBY_ROT_F(part, axis) = MOBY_ROT_F(model, axis);
     }
 }
 
-#define CENTRE_MAX      8.0f            /* the most a model's middle is from its origin, in units */
-
-/* M placed so that its middle is where HOST is: its bounding sphere (+0x00, floats in 1/1024 units, which the moby update
+/* M placed so that its middle is where HOST's model has its middle: its bounding sphere (+0x00, floats in 1/1024 units, which the moby update
  * loop refreshes from its last place) tells how far its middle is from its origin, a frame late as it turns. */
-static void centre(u8 *m, void *host)
+static void centre(u8 *m, void *host, f32 lift)
 {
     volatile f32 *sphere = (volatile f32 *)m;
     f32 offset[3];
@@ -587,14 +609,14 @@ static void centre(u8 *m, void *host)
             offset[axis] = 0.0f;            /* a sphere not yet refreshed from this place */
         }
     }
-    place(m, m, host);
+    place(m, m, host, lift);
     for (axis = 0; axis < 3; axis++) {
         *(volatile f32 *)(m + MOBY_POS + 4 * axis) -= offset[axis];
     }
 }
 
-/* After the update of HOST (KEY), which shows ITEM: the stand-in, made when there is none, stands where the host
- * is and moves as the item does, a pack with its Clank, and the host draws at scale 0; once the host is gone, so is
+/* After the update of HOST (KEY), which shows ITEM: the stand-in, made when there is none, stands where the host's
+ * own model would (host_lift) and moves as the item does, a pack with its Clank, and the host draws at scale 0; once the host is gone, so is
  * the stand-in. */
 static void carry(u16 key, void *host, s32 item, s32 L)
 {
@@ -609,6 +631,10 @@ static void carry(u16 key, void *host, s32 item, s32 L)
     e = entry_of(key);
     if (e == 0) {
         return;
+    }
+    if (!e->lift_known) {
+        e->lift = host_lift(host, L);
+        e->lift_known = 1;
     }
     MOBY_SCALE_F(host) = 0.0f;
     if (item == RZ_GOLD_BOLT) {
@@ -653,9 +679,9 @@ static void carry(u16 key, void *host, s32 item, s32 L)
         e->body = make_part(CLANK_CLASS, BODY_MARK, host, L);
     }
     if (e->flags & CENTRE) {
-        centre(m, host);
+        centre(m, host, e->lift);
     } else {
-        place(m, m, host);
+        place(m, m, host, e->lift);
     }
     move(m, e->motion, host);
     if (e->class_id == CHICKEN_CLASS) {     /* a Gold Bolt's glow: the hosts' own (pickups, infobots) shine round
@@ -666,7 +692,7 @@ static void carry(u16 key, void *host, s32 item, s32 L)
         animate(m, e->model_ref->seq ? e->model_ref->seq : 1, L);
     }
     if (e->body != 0) {
-        place(e->body, m, host);
+        place(e->body, m, host, e->lift);
         animate(e->body, 1, L);
     }
 }
@@ -999,8 +1025,22 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
     return 0;
 }
 
+/* A dormant infobot. Its first update (state 0) hides it (+0x34 bits 0x41) in state 1 unless its pvars + 0 is set,
+ * and the level wakes it later: Blarg Station has two Rilgar infobots, one locked in the warship's room and one at
+ * the warship's shuttle, which wakes once Ratchet is back from the self-destruct. Both are their planet's check, kept
+ * under the same key: a dormant one shows nothing, and leaves the stand-in to the other unless it carried it. */
+static void leave(u16 key, void *host, s32 L)
+{
+    s32 i;
+    for (i = 0; i < STAND_INS; i++) {
+        if (stand_ins[i].key == key && stand_ins[i].host == host) {
+            drop(key, host, L);
+        }
+    }
+}
+
 /* After the update of MOBY in level L: a pickup or a world infobot holding another item carries its stand-in, and
- * an infobot that turned to its message is taken instead. */
+ * an infobot that turned to its message is taken instead; a dormant infobot shows none. */
 void rz_world_after(void *moby, s32 L)
 {
     const struct PickupSite *site;
@@ -1012,6 +1052,10 @@ void rz_world_after(void *moby, s32 L)
         s32 planet = *(volatile s32 *)(MOBY_PVARS(moby) + INFOBOT_PLANET);
         check = infobot_check(moby, L);
         if (!shuffled(check, RZ_INFOBOT_NOVALIS + planet - 1)) {
+            return;
+        }
+        if (MOBY_STATE(moby) == INFOBOT_DORMANT) {
+            leave(KEY_INFOBOT(planet), moby, L);
             return;
         }
         if (MOBY_STATE(moby) == INFOBOT_TOUCHED) {
