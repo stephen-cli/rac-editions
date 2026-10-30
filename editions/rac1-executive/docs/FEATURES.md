@@ -77,9 +77,14 @@ moves the directory record (verified booting in PCSX2 from sector 2058000).
   with a pattern and read the whole region back over PINE at boot, on the
   title screen, in a level, after a save and after quitting to the title:
   nothing but the segment's own variables changed, and the title took the
-  pad. So SEGMENT_END_LIMIT is now 0xFC000 (PCSX2; a PS3 check of the
-  canary image is pending), the base stays at 0x9E000, and 0x95564-0x9E000
-  (the ELF loader ends at 0x95560) stayed zero throughout, room for a lower
+  pad. The same image on the PS3 (2026-10-30) took the pad on the title,
+  loaded saves on Metropolis, Umbris and Hoven, saved over a slot, quit to
+  the title and loaded the save again, playing on through each step; the
+  PS3 has no way to read memory back, so the first real build whose segment
+  ends past 0xF2380 is the PS3's check that nothing there writes into it.
+  So SEGMENT_END_LIMIT is now 0xFC000, the base stays at 0x9E000, and
+  0x95564-0x9E000 (the ELF loader ends at 0x95560) stayed zero throughout,
+  room for a lower
   base if ever needed. The game's level-load staging buffer
   is at 0xFE0000 (whole level data range), the frontend's near 0x1FF7FF0;
   both in the upper half of RAM.

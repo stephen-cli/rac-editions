@@ -116,7 +116,8 @@ CORE_END = 0x15F000
 DEFAULT_BASE = 0x0009E000      # the base the owner's PS3 has run since 2026-10-25
 # The highest end tested. A build filled to 0xFC000 with a canary pattern (2026-10-27) booted in PCSX2, took the
 # pad on the title screen, loaded a level, saved to the card and quit to the title, and nothing but its own
-# variables changed in the segment: no other code writes below 0xFC000. (A segment ending at 0xF2580 had once left
+# variables changed in the segment: no other code writes below 0xFC000. The same image ran on the PS3 (2026-10-30)
+# through the title, levels, a card save and a quit to the title. (A segment ending at 0xF2580 had once left
 # the title deaf to the pad, which the canary build did not repeat; the end limit was 0xF2380 until then.) The
 # kernel's ELF loader keeps 0x84000-0x95560, so a base down to 0x96000 has room too, untested on the PS3.
 SEGMENT_END_LIMIT = 0x000FC000
