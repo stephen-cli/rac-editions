@@ -315,40 +315,50 @@ INFOBOT_WORD = 0x4E7C                   # "Infobot": redacted in an infobot chec
 LANGUAGE_TABLES = (0, 2, 3, 4, 5)       # the text table's sub-tables, which are the game's language ids
 ITEM_COUNT = 37
 BANNER_MAX = 60                         # a name or an infobot banner; src/randomizer_text.c's buffers hold more
+RAC1_ISO = "games/rac1/baserom/SCES_509.16.iso"   # in the OpenRAC checkout
+NO_WORD = 0xFFFF                        # a table entry with no word: src/randomizer_text.c NO_WORD
 
 
-def c_bytes_string(raw: bytes) -> str:
-    """A C string of the game's own bytes (its font codes included), octal-escaped where needed."""
-    out = []
-    for b in raw:
-        if b == 0x22 or b == 0x5C:
-            out.append("\\" + chr(b))
-        elif 0x20 <= b < 0x7F:
-            out.append(chr(b))
-        else:
-            out.append("\\%03o" % b)
-    return '"' + "".join(out) + '"'
-
-
-def load_texts(openrac: Path) -> dict:
-    """The text table by language id: {sid: bytes}."""
+def load_texts(iso: Path) -> dict:
+    """The PAL disc's text table by language id: {sid: bytes}."""
     import text_table
-    tables = text_table.parse(text_table.read_table(openrac))
+    tables = text_table.parse(text_table.read_table(iso))
     return {t: {sid: s for sid, s, _a, _b in tables[t]} for t in LANGUAGE_TABLES}
 
 
-def row(cells: dict, comment: str) -> str:
-    """A C initializer of 8 strings by language id from {language: bytes} (0 where a language lacks it)."""
-    out = ["0"] * 8
-    for t, s in cells.items():
-        if len(s) > BANNER_MAX:
-            raise SystemExit(f"{comment}: a banner of {len(s)} bytes, over BANNER_MAX")
-        out[t] = c_bytes_string(s)
-    return "    { " + ", ".join(out) + " },  /* " + comment + " */"
+class Words:
+    """The game's words for the banners, gathered into one blob, ee_rz_words: each string once, NUL-ended, in the
+    order first met. The tables name a string by its offset in the blob, NO_WORD where a language lacks it, so the
+    blob is plain bytes the installer fills from the player's disc while the tables are only numbers. The recipe
+    is the blob's strings as (language, text id), in order: words_blob replays it on the disc's text table."""
+
+    def __init__(self, texts: dict):
+        self.texts = texts
+        self.blob = bytearray()
+        self.at = {}
+        self.recipe = []
+
+    def row(self, sid: int, comment: str) -> str:
+        """A C initializer of 8 offsets by language id for text SID (none for SID 0)."""
+        out = [f"0x{NO_WORD:04X}"] * 8
+        for t in LANGUAGE_TABLES:
+            s = self.texts[t].get(sid) if sid else None
+            if s is None:
+                continue
+            if len(s) > BANNER_MAX:
+                raise SystemExit(f"{comment}: a banner of {len(s)} bytes, over BANNER_MAX")
+            if s not in self.at:
+                self.at[s] = len(self.blob)
+                self.blob += s + b"\0"
+                self.recipe.append((t, sid))
+            out[t] = f"0x{self.at[s]:04X}"
+        return "    { " + ", ".join(out) + " },  /* " + comment + " */"
 
 
-def text_cells(texts: dict, sid: int) -> dict:
-    return {t: texts[t][sid] for t in LANGUAGE_TABLES if sid in texts[t]}
+def words_blob(iso: Path, recipe) -> bytes:
+    """ee_rz_words from the PAL disc's text table and Words' recipe."""
+    texts = load_texts(iso)
+    return b"".join(texts[t][sid] + b"\0" for t, sid in recipe)
 
 
 def item_name_ids(openrac: Path) -> list[int]:
@@ -361,23 +371,34 @@ def item_name_ids(openrac: Path) -> list[int]:
     return [struct.unpack_from("<I", d, table + 0x4C * i - base)[0] & 0xFFFF for i in range(ITEM_COUNT)]
 
 
-def banner_tables(openrac: Path) -> list[str]:
-    """The C tables of the banners' words (src/randomizer_text.c)."""
-    texts = load_texts(openrac)
-    lines = [f"const char *const ee_rz_item_names[{ITEM_COUNT}][8] = {{"]
+def banner_words(openrac: Path) -> tuple[list[str], bytes, list]:
+    """The C tables of the banners' words (src/randomizer_text.c), the blob they index and its recipe."""
+    words = Words(load_texts(openrac / RAC1_ISO))
+    lines = [f"const u16 ee_rz_item_names[{ITEM_COUNT}][8] = {{"]
     for i, sid in enumerate(item_name_ids(openrac)):
-        lines.append(row(text_cells(texts, sid) if sid else {}, f"item {i}: 0x{sid:04X}"))
+        lines.append(words.row(sid, f"item {i}: 0x{sid:04X}"))
     lines.append("};")
-    lines.append(f"const char *const ee_rz_infobot_banners[{len(INFOBOT_BANNERS)}][8] = {{")
-    lines += [row(text_cells(texts, sid), f"planet {p + 1}: 0x{sid:04X}") for p, sid in enumerate(INFOBOT_BANNERS)]
+    lines.append(f"const u16 ee_rz_infobot_banners[{len(INFOBOT_BANNERS)}][8] = {{")
+    lines += [words.row(sid, f"planet {p + 1}: 0x{sid:04X}") for p, sid in enumerate(INFOBOT_BANNERS)]
     lines.append("};")
-    lines.append(f"const char *const ee_rz_special_names[{len(SPECIAL_NAMES)}][8] = {{")
-    lines += [row(text_cells(texts, sid), f"0x{sid:04X}") for sid in SPECIAL_NAMES]
+    lines.append(f"const u16 ee_rz_special_names[{len(SPECIAL_NAMES)}][8] = {{")
+    lines += [words.row(sid, f"0x{sid:04X}") for sid in SPECIAL_NAMES]
     lines.append("};")
-    lines.append("const char *const ee_rz_word_gold_bolt[8] =")
-    lines.append(row(text_cells(texts, GOLD_BOLT_WORD), f"0x{GOLD_BOLT_WORD:04X}").replace("},  /*", "};  /*", 1))
-    lines.append("const char *const ee_rz_word_infobot[8] =")
-    lines.append(row(text_cells(texts, INFOBOT_WORD), f"0x{INFOBOT_WORD:04X}").replace("},  /*", "};  /*", 1))
+    lines.append("const u16 ee_rz_word_gold_bolt[8] =")
+    lines.append(words.row(GOLD_BOLT_WORD, f"0x{GOLD_BOLT_WORD:04X}").replace("},  /*", "};  /*", 1))
+    lines.append("const u16 ee_rz_word_infobot[8] =")
+    lines.append(words.row(INFOBOT_WORD, f"0x{INFOBOT_WORD:04X}").replace("},  /*", "};  /*", 1))
+    return lines, bytes(words.blob), words.recipe
+
+
+def banner_tables(openrac: Path, out: Path) -> list[str]:
+    """banner_words' tables and the blob as C; the blob's recipe goes to OUT/gen_rz_words.json."""
+    import json
+    lines, blob, recipe = banner_words(openrac)
+    (out / "gen_rz_words.json").write_text(json.dumps(recipe) + "\n")
+    lines.append(f"const char ee_rz_words[{len(blob)}] __attribute__((aligned(16))) = {{")
+    lines += ["    " + ", ".join(f"0x{b:02X}" for b in blob[i:i + 16]) + "," for i in range(0, len(blob), 16)]
+    lines.append("};")
     return lines
 
 
@@ -427,7 +448,8 @@ def emit(openrac: Path, out: Path) -> None:
              "   the Randomizer's collected view (src/randomizer_play.c); 0xFFFF ends a list. Then the",
              "   banners' words from the game's text table, by the game's language id. */",
              '#include "modseg.h"']
-    lines += banner_tables(openrac)
+    out.mkdir(parents=True, exist_ok=True)
+    lines += banner_tables(openrac, out)
     for level, lv in sorted(levels(openrac).items()):
         found = sites(lv)
         cls = classes(lv, role_map, found)
@@ -446,7 +468,6 @@ def emit(openrac: Path, out: Path) -> None:
     lines.append(f"const s32 ee_rz_gadget_count = {len(sizes)};")
     lines.append("const u16 ee_rz_gadget_classes[] = { " + ", ".join(str(c) for c in sizes) + " };")
     lines.append("const u32 ee_rz_gadget_sizes[] = { " + ", ".join(f"0x{s:X}" for s in sizes.values()) + " };")
-    out.mkdir(parents=True, exist_ok=True)
     (out / "gen_rz.c").write_text("\n".join(lines) + "\n")
     print(f"wrote {out / 'gen_rz.c'}")
 

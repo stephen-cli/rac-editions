@@ -40,12 +40,15 @@
 
 DECLARE_LVL_DATA(game_mode);            /* D_0015F6E8: 0 play, 2 cinematic, 3 pause */
 
-/* The game's words (tools/gen_randomizer.py, build/modseg/gen_rz.c), by language. */
-extern const char *const ee_rz_item_names[ITEMS][LANGUAGES];        /* each item's name, in orange */
-extern const char *const ee_rz_infobot_banners[18][LANGUAGES];      /* "Infobot for Planet Aridia acquired" */
-extern const char *const ee_rz_special_names[5][LANGUAGES];         /* in SPECIAL_ITEMS' order */
-extern const char *const ee_rz_word_gold_bolt[LANGUAGES];           /* "Gold Bolt" */
-extern const char *const ee_rz_word_infobot[LANGUAGES];             /* "Infobot" */
+/* The game's words (tools/gen_randomizer.py, build/modseg/gen_rz.c), by language: offsets into ee_rz_words,
+ * which holds them NUL-ended and comes from the player's disc, NO_WORD where a language lacks one. */
+#define NO_WORD         0xFFFF
+extern const char ee_rz_words[];
+extern const u16 ee_rz_item_names[ITEMS][LANGUAGES];        /* each item's name, in orange */
+extern const u16 ee_rz_infobot_banners[18][LANGUAGES];      /* "Infobot for Planet Aridia acquired" */
+extern const u16 ee_rz_special_names[5][LANGUAGES];         /* in SPECIAL_ITEMS' order */
+extern const u16 ee_rz_word_gold_bolt[LANGUAGES];           /* "Gold Bolt" */
+extern const u16 ee_rz_word_infobot[LANGUAGES];             /* "Infobot" */
 extern const int ee_text_first, ee_text_count;                      /* the edition's string ids (gen_text.c) */
 
 /* The items the game keeps as flags rather than in the inventory, in ee_rz_special_names' order. */
@@ -64,14 +67,14 @@ static s32 next_redacted;
 /* --- strings ------------------------------------------------------------------------------------------------- */
 
 /* WORDS in the game's language, English if it has none. */
-static const char *word(const char *const words[LANGUAGES])
+static const char *word(const u16 words[LANGUAGES])
 {
     s32 language = g_language;
-    const char *text = language >= 0 && language < LANGUAGES ? words[language] : 0;
-    if (text != 0) {
-        return text;
+    u16 at = language >= 0 && language < LANGUAGES ? words[language] : NO_WORD;
+    if (at != NO_WORD) {
+        return ee_rz_words + at;
     }
-    return words[0] != 0 ? words[0] : "";
+    return words[0] != NO_WORD ? ee_rz_words + words[0] : "";
 }
 
 /* TEXT appended to OUT (CAPACITY bytes) at AT; returns the new end. */

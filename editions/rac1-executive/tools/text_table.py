@@ -35,10 +35,10 @@ LANGUAGE_TABLES = {0: 1, 2: 2, 3: 3, 4: 4, 5: 5}     # sub-table -> column in st
 SECTOR = 2048
 
 
-def read_table(openrac: Path) -> bytes:
+def read_table(iso: Path) -> bytes:
+    """The text table (the global file all_text) of the PAL disc ISO."""
     sys.path.insert(0, str(EDITOR))
     from disc import Disc
-    iso = openrac / "games/rac1/baserom/SCES_509.16.iso"
     with Disc(iso) as disc:
         ref = next(r for r in disc.survey()["global_references"] if r["group"] == "all_text")
         return disc.read(ref["lba"] * SECTOR, ref["bytes"])
@@ -85,7 +85,7 @@ def main() -> int:
     ap.add_argument("--check", action="store_true", help="only verify the original rebuilds byte for byte")
     args = ap.parse_args()
 
-    raw = read_table(args.openrac)
+    raw = read_table(args.openrac / "games/rac1/baserom/SCES_509.16.iso")
     tables = parse(raw)
     rebuilt = build(tables)
     if rebuilt != raw:
