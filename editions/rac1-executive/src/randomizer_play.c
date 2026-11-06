@@ -680,6 +680,15 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
     granted = -1;
 }
 
+/* Each frame of level L's program in any game mode (src/strafe.c's pad hook): the stand-ins' unpacked models let
+ * go when the galactic map opens (src/randomizer_world.c). Title-screen programs (19, 20) have no stand-ins. */
+void ee_rz_any_frame(s32 L)
+{
+    if (L >= 0 && L < LEVELS) {
+        rz_world_any_frame(L);
+    }
+}
+
 /* Each gameplay frame (src/charge_dash.c's frame hook): the save's twentieth page to the card when due (the
  * record's changes, x1's death counts; any save, Randomizer or not), and the record read again when the level
  * changes and now and then. No gameplay frame runs while the vendor's menu is up, so a frame closes it. */

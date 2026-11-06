@@ -327,8 +327,12 @@ s32 ee_rz_bonus_seen(void);                                 /* its entry has bee
 void ee_rz_set_bonus_seen(void);
 void ee_rz_add_gold(void);
 s32 ee_rz_received_special(s32 flag);                       /* FLAG: the byte of D_0013D490 the item sets in retail */
-void ee_rz_set_received_special(s32 flag);/* rz3: each gameplay frame, from src/charge_dash.c's frame hook. */
+void ee_rz_set_received_special(s32 flag);
+/* rz3: each gameplay frame, from src/charge_dash.c's frame hook. */
 void ee_rz_frame(s32 L);
+/* rz3: each frame of a level's program in any game mode (the galactic map and the flight too), from src/strafe.c's
+ * pad hook. */
+void ee_rz_any_frame(s32 L);
 void ee_rz_pause_open(s32 L);                               /* the pause menu opening in a level (src/goodies.c) */
 
 #endif

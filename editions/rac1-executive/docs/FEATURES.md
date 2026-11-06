@@ -4785,3 +4785,31 @@ shuttle's dormant one showing nothing. A vendor freeze on Blarg Station and
 Metropolis, gone once the RYNO was found, did not reproduce (the layout, the
 items owned, the Taunter or the Metal Detector in hand, the Charge Boots
 entry listed, the RYNO's model unpacked at its Metropolis spot).
+
+## rz: the game froze loading a planet after a visit with a weapon stand-in (2026-11-06) — fixed; awaiting a console test
+
+In a Randomizer save, a flight could freeze on the planet view from space
+before the next planet showed (Rilgar to Hoven, Kerwan to Umbris). Both
+departure planets had a stand-in showing a model from the gadget directory
+(Kerwan: the Mine Glove at the Eudora infobot, the Swingshot at a Gold Bolt
+spot; Rilgar: the Decoy Glove, the Devastator). Such a model is unpacked
+into the free RAM above the effect pool (src/randomizer_world.c, the gadget
+directory's models). The galactic map and the flight are game mode 6, in
+which the old level's program keeps running, its mobys included; within two
+seconds of the map opening, the next planet's load writes over that free
+RAM, while the stand-in moby and its class's slot still point at the copy.
+The copies were forgotten only at the new planet's first moby update.
+
+On the first frame of mode 6 (from the pad hook, the one edition hook that
+runs on the map and through the flight; the mode-0 frame hook does not),
+the stand-ins showing a copy are deleted, the classes' slots get back
+retail's pointers (kept when the copy was made) and the copies are
+forgotten (`rz_world_any_frame`). Back in play without a flight, the hosts
+make their stand-ins again and unpack anew.
+
+**Measured in PCSX2** (the harness save with seed L1 L2 R2 Circle R2 Square
+Right Square L2's layout): on Kerwan the Swingshot's model (class 190) sat
+at 0x1FAE700-0x1FB6840, its stand-in alive through the map and the flight;
+the copy's RAM changed 2 s into mode 6, with the old level still current.
+PCSX2 flew on without freezing in four flights; whether a flight freezes
+depends on what the load writes there and when.

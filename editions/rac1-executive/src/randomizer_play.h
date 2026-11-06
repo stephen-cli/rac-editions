@@ -87,6 +87,7 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L); /* 1: it ran MOB
 void rz_world_after(void *moby, s32 L);             /* after MOBY's update */
 void rz_world_before_save(s32 L);                   /* memcard_Save is called: a live stand-in bolt's touch */
 void rz_world_frame(s32 L);                         /* each gameplay frame */
+void rz_world_any_frame(s32 L);                     /* each frame in any game mode: the map's release of copies */
 
 /* randomizer_text.c */
 void rz_show_item_banner(s32 check, s32 item, s32 L);   /* "You found the ...!" for ITEM received at CHECK */

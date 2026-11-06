@@ -93,6 +93,7 @@ typedef void (*LoadFn)(s32, s32);
 #define PI_F            3.1415927f
 #define MODE_PLAY       0
 #define MODE_CINEMATIC  2               /* an in-level cutscene */
+#define MODE_SPACE      6               /* the galactic map and the flight to a planet */
 
 #define STAND_IN_MARK   0x525A5349      /* the edition's word, at pvars + STAND_IN_MARK_AT (CreateMoby clears the */
 #define STAND_IN_MARK_AT 0x7C           /* pvars); past every field GoldBoltUpdate and InfobotUpdate use */
@@ -221,7 +222,15 @@ static s32 class_in_memory(s32 class_id, s32 L)
  * (the decode buffers' base) pointed at the free RAM for the call; its state (the entry last unpacked, which it
  * skips unpacking again, and the buffer it used) is put back after. The class's slot is pointed at the copy again
  * every frame its stand-in is carried: the vendor, showing that weapon, points it at its own buffer. A model with
- * no room is shown by the chicken. */
+ * no room is shown by the chicken.
+ *
+ * The copies last only while the level is played. The galactic map and the flight (game mode 6) run the level's
+ * program on, its mobys included, while the next planet's load writes over the free RAM above the pool within two
+ * seconds of the map opening; a stand-in still showing a copy there, and its class's slot still pointing at it,
+ * then read whatever the load put there, and the game froze on the flight's planet view. On the first frame of
+ * mode 6 the stand-ins showing a copy are deleted, the classes' slots get retail's pointers back, and the copies
+ * are forgotten (rz_world_any_frame); back in play without a flight, the hosts make new stand-ins and unpack
+ * again. */
 extern const u32 ee_rz_effect_pool[LEVELS];     /* tools/gen_randomizer.py: the word holding the pool's start */
 extern const s32 ee_rz_gadget_count;
 extern const u16 ee_rz_gadget_classes[];        /* the gadget directory's classes */
@@ -237,8 +246,10 @@ extern const u32 ee_rz_gadget_sizes[];          /*   and their sizes unpacked */
 static struct {
     u16 class_id;
     u32 data;
+    u32 retail;                                 /* the class's slot before the first unpack: retail's own pointer */
 } unpacked[GADGET_MODELS];
 static s32 unpacked_count;
+static s32 unpacked_level;                      /* the level they were unpacked in */
 static u32 free_ram;                            /* the next free byte above the pool; 0 until a visit's first model */
 
 static void forget_gadget_models(void)
@@ -288,6 +299,8 @@ static s32 gadget_ready(s32 class_id, s32 L)
     if (unpacked_count == GADGET_MODELS || free_ram + size > RAM_END - STACK_ROOM) {
         return 0;
     }
+    unpacked[unpacked_count].retail = resources[slot];
+    unpacked_level = L;
     saved_base = buffers[DECODE_BASE];
     saved_last = *last;
     saved_buffer = *buffer;
@@ -830,6 +843,55 @@ void rz_world_frame(s32 L)
             LVL(L, func_0020D678, DeleteFn)(demo_vendor);
         }
         demo_vendor = 0;
+    }
+}
+
+static s32 is_unpacked(u16 class_id)
+{
+    s32 i;
+    for (i = 0; i < unpacked_count; i++) {
+        if (unpacked[i].class_id == class_id) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* The level is left for the galactic map: the stand-ins showing a gadget copy deleted, the classes' slots back to
+ * retail's, the copies forgotten (the gadget directory's models, above). Only in the level that unpacked them:
+ * once the next planet's program runs, the slots are its own. */
+static void release_gadget_models(s32 L)
+{
+    volatile u32 *resources = LVL_DATA(L, class_resources, volatile u32 *);
+    s32 i;
+    for (i = 0; i < STAND_INS; i++) {
+        struct StandIn *e = &stand_ins[i];
+        if (e->key != 0 && is_unpacked(e->class_id)) {
+            drop(e->key, e->host, L);
+        }
+    }
+    for (i = 0; i < unpacked_count; i++) {
+        u8 slot = LVL_DATA(L, class_slot_by_id, u8 *)[unpacked[i].class_id];
+        if (slot != 0xFF) {
+            resources[slot] = unpacked[i].retail;
+        }
+    }
+    forget_gadget_models();
+}
+
+/* Every frame of level L's program in any game mode (src/strafe.c's pad hook, which runs on the galactic map and
+ * through the flight, where the mode-0 frame hook does not). */
+void rz_world_any_frame(s32 L)
+{
+    if (unpacked_count == 0) {
+        return;
+    }
+    if (L != unpacked_level) {
+        forget_gadget_models();             /* the next planet's program: the old level's slots are gone */
+        return;
+    }
+    if (*(volatile s32 *)LVL_DATA(L, game_mode, u8 *) == MODE_SPACE) {
+        release_gadget_models(L);
     }
 }
 
