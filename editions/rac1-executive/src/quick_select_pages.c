@@ -316,17 +316,39 @@ void ee_qs_autoslot_c(s32 index, u32 item)
 
 /* The challenge-mode carry-over's save-state reset, with the pages kept
  * across it as the carry-over keeps the ring. The 24 bytes also cover the
- * Movie volume and the control layout, which follow the pages. */
+ * Movie volume and the control layout, which follow the pages.
+ *
+ * The player's options are kept too. The reset (func_00209DC0) restores
+ * the disc's initial save, which holds every option block, and keeps only
+ * the stereo setting and the two volumes (0x15EEE8-0x15EEF0) across it;
+ * the carry-over then puts back the cheat bytes (gCheats, which hold the
+ * edition's 16:9, Strafing and Quick Select pause rows) and turns the
+ * HelpDesk off. So retail's Challenge Mode starts with the Camera page's
+ * three settings and the subtitles back at their defaults; the edition
+ * keeps them as the player set them. */
+#define CAMERA_OPTIONS      0x0015EEDC   /* save ids 0x1A, 0x19, 0x1B: invert52, opt_cam_invert, opt_cam_yaw_rate */
+#define CAMERA_OPTION_WORDS 3
+#define SUBTITLES           (*(volatile u8 *)0x0015EF40)   /* subtitles_enabled, save id 0x21 */
+
 void ee_qs_carry_hook_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_00227DB0, EE_SITE_QS_CARRY);
     u8 keep[24];
+    s32 camera[CAMERA_OPTION_WORDS];
+    u8 subtitles = SUBTITLES;
     s32 i;
     for (i = 0; i < 24; i++) {
         keep[i] = ((volatile u8 *)EE_QS_PAGE_NEXT)[i];
+    }
+    for (i = 0; i < CAMERA_OPTION_WORDS; i++) {
+        camera[i] = ((volatile s32 *)CAMERA_OPTIONS)[i];
     }
     LVL(L, func_00209DC0, VoidFn)();
     for (i = 0; i < 24; i++) {
         ((volatile u8 *)EE_QS_PAGE_NEXT)[i] = keep[i];
     }
+    for (i = 0; i < CAMERA_OPTION_WORDS; i++) {
+        ((volatile s32 *)CAMERA_OPTIONS)[i] = camera[i];
+    }
+    SUBTITLES = subtitles;
 }

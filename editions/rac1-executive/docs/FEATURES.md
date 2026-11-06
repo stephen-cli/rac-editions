@@ -4849,3 +4849,18 @@ reset from the disc's initial state, which turns them on. The help player
 (HelpUpdate) shows nothing while both are 0; the Options menu turns them
 back on. Retail's own Challenge Mode carry-over turns them off the same
 way.
+
+## Challenge Mode keeps the Camera settings and the subtitles (2026-11-06) — built; awaiting test
+
+Starting Challenge Mode resets the game state from the disc's initial save
+(`func_00209DC0`, through the carry-over `func_00227DB0`). That save holds
+every option; the reset itself keeps only the stereo setting and the two
+volumes (0x15EEE8-0x15EEF0), and the carry-over puts back the cheat bytes
+(gCheats 0x15EEB0, which hold the edition's 16:9, Strafing and Quick Select
+pause rows) and turns the HelpDesk off. So retail's Challenge Mode starts with
+the Camera page's three settings (0x15EEDC, 0x15EEE0, 0x15EEE4; save ids
+0x1A, 0x19, 0x1B) and the subtitles (0x15EF40, id 0x21) at their defaults.
+The edition's hook on that reset call (`ee_qs_carry_hook_c`, which already
+keeps the quick-select pages, the Movie volume and the control layout) keeps
+them too. Sound settings: retail keeps them, and the edition's Movie volume
+with them.
