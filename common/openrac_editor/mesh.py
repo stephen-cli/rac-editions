@@ -18,6 +18,12 @@ def unit_normal(normal: Vec3) -> Vec3:
     return tuple(component / length for component in normal) if length else (0.0, 0.0, 0.0)
 
 
+def texture_key(group: str, index: int, clamp: int = 0) -> tuple:
+    """A face's texture key: (group, index), and the clamp bits (formats.gs_clamp) third when the
+    game clamps the texture on either axis."""
+    return (group, index, clamp) if clamp else (group, index)
+
+
 @dataclass
 class Mesh:
     """Triangles grouped by texture, in game units and game axes (Z up).
@@ -28,7 +34,8 @@ class Mesh:
     ((joint, weight) pairs, weights in 256ths summing to 256) and
     light_slots[i] (a tie vertex's light slot, 0..63: which of an instance's
     64 lit colours it takes). Texture keys are (group, index) pairs, or None
-    for untextured faces.
+    for untextured faces; a texture the game draws clamped on some axis keys
+    (group, index, clamp) instead (texture_key).
     """
     name: str
     positions: list[Vec3] = field(default_factory=list)
@@ -37,9 +44,9 @@ class Mesh:
     normals: list[Vec3] | None = None
     skins: list[tuple[tuple[int, int], ...]] | None = None
     light_slots: list[int] | None = None
-    faces: dict[tuple[str, int] | None, list[tuple[int, int, int]]] = field(default_factory=dict)
+    faces: dict[tuple | None, list[tuple[int, int, int]]] = field(default_factory=dict)
 
-    def add_face(self, texture: tuple[str, int] | None, face: tuple[int, int, int]) -> None:
+    def add_face(self, texture: tuple | None, face: tuple[int, int, int]) -> None:
         self.faces.setdefault(texture, []).append(face)
 
     @property

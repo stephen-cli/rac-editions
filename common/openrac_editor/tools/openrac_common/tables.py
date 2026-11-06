@@ -22,10 +22,10 @@ reader keeps, so a caller moved onto this module reads the same rows:
   with COLUMNS skips (port/tools/hostgen/no_c.py:163, keep_rows).
 - A table that does not exist reads as no rows, unless REQUIRED.
 
-Written from port/tools/versionmap/carry_functions.py:104 (read_tsv) and
-port/tools/hostgen/no_c.py:63 (read_tsv_names); hostgen.py:234-282 (library_api, host_table,
-wrapped) and sdk/tools/gen_binding.py:699 (hook_rows) read libraries.tsv by the same rules.
-tools/fcheck_gate.py, port.py, xmap.py and versions.py read their tables through it (P1-05).
+Written from port/tools/versionmap/carry_functions.py (read_tsv) and
+port/tools/hostgen/no_c.py (read_tsv_names); hostgen.py (library_api, host_table, wrapped) and
+sdk/tools/gen_binding.py (hook_rows) read libraries.tsv by the same rules.
+tools/fcheck_gate.py, port.py, xmap.py and versions.py read their tables through it.
 """
 from collections.abc import Sequence
 from pathlib import Path

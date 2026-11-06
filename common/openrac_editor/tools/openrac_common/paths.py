@@ -9,8 +9,8 @@ Where the repository is: the one way a tool finds OpenRAC's top directory.
 
 23 scripts each wrote `Path(__file__).resolve().parents[N]` with their own N, which breaks
 when a script moves. This walks up from a path instead and stops at the first directory that
-holds `games/` and one of the two markers below. tools/*.py take their ROOT from it (P1-05),
-port/tools and the probe tools too (P2-10).
+holds `games/` and one of the two markers below. tools/*.py, port/tools and the probe tools take
+their ROOT from it.
 
 A script outside tools/ cannot import this package before it has found it, so it first runs
 BOOTSTRAP, one line written the same in every such script (tools/test_openrac_common.py checks
@@ -32,8 +32,8 @@ CHECKOUT_MARKER = "CONTRIBUTING.md"
 
 # The launcher's bundled copy of the tools (tools/bundle_standalone.py) has no CONTRIBUTING.md: its
 # top holds games/*/game.json and a STANDALONE note, and the tools in it look for their root there.
-# Accepting it is decided, not a leftover: the copy's tools move onto this package with the rest
-# (P1-05), and the launcher recognises the copy by the same file (launcher/core/src/detect.rs).
+# Accepting it is on purpose: the copy's tools use this package too, and the launcher recognises
+# the copy by the same file (launcher/core/src/detect.rs).
 STANDALONE_MARKER = "STANDALONE"
 
 # Where this package is, relative to the top of either kind of root: the bootstrap walks up to

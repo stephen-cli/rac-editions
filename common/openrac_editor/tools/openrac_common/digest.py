@@ -13,8 +13,8 @@ whole file at once (editor/assets.py's file_hash and overrides.py's hashes of th
 files) or hash several algorithms in one pass (tools/openrac.py's checksums, which stays: it
 reads a disc image once for all of them); every one of them returns the same hex digest for the
 same file. tools/shared.py, openrac.py, extractor.py, build_android.py, build_port.py and
-fcheck_gate.py hash their files through it (P1-05), the probe tools (P2-10), and the editor's
-assets.py and overrides.py (P2-32); the editor's util.sha256 stays its own, since it hashes
+fcheck_gate.py hash their files through it, as do the probe tools and the editor's assets.py
+and overrides.py; the editor's util.sha256 stays its own, since it hashes
 bytes already in memory, not a file.
 """
 import hashlib

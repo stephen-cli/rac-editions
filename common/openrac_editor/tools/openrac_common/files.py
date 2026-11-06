@@ -1,22 +1,52 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 the OpenRAC contributors
 """
-Placing files: a hard link where the file system allows one, and copies of trees.
+Placing files: links, tree copies and atomic moves that tolerate brief Windows locks.
 
   from openrac_common import files
   files.link_or_copy(image, dest)                    # "linked" or "copied"
   files.copy_tree(src, dest, lambda rel: rel.suffix == ".py")
+  files.rename(staged, dest)
+  files.replace(staged, dest)
 
 link_or_copy is written from the copies tools/extractor.py and tools/openrac.py (place_link,
 whose checks of an existing DEST stay with it) had, and copy_tree from
-tools/bundle_standalone.py's; those three use these since P1-05.
-port/tools/hostgen/prep.py:759 has a copy_tree of the same name that rewrites C as it copies;
+tools/bundle_standalone.py's; those three use these now.
+port/tools/hostgen/prep.py has a copy_tree of the same name that rewrites C as it copies;
 it is a different function and stays where it is.
 """
 import os
 import shutil
+import time
 from collections.abc import Callable
 from pathlib import Path
+
+
+def _move(operation, source: Path | str, dest: Path | str) -> None:
+    """Retry Windows access/sharing/lock violations with a 2.06-second total wait budget.
+
+    Closed files can remain locked briefly by other Windows filesystem users. Retry the
+    same atomic operation; never copy over the destination or change its permissions.
+    Other errors, and a lock that outlasts the retry budget, reach the caller unchanged.
+    """
+    for attempt in range(13):
+        try:
+            operation(source, dest)
+            return
+        except OSError as exc:
+            if getattr(exc, "winerror", None) not in (5, 32, 33) or attempt == 12:
+                raise
+            time.sleep(min(0.01 * 2 ** attempt, 0.25))
+
+
+def rename(source: Path | str, dest: Path | str) -> None:
+    """Rename with os.rename's destination rules, tolerating brief Windows locks."""
+    _move(os.rename, source, dest)
+
+
+def replace(source: Path | str, dest: Path | str) -> None:
+    """Atomically replace DEST with SOURCE, tolerating brief Windows locks."""
+    _move(os.replace, source, dest)
 
 
 def link_or_copy(source: Path | str, dest: Path | str, *, keep_metadata: bool = True) -> str:

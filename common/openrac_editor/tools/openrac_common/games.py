@@ -9,14 +9,14 @@ The games' manifests: games/<game>/game.json, read one way.
       print(game["id"], name, version["serial"], games.version_dir(game, name))
 
 Written from tools/openrac.py's vdir, games and versions, the most complete of the five readers
-there were. tools/openrac.py, extractor.py, sources.py and xmap.py read the manifests through it
-(P1-05); port/tools/versionmap/versionmap.py:52 (version) keeps its own until P2-10. A manifest
+there were. tools/openrac.py, extractor.py, sources.py and xmap.py, versionmap and the editor
+read the manifests through it. A manifest
 is returned as the parsed JSON, unchanged: its fields are described in docs/LAYOUT.md and each
 game's README, and this module does not check them.
 
 source_checkout is the one rule for where a version's sister project (its matching decomp, synced
 into games/) is checked out, written from tools/openrac.py's source_checkout and tools/sources.py's
-checkout, which said the same thing twice (P2-30). tools/fcheck_gate.py finds rac1-decomp by it.
+checkout, which said the same thing twice. tools/fcheck_gate.py finds rac1-decomp by it.
 """
 import json
 import os

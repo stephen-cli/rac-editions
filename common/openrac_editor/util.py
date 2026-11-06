@@ -13,7 +13,7 @@ Each was written two or more times over before; its docstring names the modules 
 
 What the repository's shared helpers (tools/openrac_common) already do, the editor takes from
 there, reached through paths.BOOTSTRAP, which finds the package in a checkout and in the
-launcher's bundled copy alike (P2-32): a game's manifest is games.load, a file's digest
+launcher's bundled copy alike: a game's manifest is games.load, a file's digest
 digest.sha256. What stays here differs from them: sha256 hashes bytes in memory (digest hashes a
 file), read_json raises the caller's own error, and openrac_common has no f32, cross or disc
 identity.

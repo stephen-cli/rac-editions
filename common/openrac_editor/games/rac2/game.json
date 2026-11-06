@@ -32,14 +32,39 @@
       "target": "The boot executable SCUS_972.68 and its 27 level programs: every program rebuilds byte for byte from splat's assembly, with the C in src/ linked in place of its functions (one definition per function, at every place it has).",
       "source": {
         "name": "rac2-decomp",
-        "repo": "https://github.com/OpenRAC/rac2-gc-decomp",
+        "repo": "https://github.com/OpenRAC/rac2-decomp",
         "branch": "master",
         "checkout": "../rac2-decomp",
         "license": "GPL-3.0",
-        "exclude": [],
-        "commit": "8bc9d785bfec96fbc41c608ce625427912813ca5",
-        "date": "2026-10-20",
-        "imported": "2026-10-20"
+        "exclude": [
+          "toolchain"
+        ],
+        "mirror": true,
+        "rewrites": [
+          [
+            "Lombyte (MIT)",
+            "Lombyte (GPL-3.0)"
+          ],
+          [
+            "    STATE->channel[1].slot = func_002E5A50(object);\n",
+            "    STATE->channel[1].slot = func_002E5A50(object);\n    if (STATE->channel[1].slot >= 52) /* no free slot: retail would write past the 52 rows */\n        STATE->channel[1].slot = -1;\n"
+          ],
+          [
+            " unsigned int color1, color2;\n next = *(unsigned long long *)(*(char **)(o + 0x5c) + 0x10);\n",
+            " unsigned int color1, color2;\n /* OpenRAC: the new record's colour and alpha now (+0x30, +0x38) are never set here: it is drawn once\n    with what the stack held, before func_002ED368 sets them. Retail's stack held 0x001A0000 and 0x001C0000\n    there at every spawn of a New Game flight, an alpha byte of 0, so that draw changes no pixel; the host's\n    held float bits, a puff of alpha up to 0xFD at the engine every tick. */\n effect.unknown = 0x001A0000;\n effect.unknown2 = 0x001C0000;\n next = *(unsigned long long *)(*(char **)(o + 0x5c) + 0x10);\n"
+          ],
+          [
+            " unsigned int color;\n next = *(unsigned long long *)(*(char **)(o + 0x5c) + 0x10);\n",
+            " unsigned int color;\n /* OpenRAC: as in func_002E76C0, the new records' colour and alpha now (+0x30, +0x38) are drawn once as\n    the stack left them; retail's alpha byte 0 there, so that first draw changes no pixel. */\n effect.unknown = 0x001A0000;\n effect.unknown2 = 0x001C0000;\n spark.unknown = 0x001A0000;\n spark.unknown2 = 0x001C0000;\n next = *(unsigned long long *)(*(char **)(o + 0x5c) + 0x10);\n"
+          ],
+          [
+            "extern void func_003182C0(void);\n\n/* Calls the measured no-argument callee. */\nvoid func_L00_003BAAD0(void)\n{\n    func_003182C0();\n}\n",
+            "extern void func_003182C0(char *);\n\n/* Calls the measured callee with the object it was given. OpenRAC: the decompilation's\n   (void) left a0 unset; the console's a0 still held the moby, the host's held anything. */\nvoid func_L00_003BAAD0(char *self)\n{\n    func_003182C0(self);\n}\n"
+          ]
+        ],
+        "commit": "f9e8de4b0ec20364860f9cbbcbac3a19f5b5ff4c",
+        "date": "2026-11-04",
+        "imported": "2026-11-04"
       },
       "build": {
         "host": "macOS, Linux or Windows through Docker (linux/386 image with Wine and the build tools); SN ProDG 2.0's assembler and linker you supply",
@@ -71,6 +96,24 @@
         },
         "setup": "python3 tools/levels.py dump in games/rac2/ntsc"
       }
+    },
+    "pal": {
+      "region": "PAL (Europe)",
+      "serial": "SCES_516.07",
+      "disc": {
+        "file": "SCES_516.07.iso",
+        "version": "1.00",
+        "video": "PAL",
+        "size": 3548545024,
+        "sha256": "519f9fa78b8e821b6bb7fa501fc10e8b10f378e27a6410f68d0dd8952860b41a",
+        "files": 96,
+        "contents": "8a34bee424474fc92940554d98d2678d1c1ef58cc42f4dcb4df3ab7d48216edc"
+      },
+      "boot": {
+        "file": "SCES_516.07",
+        "sha1": "cb59ce5396ddebb8aa539b0847f8bf66d6a47fe0"
+      },
+      "target": "Extraction only: the disc is recognised and its files are read. Nothing is built from the PAL release yet (games/rac2/ntsc/docs/VERSIONS.md), and there is no PAL port to play it with."
     }
   }
 }

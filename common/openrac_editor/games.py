@@ -9,7 +9,7 @@ What is shared (Wrench's readers, which serve all four, and the levels on the di
 
 - the level core: one index header layout (gs_ram, tfrags, occlusion, sky, collision, the class
   and texture tables at the same offsets, textures base at +0x60, the chrome and glass maps at
-  +0x90..+0x9c), the class entries (32 bytes for mobys and ties, 48 for shrubs), the 16-byte
+  +0x90..+0x9c, whose pixels Going Commando keeps in the GS RAM lump's stash), the class entries (32 bytes for mobys and ties, 48 for shrubs), the 16-byte
   texture entries and the WAD compression;
 - tfrags, ties, shrubs and collision, whose blocks the same decoders read;
 - the moby class header and its packets; the tie and shrub instance records (from Going Commando on
@@ -96,10 +96,14 @@ class TieHeader:
     normals: int
     light_slots: bool           # packet bytes 0xa and 0xb locate each vertex's light slot (Ratchet & Clank)
     winding_flag: bool = False  # a strip's last byte is a flag (any non-zero turns it), not 0 or 1
+    # Each vertex takes its own colour of the instance's (gc_tie_colours): a vertex's light slot is
+    # its place in the class's colour run, packets in order (Going Commando)
+    vertex_colours: bool = False
 
 
 RAC1_TIE = TieHeader(packet_count=0x20, texture_count=0x23, ad_gifs=0x2c, normals=0x0c, light_slots=True)
-GC_TIE = TieHeader(packet_count=0x0c, texture_count=0x0f, ad_gifs=0x1c, normals=0x34, light_slots=False)
+GC_TIE = TieHeader(packet_count=0x0c, texture_count=0x0f, ad_gifs=0x1c, normals=0x34, light_slots=False,
+                   vertex_colours=True)
 UYA_DL_TIE = TieHeader(packet_count=0x0c, texture_count=0x0f, ad_gifs=0x1c, normals=0x34, light_slots=False,
                        winding_flag=True)
 
@@ -124,17 +128,26 @@ class Format:
     ratchet_sequences: bool = True      # +0x78 points at Ratchet's 256 sequence offsets (not Deadlocked's)
     moby_sound_remap: bool = False      # +0xb4 starts a core block (Going Commando, Up Your Arsenal)
     stash: bool = False                 # +0x84 counts GS RAM entries of permanently stashed moby textures
+    maps_in_textures: bool = False      # the chrome and glass maps' pixels are in the GS RAM lump's stash (Going Commando)
+    ship_paint_slots: bool = False      # a face on an empty texture slot wears the ship's picture (Going Commando)
     compact_vertex_table: bool = False  # moby packets' vertex table header: 8 u16 (else 8 u32)
     swizzled_textures: bool = False     # 8-bit textures stored in the GS's PSMT8 order (Deadlocked)
     skeleton_3x4: bool = False          # moby bind matrices are 3x4 (Deadlocked), not 4x4
     moby_animations: bool = True        # the moby sequences are read (moby_anim.py's frame format)
     moby_glow: bool = True              # a class header's byte 0xa is its first glow packet
+    moby_glow_tail: bool = False        # a packet's vertex table counts its last vertices as glow ones (Going Commando)
+    moby_bangles: bool = False          # a class's bangles (header byte 0x2c) go out as classes of their own (Going Commando)
+    moby_lights: bool = False           # the gameplay file's light sets go out for the mobys (Going Commando)
     moby_empty_slots: bool = False      # a face may use an empty texture slot: drawn untextured
     sky_short_shells: bool = False      # a sky shell's cluster count and flags are s16 (Up Your Arsenal, Deadlocked)
     # What only Ratchet & Clank has so far: its levels lit as the game lights them at load
     # (lighting.py needs the executable's normal table, disc.Version.normal_table), its moby
     # class names (moby_classes.tsv) and update functions (games/rac1), and the level packer.
     lighting: bool = False
+    # The terrain and the shrubs lit as the game lights them at level load, the ties left to a
+    # reader of their own (Going Commando: its PatchTfragVertexLighting, 0x2F0468, is
+    # LightTfrags and its shrubs' routine, 0x2E2C38, LightShrubs).
+    world_lighting: bool = False
     class_names: bool = False
     packable: bool = False
     # Early access: a class or block that does not decode is left out and listed (level.problems)
@@ -202,7 +215,10 @@ RAC1 = Format("rac1", "Ratchet & Clank", ties=0x34, shrubs=0x3c, mobys=0x44, mob
               tie_ambient=True, gadgets=True, lighting=True, class_names=True, packable=True,
               level_names=LEVEL_NAMES["rac1"])
 RAC2 = Format("rac2", "Ratchet & Clank: Going Commando", ties=0x34, shrubs=0x40, mobys=0x4c, moby=GC_MOBY,
-              tie_header=GC_TIE, moby_sound_remap=True, level_names=LEVEL_NAMES["rac2"], **LATER)
+              tie_header=GC_TIE, moby_sound_remap=True, maps_in_textures=True, ship_paint_slots=True,
+              moby_glow_tail=True, moby_lights=True, moby_bangles=True, world_lighting=True,
+              level_names=LEVEL_NAMES["rac2"],
+              **LATER)
 RAC3 = Format("rac3", "Ratchet & Clank: Up Your Arsenal", ties=0x34, shrubs=0x40, mobys=0x4c, moby=UYA_MOBY,
               tie_header=UYA_DL_TIE, moby_sound_remap=True, sky_short_shells=True,
               level_names=LEVEL_NAMES["rac3"], **LATER)
@@ -214,7 +230,13 @@ FORMATS = {f.game: f for f in (RAC1, RAC2, RAC3, RAC4)}
 # The discs each game's levels are read from, as games/<game>/game.json lists its versions:
 # Ratchet & Clank's PAL and NTSC-U, the others' NTSC-U. An overrides pack or an asset export names
 # its game and version; a pack's files fit the levels of its own game only.
-VERSIONS = {game: tuple(manifests.load(game)["versions"]) for game in FORMATS}
+# A version only recognised for extraction (no decompilation source and no port: Going Commando's
+# PAL disc) is not one: nothing has mapped its levels yet.
+VERSIONS = {
+    game: tuple(name for name, version in manifests.load(game)["versions"].items()
+                if version.get("source") or "port" in version)
+    for game in FORMATS
+}
 
 
 def known(game, version) -> bool:

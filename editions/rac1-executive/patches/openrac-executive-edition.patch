@@ -1,6 +1,27 @@
+diff --git a/games/rac1/src/game/system/loaders.c b/games/rac1/src/game/system/loaders.c
+index da8c3da69..e90c6dc60 100644
+--- a/games/rac1/src/game/system/loaders.c
++++ b/games/rac1/src/game/system/loaders.c
+@@ -1840,11 +1840,11 @@ extern int active_class_resource_index MACRO_ADDR;
+ extern int active_decode_buffer MACRO_ADDR;
+ 
+ extern int class_resource_ids[];
+-/* These parallel class-resource arrays form one block. The first base is paired through its
+-   level loader; the later arrays do not each have a direct address-forming instruction there. */
+-#define D_001CBEA0 ((int *)((char *)D_001CBE40 + 0x60))
+-#define D_001CBF60 ((char (*)[16])((char *)D_001CBE40 + 0x120))
+-#define D_001CC0E0 ((short (*)[16])((char *)D_001CBE40 + 0x2A0))
++/* These parallel class-resource arrays form one block after D_001CBE40. Each is addressed on its own
++   here (lui/addiu per array), as retail does: one base plus offsets compiles 12 bytes shorter. */
++extern int D_001CBEA0[];
++extern char D_001CBF60[][16];
++extern short D_001CC0E0[][16];
+ extern unsigned char resident_indexed_textures[];
+ extern GadgetRec item_info_table[];
+ extern unsigned char gold_weapon_purchased[];
 diff --git a/games/rac1/tools/boot_elf.py b/games/rac1/tools/boot_elf.py
 new file mode 100644
-index 00000000..16b765a6
+index 000000000..16b765a6c
 --- /dev/null
 +++ b/games/rac1/tools/boot_elf.py
 @@ -0,0 +1,120 @@
@@ -124,9 +145,39 @@ index 00000000..16b765a6
 +
 +if __name__ == "__main__":
 +    sys.exit(main())
+diff --git a/games/rac1/tools/gcc323.py b/games/rac1/tools/gcc323.py
+index 13e9bad13..3c6d58ed6 100644
+--- a/games/rac1/tools/gcc323.py
++++ b/games/rac1/tools/gcc323.py
+@@ -13,6 +13,7 @@ from __future__ import annotations
+ import hashlib
+ import json
+ import os
++import posixpath
+ from pathlib import Path, PurePosixPath, PureWindowsPath
+ import shutil
+ import subprocess
+@@ -182,8 +183,16 @@ def in_container(arguments: list[str]) -> int:
+     # An explicitly selected/local image already chooses the host platform.
+     # For the registry default, select the same 32-bit variant as run.sh.
+     args = [container_argument(a, ROOT) for a in arguments]
++    # A checkout whose toolchain/ is a link to a directory outside it (one toolchains directory shared by
++    # several checkouts) mounts that directory where the link points inside the container.
++    mounts = ["-v", ROOT.as_posix() + ":/work"]
++    toolchain = ROOT / "toolchain"
++    if toolchain.is_symlink():
++        inside = posixpath.normpath(posixpath.join("/work", Path(os.readlink(toolchain)).as_posix()))
++        if not inside.startswith("/work/"):
++            mounts += ["-v", toolchain.resolve().as_posix() + ":" + inside]
+     return subprocess.call([cli, "run", "--rm", "--init", *platform_args,
+-                            "-v", ROOT.as_posix() + ":/work", "-w", "/work", image,
++                            *mounts, "-w", "/work", image,
+                             "python", "tools/gcc323.py", *args])
+ 
+ 
 diff --git a/games/rac1/tools/iso_patch.py b/games/rac1/tools/iso_patch.py
 new file mode 100644
-index 00000000..f2c6e4f8
+index 000000000..f2c6e4f8e
 --- /dev/null
 +++ b/games/rac1/tools/iso_patch.py
 @@ -0,0 +1,191 @@
@@ -322,7 +373,7 @@ index 00000000..f2c6e4f8
 +if __name__ == "__main__":
 +    sys.exit(main())
 diff --git a/tools/shared.py b/tools/shared.py
-index 5c358378..e31f3fa0 100644
+index 5c358378b..e31f3fa04 100644
 --- a/tools/shared.py
 +++ b/tools/shared.py
 @@ -36,7 +36,7 @@ def problems() -> list[str]:

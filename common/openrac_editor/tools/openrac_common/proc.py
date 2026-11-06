@@ -13,7 +13,7 @@ and port/tools/hostgen/clangast.py:76 (capture text, replacing what does not dec
 tools/sources.py's git (check, optionally bytes) and tools/fcheck_gate.py's (no check). Both
 take paths as well as strings in a command and pass every argument as a string. Nothing here
 goes through a shell, so no argument is ever split or expanded. Every git call in tools/*.py
-goes through git (P1-05); a command needing what run does not offer (input, a timeout, output
+goes through git; a command needing what run does not offer (input, a timeout, output
 to a file, a shell) keeps subprocess.
 """
 import subprocess

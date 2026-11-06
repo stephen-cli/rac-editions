@@ -37,6 +37,11 @@ ROOT_SECTORS = 16
 # before +0x72000 on these discs.
 TOC_LIMIT = 0x200000
 MAX_LEVELS = 100
+ITEM_BANKS = 48
+SHIP_BODIES = 0x48d8
+SHIP_PAINTS = 0x48f0        # Going Commando
+SHIP_PAINT_COUNT = 18       # the pairs there: the Ship Shack's paint jobs (0x152C30 holds the loaded one)
+FLIGHT_BASE = 0x3e24        # Going Commando: the sector the flights' ranges start from
 LEVEL_PAIR = 24              # three (sector, sector count) pairs
 
 # A header's kind by its size (Wrench's WAD_FILE_TYPES, for these games' NTSC-U discs).
@@ -57,9 +62,17 @@ class Version:
     executable_size: int
     executable_sha1: str
     level_header: int       # the level header's size: 0x60 (Going Commando, Up Your Arsenal) or 0xc68 (Deadlocked)
+    hero_packs: int = 0     # where the table of contents keeps the packs of Ratchet's mesh and textures, if it does
+    hero_armours: int = 0   # how many of those packs are his looks; the wrench's follow them
+    item_banks: int = 0     # where it keeps the banks of the items he holds, if it does
+    flights: int = 0        # where it keeps the flights' (sector, sector count) pairs, after their base sector
+    flight_count: int = 0
+    normal_table: int = 0   # the executable's (cos, sin) table the terrain is lit by (lighting.py), if known
 
 
-RAC2_NTSC = Version(game="rac2", key="ntsc", **util.disc_identity("rac2", "ntsc"), level_header=0x60)
+RAC2_NTSC = Version(game="rac2", key="ntsc", **util.disc_identity("rac2", "ntsc"), level_header=0x60,
+                    hero_packs=0x4f04, hero_armours=9, item_banks=0x4b3c, flights=0x3e58, flight_count=4,
+                    normal_table=0x238f00)
 RAC3_NTSC = Version(game="rac3", key="ntsc", **util.disc_identity("rac3", "ntsc"), level_header=0x60)
 RAC4_NTSC = Version(game="rac4", key="ntsc", **util.disc_identity("rac4", "ntsc"), level_header=0xc68)
 VERSIONS = (RAC2_NTSC, RAC3_NTSC, RAC4_NTSC)
@@ -181,6 +194,79 @@ class WadDisc:
         if found is None:
             raise FormatError(f"{self.version.game} has no level {number}")
         return found
+
+    def hero_pack(self, pack: int = 0) -> tuple[bytes, bytes]:
+        """Ratchet's mesh and textures: pack PACK of the table the game's LoadPlayerDisplayTextures
+        (0x00292078) reads, (mesh sector, sectors, textures sector, sectors) each, sectors relative
+        to the word before the table. Going Commando's level holds only his skeleton: the game
+        picks a pack by his armour, 0 the one he starts in."""
+        base, = unpack("<i", self.toc, self.version.hero_packs)
+        mesh, mesh_sectors, textures, texture_sectors = unpack(
+            "<4i", self.toc, self.version.hero_packs + 4 + pack * 16)
+        return self.disc.sectors(base + mesh, mesh_sectors), self.disc.sectors(base + textures, texture_sectors)
+
+    def item_banks(self) -> list[tuple[int, bytes, bytes]]:
+        """(class, class WAD, texture WAD) of each item in the banks Ratchet's weapons and gadgets
+        load from when he takes them out (func_00294988): ITEM_BANKS rows of (class, sector, sectors,
+        sound sector, sound sectors), sectors relative to the word before the table. A bank starts
+        with the offset and size of each part, from the disc's sector of the table's base. The rows
+        of class 0 are no item."""
+        base, = unpack("<i", self.toc, self.version.item_banks)
+        result = []
+        for row in range(ITEM_BANKS):
+            class_id, sector, sectors = unpack("<3i", self.toc, self.version.item_banks + 4 + row * 20)
+            if class_id:
+                bank = self.disc.sectors(base + sector, sectors)
+                item, _, texture, _ = unpack("<4I", bank)
+                start = sector * SECTOR
+                result.append((class_id, bank[item - start:], bank[texture - start:]))
+        return result
+
+    def ship_texture(self, number: int = 0) -> bytes:
+        """The picture on his ship, as func_002926B8 reads it: paint NUMBER of the (sector, sector
+        count) pairs at SHIP_PAINTS, from the flights' base sector."""
+        base, = unpack("<I", self.toc, FLIGHT_BASE)
+        sector, count = unpack("<II", self.toc, SHIP_PAINTS + number * 8)
+        return self.disc.sectors(base + sector, count)
+
+    def ship_textures(self) -> list[bytes]:
+        """Every paint job (SHIP_PAINT_COUNT pairs at SHIP_PAINTS): func_002926B8 loads the one the
+        low five bits of 0x001A7AF2 name on each load, the Ship Shack's preview another, and keeps
+        its number at 0x00152C30."""
+        return [self.ship_texture(number) for number in range(SHIP_PAINT_COUNT)]
+
+    def ship_body(self, number: int = 0) -> bytes:
+        """His ship's hull as func_002925F0 reads it on every level's and flight's load: a class, of
+        the (sector, sector count) pairs at SHIP_BODIES, from the flights' base sector."""
+        base, = unpack("<I", self.toc, FLIGHT_BASE)
+        sector, count = unpack("<II", self.toc, SHIP_BODIES + number * 8)
+        return self.disc.sectors(base + sector, count)
+
+    def ship_bodies(self) -> list[bytes]:
+        """Every hull: the pairs from SHIP_BODIES up to the paints' (the game picks one by the low two
+        bits of 0x001A7AF0)."""
+        return [self.ship_body(number) for number in range((SHIP_PAINTS - SHIP_BODIES) // 8)]
+
+    def executable(self) -> bytes:
+        """The executable SYSTEM.CNF boots (identify checked its size and SHA-1)."""
+        found = next((lba, size) for path, lba, size in walk(self.disc) if path == self.version.executable)
+        return self.disc.read(found[0] * SECTOR, found[1])
+
+    def normals(self) -> list[tuple[int, int]] | None:
+        """The executable's (cos, sin) table the game lights its terrain by, or None where it is
+        not known. Going Commando's PatchTfragVertexLighting (0x2F0468) copies it from 0x238F00 to
+        the scratchpad and lights each terrain vertex as Ratchet & Clank's LightTfrags does."""
+        if not self.version.normal_table:
+            return None
+        from lighting import normal_table
+        return normal_table(self.executable(), self.version.normal_table)
+
+    def flight(self, number: int) -> bytes:
+        """A flight's lump as stored: the sector ranges at `flights`, relative to the sector the
+        word at 0x3e24 holds (the transition loader, func_002EAB18, reads them so)."""
+        base, = unpack("<I", self.toc, FLIGHT_BASE)
+        sector, count = unpack("<II", self.toc, self.version.flights + number * 8)
+        return self.disc.sectors(base + sector, count)
 
     def survey(self) -> dict:
         """The disc's levels, as JSON (headers left out)."""

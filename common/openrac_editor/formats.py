@@ -11,7 +11,15 @@ import zlib
 
 
 class FormatError(ValueError):
-    """Data outside the layouts this extractor supports."""
+    """Data outside the layouts this extractor supports, or a request the tools refuse.
+
+    CODE names the case for the launcher, which says it in a player's words
+    (launcher/src/lib/toolErrors.ts) and keeps the message for "Show details": a refusal it can
+    explain gets a code of its own; one without is a damaged or unexpected disc ("disc-data")."""
+
+    def __init__(self, message: str, code: str | None = None):
+        super().__init__(message)
+        self.code = code
 
 
 def check(ok: bool, message: str) -> None:
@@ -30,6 +38,19 @@ def span(data: bytes, offset: int, size: int) -> bytes:
 
 def unpack(fmt: str, data: bytes, offset: int = 0) -> tuple:
     return struct.unpack(fmt, span(data, offset, struct.calcsize(fmt)))
+
+
+CLAMP_1 = 0x08  # the GS register an A+D quadword's address byte names
+
+
+def gs_clamp(data: bytes, offset: int) -> int:
+    """The axes an A+D CLAMP_1 quadword at offset clamps: bit 0 S, bit 1 T, where its WMS or WMT
+    is 1 (CLAMP; 0 repeats, the region modes are drawn repeated). 0 when the quadword is another
+    register's."""
+    lo, hi, address = unpack("<iiB", data, offset)
+    if address != CLAMP_1:
+        return 0
+    return int(lo & 3 == 1) | int(hi & 3 == 1) << 1
 
 
 def wad(data: bytes, limit: int = 64 << 20) -> bytes:

@@ -92,7 +92,10 @@ class Version:
 
 
 # PAL: func_0012F3F8 reads the table into D_00137C80, func_0012F4A8 the level table (D_0013A548).
-PAL = Version(key="pal", **util.disc_identity("rac1", "pal"), gameplay="gameplay_pal", normal_table=0x165600)
+# The native port keeps PAL in 60 Hz mode (video option 0). Its gameplay loader
+# then reads header+0x10, the gameplay_ntsc range on this same PAL disc. Use that
+# copy for both extraction and packing; header+0x18 is only used in 50 Hz mode.
+PAL = Version(key="pal", **util.disc_identity("rac1", "pal"), gameplay="gameplay_ntsc", normal_table=0x165600)
 # NTSC-U: the same table of contents (ReRAC's docs/formats/disc_layout.md, sections 2.2 to 2.4;
 # ISC License, Copyright (c) 2026 ReRAC contributors: six sectors at 1500, 0x2960 bytes copied to
 # D_00137B80). Its game loads the NTSC gameplay copy: the NTSC decomp's load_level_gameplay reads
