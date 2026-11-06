@@ -34,8 +34,9 @@ and writes a flat image that OpenRAC's `tools/boot_elf.py --segment` carries
 in the boot executable as a second loadable segment. The console's ELF
 loader places it in RAM at boot; level programs replace memory from 0x15F000
 up and never touch it. The executable grows past its retail size, so
-`tools/iso_patch.py` writes it in new sectors at the end of the image and
-moves the directory record (verified booting in PCSX2 from sector 2058000).
+`tools/install.py` (common/iso_image.py) writes it in new sectors at the end
+of the image and moves the directory record (verified booting in PCSX2 from
+sector 2058000).
 
 - Only the resident core, below 0x15F000 (core text, data, bss, lit), is at
   one address: `D_XXXXXXXX` there can be used directly (bolts, current
@@ -123,7 +124,7 @@ count. The bolt counter shows the multiplier in orange below its bolt icon
 while it is above x1, as Going Commando does, and pops up on each step.
 Challenge Mode no longer doubles every drop: it pays what a first
 playthrough pays, and the multiplier is the way to earn more. This is the
-"skill" economy, the default; `tools/pack.sh --economy classic` builds
+"skill" economy, the default; `tools/install.py --economy classic` builds
 retail's instead (the doubling and retail's limiter; the limiter's 301-351
 fix and the Metal Detector's 10x are in both).
 
@@ -878,7 +879,7 @@ within 6/32768, the packed format's 2-bit quantization (deltas are
 multiples of 4); every R&C1 scale and translation record present with the
 same values, R&C2 adding rest-pose records R&C1 leaves implicit.
 
-**In the edition.** `tools/pack.sh` runs `rac2_anim.py emit 0x14`, which
+**In the edition.** `tools/release.py` runs `rac2_anim.py emit 0x14`, which
 reads the owner's R&C2 disc (`games/rac2/ntsc/baserom/SCUS_972.68.iso`)
 and writes `build/modseg/gen_anim.c`: the 30 frames (1264 bytes each) and
 the sequence header with their addresses, 37 KB in the mod segment (now 56
@@ -1006,7 +1007,7 @@ palette entries, the white frame by the same black-to-white entry mapping
 the Grindboots frames show. The hud header is re-read from the disc at each
 level load, so the pages' GS allocations start clean like every other page's.
 
-**Pipeline.** pack.sh runs gen_items.py and `gen_hud.py emit` before the
+**Pipeline.** The release build runs gen_items.py and `gen_hud.py emit` before the
 mod segment and `gen_hud.py header` after it (the header needs the pixels'
 address). In-place route only; the wrench route does not carry the header.
 
@@ -1760,7 +1761,7 @@ Ratchet's class slot 140 (fourth increment), above 0x17: the channel was
 off and every weapon swung like a glove.
 
 **The port.**
-- `common/rac2_anim.py emit-arm 0x14` (run by `tools/pack.sh`) reads
+- `common/rac2_anim.py emit-arm 0x14` (run by `tools/release.py`) reads
   sequence 0x14 of R&C2's arm classes 1 and 2 from its level 1 archive
   (index + 0x18: the class count and offset, 32-byte entries) and writes
   them as `ee_gunarm_seq_1` and `ee_gunarm_seq_2`
@@ -2315,7 +2316,7 @@ masked; one match each) and the data from their lui/addiu pairs. It writes
 both frontends as a level is patched: UpdateViewContext's entry goes to
 `ee_view_hook` with id 19 (boot) or 20 (frontbin), its +0x68 read reads
 +0xBC, and the planet name call goes to `ee_ws_br_planet_name`. The boot
-executable is patched after OpenRAC's `boot_elf.py` (`pack.sh`, `patch-elf`),
+executable is patched after OpenRAC's `boot_elf.py` (`release.py`, `patch-elf`),
 frontbin's sectors by `overlay_patch.py` (feature widescreen). In the
 frontends `ee_view_pre_c` widens the view only in game mode 6, which only
 DoSpaceTransition sets (both frontends start with 0), so the title and its
@@ -3360,7 +3361,7 @@ sources: the first build takes about 40 s.
 **The lines on the disc (tools/splice_helpdesk.py).** The step puts
 build/helpdesk's files in new sectors at the image's end, in place of the blank margin the earlier steps leave and
 followed by a new one, writes their first sectors into their slots of the
-table, and grows the volume size. pack.sh runs it last on both routes.
+table, and grows the volume size. tools/install.py runs it last.
 
 | Slot | Retail slot | Line |
 |---:|---:|---|
@@ -4276,8 +4277,8 @@ written, and made again at the host's next update; without one, the host
 keeps its own model.
 
 **The class in every level.** Aridia's, Gaspar's, Pokitaru's, Kalebo III's
-and Veldin's data lack class 750. tools/extra_classes.py (pack.sh's 5d
-step) copies Novalis's blob (0x15140 bytes) and its two textures' pixels
+and Veldin's data lack class 750. tools/extra_classes.py (run by
+tools/install.py) copies Novalis's blob (0x15140 bytes) and its two textures' pixels
 (0x5000 bytes) into each of those cores where the moby classes end, as
 tools/splice_boots.py does for the Charge Boots: the class table grows in
 place, the texture and GS RAM upload tables get the new entries, the

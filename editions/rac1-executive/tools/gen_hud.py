@@ -51,7 +51,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
-ICON_ID = 0xEA84                 # ICON_BASE + item 36 (tools/gen_items.py)
+RAC1_ISO = "games/rac1/baserom/SCES_509.16.iso"   # in the OpenRAC checkout
+SECTOR = 2048
+ICON_ID = 0xEA84                # ICON_BASE + item 36 (tools/gen_items.py)
 ICON_GRINDBOOTS = 0xEA7D
 PALETTE_BLACK, PALETTE_WHITE = 5, 6
 SYMBOL = "ee_icon_charge_boots"
@@ -112,13 +114,18 @@ def png_decode(data: bytes):
 
 
 class HudHeader:
-    """The retail HUD header's tables, and the pixels of a frame."""
+    """The retail HUD header's tables, and the pixels of a frame, from the PAL disc: the header and
+    its five banks are global files (table of contents groups hud_header and hud_banks)."""
 
-    def __init__(self, openrac: Path):
+    def __init__(self, iso: Path):
         sys.path.insert(0, str(EDITOR))
+        from disc import Disc
         from formats import wad
-        g = openrac / "assets/wrench/rac1-pal/globals"
-        self.raw = (g / "hud_header.bin").read_bytes()
+        with Disc(iso) as disc:
+            refs = [r for r in disc.survey()["global_references"] if r["group"] in ("hud_header", "hud_banks")]
+            files = {(r["group"], r["index"]): disc.read(r["lba"] * SECTOR, r["bytes"]) for r in refs}
+        self.raw = files["hud_header", 0]
+        self.bank_files = {i: raw for (group, i), raw in files.items() if group == "hud_banks"}
         d = self.raw
         self.counts = struct.unpack_from("<2H", d, 0)
         o_icons, o_frames, o_pal, o_img = struct.unpack_from("<4I", d, 4)
@@ -135,11 +142,10 @@ class HudHeader:
         self.img_pages = [list(struct.unpack_from("<IHBB", d, o_img + 8 * i)) for i in range(self.img_ends[4])]
         self.banks = {}
         self.wad = wad
-        self.globals = g
 
     def bank(self, b: int) -> bytes:
         if b not in self.banks:
-            self.banks[b] = self.wad((self.globals / f"hud_banks/{b}.bin").read_bytes())
+            self.banks[b] = self.wad(self.bank_files[b])
         return self.banks[b]
 
     def page(self, index: int, pages, ends, size):
@@ -163,9 +169,9 @@ class HudHeader:
         return next(i for i in self.icons if i[0] == icon_id)
 
 
-def convert(openrac: Path, png: Path):
+def convert(iso: Path, png: Path):
     """The two frames of the new icon, as palette indices."""
-    hdr = HudHeader(openrac)
+    hdr = HudHeader(iso)
     w, h, px = png_decode(png.read_bytes())
     if (w, h) != (SIZE, SIZE):
         raise SystemExit(f"{png}: {w}x{h}, the icon must be {SIZE}x{SIZE}")
@@ -355,8 +361,14 @@ def c_bytes(symbol: str, data: bytes) -> list[str]:
     return lines + ["};"]
 
 
+def holes(iso: Path) -> dict[str, bytes]:
+    """The tables of gen_icons.c made from the disc's own palettes, which the installer fills in."""
+    hdr = HudHeader(iso)
+    return {PALETTE_SYMBOL: movie_bar_palette(hdr), BADGE_SYMBOL: randomizer_badge_palette(hdr)}
+
+
 def emit(args) -> int:
-    frame0, frame1, hdr = convert(args.openrac, args.png)
+    frame0, frame1, hdr = convert(args.openrac / RAC1_ISO, args.png)
     data = frame0 + frame1
     palette = movie_bar_palette(hdr)
     badge = randomizer_badge_palette(hdr)

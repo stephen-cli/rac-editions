@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Level-code patches for the Executive Edition, written as disc sectors.
+Level-code patches for the Executive Edition, written as a list of words.
 
 Gameplay code lives in the 19 level programs (overlays), not in the boot
 executable, and each level has its own copy of the shared functions at its
@@ -14,18 +14,24 @@ two is needed, a shim placed in a code cave: one of the linker remnants the
 catalogue lists (config/overlays/linker_remnants.txt), dead words retail's
 linker left of stripped functions, which nothing reaches.
 
-Output is the editor's patch format, which tools/iso_patch.py in OpenRAC's
-games/rac1 applies: <out>/patches.tsv listing first sector, sector
-count and a file of those sectors with the patch applied.
+Each patch is checked against the retail word it replaces. The output,
+build/overlay.tsv, lists every word written, in order: the feature, the
+byte offset in the PAL image, the new word; it is the payload's
+overlay.tsv (tools/payload.py), which tools/install.py writes into the
+player's image. With --economy classic, bolt_multiplier is left out; the
+other features' words are the same either way, so the installer leaves out
+that feature's words instead.
 
 Usage (from anywhere):
-  python tools/overlay_patch.py [--openrac DIR] [-o build/patches] [--dry-run] [FEATURE ...]
+  python tools/overlay_patch.py [--openrac DIR] [-o build/overlay.tsv] [--dry-run] [FEATURE ...]
 """
 import argparse
 import re
 import struct
 import sys
 from pathlib import Path
+
+from payload import ECONOMIES          # the builder's choice of Challenge Mode economy
 
 HERE = Path(__file__).resolve().parent
 EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
@@ -942,13 +948,6 @@ FEATURES = {
     "cutscene_skip": cutscene_skip,
     "vendor_ammo": vendor_ammo,
 }
-# The builder's choice of Challenge Mode economy: the features each leaves out. "skill", the default, is the bolt
-# multiplier (x1 base); "classic" keeps retail's doubling and limiter (the limiter's 301-351 fix is in both, and the
-# Metal Detector pays 10x in both).
-ECONOMIES = {
-    "skill": (),
-    "classic": ("bolt_multiplier",),
-}
 DEFAULT_FEATURES = [
     "edition_text",
     "metal_detector_10x_modseg",
@@ -1035,7 +1034,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("features", nargs="*", default=DEFAULT_FEATURES)
     ap.add_argument("--openrac", type=Path, default=HERE.parents[3] / "OpenRAC")
-    ap.add_argument("-o", "--output", type=Path, default=HERE.parent / "build/patches")
+    ap.add_argument("-o", "--output", type=Path, default=HERE.parent / "build/overlay.tsv")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--economy", choices=ECONOMIES, default="skill",
                     help="Challenge Mode's bolts: skill (x1 base, the multiplier) or classic (retail's x2)")
@@ -1058,6 +1057,7 @@ def main() -> int:
             return sectors[n]
 
         total = 0
+        changes = []                      # (feature, image byte offset, word), in the order written
         for level in range(19):
             records = texts[level]
 
@@ -1109,6 +1109,7 @@ def main() -> int:
                         raise SystemExit(f"level {level} {feature}: at 0x{addr:X} found {old:08X}, "
                                          f"expected {expect:08X}; is this the PAL v2.00 image, unpatched?")
                     struct.pack_into("<I", buf, i, word)
+                    changes.append((feature, off, word))
                     total += 1
 
         frontend = [f for f in args.features if f in ("edition_text", "widescreen", "movie_volume", "goodies")]
@@ -1125,26 +1126,16 @@ def main() -> int:
                 if old != expect:
                     raise SystemExit(f"frontbin: at image byte 0x{off:X} found {old:08X}, expected {expect:08X}")
                 struct.pack_into("<I", buf, i, word)
+                changes.append(("frontbin", off, word))
                 total += 1
         print(f"{total} words patched across {len(sectors)} sectors in 19 levels "
               f"({', '.join(args.features)})")
 
     if args.dry_run:
         return 0
-    args.output.mkdir(parents=True, exist_ok=True)
-    runs = []
-    for n in sorted(sectors):
-        if runs and runs[-1][0] + runs[-1][1] == n:
-            runs[-1][1] += 1
-        else:
-            runs.append([n, 1])
-    lines = ["# first sector\tsectors\tfile (beside this list)"]
-    for first, count in runs:
-        name = f"sectors_{first}.bin"
-        (args.output / name).write_bytes(b"".join(sectors[first + k] for k in range(count)))
-        lines.append(f"{first}\t{count}\t{name}")
-    (args.output / "patches.tsv").write_text("\n".join(lines) + "\n")
-    print(f"wrote {args.output / 'patches.tsv'} ({len(runs)} sector runs)")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text("".join(f"{feature}\t{off:X}\t{word:08X}\n" for feature, off, word in changes))
+    print(f"wrote {args.output}")
     return 0
 
 

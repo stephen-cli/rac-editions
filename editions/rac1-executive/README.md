@@ -162,29 +162,39 @@ wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac2/ntsc/baserom/SCUS_972.68.is
 
 ```sh
 cd rac-editions
-bash editions/rac1-executive/tools/pack.sh
+python editions/rac1-executive/tools/release.py
+python editions/rac1-executive/tools/install.py
 ```
 
-This takes about five minutes. It compiles the game from source, checks it
-against your disc, builds the edition's code, and writes the disc image:
+`release.py` takes about five minutes. It compiles the game from source,
+checks it against your disc, builds the edition's code and writes what a
+release ships to `build/payload`. `install.py` makes the disc image from
+that and your two discs, as a player's installer does:
 
 ```
 rac-editions/editions/rac1-executive/build/iso/executive-edition.iso
 ```
 
-If PCSX2 has that image open, the build writes `executive-edition-2.iso`
-(and so on) beside it instead.
+If PCSX2 has that image open, `install.py` writes `executive-edition-2.iso`
+(and so on) beside it instead. `install.py --economy classic` builds
+retail's Challenge Mode economy.
 
 **5. Play.** Open `executive-edition.iso` in PCSX2 like any disc (you need
 your own PS2 BIOS), or burn it to a DVD for a real PS2.
 
 ## How the image is built
 
-`pack.sh` takes a copy of your disc and changes it in place: the new
+`install.py` takes a copy of your disc and changes it in place: the new
 executable goes in new sectors at the end of the image, each level's code is
 patched where it is, and the Charge Boots and Kalebo III's sign are spliced
 into the levels' data where it sits. The rest of the disc stays byte-for-byte
 yours.
+
+What a release ships (`tools/payload.py`) holds no bytes of either game. The
+edition's code takes some tables from the discs (Going Commando's
+animations, the title screen's button glyphs, two HUD palettes, the
+Randomizer's item names); the payload has those cut out, with a note of how
+to make each, and `install.py` makes them from your discs.
 
 ## Layout
 
@@ -193,7 +203,8 @@ tools shared with the other editions are in the repository's `common/`.
 
 ```
 src/        the edition's C, compiled with the game's compiler into a resident "mod segment"
-tools/      the pipeline: pack.sh (build -> bootable executable -> level-code patches -> disc image),
+tools/      the pipeline: release.py (build -> mod segment -> level-code patches -> payload),
+            install.py (payload + your discs -> disc image), payload.py (what a release ships),
             overlay_patch.py (per-level patches), modseg.py (builds src/), splice_boots.py,
             gen_*.py (per-level data), gen_frontend.py (the title screen's programs),
             export-patches.sh (refreshes patches/)

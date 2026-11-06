@@ -28,7 +28,7 @@ fit there and decompressed over address 0.
 
   python tools/extra_classes.py splice IMAGE [--openrac DIR] [--wrench EXE]
 
-splice edits the levels of IMAGE in place (an image tools/pack.sh has written,
+splice edits the levels of IMAGE in place (an image tools/install.py is making,
 after tools/splice_boots.py): the blob and the pixels go into the core, the
 palettes into GS RAM, and the core index gets the texture entries, the class
 entry, and a sound span for every class (the boots' class had none). A level

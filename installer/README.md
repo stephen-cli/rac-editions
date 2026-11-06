@@ -19,4 +19,10 @@ written yet; these are the decisions so far.
 - **One tool for every edition**, set up by itself as far as possible.
 - **Options the player picks.** The Executive Edition's first: Challenge Mode's economy, "skill" (the default:
   drops as in a first playthrough, and a bolt multiplier for kills without a hit) or "classic" (retail's doubled
-  drops). Today `tools/pack.sh --economy`.
+  drops). Today `tools/install.py --economy`.
+- **A payload per release, and a reference installer.** An edition's
+  `tools/release.py` writes what a release ships (`tools/payload.py`): the
+  edition's compiled code with the bytes it takes from a disc cut out, and
+  lists of the words it changes. Its `tools/install.py` makes the image from
+  that payload and the player's discs; the installer core makes the same
+  image byte for byte.
