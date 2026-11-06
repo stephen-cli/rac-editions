@@ -21,7 +21,7 @@ data range is pointed at it. Run it after splice_boots.py, which rewrites
 every level's archive from the one the header names.
 
   python tools/splice_sign.py IMAGE [--openrac DIR] [--wrench wrench/bin/wrenchbuild.exe]
-                                    [--class-core build/sign_bank/moby_classes/1891_gadgetron_sign/core.bin]
+                                    [--class-core build/sign/gadgetron_sign.bin]
 """
 import argparse
 import struct
@@ -101,7 +101,7 @@ def main() -> int:
     ap.add_argument("image", type=Path)
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--class-core", type=Path,
-                    default=ROOT / "build/sign_bank/moby_classes/1891_gadgetron_sign/core.bin")
+                    default=ROOT / "build/sign/gadgetron_sign.bin")
     ap.add_argument("--retail", type=Path, default=None,
                     help="the retail image, for its archive size (default OpenRAC's PAL baserom)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")

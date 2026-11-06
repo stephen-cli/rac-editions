@@ -999,8 +999,7 @@ TOC_LBA, LEVEL_TABLE = 1500, 0x28C8      # table of contents; its level table: {
 
 def level_data_ranges(iso: Path) -> dict[int, tuple[int, int]]:
     """level id -> (first sector, sectors) of its data archive, read through the table of
-    contents and each level header (+0x08). Works on the retail image and on wrench-built
-    ones, whose directory layout the editor's Disc reader does not accept."""
+    contents and each level header (+0x08)."""
     out = {}
     with iso.open("rb") as f:
         f.seek(TOC_LBA * SECTOR)
@@ -1038,8 +1037,6 @@ def main() -> int:
     ap.add_argument("--openrac", type=Path, default=HERE.parents[3] / "OpenRAC")
     ap.add_argument("-o", "--output", type=Path, default=HERE.parent / "build/patches")
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--iso", type=Path, default=None,
-                    help="image whose level code to patch (default: the retail image); e.g. a wrench-built one")
     ap.add_argument("--economy", choices=ECONOMIES, default="skill",
                     help="Challenge Mode's bolts: skill (x1 base, the multiplier) or classic (retail's x2)")
     args = ap.parse_args()
@@ -1050,7 +1047,7 @@ def main() -> int:
             print(f"unknown feature {f}; known: {', '.join(FEATURES)}", file=sys.stderr)
             return 2
     places = load_catalogue(args.openrac)
-    iso, texts = level_text_locations(args.openrac, args.iso)
+    iso, texts = level_text_locations(args.openrac)
 
     sectors: dict[int, bytearray] = {}
     with iso.open("rb") as f:

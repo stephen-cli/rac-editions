@@ -1,5 +1,4 @@
 # game data and build output, never committed
-editions/*/mod/SCES_509.16
 *.iso
 *.elf
 *.bin

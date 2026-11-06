@@ -360,7 +360,7 @@ def main() -> int:
     ap.add_argument("image", type=Path)
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--class-core", type=Path,
-                    default=ROOT / f"build/boots_bank/moby_classes/{CLASS_ID}_charge_boots/core.bin")
+                    default=ROOT / "build/charge_boots.bin")
     ap.add_argument("--texture", type=Path, default=None,
                     help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")

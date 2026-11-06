@@ -2,41 +2,31 @@
 # Executive Edition pipeline: OpenRAC build + audits, bootable executable,
 # disc image. Run from anywhere in Git Bash.
 #
-#   bash editions/rac1-executive/tools/pack.sh [--wrench] [--economy skill|classic]
+#   bash editions/rac1-executive/tools/pack.sh [--economy skill|classic]
 #
 #   --economy Challenge Mode's bolts: skill (the default: x1 base and the no-hit bolt multiplier, x1) or
 #             classic (retail's doubled drops and limiter); see tools/overlay_patch.py ECONOMIES
 #
-#   default   the patch route: a copy of the owner's image: the executable in new sectors at the end, the
-#             level code patched in place, the Charge Boots class (R&C2's model)
-#             spliced into every level's data archive in place (tools/splice_boots.py),
-#             Kalebo III's GADGETRON sign spliced into its archive (tools/splice_sign.py),
-#             the infobot and the one-planet items' classes spliced into the levels without them (tools/extra_classes.py),
-#             and the edition's HelpDesk lines added at the end (tools/splice_helpdesk.py)
-#             -> editions/rac1-executive/build/iso/executive-edition.iso
-#   --wrench  experimental: wrench full re-layout (the edition's wrench fork): game bank +
-#             wrench overlay + mod/ + the Charge Boots bank (R&C2's model, tools/gen_boots.py)
-#             + the sign bank (tools/gen_sign.py),
-#             then the level-code patches computed against and written into that image
-#             -> editions/rac1-executive/build/iso/executive-edition-wrench.iso
-#             Not a stable build: wrench's texture packer regenerates mipmaps wrongly
-#             (chaoticgd/wrench#286), so textures look wrong at a distance and in menus.
+# The image is a copy of the player's: the executable in new sectors at the end, the level code
+# patched in place, the Charge Boots class (R&C2's model) spliced into every level's data archive
+# in place (tools/splice_boots.py), Kalebo III's GADGETRON sign spliced into its archive
+# (tools/splice_sign.py), the infobot and the one-planet items' classes spliced into the levels
+# without them (tools/extra_classes.py), and the edition's HelpDesk lines added at the end
+# (tools/splice_helpdesk.py)
+#   -> editions/rac1-executive/build/iso/executive-edition.iso
 #
-# OPENRAC, WRENCH and GAME_BANK override the defaults.
+# OPENRAC and WRENCH override the defaults.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 COMMON=$(cd "$HERE/../../common" && pwd)                      # tools shared by the editions
 OPENRAC=${OPENRAC:-$(cd "$HERE/../../../OpenRAC" && pwd)}
 WRENCH=${WRENCH:-$(cd "$HERE/../../../wrench" && pwd)}
-GAME_BANK=${GAME_BANK:-$OPENRAC/assets/wrench/rac1-pal}   # unpacked with the edition's wrench fork (stash_textures on carried items)
 PAL=$OPENRAC/games/rac1
-ROUTE="patch"
 ECONOMY="skill"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --wrench) ROUTE=wrench ;;
     --economy) ECONOMY=${2:-}; shift ;;
-    *) echo "usage: pack.sh [--wrench] [--economy skill|classic]" >&2; exit 2 ;;
+    *) echo "usage: pack.sh [--economy skill|classic]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -94,38 +84,20 @@ MODSEG_BASE=$(tr -d '\r\n' < "$HERE/build/modseg/modseg.base")   # the address t
 python tools/boot_elf.py --segment "$MODSEG_BASE:$(cygpath -w "$HERE/build/modseg/modseg.bin" 2>/dev/null || echo "$HERE/build/modseg/modseg.bin")"
 python "$HERE/tools/gen_frontend.py" --openrac "$OPENRAC" patch-elf build-sn/SCES_509.16   # the boot frontend's flight hooks (frontbin's: overlay_patch.py)
 
-if [ "$ROUTE" = patch ]; then
-  echo "== 4/5 level-code patches (tools/overlay_patch.py)"
-  python "$HERE/tools/overlay_patch.py" -o "$HERE/build/patches" --economy "$ECONOMY"
-  echo "== 5/5 image (executable in new sectors at the end, level patches in place)"
-  # An image an emulator has open cannot be overwritten: fall back to a numbered name.
-  mkdir -p "$HERE/build/iso"
-  out=$HERE/build/iso/executive-edition.iso; n=1
-  while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$HERE/build/iso/executive-edition-$n.iso; done
-  python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv" -o "$out"
-  echo "== 5b/5 the Charge Boots class spliced into every level's data (tools/splice_boots.py)"
-  python "$HERE/tools/splice_boots.py" "$out" --openrac "$OPENRAC"
-  echo "== 5c/5 Kalebo III's GADGETRON sign spliced into its data (tools/splice_sign.py)"
-  python "$HERE/tools/splice_sign.py" "$out" --openrac "$OPENRAC"
-  echo "== 5d/5 the infobot and the one-planet items' classes spliced into the levels without them (tools/extra_classes.py)"
-  python "$HERE/tools/extra_classes.py" splice "$out" --openrac "$OPENRAC" --wrench "$WRENCH/bin/wrenchbuild.exe"
-  echo "== 5e/5 the edition's HelpDesk lines in new sectors at the end (tools/splice_helpdesk.py)"
-  python "$HERE/tools/splice_helpdesk.py" "$out"
-  echo "-> $out"
-  exit 0
-fi
-
-cp build-sn/SCES_509.16 "$HERE/mod/SCES_509.16"
-echo "== 4/5 wrench pack: game bank + wrench overlay + mod/ + build/boots_bank + build/sign_bank"
+echo "== 4/5 level-code patches (tools/overlay_patch.py)"
+python "$HERE/tools/overlay_patch.py" -o "$HERE/build/patches" --economy "$ECONOMY"
+echo "== 5/5 image (executable in new sectors at the end, level patches in place)"
+# An image an emulator has open cannot be overwritten: fall back to a numbered name.
 mkdir -p "$HERE/build/iso"
-out=$HERE/build/iso/executive-edition-wrench.iso; n=1
-while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$HERE/build/iso/executive-edition-wrench-$n.iso; done
-"$WRENCH/bin/wrenchbuild.exe" pack "$GAME_BANK" "$WRENCH/data/overlay" "$HERE/mod" "$HERE/build/boots_bank" "$HERE/build/sign_bank" \
-  -a rac -o "$out" -h release \
-  | grep -vE '^Parsing|^\[ *[0-9]+%\]' || true
-echo "== 5/5 level-code patches against the packed image (tools/overlay_patch.py --iso), written in place"
-python "$HERE/tools/overlay_patch.py" --iso "$out" -o "$HERE/build/patches-wrench" --economy "$ECONOMY"
-python "$COMMON/apply_patches.py" "$out" "$HERE/build/patches-wrench/patches.tsv"
-echo "== 5b/5 the edition's HelpDesk lines in new sectors at the end (tools/splice_helpdesk.py)"
+out=$HERE/build/iso/executive-edition.iso; n=1
+while [ -e "$out" ] && ! ( : >> "$out" ) 2>/dev/null; do n=$((n+1)); out=$HERE/build/iso/executive-edition-$n.iso; done
+python tools/iso_patch.py --patches "$HERE/build/patches/patches.tsv" -o "$out"
+echo "== 5b/5 the Charge Boots class spliced into every level's data (tools/splice_boots.py)"
+python "$HERE/tools/splice_boots.py" "$out" --openrac "$OPENRAC"
+echo "== 5c/5 Kalebo III's GADGETRON sign spliced into its data (tools/splice_sign.py)"
+python "$HERE/tools/splice_sign.py" "$out" --openrac "$OPENRAC"
+echo "== 5d/5 the infobot and the one-planet items' classes spliced into the levels without them (tools/extra_classes.py)"
+python "$HERE/tools/extra_classes.py" splice "$out" --openrac "$OPENRAC" --wrench "$WRENCH/bin/wrenchbuild.exe"
+echo "== 5e/5 the edition's HelpDesk lines in new sectors at the end (tools/splice_helpdesk.py)"
 python "$HERE/tools/splice_helpdesk.py" "$out"
 echo "-> $out"

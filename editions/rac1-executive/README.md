@@ -178,19 +178,13 @@ If PCSX2 has that image open, the build writes `executive-edition-2.iso`
 **5. Play.** Open `executive-edition.iso` in PCSX2 like any disc (you need
 your own PS2 BIOS), or burn it to a DVD for a real PS2.
 
-## Two ways to build the image
+## How the image is built
 
-`pack.sh` (the default) is the stable one. It takes a copy of your disc and
-changes it in place: the new executable goes in new sectors at the end of
-the image, each level's code is patched where it is, and the Charge Boots
-and Kalebo III's sign are spliced into the levels' data where it sits. The
-rest of the disc stays byte-for-byte yours.
-
-`pack.sh --wrench` rebuilds the whole disc with wrench instead, writing
-`executive-edition-wrench.iso`. It is experimental and has not made a
-playable build since 2026-10-17: wrench's texture packer regenerates mipmaps
-wrongly (chaoticgd/wrench#286), so textures look wrong at a distance and in
-menus.
+`pack.sh` takes a copy of your disc and changes it in place: the new
+executable goes in new sectors at the end of the image, each level's code is
+patched where it is, and the Charge Boots and Kalebo III's sign are spliced
+into the levels' data where it sits. The rest of the disc stays byte-for-byte
+yours.
 
 ## Layout
 
@@ -204,7 +198,6 @@ tools/      the pipeline: pack.sh (build -> bootable executable -> level-code pa
             gen_*.py (per-level data), gen_frontend.py (the title screen's programs),
             export-patches.sh (refreshes patches/)
 patches/    what the edition adds to OpenRAC (two disc tools), as one diff
-mod/        wrench mod bank, used only by the full wrench rebuild
 text/       the edition's new strings, in five languages
 docs/       FEATURES.md (each feature and how it is patched), HQ_REPORT.md, DEBUGGING.md
 ```

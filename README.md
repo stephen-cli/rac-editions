@@ -15,8 +15,7 @@ holds only the editions' code, tools and notes, never game data.
 
 ```
 editions/    one folder per edition: its code (src/), pipeline (tools/), data, docs
-common/      tools the editions share: apply_patches.py (writes sector patches into an image),
-             rac2_anim.py (Going Commando's packed animations), wsl_linux_run.sh (runs Linux
+common/      tools the editions share: rac2_anim.py (Going Commando's packed animations), wsl_linux_run.sh (runs Linux
              assemblers through WSL), deps.py (the pinned dependencies, below),
              check_game_data.py (refuses game data in the repository),
              openrac_editor/ (OpenRAC's disc readers, carried unchanged)
