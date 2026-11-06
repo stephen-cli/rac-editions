@@ -626,12 +626,16 @@ void ee_frame_start_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, lvl_func_L00_00299250, EE_SITE_FRAME_START);
     u8 *moby = *(u8 **)(HERO + HERO_MOBY);
-    if (moby != 0) {
+    if (moby != 0 && EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
         keep_sequence(moby, CHARGE_SLOT, ee_charge_seq);
+    }
+    if (moby != 0 && EE_HAS(EE_FEATURE_STRAFING)) {
         keep_sequence(moby, BACKPEDAL_SLOT, ee_backpedal_seq);
     }
-    ee_charge_cheat_frame(L);
-    ee_race_item_frame(L);
+    if (EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
+        ee_charge_cheat_frame(L);
+        ee_race_item_frame(L);           /* item 36 is retail's without the boots */
+    }
     ee_rz_frame(L);                     /* rz3: the Randomizer's state for this level (src/randomizer_play.c) */
     LVL(L, func_L00_0024F7E0, Void)();
 }

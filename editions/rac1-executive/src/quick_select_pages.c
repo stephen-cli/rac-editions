@@ -134,7 +134,8 @@ DECLARE_LVL(func_001FFFB8);       /* HudDraw: calls the slot's draw at + EE_SITE
 
 s32 ee_qs_ring_open(s32 L)
 {
-    return *(volatile u32 *)(LVL_DATA(L, hud_slots, u32) + 3 * 0x90 + 0x14) == (u32)ee_qs_update;
+    u32 update = *(volatile u32 *)(LVL_DATA(L, hud_slots, u32) + 3 * 0x90 + 0x14);
+    return update == (u32)ee_qs_update || update == LVL(L, func_L00_00238530, u32);   /* the pages, or retail's ring */
 }
 
 /* Items no longer owned (or out of range) leave the stored pages; the page number stays 0-2. */

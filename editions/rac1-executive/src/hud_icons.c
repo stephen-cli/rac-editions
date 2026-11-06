@@ -150,12 +150,14 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
     o_icons = (u32)p - (u32)dst;
     p = copy(p, dst + off[0], 8 * n_icons);
     row = (struct IconRow *)p;
-    row->id = ICON_CHARGE_BOOTS;
-    row->count = 2;
-    row->start = (u16)n_frames;
-    row->flags = 0;
-    row->pad = 0;
-    row++;
+    if (EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {   /* without the boots their frames stay, unreferenced */
+        row->id = ICON_CHARGE_BOOTS;
+        row->count = 2;
+        row->start = (u16)n_frames;
+        row->flags = 0;
+        row->pad = 0;
+        row++;
+    }
     row->id = EE_ICON_MOVIE_BAR;
     row->count = 1;
     row->start = (u16)(n_frames + 2);

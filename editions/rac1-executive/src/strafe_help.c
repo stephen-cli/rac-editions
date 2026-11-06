@@ -175,7 +175,7 @@ void ee_strafe_help_frame(s32 level)
 {
     s32 mode;
 
-    if (level < 0 || level >= 19) {
+    if (!EE_HAS(EE_FEATURE_STRAFING) || level < 0 || level >= 19) {
         return;
     }
     mode = *LVL_DATA(level, game_mode, volatile s32 *);

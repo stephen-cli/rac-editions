@@ -46,9 +46,10 @@ appended at the end of the image and the old one left unused: 320 MB more.)
 
 Inputs: the class core (tools/gen_boots.py writes it, converted from R&C2 by
 the wrench fork's mobyconvert) and the class's texture, an indexed PNG from
-wrench's unpack of the R&C2 disc.
+wrench's unpack of the R&C2 disc. A build without the Charge Boots
+(--fonts-only) only paints the seed glyphs into the fonts.
 
-  python tools/splice_boots.py IMAGE [--openrac DIR] [--wrench wrench/bin/wrenchbuild.exe]
+  python tools/splice_boots.py IMAGE [--openrac DIR] [--wrench wrench/bin/wrenchbuild.exe] [--fonts-only]
 """
 import argparse
 import struct
@@ -226,14 +227,55 @@ def paint_fonts(index: bytes, core: bytes) -> bytes:
     return bytes(out)
 
 
+def rebuild(archive: bytes, names, sections, data: dict) -> bytes:
+    """The archive with DATA's sections, each 0x100-aligned after the old header, padded to whole sectors; it
+    must not outgrow ARCHIVE, as it is written back in the sectors it had."""
+    first = min(o for o, s in sections if s)
+    out = bytearray(archive[:first])
+    table_words = []
+    for n, (o, s) in zip(names, sections):
+        if not s:
+            table_words.append((0, 0))
+            continue
+        while len(out) % 0x100:
+            out.append(0)
+        table_words.append((len(out), len(data[n])))
+        out += data[n]
+    for i, (o, s) in enumerate(table_words):
+        struct.pack_into("<ii", out, 8 * i, o, s)
+    while len(out) % SECTOR:
+        out.append(0)
+    if len(out) > len(archive):
+        raise SystemExit(f"the new archive ({len(out):#x} bytes) is larger than the retail one ({len(archive):#x})")
+    return bytes(out)
+
+
+def fonts_level(archive: bytes, names, wad, wrench: Path, work: Path) -> tuple[bytes, dict]:
+    """The level with the seed glyphs painted into its fonts and nothing else, for a build without the
+    Charge Boots: the core decoded, painted, recompressed, and the stream's size written to the index."""
+    sections = [struct.unpack_from("<ii", archive, 8 * i) for i in range(len(names))]
+    data = {n: archive[o:o + s] for n, (o, s) in zip(names, sections)}
+    index = bytearray(data["core_index"])
+    core = wad(data["core_data"])
+    if len(core) != struct.unpack_from("<I", index, 0x8C)[0]:
+        raise SystemExit("the core data does not decode to the size its index gives")
+    painted = paint_fonts(index, core)
+    stream = recompress(painted, wrench, work)
+    if wad(stream) != painted:
+        raise SystemExit("the recompressed core data does not decode to the painted core")
+    struct.pack_into("<I", index, 0x88, len(stream))
+    grew = len(stream) - len(data["core_data"])
+    data.update(core_index=bytes(index), core_data=stream)
+    out = rebuild(archive, names, sections, data)
+    return out, {"stream_grew": grew, "archive": len(out) - len(archive)}
+
+
 def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palette: bytes,
                  width: int, height: int, wad, wrench: Path, work: Path, stage: int = 4) -> tuple[bytes, dict]:
     """STAGE (for isolating a load failure): 1 insert the bytes into the core only, 2 also add
     the palette and the texture entry, 4 also add the class."""
     sections = [struct.unpack_from("<ii", archive, 8 * i) for i in range(len(names))]
     data = {n: archive[o:o + s] for n, (o, s) in zip(names, sections)}
-    first = min(o for o, s in sections if s)
-    head = archive[:first]
 
     index = bytearray(data["core_index"])
     gs = bytearray(data["gs_ram"])
@@ -334,25 +376,40 @@ def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palett
         raise SystemExit("the recompressed core data does not decode to the new core")
 
     data.update(core_index=bytes(index), gs_ram=bytes(gs), core_data=new_stream)
-    out = bytearray(head)
-    table_words = []
-    for n, (o, s) in zip(names, sections):
-        if not s:
-            table_words.append((0, 0))
-            continue
-        while len(out) % 0x100:
-            out.append(0)
-        table_words.append((len(out), len(data[n])))
-        out += data[n]
-    for i, (o, s) in enumerate(table_words):
-        struct.pack_into("<ii", out, 8 * i, o, s)
-    while len(out) % SECTOR:
-        out.append(0)
-    if len(out) > len(archive):
-        raise SystemExit(f"the new archive ({len(out):#x} bytes) is larger than the retail one ({len(archive):#x})")
-    return bytes(out), {"classes": n_cls + 1, "texture": n_tex, "core_grew": delta, "shifted": shifted,
+    out = rebuild(archive, names, sections, data)
+    return out, {"classes": n_cls + 1, "texture": n_tex, "core_grew": delta, "shifted": shifted,
                         "insert": insert_at, "stream_grew": len(new_stream) - len(stream),
                         "archive": len(out) - len(archive)}
+
+
+def levels(f):
+    """(header sector, data sector, data sectors) of each of the 19 levels, from the table of contents."""
+    f.seek(TOC_LBA * SECTOR)
+    toc = f.read(6 * SECTOR)
+    out = []
+    for level in range(19):
+        header_lba, _ = struct.unpack_from("<2I", toc, LEVEL_TABLE + 8 * level)
+        f.seek(header_lba * SECTOR + 8)
+        out.append((header_lba, *struct.unpack("<2I", f.read(8))))
+    return out
+
+
+def paint_image(image: Path, names, wad, wrench: Path) -> int:
+    work = ROOT / "build/splice"
+    work.mkdir(parents=True, exist_ok=True)
+    with image.open("r+b") as f:
+        for level, (header_lba, data_lba, data_sectors) in enumerate(levels(f)):
+            f.seek(data_lba * SECTOR)
+            archive = f.read(data_sectors * SECTOR)
+            new, info = fonts_level(archive, names, wad, wrench, work)
+            f.seek(data_lba * SECTOR)
+            f.write(new + bytes(len(archive) - len(new)))
+            f.seek(header_lba * SECTOR + 8)
+            f.write(struct.pack("<2I", data_lba, len(new) // SECTOR))
+            print(f"level {level:2d}: fonts painted, stream {info['stream_grew']:+#x}, "
+                  f"archive {info['archive']:+#x} against retail")
+    print(f"{image.name}: the seed glyphs painted into 19 levels' fonts")
+    return 0
 
 
 def main() -> int:
@@ -364,11 +421,15 @@ def main() -> int:
     ap.add_argument("--texture", type=Path, default=None,
                     help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
+    ap.add_argument("--fonts-only", action="store_true",
+                    help="only paint the seed glyphs into the fonts: a build without the Charge Boots")
     args = ap.parse_args()
     sys.path.insert(0, str(EDITOR))
     from formats import wad
     from level import SECTION_NAMES
 
+    if args.fonts_only:
+        return paint_image(args.image, SECTION_NAMES, wad, args.wrench)
     texture = args.texture or args.openrac / "assets/wrench/rac2-ntsc/moby_classes/unsorted/3696/0.png"
     if not args.class_core.is_file():
         raise SystemExit(f"missing {args.class_core} (tools/gen_boots.py)")
@@ -385,12 +446,7 @@ def main() -> int:
         image_end = f.tell()
         if image_end % SECTOR:
             raise SystemExit("the image is not a whole number of sectors")
-        f.seek(TOC_LBA * SECTOR)
-        toc = f.read(6 * SECTOR)
-        for level in range(19):
-            header_lba, _ = struct.unpack_from("<2I", toc, LEVEL_TABLE + 8 * level)
-            f.seek(header_lba * SECTOR + 8)
-            data_lba, data_sectors = struct.unpack("<2I", f.read(8))
+        for level, (header_lba, data_lba, data_sectors) in enumerate(levels(f)):
             f.seek(data_lba * SECTOR)
             archive = f.read(data_sectors * SECTOR)
             new, info = splice_level(archive, SECTION_NAMES, core_class, pixels, palette, width, height, wad,

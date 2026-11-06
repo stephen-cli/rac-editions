@@ -443,7 +443,7 @@ void ee_rz_after_reset(s32 L)
     armed = 0;
     seed = seed_given ? given_seed : fresh_seed();
     seed_given = 0;
-    if (rz_generate(seed, EE_RANDOMIZER_CHARGE_BOOTS, given_start, &layout)) {
+    if (rz_generate(seed, EE_HAS(EE_FEATURE_CHARGE_BOOTS), given_start, &layout)) {
         write_record(&layout);
         helpdesk_off();
         if (layout.start_mode != RZ_START_VELDIN) {

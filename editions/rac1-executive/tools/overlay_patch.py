@@ -218,8 +218,7 @@ def quick_select_pages(at):
     callbacks; the pause page's ring widget runs the level's stubs; the
     page's prompt widget is the edition's copy with three rows (the retail
     widget is shared with Weapons and Gadgets); the acquisition function's
-    empty-slot store becomes a call that tries the other pages; the
-    challenge-mode carry-over's reset call goes through ee_qs_carry."""
+    empty-slot store becomes a call that tries the other pages."""
     import json
     sites = HERE.parent / "build/modseg/qs_sites.json"
     if not sites.is_file():
@@ -240,8 +239,17 @@ def quick_select_pages(at):
     out += [(a["site"] + 4 * i, a["expect"][i], w) for i, w in enumerate(words)]
     e = a["loop_exit"]
     out.append((e["site"], e["expect"], e["value"]))      # a full page reaches the hook too, with index 8
-    out.append((m["carry"]["site"], m["carry"]["expect"], jal(modseg_symbol("ee_qs_carry"))))
     return out
+
+
+def carry_over(at):
+    """The challenge-mode carry-over's call of the save-state reset goes through ee_qs_carry
+    (src/quick_select_pages.c), which keeps what the reset would lose: the quick-select pages, the
+    Movie volume, the control layout, the Camera page's settings and the subtitles. Site from
+    tools/gen_qs.py."""
+    import json
+    m = json.loads((HERE.parent / "build/modseg/qs_sites.json").read_text())[str(at.level)]
+    return [(m["carry"]["site"], m["carry"]["expect"], jal(modseg_symbol("ee_qs_carry")))]
 
 
 def edition_text(at):
@@ -296,10 +304,17 @@ def comet_strike_jump(at):
             (h["attack_records"] + COMET_F14, COMET_F14_RETAIL, COMET_F14_RAC2)]
 
 
+def pad_hook(at):
+    """The pad begin-frame's parse call (func_00217F68 + 0x1C4) goes to ee_pad_parse
+    (src/strafe.c), which runs the edition's per-frame pad work after the parse: the
+    control layout, the HelpDesk voices, the Randomizer, the quick-select ring's pages, and while
+    strafing is in the build, recording the triggers and hiding them from the game."""
+    return [(at("func_00217F68") + 0x1C4, jal(at("func_002181F0")), jal(modseg_symbol("ee_pad_parse")))]
+
+
 def strafe(at):
-    """x5 (first increment): L2/R2 strafe (src/strafe.c). The pad begin-frame's
-    parse call goes to a hook that records the triggers and hides them from
-    the game; the RUN movement block's two turn_to calls, its pivot turn and
+    """x5 (first increment): L2/R2 strafe (src/strafe.c), with the triggers recorded by the pad
+    hook (pad_hook); the RUN movement block's two turn_to calls, its pivot turn and
     its two set_planar_vel calls go to hooks that, while strafing, face the
     camera and move along the stick; the jump block's turn and planar calls
     and the air control's turn do the same in the air, and the jump-press
@@ -314,9 +329,7 @@ def strafe(at):
     if not hero.is_file():
         raise SystemExit(f"missing {hero}: run tools/gen_hero.py first")
     h = json.loads(hero.read_text())[str(at.level)]
-    pad_site = at("func_00217F68") + 0x1C4
-    return [(pad_site, jal(at("func_002181F0")), jal(modseg_symbol("ee_pad_parse"))),
-            (h["run_turn_a"], jal(h["turn_to"]), jal(modseg_symbol("ee_strafe_turn"))),
+    return [(h["run_turn_a"], jal(h["turn_to"]), jal(modseg_symbol("ee_strafe_turn"))),
             (h["run_turn_b"], jal(h["turn_to"]), jal(modseg_symbol("ee_strafe_turn"))),
             (h["run_pivot"], jal(h["pivot_turn"]), jal(modseg_symbol("ee_strafe_pivot"))),
             (h["run_planar_a"], jal(h["set_planar_vel"]), jal(modseg_symbol("ee_strafe_planar"))),
@@ -655,10 +668,7 @@ def charge_boots(at):
     unused Devastator copy, rewritten as a Grindboots copy with its own
     name, description and icon; the boots grid's cell pointer sent to a
     three-cell copy in the mod segment, and its column count made 3.
-    The level loader's HUD header copy (func_002032D0 + 0xB8, jal
-    FastMemCopy) goes to ee_hud_header_copy, which appends the icon to the
-    header's tables in the resident segment (src/hud_icons.c). The item
-    preview's placement table (36 entries, read by lui/addiu pairs in
+    The item preview's placement table (36 entries, read by lui/addiu pairs in
     func_0021F238 and func_0021F6A0) is replaced by a 37-entry copy in the
     segment, so item 36 gets the Grindboots placement instead of the words
     after the table."""
@@ -670,10 +680,6 @@ def charge_boots(at):
     out = [(m["cells"]["site"], m["cells"]["expect"], modseg_symbol(m["cells"]["symbol"])),
            (m["cols"]["site"], m["cols"]["expect"], m["cols"]["value"]),
            (m["panel"]["site"], m["panel"]["expect"], m["panel"]["value"])] + [tuple(w) for w in m["record"]]
-    loader = at("func_002032D0") + site_offset("EE_SITE_HUD_HEADER_COPY")
-    out.append((loader, jal(at("func_001F9A98")), jal(modseg_symbol("ee_hud_header_copy"))))
-    link = at("func_002032D0") + site_offset("EE_SITE_HUD_LINK_BANK")
-    out.append((link, jal(at("func_001FF7F0")), jal(modseg_symbol("ee_hud_link_bank"))))
     hi, lo = hi_lo(modseg_symbol("ee_preview_placements"))
     for fn, luis, addius in (("func_0021F238", (552, 576), (560, 584, 604)),
                              ("func_0021F6A0", (80, 108), (88, 116, 140))):
@@ -692,15 +698,43 @@ def charge_boots(at):
     # Magneboots, so the item updater poses them from Ratchet's leg (src/charge_boots.c).
     out.append((at("func_L00_0020DBD8") + 8, jal(at("func_L00_0020DB30")),
                 jal(modseg_symbol("ee_boots_pose_item_hook"))))
-    # Saves a retail game can load: every memcard_MakeWholeSave call writes the
-    # save without the Charge Boots worn or owned, and with the quick select on
-    # page 1 (src/charge_boots.c, ee_save_c).
+    return out + charge_dash(at)
+
+
+def hud_icons(at):
+    """The level loader's HUD header copy (func_002032D0 + 0xB8, jal FastMemCopy) goes to
+    ee_hud_header_copy, which appends the edition's icons to the header's tables in the resident
+    segment (src/hud_icons.c): the Movie volume bar, the Randomizer badge, the vendor's mystery tile,
+    and the Charge Boots' when they are in the build; the bank link after it goes to
+    ee_hud_link_bank."""
+    loader = at("func_002032D0") + site_offset("EE_SITE_HUD_HEADER_COPY")
+    link = at("func_002032D0") + site_offset("EE_SITE_HUD_LINK_BANK")
+    return [(loader, jal(at("func_001F9A98")), jal(modseg_symbol("ee_hud_header_copy"))),
+            (link, jal(at("func_001FF7F0")), jal(modseg_symbol("ee_hud_link_bank")))]
+
+
+def saves(at):
+    """Saves a retail game can load: every memcard_MakeWholeSave call writes the save without the
+    Charge Boots worn or owned, and with the quick select on page 1 (src/charge_boots.c, ee_save_c)."""
+    out = []
     save = jal(at("func_0020BA00"))
     for fn, off in SAVE_SITES:
         out.append((at(fn) + off, save, jal(modseg_symbol("ee_save_hook"))))
     if at.level == 18:
         out.append((at("func_L18_00282F48") + 0x1C, save, jal(modseg_symbol("ee_save_hook_l18"))))
-    return out + charge_dash(at)
+    return out
+
+
+def frame_hooks(at):
+    """The mode-0 frame's call of MobyFreeSlotBookkeeping (func_L00_00299250 + 0x6D4, every level)
+    goes to ee_frame_start_hook (src/charge_dash.c), which keeps the edition's sequences in Ratchet's
+    class after a pause, runs the Charge Boots cheat, the hoverboard races' record and the
+    Randomizer's frame; its two calls of the pause entry go to ee_pause_entry_hook
+    (src/charge_boots.c), which opens the Randomizer's pause pages."""
+    return [(at("func_L00_00299250") + FRAME_START_SITE, jal(at("func_L00_0024F7E0")),
+             jal(modseg_symbol("ee_frame_start_hook")))] + [
+            (at("func_L00_00299250") + site, jal(at("func_00219C70")), jal(modseg_symbol("ee_pause_entry_hook")))
+            for site in PAUSE_ENTRY_SITES]
 
 
 # memcard_MakeWholeSave's callers in every level: the pause menu's two saves and the
@@ -726,12 +760,8 @@ def charge_dash(at):
     they are worn, the call of the per-state movement function goes to
     ee_charge_move_hook, which moves the hero while it dashes, and the
     follow camera overrides' collect_mobies_in_sphere call goes to
-    ee_charge_camera_hook, which adds R&C2's charge camera. The mode-0
-    frame's call of MobyFreeSlotBookkeeping (func_L00_00299250 + 0x6D4,
-    every level) goes to ee_frame_start_hook, which keeps the edition's
-    sequences in Ratchet's class after a pause and runs the Charge Boots
-    cheat; entry 8 of the detector's sequence table gets the cheat's moves
-    (CHARGE_CHEAT); and the Goodies Cheats page's list widget's "enter"
+    ee_charge_camera_hook, which adds R&C2's charge camera. Entry 8 of the
+    detector's sequence table gets the cheat's moves (CHARGE_CHEAT); and the Goodies Cheats page's list widget's "enter"
     slot (its row builder) goes to the level's ee_cheats_enter_NN stub,
     which adds the Charge Boots row, and its "update" slot to
     ee_cheats_update_NN, which makes the boots follow a toggle at once.
@@ -746,12 +776,6 @@ def charge_dash(at):
     return [(c["trigger"], jal(c["slot_item"]), jal(modseg_symbol("ee_charge_trigger_hook"))),
             (c["move_site"], jal(c["move_fn"]), jal(modseg_symbol("ee_charge_move_hook"))),
             (c["camera_site"], jal(c["collect"]), jal(modseg_symbol("ee_charge_camera_hook"))),
-            (at("func_L00_00299250") + FRAME_START_SITE, jal(at("func_L00_0024F7E0")),
-             jal(modseg_symbol("ee_frame_start_hook"))),
-            (at("func_L00_00299250") + PAUSE_ENTRY_SITES[0], jal(at("func_00219C70")),
-             jal(modseg_symbol("ee_pause_entry_hook"))),
-            (at("func_L00_00299250") + PAUSE_ENTRY_SITES[1], jal(at("func_00219C70")),
-             jal(modseg_symbol("ee_pause_entry_hook"))),
             (c["cheats_enter"], c["cheats_builder"], modseg_symbol(f"ee_cheats_enter_{at.level:02d}")),
             (c["cheats_update_slot"], c["cheats_update"], modseg_symbol(f"ee_cheats_update_{at.level:02d}"))] + \
         [(entry + 4 * k, 0, struct.unpack_from("<I", seq, 4 * k)[0]) for k in range(4)]
@@ -926,6 +950,11 @@ FEATURES = {
     "randomizer": randomizer,
     "widescreen": widescreen,
     "charge_boots": charge_boots,
+    "hud_icons": hud_icons,
+    "saves": saves,
+    "frame_hooks": frame_hooks,
+    "pad_hook": pad_hook,
+    "carry_over": carry_over,
     "edition_text": edition_text,
     "metal_detector_10x": metal_detector_10x,
     "metal_detector_10x_modseg": metal_detector_10x_modseg,
@@ -955,6 +984,7 @@ DEFAULT_FEATURES = [
     "bolt_multiplier",
     "quick_select_pause",
     "quick_select_pages",
+    "carry_over",
     "commercials",
     "health_backing",
     "oltanis_lightning",
@@ -963,9 +993,13 @@ DEFAULT_FEATURES = [
     "movie_volume",
     "comet_strike_run",
     "comet_strike_jump",
+    "pad_hook",
     "strafe",
     "strafe_camera",
     "charge_boots",
+    "hud_icons",
+    "saves",
+    "frame_hooks",
     "item_preview",
     "widescreen",
     "randomizer",

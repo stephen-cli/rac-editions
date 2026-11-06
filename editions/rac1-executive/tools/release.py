@@ -130,6 +130,25 @@ def holes(modseg: bytearray, base: int, syms: dict, discs: dict, recipe: list) -
     return out
 
 
+ROW = 20                         # a Controls row: {label, &flag, on, off, 0}
+TEXT_STRAFE = 0x540E             # "Strafing" (src/modseg.h EE_TEXT_STRAFE)
+
+
+def switch_data(seg: bytes, base: int, syms: dict) -> dict:
+    """Segment bytes a build without a feature writes over the build's. Without strafing, each level's
+    Controls rows (tools/gen_menu.py, ee_qs_entries_NN: Control layout, Strafing, Quick Select pause, then a
+    zero row) lose the Strafing row, and Quick Select pause moves up."""
+    out = {"strafing": []}
+    for level in range(19):
+        addr, size = syms[f"ee_qs_entries_{level:02d}"]
+        at = addr - base
+        rows = [seg[at + ROW * i:at + ROW * (i + 1)] for i in range(size // ROW)]
+        if len(rows) != 4 or struct.unpack_from("<I", rows[1])[0] != TEXT_STRAFE or any(rows[3]):
+            raise SystemExit(f"ee_qs_entries_{level:02d} is not the three Controls rows gen_menu.py writes")
+        out["strafing"].append([at, (rows[0] + rows[2] + bytes(2 * ROW)).hex()])
+    return out
+
+
 def exe_words(retail_exe: bytes, base: int, modseg: bytes, final: bytes) -> list[tuple[int, int]]:
     """The words where FINAL, the boot executable the build made, differs from the player's executable with
     the mod segment added."""
@@ -159,7 +178,8 @@ def main() -> int:
     real = (modseg_dir / "modseg.bin").read_bytes()
     seg = bytearray(real)
     recipe = json.loads((modseg_dir / "gen_rz_words.json").read_text())
-    hole_list = holes(seg, base, symbols(modseg_dir / "modseg.elf"), discs, recipe)
+    syms = symbols(modseg_dir / "modseg.elf")
+    hole_list = holes(seg, base, syms, discs, recipe)
 
     with discs["rac1"].open("rb") as f:
         retail_exe = iso_image.read_file(f, EXE_NAME)
@@ -176,10 +196,12 @@ def main() -> int:
         "commit": commit.strip(),
         "discs": {name: iso_image.sha256(path) for name, path in discs.items()},
         "modseg_base": base,
+        "features_word": syms["ee_features"][0] - base,       # src/features.c: the switches that are in
     }
     (out / "edition.json").write_text(json.dumps(edition, indent=2) + "\n")
     (out / "modseg.bin").write_bytes(bytes(seg))
     (out / "holes.json").write_text(json.dumps(hole_list, indent=1) + "\n")
+    (out / "switches.json").write_text(json.dumps(switch_data(real, base, syms), indent=1) + "\n")
     (out / "exe.tsv").write_text("".join(f"{off:X}\t{word:08X}\n" for off, word in exe))
     shutil.copyfile(ROOT / "build/overlay.tsv", out / "overlay.tsv")
     shutil.copyfile(ROOT / "audio/helpdesk.json", out / "helpdesk.json")

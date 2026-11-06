@@ -21,6 +21,13 @@ the installer runs:
                  offset, new word
   helpdesk.json  the edition's HelpDesk lines as cut lists of the disc's
                  own lines (audio/helpdesk.json, tools/gen_helpdesk.py)
+  switches.json  per feature a player may leave out (SWITCHES below), the
+                 segment bytes a build without it writes over the build's
+                 (offset, hex): without strafing, the Controls page's rows
+                 without the Strafing row
+
+edition.json's features_word is ee_features' offset in the segment
+(src/features.c): the installer writes there the bits of the features in.
 
 The holes, by the disc their bytes come from:
   rac2   Going Commando's animations in R&C1's layout (common/rac2_anim.py):
@@ -46,6 +53,21 @@ COMMON = HERE.parents[2] / "common"
 ECONOMIES = {
     "skill": (),
     "classic": ("bolt_multiplier",),
+}
+
+# The features a player may leave out (the builder's Edition settings), all in by default. Each names the
+# overlay features (tools/overlay_patch.py) whose words it owns, the holes only it reads, and the disc it is built
+# from; the Charge Boots and strafing are left out entirely without Going Commando. "helpdesk" is the uses of
+# audio/helpdesk.json whose lines it owns. ee_features (src/features.c) tells the mod segment which are in.
+SWITCHES = {
+    "charge_boots": {"bit": 0x1, "disc": "rac2", "features": ("charge_boots",),
+                     "holes": ("ee_charge_seq_frames", "ee_charge_seq"), "helpdesk": ()},
+    "strafing": {"bit": 0x2, "disc": "rac2", "features": ("strafe", "strafe_camera"),
+                 "holes": ("ee_backpedal_seq_frames", "ee_backpedal_seq", "ee_gunarm_seq_1_frames",
+                           "ee_gunarm_seq_1", "ee_gunarm_seq_2_frames", "ee_gunarm_seq_2"),
+                 "helpdesk": ("strafe", "strafe_future")},
+    "quick_select_pages": {"bit": 0x4, "disc": "rac1", "features": ("quick_select_pages",), "holes": (),
+                           "helpdesk": ()},
 }
 
 HEAD = 0x1C          # a loaded sequence's header: the first seven words of its table

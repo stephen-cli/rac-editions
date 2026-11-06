@@ -274,7 +274,8 @@ void ee_pause_entry_c(s32 arg, u32 ra)
         L = ee_level_of_call(ra, lvl_func_L00_00299250, PAUSE_SITE_A);   /* never expected */
     }
     rec = (volatile u32 *)ee_item36_at[L];
-    if (HERO_ITEM(SLOT_HAND) != ITEM_CHARGE_BOOTS && HERO_PENDING(SLOT_HAND) != ITEM_CHARGE_BOOTS
+    if (EE_HAS(EE_FEATURE_CHARGE_BOOTS) && HERO_ITEM(SLOT_HAND) != ITEM_CHARGE_BOOTS
+        && HERO_PENDING(SLOT_HAND) != ITEM_CHARGE_BOOTS
         && HERO_SELECTED(SLOT_HAND) != ITEM_CHARGE_BOOTS) {   /* never under a race Devastator in the hand */
         for (i = 0; i < 19; i++) {
             rec[i] = ee_item36_words[L][1][i];

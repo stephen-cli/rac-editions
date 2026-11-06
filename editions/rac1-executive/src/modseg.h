@@ -285,9 +285,17 @@ void ee_vendor_ammo_open_c(void *moby, u32 ra);         /* entered through the t
 #define EE_TEXT_START_RANDOM    0x5425  /* "Random" */
 const char *ee_seed_text(void);
 
+/* The features a player may leave out (src/features.c). The Charge Boots and strafing need
+ * Going Commando's disc; Quick Select pages can be switched off. */
+#define EE_FEATURE_CHARGE_BOOTS 0x1
+#define EE_FEATURE_STRAFING     0x2
+#define EE_FEATURE_QS_PAGES     0x4
+extern const u32 ee_features;
+#define EE_HAS(feature)         ((ee_features & (feature)) != 0)
+
 /* rz1/rz2: the Randomizer (src/randomizer.h, src/randomizer.c for the logic;
- * src/randomizer_save.c for the save; src/goodies.c for the menus). */
-#define EE_RANDOMIZER_CHARGE_BOOTS 1    /* the pool has the Charge Boots, sold as the bonus vendor entry (every build has the boots) */
+ * src/randomizer_save.c for the save; src/goodies.c for the menus). A build with the Charge Boots
+ * has them in the pool, sold as the bonus vendor entry. */
 #define EE_RZ_PAGE          (EE_PAGE19 + 0x000)  /* the Randomizer's record (the page's layout: EE_PAGE19) */
 #define EE_RZ_RECORD_SIZE   160
 #define EE_TEXT_SEED        0x5419      /* "Seed" */

@@ -3870,9 +3870,9 @@ what the check gave. The record's address per level is tools/modseg.py's
 LEVEL_DATA entry `vendor_state`, from VendorBuyDialogUpdate's own
 lui/addiu.
 
-**The Charge Boots in the pool (rz4, rz5; 2026-10-24).** Every build has
-the Charge Boots, so the pool is the 95-check one
-(EE_RANDOMIZER_CHARGE_BOOTS 1): the Charge Boots are an item, received as
+**The Charge Boots in the pool (rz4, rz5; 2026-10-24).** A build with
+the Charge Boots (EE_HAS(EE_FEATURE_CHARGE_BOOTS), src/features.c) has the
+95-check pool: the Charge Boots are an item, received as
 the cheat toggle switched on, and the bonus vendor check is the vendor of
 the seed's planet (the record's `bonus_planet`) selling the edition's item
 36 for 2,500 bolts (the owner's price; the record's `bonus_price` byte is

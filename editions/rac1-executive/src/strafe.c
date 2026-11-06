@@ -332,14 +332,15 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     ee_rz_any_frame(L);
     /* q2: while the quick-select ring is open, L1 and R1 turn its pages (the
      * ring reads the unmasked words); the hero must not also crouch or look. */
-    if (ee_qs_ring_open(L)) {
+    if (EE_HAS(EE_FEATURE_QS_PAGES) && ee_qs_ring_open(L)) {
         p[0x1A0 / 4] &= ~0xCu;
         p[0x1A4 / 4] &= ~0xCu;
     }
-    /* The Controls page's Strafing row, off by default: off, L2 and R2 reach
-     * the game as in retail and nothing below runs (every strafe hook keys
-     * on ee_strafe_held or strafe_grace, the camera patch included). */
-    if (!STRAFE_SETTING) {
+    /* The Controls page's Strafing row, off by default: off, or in a build
+     * without strafing, L2 and R2 reach the game as in retail and nothing
+     * below runs (every strafe hook keys on ee_strafe_held or strafe_grace,
+     * the camera patch included). */
+    if (!EE_HAS(EE_FEATURE_STRAFING) || !STRAFE_SETTING) {
         ee_strafe_held = 0;
         strafe_grace = 0;
         strafe_flip = 0;

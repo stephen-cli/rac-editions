@@ -117,7 +117,9 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
     s32 open, held, want;
 
     LVL(L, func_L00_0023B610, HudUpdateFn)(arg);
-    ee_charge_boots_frame(L);          /* x2: the Charge Boots are owned; their box sequence (src/charge_boots.c) */
+    if (EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
+        ee_charge_boots_frame(L);      /* x2: the Charge Boots are owned; their box sequence (src/charge_boots.c) */
+    }
     ee_bolt_multiplier_frame(L);       /* x1: the multiplier's reset on a hit, its HUD (src/bolt_multiplier.c) */
     refresh_option_images();
 
@@ -160,7 +162,8 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
  * four corners (joints 1-4, z = +-half-height) are raised in place. A row is
  * about 970 high (two rows filled 971 x 2), so the page's three rows (Control
  * layout, Strafing, Quick Select pause) need about 2910 against Subtitles'
- * 2882; 1600 (3200 high) leaves a margin. The change is made in the level's
+ * 2882; 1600 (3200 high) leaves a margin. Without strafing the page has two
+ * rows and keeps the same panel: two rows filled the retail one to its edges. The change is made in the level's
  * own class data, the first time a panel draws (src/widescreen.c's panel draw hook calls this for every panel of
  * the class). The test on the old value makes it a no-op after that, and a
  * level load brings fresh data that is patched again. */
