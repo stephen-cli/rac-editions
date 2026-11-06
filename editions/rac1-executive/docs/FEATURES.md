@@ -4864,3 +4864,33 @@ The edition's hook on that reset call (`ee_qs_carry_hook_c`, which already
 keeps the quick-select pages, the Movie volume and the control layout) keeps
 them too. Sound settings: retail keeps them, and the edition's Movie volume
 with them.
+
+## x5: no strafe in the water; the strafe while wading (2026-11-06) — built; awaiting test
+
+**Swimming.** Holding a strafe trigger in the water turned on the strafe
+camera: the swim states have their own movement cases, which no strafe hook
+touches, but the follow camera's strafe block reads `ee_strafe_held`. In the
+swim states (0x33-0x37), drowning (0x6A) and the surface hurt (0x75), the
+triggers now do nothing at all, as for Clank.
+
+**Wading.** R&C1's movement switch shares one case between RUN (2) and
+SHALLOW_WATER_RUN (0x73); they differ in the speed table's row (wading is
+slower), the splashes and the animation (the wade cycle 0x60, never the
+walk/run updater). Going Commando has the same pair: its movement table
+(Oozla 0x2A1CE0) sends RUN and state 0x70 to one case (0x2BBCDC), whose
+strafe facing call (0x2BBFC0) tests only the strafing flag (hero + 0x1454),
+which its input pass sets from L2 or R2 in any state but 0x10
+(0x2B40A0-0x2B40E4). So R&C2 strafes while wading. The edition's run hooks
+(turn, pivot, planar velocity) now take state 0x73 as RUN: Ratchet faces the
+camera and moves along the stick at wading speed, the wade cycle under the
+strafe twist.
+
+**Wading back.** Wading plays its wade cycle (0x60), set once on entry, and
+never calls the walk/run updater that holds the backpedal; neither does
+R&C2's (only RUN reaches its updater: the state test at Oozla 0x2C4ADC
+before the call at 0x2C4E24), so in Going Commando the wade cycle steps
+forward while Ratchet strafes back. The edition departs from R&C2 there so
+no foot slides: wading back plays the dry-ground backward step at the wading
+speed (`wade_anim`, from the lean helper's hook, which the shared movement
+case runs every frame), and the wade cycle returns when the backward stick
+or the strafe ends.

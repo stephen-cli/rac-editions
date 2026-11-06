@@ -200,10 +200,16 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define FRAME_SCALE_SQ  (*(volatile f32 *)0x0015EE64)
 #define FRAME_TIME      (*(volatile f32 *)0x0015EE6C)
 #define STATE_RUN       2
+#define STATE_WADE      0x73          /* SHALLOW_WATER_RUN: RUN's movement case, the wade cycle, slower */
+#define STATE_SWIM_FIRST 0x33         /* SWIM, SWIM_IDLE, SWIM_WITH_CROUCH_INPUT, WATER_SURFACE_MOVE, */
+#define STATE_SWIM_LAST 0x37          /* WATER_SURFACE_ENTRY */
+#define STATE_DROWN     0x6A
+#define STATE_SURFACE_HURT 0x75
 #define STATE_HOVER     0x81          /* thruster pack hover: reads L2/R2 itself */
 #define STATE_JUMP      7
 #define STATE_STOP      3
 #define ANIM_STOP_SHORT 0x14          /* the stop from frame 7: the game's own low-speed stop */
+#define ANIM_WADE       0x60          /* the wade cycle (hero_set_state's SHALLOW_WATER_RUN entry) */
 #define STATE_HIGH_JUMP 0xB           /* the flips: animation 0x1C + stick class */
 #define FLIP_STICK      0.9f          /* R&C2: a strafe jump flips from this stick magnitude (0x2C24B8) */
 #define CLASS_FORWARD   2
@@ -250,6 +256,35 @@ static s32 strafe_flip;       /* the current flip (state 0xB) is a strafe flip w
 static s32 strafe_grace;      /* frames since a trigger was released, counting down from STRAFE_GRACE */
 #define STRAFE_GRACE 6        /* letting go of the trigger and the stick together still ends as a strafe */
 extern const u32 ee_backpedal_seq[];   /* R&C2's backward step in R&C1's layout (build/modseg/gen_anim.c) */
+
+/* Ratchet under or on the water (NTSC hero_state.h): the swim states, and
+ * drowning and the surface hurt, which return to them. */
+static s32 swimming(void)
+{
+    s32 state = hero_state;
+    if (state >= STATE_SWIM_FIRST && state <= STATE_SWIM_LAST) {
+        return 1;
+    }
+    return state == STATE_DROWN || state == STATE_SURFACE_HURT;
+}
+
+/* The states that run RUN's movement case: RUN and wading. R&C1's
+ * movement switch (NTSC update_hero_motion_for_current_state.c) shares
+ * one case between RUN and SHALLOW_WATER_RUN (0x73), which differ only in
+ * the speed table's row (hero_speed_from_table: wading is slower), the
+ * splashes and the animation: wading plays its wade cycle (0x60, entered
+ * by hero_set_state, its speed set from speed_xy in the state update)
+ * and never calls the walk/run animation updater. R&C2 has the same
+ * pair: its movement table (Oozla 0x2A1CE0) sends RUN and 0x70 to one
+ * case (0x2BBCDC), and the strafe facing call in it (0x2BBFC0) tests the
+ * strafing flag (hero + 0x1454) only, which its input pass sets from L2
+ * or R2 in any state but 0x10 (0x2B40A0-0x2B40E4). So Ratchet strafes
+ * while wading as on dry ground, at wading speed, the wade cycle under
+ * the strafe twist, and the backward step when wading back (wade_anim). */
+static s32 is_run_state(void)
+{
+    return hero_state == STATE_RUN || hero_state == STATE_WADE;
+}
 
 /* After the game's pad parse (pad.c: func_002181F0(pad, report, length)):
  * the Future control layout's buttons and prompts (src/control_layout.c,
@@ -331,7 +366,12 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
      * and the same follow camera, so a held trigger would still turn on the
      * strafe camera: as Clank or Giant Clank the triggers are only cleared
      * below and do nothing at all. */
-    if (hero_vehicle == VEHICLE_CLANK || hero_vehicle == VEHICLE_GIANT_CLANK) {
+    /* Nor does Ratchet in the water. Swimming has its own movement cases,
+     * which no strafe hook touches, but the follow camera's strafe block
+     * still saw the held trigger and dropped the auto-turn. In the water
+     * the triggers are cleared below and do nothing at all. (Wading is not
+     * swimming: it strafes, see is_run_state.) */
+    if (hero_vehicle == VEHICLE_CLANK || hero_vehicle == VEHICLE_GIANT_CLANK || swimming()) {
         ee_strafe_held = 0;
         strafe_grace = 0;
     } else {
@@ -390,7 +430,7 @@ void ee_strafe_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
 {
     s32 trace_ = (TRACE(3), 0);
     s32 L = level_of_two(ra, ee_run_turn_a, ee_run_turn_b);
-    if (ee_strafe_held && hero_state == STATE_RUN) {
+    if (ee_strafe_held && is_run_state()) {
         strafe_turn(L);
     } else {
         strafe_active = 0;
@@ -403,7 +443,7 @@ void ee_strafe_pivot_c(u32 ra)
 {
     s32 trace_ = (TRACE(4), 0);
     s32 L = ee_level_of_call(ra, ee_run_pivot, 0);
-    if (ee_strafe_held && hero_state == STATE_RUN) {
+    if (ee_strafe_held && is_run_state()) {
         strafe_turn(L);
     } else {
         strafe_active = 0;
@@ -473,7 +513,7 @@ void ee_air_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
  * holds the camera yaw in the move heading, else the move heading. */
 static f32 stick_heading(void)
 {
-    return (strafe_active && hero_state == STATE_RUN) ? strafe_heading : hero_move_yaw;
+    return (strafe_active && is_run_state()) ? strafe_heading : hero_move_yaw;
 }
 
 /* R&C2's strafe stick classes: 2 forward, 3 back, 0 left, 1 right, 45
@@ -595,8 +635,11 @@ void ee_flip_approach_c(f32 target, f32 step, f32 *var, u32 ra)
     TRACE_END();
 }
 
+static void wade_anim(s32 L);
+
 /* The lean helper's six calls: R&C2's strafe twist (0x2B80B4) instead of
- * the lean while strafing on the stick, not flipping, not backpedalling. */
+ * the lean while strafing on the stick, not flipping, not backpedalling;
+ * while wading, the backpedal too (wade_anim). */
 void ee_twist_c(u32 ra)
 {
     s32 trace_ = (TRACE(1), 0);
@@ -611,6 +654,9 @@ void ee_twist_c(u32 ra)
     }
     L = ee_level_of_call(ra, ee_twist_0, 0);
 found:
+    if (hero_state == STATE_WADE) {
+        wade_anim(L);
+    }
     if (ee_strafe_held && hero_stick > 0.15f && hero_state != STATE_HIGH_JUMP && !backpedalling()) {
         volatile f32 *t = EASE(L);
         f32 a = sub_rot(L, stick_heading(), hero_facing);
@@ -642,39 +688,70 @@ static void install_backpedal(void)
     seqs[BACKPEDAL_SLOT] = (u32)ee_backpedal_seq;
 }
 
-/* The run animation updater's call (state RUN): R&C2's backpedal
- * (0x2C2560) while strafing back, else the game's walk/run cycles. */
+/* R&C2's backpedal (0x2C2560) while strafing back: the backward step at
+ * max(ground speed * 25, 0.7), capped at 2.2. 1 if it plays, 0 when it
+ * is not wanted or could not be installed. */
+static s32 play_backpedal(s32 L)
+{
+    u8 *moby = hero_moby;
+    f32 speed;
+    if (!backpedalling()) {
+        return 0;
+    }
+    install_backpedal();
+    if (*(volatile u32 *)(*(u8 **)(moby + 0x24) + 0x48 + 4 * BACKPEDAL_SLOT) != (u32)ee_backpedal_seq) {
+        return 0;
+    }
+    if (moby[0x53] != BACKPEDAL_SLOT) {
+        LVL(L, func_L00_00232C10, SetAnim)(BACKPEDAL_SLOT, 0, 11.0f);
+    }
+    speed = hero_ground_speed * 25.0f;
+    if (speed < 0.7f) {
+        speed = 0.7f;
+    }
+    if (speed > 2.2f) {
+        speed = 2.2f;
+    }
+    hero_anim_speed = speed;
+    return 1;
+}
+
+/* The run animation updater's call (state RUN): the backpedal while
+ * strafing back, else the game's walk/run cycles. */
 void ee_run_anim_c(u32 ra)
 {
     s32 trace_ = (TRACE(2), 0);
     s32 L = ee_level_of_call(ra, ee_runanim_site, 0);
-    u8 *moby = hero_moby;
-    if (backpedalling()) {
-        f32 speed;
-        install_backpedal();
-        if (*(volatile u32 *)(*(u8 **)(moby + 0x24) + 0x48 + 4 * BACKPEDAL_SLOT) != (u32)ee_backpedal_seq) {
-            ((Void)ee_run_anim_fn[L])();      /* not installed: the game's cycles */
-            return;
-        }
-        if (moby[0x53] != BACKPEDAL_SLOT) {
-            LVL(L, func_L00_00232C10, SetAnim)(BACKPEDAL_SLOT, 0, 11.0f);
-        }
-        speed = hero_ground_speed * 25.0f;
-        if (speed < 0.7f) {
-            speed = 0.7f;
-        }
-        if (speed > 2.2f) {
-            speed = 2.2f;
-        }
-        hero_anim_speed = speed;
+    if (play_backpedal(L)) {
         TRACE_END();
         return;
     }
-    if (moby[0x53] == BACKPEDAL_SLOT) {
+    if (hero_moby[0x53] == BACKPEDAL_SLOT) {
         LVL(L, func_L00_00232C10, SetAnim)(hero_state_step + 3, 0, 7.0f);
     }
     ((Void)ee_run_anim_fn[L])();
     TRACE_END();
+}
+
+/* Wading back while strafing. Wading plays its wade cycle (0x60), set by
+ * hero_set_state on entry and never again, and never calls the walk/run
+ * updater, so the wade cycle would step forward while Ratchet moves back.
+ * R&C2 does the same: only RUN (state 2) reaches its walk/run updater
+ * (the state test at Oozla 0x2C4ADC before the call at 0x2C4E24), which
+ * holds its backpedal. The edition departs from R&C2 there so no foot
+ * slides: wading back plays the dry-ground backward step at the wading
+ * speed, the splashes kept (the movement case makes those), and the wade
+ * cycle comes back when the strafe or the backward stick ends. Called
+ * from the lean helper's hook, which the shared RUN/wading movement case
+ * runs every frame. */
+static void wade_anim(s32 L)
+{
+    if (play_backpedal(L)) {
+        return;
+    }
+    if (hero_moby[0x53] == BACKPEDAL_SLOT) {
+        LVL(L, func_L00_00232C10, SetAnim)(ANIM_WADE, 0, 7.0f);
+    }
 }
 
 /* The run update's two stops (owner's request: no foot slide while
