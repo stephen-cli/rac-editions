@@ -786,14 +786,53 @@ static s32 pickup_touched(void *moby, const struct PickupSite *site)
  * state 3 plays; at its end close_vendor_menu puts Ratchet back in front of the vendor and returns to play. The demo
  * is the vendor's: it plays from the vendor's mode only, for a vendor the menu was opened on (its mode word +0x40
  * 0; the remote vendor the game opens with no moby never plays one). So the find opens the vendor's menu on a vendor
- * moby of its own (class 11, every level has it), made at the find and drawn at scale 0, and puts the menu straight
- * into its exit with the weapon noted (+0x48, the item just bought). The vendor moby is deleted once play resumes. */
+ * moby of its own (class 11, every level has it), drawn at scale 0, and puts the menu straight into its exit with
+ * the weapon noted (+0x48, the item just bought).
+ *
+ * Where it plays. start_vendor_exit_cutscene stages the scene at the vendor moby's place plus its local offset
+ * (vendor_exit_cutscene_local_offset, 4 units ahead) turned by the moby's turn, on the ground there, with Ratchet
+ * facing back toward the moby (stage yaw = moby yaw + pi), and the scene's camera moves in front of him, looking
+ * back at him: measured for every vendor weapon, within DEMO_CAMERA_POINTS in the stage's frame. The edition stages
+ * it where Ratchet took the item, and turns the stage until that camera sees him clear of the level (stage_demo):
+ * first with the camera on the side the play camera was, then turning a step at a time either way, each facing
+ * tested with coll_line from his chest to the camera's points; the first clear facing is taken, or the least
+ * blocked. The vendor moby is then placed so the game's own staging lands on the find: the offset is read from
+ * the level's copy of start_vendor_exit_cutscene, whose `addiu $a1, $gp, offset` at + 0x80 names it in every
+ * level. Staged facing Ratchet from the find's middle, as before, the scene and its camera ran into whatever stood
+ * there (the cliff at Eudora's Gold Bolt). Once play resumes, Ratchet goes back where he found the weapon, facing
+ * as he did (Hero_ResetToPosition, func_L00_00217718, with the camera reset, as Kerwan's taxis put him at a stop),
+ * and the vendor moby is deleted. */
 DECLARE_LVL(func_L00_0029BA20);         /* open_vendor_menu(vendor moby) */
+DECLARE_LVL(func_L00_0029C070);         /* start_vendor_exit_cutscene */
+DECLARE_LVL(func_L00_00217718);         /* Hero_ResetToPosition(position, rotation, state, reset camera) */
+DECLARE_LVL(func_L00_001EFFF0);         /* coll_line(from, to, flags, moby to ignore, hit out): nonzero on a hit */
+DECLARE_LVL_DATA(camera_yaw);           /* player_camera + 0x158; its position is at + 0x140 */
 DECLARE_LVL_DATA(vendor_state);         /* the vendor's record (D_L00_001CA7C0 in level 0) */
 DECLARE_LVL_DATA(vendor_demos);         /* per item id, its demo scene, -1 none */
 typedef void (*OpenFn)(void *);
+typedef void (*ResetFn)(volatile void *, volatile void *, s32, s32);
+typedef s32 (*CollLineFn)(const f32 *, const f32 *, s32, void *, void *);
 
 #define VENDOR_CLASS        11
+#define HERO_ROT            ((volatile f32 *)(HERO_BASE + 0x90))  /* its turn, after the position (Hero_ResetToPosition) */
+#define HERO_STATE_IDLE     0
+#define HERO_MOBY           (*(void *volatile *)(HERO_BASE + 0x2080))
+#define STAGE_OFFSET_AT     0x80       /* start_vendor_exit_cutscene: addiu $a1, $gp, vendor_exit_cutscene_local_offset */
+#define ADDIU_A1_GP         0x27850000u
+#define STAGE_CHEST         1.0f        /* the lines start this high above the stage */
+#define STAGE_STEPS         16          /* facings tried: the first, then 22.5 degrees more each way in turn */
+#define STEP_COS            0.92387953f
+#define STEP_SIN            0.38268343f
+
+/* The demo camera's reach, in the stage's frame (x ahead of Ratchet, y to his left, z up), with a wide margin: the
+ * Blaster's, the Devastator's and the Glove of Doom's demos, sampled through the scene from player_camera + 0x140,
+ * stay within x 0.2..3.8, y -1.2..1.2, z 0.2..2.4 (the Glove of Doom's reaches farthest); the other weapons' are
+ * not measured, hence the margin. */
+static const f32 DEMO_CAMERA_POINTS[][3] = {
+    { 4.6f, 0.0f, 1.0f }, { 4.6f, 0.0f, 2.8f }, { 4.4f, 1.8f, 1.2f }, { 4.4f, -1.8f, 1.2f },
+    { 2.4f, 1.8f, 0.4f }, { 2.4f, -1.8f, 0.4f }, { 1.4f, 1.8f, 1.6f }, { 1.4f, -1.8f, 1.6f },
+};
+#define DEMO_CAMERA_POINT_COUNT ((s32)(sizeof(DEMO_CAMERA_POINTS) / sizeof(DEMO_CAMERA_POINTS[0])))
 #define VENDOR_MENU_STATE   0x0         /* the record: the menu's state, 2 its exit, */
 #define VENDOR_MENU_FRAMES  0x4         /*   the frames spent in it, */
 #define VENDOR_NOTED        0x48        /*   the item just bought (the demo's), -1 none */
@@ -807,12 +846,131 @@ static s32 vendor_item(s32 item)
     return (item >= RZ_SUCK_CANNON && item <= RZ_DECOY_GLOVE) || item == RZ_TAUNTER || item == RZ_DRONE_DEVICE;
 }
 
-/* The demo of ITEM, found at POS in level L: 1 if it starts, 0 for an item without one (the RYNO has none). */
-static s32 start_weapon_demo(s32 item, const f32 *pos, s32 L)
+/* Ratchet's place and turn when he found the weapon of a demo under way (Hero_ResetToPosition's quads). */
+static f32 demo_return[2][4] __attribute__((aligned(16)));
+
+/* The level's vendor_exit_cutscene_local_offset: the stage's place from the vendor moby, in the moby's frame. */
+static const f32 *stage_offset(s32 L)
+{
+    register u32 gp __asm__("$28");
+    u32 instruction = *(volatile u32 *)(LVL(L, func_L00_0029C070, u32) + STAGE_OFFSET_AT);
+    if ((instruction & 0xFFFF0000u) != ADDIU_A1_GP) {
+        return 0;
+    }
+    return (const f32 *)(gp + (u32)(s32)(s16)instruction);
+}
+
+/* How many of the demo camera's points the level hides from Ratchet's chest at STAGE, the stage facing along
+ * (DX, DY). */
+static s32 stage_blocked(const f32 *stage, f32 dx, f32 dy, s32 L)
+{
+    f32 from[4] __attribute__((aligned(16)));
+    f32 to[4] __attribute__((aligned(16)));
+    s32 i, blocked = 0;
+    from[0] = stage[0];
+    from[1] = stage[1];
+    from[2] = stage[2] + STAGE_CHEST;
+    from[3] = 0.0f;
+    for (i = 0; i < DEMO_CAMERA_POINT_COUNT; i++) {
+        const f32 *point = DEMO_CAMERA_POINTS[i];
+        to[0] = stage[0] + point[0] * dx - point[1] * dy;
+        to[1] = stage[1] + point[0] * dy + point[1] * dx;
+        to[2] = stage[2] + point[2];
+        to[3] = 0.0f;
+        if (LVL(L, func_L00_001EFFF0, CollLineFn)(from, to, 0, HERO_MOBY, 0)) {
+            blocked++;
+        }
+    }
+    return blocked;
+}
+
+static f32 square_root(f32 x)
+{
+    f32 root;
+    __asm__("sqrt.s %0, %1" : "=f"(root) : "f"(x));
+    return root;
+}
+
+/* (X, Y) turned by STEP_SIN's angle, SIGN 1 to the left, -1 to the right. */
+static void turn_step(f32 *x, f32 *y, f32 sign)
+{
+    f32 s = sign * STEP_SIN;
+    f32 turned_x = *x * STEP_COS - *y * s;
+    f32 turned_y = *x * s + *y * STEP_COS;
+    *x = turned_x;
+    *y = turned_y;
+}
+
+/* The stage's facing for a demo at STAGE, as a unit vector into OUT: toward the play camera first, then a step
+ * more to the left, the same to the right, two steps left, and so on, STAGE_STEPS facings in all; the first whose
+ * camera points are all clear, else the least blocked. */
+static void stage_facing(const f32 *stage, f32 *out, s32 L)
+{
+    volatile f32 *camera = (volatile f32 *)(LVL_DATA(L, camera_yaw, u8 *) - 0x158 + 0x140);
+    f32 x = camera[0] - stage[0];
+    f32 y = camera[1] - stage[1];
+    f32 length = square_root(x * x + y * y);
+    f32 left_x, left_y, right_x, right_y;
+    s32 k, best = DEMO_CAMERA_POINT_COUNT + 1;
+    if (length < 0.01f) {
+        x = 1.0f;
+        y = 0.0f;
+    } else {
+        x /= length;
+        y /= length;
+    }
+    left_x = right_x = x;
+    left_y = right_y = y;
+    for (k = 0; k < STAGE_STEPS; k++) {
+        f32 fx = x;
+        f32 fy = y;
+        s32 blocked;
+        if (k % 2 == 1) {
+            turn_step(&left_x, &left_y, 1.0f);
+            fx = left_x;
+            fy = left_y;
+        } else if (k > 0) {
+            turn_step(&right_x, &right_y, -1.0f);
+            fx = right_x;
+            fy = right_y;
+        }
+        blocked = stage_blocked(stage, fx, fy, L);
+        if (blocked < best) {
+            best = blocked;
+            out[0] = fx;
+            out[1] = fy;
+        }
+        if (blocked == 0) {
+            return;
+        }
+    }
+}
+
+/* The vendor moby M placed and turned so start_vendor_exit_cutscene stages the demo at STAGE facing along FACING
+ * (the stage faces back toward the moby: the moby faces the other way, and stands the offset behind the stage). */
+static void place_demo_vendor(u8 *m, const f32 *stage, const f32 *facing, s32 L)
+{
+    const f32 *offset = stage_offset(L);
+    f32 fx = -facing[0];                /* the moby's facing: its matrix's first row */
+    f32 fy = -facing[1];
+    f32 ox = offset != 0 ? offset[0] : 0.0f;
+    f32 oy = offset != 0 ? offset[1] : 0.0f;
+    f32 oz = offset != 0 ? offset[2] : 0.0f;
+    *(volatile f32 *)(m + MOBY_POS) = stage[0] - (ox * fx - oy * fy);
+    *(volatile f32 *)(m + MOBY_POS + 4) = stage[1] - (ox * fy + oy * fx);
+    *(volatile f32 *)(m + MOBY_POS_Z) = stage[2] - oz;
+    MOBY_ROT_F(m, 2) = LVL(L, func_L00_001FF860, AtanFn)(fx, fy);
+}
+
+/* The demo of ITEM, found in level L: 1 if it starts, 0 for an item without one (the RYNO has none). It is staged
+ * where Ratchet stands. */
+static s32 start_weapon_demo(s32 item, s32 L)
 {
     s32 id = rz_item_game_id(item);
     u8 *vendor_record = LVL_DATA(L, vendor_state, u8 *);
+    f32 stage[3], facing[2];
     u8 *m;
+    s32 i;
     if (!vendor_item(item) || LVL_DATA(L, vendor_demos, s32 *)[id] < 0 || demo_vendor != 0
         || !class_in_memory(VENDOR_CLASS, L)) {
         return 0;
@@ -821,10 +979,15 @@ static s32 start_weapon_demo(s32 item, const f32 *pos, s32 L)
     if (m == 0) {
         return 0;
     }
-    *(volatile f32 *)(m + MOBY_POS) = pos[0];
-    *(volatile f32 *)(m + MOBY_POS + 4) = pos[1];
-    *(volatile f32 *)(m + MOBY_POS_Z) = pos[2];
-    MOBY_ROT_F(m, 2) = LVL(L, func_L00_001FF860, AtanFn)(HERO_POS[0] - pos[0], HERO_POS[1] - pos[1]);
+    for (i = 0; i < 4; i++) {
+        demo_return[0][i] = HERO_POS[i];
+        demo_return[1][i] = HERO_ROT[i];
+    }
+    for (i = 0; i < 3; i++) {
+        stage[i] = HERO_POS[i];
+    }
+    stage_facing(stage, facing, L);
+    place_demo_vendor(m, stage, facing, L);
     MOBY_SCALE_F(m) = 0.0f;
     LVL(L, func_L00_00251E30, BoundsFn)(m);
     LVL(L, func_L00_0029BA20, OpenFn)(m);
@@ -835,10 +998,11 @@ static s32 start_weapon_demo(s32 item, const f32 *pos, s32 L)
     return 1;
 }
 
-/* Each gameplay frame: a demo's vendor moby goes once play has resumed. */
+/* Each gameplay frame: once play has resumed after a demo, Ratchet back at the find and the vendor moby gone. */
 void rz_world_frame(s32 L)
 {
     if (demo_vendor != 0) {
+        LVL(L, func_L00_00217718, ResetFn)(demo_return[0], demo_return[1], HERO_STATE_IDLE, 1);
         if (MOBY_CLASS(demo_vendor) == VENDOR_CLASS && MOBY_STATE(demo_vendor) >= 0) {
             LVL(L, func_0020D678, DeleteFn)(demo_vendor);
         }
@@ -895,14 +1059,10 @@ void rz_world_any_frame(s32 L)
     }
 }
 
-/* ITEM was found at HOST, in level L: a weapon's demo, if it has one. */
-static void found(s32 item, void *host, s32 L)
+/* ITEM was found in level L: a weapon's demo, if it has one. */
+static void found(s32 item, s32 L)
 {
-    f32 pos[3];
-    pos[0] = *(volatile f32 *)((u8 *)host + MOBY_POS);
-    pos[1] = *(volatile f32 *)((u8 *)host + MOBY_POS + 4);
-    pos[2] = *(volatile f32 *)((u8 *)host + MOBY_POS_Z);
-    start_weapon_demo(item, pos, L);
+    start_weapon_demo(item, L);
 }
 
 /* HOST's check taken at once: its mission trigger done (as a pickup's own touch does), the check collected with
@@ -916,7 +1076,7 @@ static void take(void *host, u16 key, s32 check, s32 L)
     ee_rz_save_c(0, -1, L);
     drop(key, host, L);
     LVL(L, func_0020D678, DeleteFn)(host);
-    found(ee_rz_layout_item(check), host, L);   /* the deleted moby's record keeps its place */
+    found(ee_rz_layout_item(check), L);
 }
 
 /* A world infobot's check: one of level L's own, unlocking the planet at its pvars; -1 for any other infobot. */
@@ -1065,7 +1225,7 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
         *(volatile s32 *)(MOBY_PVARS(moby) + GOLD_QUIET) = 1;
         update(moby);
         if (ee_rz_check_collected(check)) {     /* taken by this update: its autosave collected the check */
-            found(ee_rz_layout_item(check), moby, L);
+            found(ee_rz_layout_item(check), L);
         }
         carry(KEY_SPOT(spot), moby, ee_rz_layout_item(check), L);
         return 1;

@@ -4813,3 +4813,30 @@ at 0x1FAE700-0x1FB6840, its stand-in alive through the map and the flight;
 the copy's RAM changed 2 s into mode 6, with the old level still current.
 PCSX2 flew on without freezing in four flights; whether a flight freezes
 depends on what the load writes there and when.
+
+## rz: a weapon's demo turns until its camera sees Ratchet (2026-11-06) — built; awaiting test
+
+A weapon found in the world plays the vendor's demo of it
+(`start_weapon_demo`). `start_vendor_exit_cutscene` stages the scene at the
+vendor moby's place plus `vendor_exit_cutscene_local_offset` (4 units ahead)
+turned by the moby's turn, with Ratchet facing back toward the moby, and the
+scene's camera moves in front of him, looking back at him. The edition made
+its vendor moby at the find, turned toward Ratchet, but Ratchet stands on
+the find when he takes it, so that turn came out as 0 every time: the demo
+played 4 units off in a fixed world direction, and at Eudora's Gold Bolt spot
+the scene and its camera ran into the cliff.
+
+The demo is now staged where Ratchet takes the item, turned until the camera
+sees him clear of the level (`stage_facing`): first with the camera on the
+side the play camera was, then 22.5 degrees more to either side in turn, 16
+facings in all. Each is tested with `coll_line` (func_L00_001EFFF0) from his
+chest to eight points that bound the demo camera's path with a wide margin
+(measured from `player_camera + 0x140` through the Blaster's, the
+Devastator's and the Glove of Doom's demos: x 0.2..3.8 ahead of him,
+y -1.2..1.2, z 0.2..2.4; the other weapons' are not measured); the first clear
+facing is taken, or the least blocked. The vendor moby is placed so the
+game's own staging lands on the find (the offset is read through the
+`addiu $a1, $gp, offset` at + 0x80 of each level's start_vendor_exit_cutscene).
+Once play resumes, `Hero_ResetToPosition` (func_L00_00217718, camera reset)
+puts Ratchet back where he took the weapon, facing as he did, as Kerwan's
+taxis put him at a stop.
