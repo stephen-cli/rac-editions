@@ -4840,3 +4840,12 @@ game's own staging lands on the find (the offset is read through the
 Once play resumes, `Hero_ResetToPosition` (func_L00_00217718, camera reset)
 puts Ratchet back where he took the weapon, facing as he did, as Kerwan's
 taxis put him at a stop.
+
+## rz: a Randomizer game starts with the HelpDesk off (2026-11-06) — built; awaiting test
+
+A Randomizer new game turns the HelpDesk's voice and text off
+(`gHelpDeskVoice` 0x15EF1C, `gHelpDeskText` 0x15EF1D, both saved), after the
+reset from the disc's initial state, which turns them on. The help player
+(HelpUpdate) shows nothing while both are 0; the Options menu turns them
+back on. Retail's own Challenge Mode carry-over turns them off the same
+way.

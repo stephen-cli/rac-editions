@@ -120,6 +120,8 @@ volatile u32 ee_debug_rz_card[2];
 #define PLANETS         ((volatile u8 *)0x0013DE48)      /* unlocked, per planet */
 #define GALAXY_LIST     ((volatile s32 *)0x0013D618)     /* gGalaxyList: the galactic map's planets, in unlock order */
 #define PLANET_SLOTS    20
+#define HELPDESK_VOICE  (*(volatile u8 *)0x0015EF1C)     /* gHelpDeskVoice: 0 off */
+#define HELPDESK_TEXT   (*(volatile u8 *)0x0015EF1D)     /* gHelpDeskText: 0 off */
 
 extern void func_00121A80(void *clock);              /* sceCdReadClock into 8 bytes (core) */
 #define MENU_TICKS      (*(volatile s32 *)0x001D60C4)   /* D_001D5F70 + 0x154: the menus' ticks since the card idled */
@@ -420,6 +422,16 @@ static void start_past_tutorial(const struct RzLayout *layout)
     BOLTS = RZ_START_BOLTS;
 }
 
+/* A Randomizer game starts with the HelpDesk off, text and voice; the
+ * Options menu turns it back on. The help player (help.c's HelpUpdate)
+ * shows nothing while both are 0. Retail's Challenge Mode carry-over
+ * (func_00227DB0) turns both off the same way. */
+static void helpdesk_off(void)
+{
+    HELPDESK_VOICE = 0;
+    HELPDESK_TEXT = 0;
+}
+
 void ee_rz_after_reset(s32 L)
 {
     static struct RzLayout layout;      /* 100-odd bytes; off the stack */
@@ -433,6 +445,7 @@ void ee_rz_after_reset(s32 L)
     seed_given = 0;
     if (rz_generate(seed, EE_RANDOMIZER_CHARGE_BOOTS, given_start, &layout)) {
         write_record(&layout);
+        helpdesk_off();
         if (layout.start_mode != RZ_START_VELDIN) {
             start_past_tutorial(&layout);
         }
