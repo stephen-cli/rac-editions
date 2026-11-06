@@ -116,7 +116,7 @@ static const char *display_name(s32 item)
 {
     s32 i;
     if (item == RZ_CHARGE_BOOTS) {
-        return ee_msg_string_edition(TEXT_CHARGE_BOOTS);
+        return ee_msg_string_edition(EE_HAS(EE_FEATURE_CHARGE_BOOTS) ? TEXT_CHARGE_BOOTS : TEXT_BOLT_CACHE);
     }
     for (i = 0; i < 5; i++) {
         if (SPECIAL_ITEMS[i] == item) {
@@ -246,8 +246,11 @@ static s32 infobot_banner(const char *text)
 static const char *check_name(s32 check)
 {
     const struct RzCheck *row = rz_check(check);
-    if (row == 0) {
-        return display_name(RZ_CHARGE_BOOTS);       /* the bonus vendor entry */
+    if (row == 0) {                                 /* the bonus vendor entry: item 36, the Charge Boots, or */
+        if (!EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {     /* without them retail's record, a Devastator copy */
+            return word(ee_rz_item_names[CHARGE_BOOTS_ID]);
+        }
+        return display_name(RZ_CHARGE_BOOTS);
     }
     if (row->kind == RZ_KIND_INFOBOT) {
         return word(ee_rz_word_infobot);

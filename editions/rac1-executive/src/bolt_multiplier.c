@@ -322,6 +322,13 @@ static void show_bolt_counter(s32 L)
                                    LVL(L, func_L00_0023A690, u32), LVL(L, func_L00_0023A788, u32), G_BOLTS, BOLTS_MOST);
 }
 
+/* COUNT bolts added, up to the counter's most, with the counter shown as a pickup shows it. */
+void ee_add_bolts(s32 count, s32 L)
+{
+    g_bolts = g_bolts + count > BOLTS_MOST ? BOLTS_MOST : g_bolts + count;
+    show_bolt_counter(L);
+}
+
 static void swap_bolt_counter_draw(s32 L)
 {
     u32 base = LVL_DATA(L, hud_slots, u32);

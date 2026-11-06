@@ -39,6 +39,8 @@
 #define ITEMS           37              /* the game's item ids, 0-36 (36: the edition's Charge Boots) */
 #define CHARGE_BOOTS_ID 36              /* src/goodies.c, tools/gen_items.py */
 #define TEXT_CHARGE_BOOTS 0x5406        /* "Charge Boots" (text/strings.tsv) */
+#define TEXT_BOLT_CACHE 0x5426          /* "Bolt Cache": the Charge Boots' check in a build without them */
+#define BOLT_CACHE      2500            /* its bolts, the bonus vendor entry's price */
 
 /* The special items' bytes in FLAGS. */
 #define FLAG_BYTES      8

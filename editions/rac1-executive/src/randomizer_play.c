@@ -342,8 +342,14 @@ static void receive(s32 check, s32 item, s32 L)
         ee_rz_add_gold();
         rz_show_item_banner(check, item, L);
     } else if (item == RZ_CHARGE_BOOTS) {
+        /* The boots are the cheat bytes, which are saved. A build without the boots (a seed made with them,
+         * loaded there) pays a Bolt Cache instead and still sets the bytes, so a build with the boots gives
+         * them to the save when it loads it; the check is collected either way and never pays twice. */
         *(volatile u8 *)EE_CHEAT_CHARGE_BOOTS = 1;
         CHEAT_SEEN = 1;
+        if (!EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
+            ee_add_bolts(BOLT_CACHE, L);
+        }
         rz_show_item_banner(check, item, L);
     } else if (flag >= 0) {
         ee_rz_set_received_special(flag);

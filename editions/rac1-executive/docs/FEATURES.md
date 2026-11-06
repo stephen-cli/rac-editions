@@ -3870,6 +3870,19 @@ what the check gave. The record's address per level is tools/modseg.py's
 LEVEL_DATA entry `vendor_state`, from VendorBuyDialogUpdate's own
 lui/addiu.
 
+**A seed with the Charge Boots in a build without them (2026-11-07).** A
+seed made in a build with the boots keeps them in its record (`with_boots`),
+so a save of it loaded in a build without Going Commando still has the boots'
+check and the bonus vendor check. The boots' check pays a Bolt Cache there
+(2,500 bolts, the bonus entry's price; text 0x5426) and still sets the two
+cheat bytes the boots are (gCheats[8] and its "seen" byte, both saved), so
+when the save is loaded in a build with the boots again they are owned; the
+check is collected, so the bolts are not paid twice. The bonus vendor entry
+is item 36, which in that build is retail's record, a Devastator copy: its
+class (157) is in every level's gadget directory, the panel shows the
+chicken as for every purchase, and its name is redacted as retail's item 36
+name. A seed made without the boots has neither check, in any build.
+
 **The Charge Boots in the pool (rz4, rz5; 2026-10-24).** A build with
 the Charge Boots (EE_HAS(EE_FEATURE_CHARGE_BOOTS), src/features.c) has the
 95-check pool: the Charge Boots are an item, received as

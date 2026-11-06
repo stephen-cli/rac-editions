@@ -212,6 +212,7 @@ void ee_charge_boots_frame(s32 level);
 
 /* x1: the bolt multiplier each frame: its reset on a hit and the bolt counter's draw (src/bolt_multiplier.c). */
 void ee_bolt_multiplier_frame(s32 level);
+void ee_add_bolts(s32 count, s32 level);   /* src/bolt_multiplier.c: bolts added, the counter shown */
 
 /* The save's twentieth level page, 0x14B7C0-0x14BFBF: level page 19 of save block 0xBBA (a level's 0x800 bytes of
  * moby state, D_00141FC0 + level * 0x800). The game has nineteen levels, so no level owns it; retail writes it to

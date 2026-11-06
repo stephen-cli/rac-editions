@@ -154,7 +154,9 @@ static s32 ammo_listed(const struct VendorEntry *list, s32 count, s32 item)
  * The call right after a purchase (from VendorBuyDialogUpdate) comes once the bought item is noted in the
  * vendor's record for the weapon demo played on leaving, which equips the noted item: with a shuffled reward
  * that is the vendor's own weapon, unowned and without ammo. The note is cleared unless the reward is that
- * weapon itself, so there is no demo, as for an item that has none, and the hero keeps what the check gave. */
+ * weapon itself, so there is no demo, as for an item that has none, and the hero keeps what the check gave.
+ * Without the Charge Boots, item 36 is retail's record, a Devastator copy, so the bonus entry's note is
+ * cleared even when its reward is the boots' check (a Bolt Cache). */
 void ee_rz_vendor_list_c(s32 gold, s32 L)
 {
     u8 *vendor;
@@ -170,7 +172,8 @@ void ee_rz_vendor_list_c(s32 gold, s32 L)
     vendor = LVL_DATA(L, vendor_state, u8 *);
     if (purchase_item >= 0) {
         s32 *bought = (s32 *)(vendor + VENDOR_BOUGHT);
-        if (*bought == purchase_item && reward_item != purchase_item) {
+        if (*bought == purchase_item && (reward_item != purchase_item
+                                         || (purchase_item == CHARGE_BOOTS_ID && !EE_HAS(EE_FEATURE_CHARGE_BOOTS)))) {
             *bought = -1;
         }
         purchase_item = -1;
