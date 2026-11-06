@@ -105,6 +105,8 @@ def main() -> int:
     ap.add_argument("--retail", type=Path, default=None,
                     help="the retail image, for its archive size (default OpenRAC's PAL baserom)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
+    ap.add_argument("--work", type=Path, default=ROOT / "build/splice",
+                    help="a folder for the compressor's files (the installer gives each build its own)")
     args = ap.parse_args()
     sys.path.insert(0, str(EDITOR))
     from formats import wad
@@ -114,7 +116,7 @@ def main() -> int:
         raise SystemExit(f"missing {args.class_core} (tools/gen_sign.py)")
     blob = args.class_core.read_bytes()
     retail = args.retail or args.openrac / "games/rac1/baserom/SCES_509.16.iso"
-    work = ROOT / "build/splice"
+    work = args.work
     work.mkdir(parents=True, exist_ok=True)
 
     def level_range(f):

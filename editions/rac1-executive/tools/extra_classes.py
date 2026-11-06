@@ -324,7 +324,7 @@ def splice(args) -> int:
     sys.path.insert(0, str(EDITOR))
     from formats import wad
     from level import SECTION_NAMES
-    work = ROOT / "build/splice_classes"
+    work = args.work
     work.mkdir(parents=True, exist_ok=True)
     with args.image.open("r+b") as f:
         f.seek(0, 2)
@@ -377,6 +377,8 @@ def main() -> int:
     s.add_argument("image", type=Path)
     s.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
     s.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
+    s.add_argument("--work", type=Path, default=ROOT / "build/splice_classes",
+                   help="a folder for the compressor's files (the installer gives each build its own)")
     s.set_defaults(run=splice)
     args = ap.parse_args()
     return args.run(args)

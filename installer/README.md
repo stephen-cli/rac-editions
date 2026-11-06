@@ -36,8 +36,10 @@ The builder runs the installer as a separate program and talks to it over
 its standard input and output: one JSON object per line, UTF-8, each way.
 Version 1, the first the installer speaks.
 
-**Messages to the installer** are commands, each with an `id` the builder
-chooses; every event about that command carries the same `id`.
+**Messages to the installer** are commands: `cmd` names the command and
+`id` is any number or string the builder chooses; every event about that
+command carries the same `id`. For example
+`{"id": 1, "cmd": "identify", "path": "D:\\Games\\rac1.iso"}`.
 
 | Command | Fields | Does |
 |---|---|---|
@@ -59,8 +61,8 @@ chooses; every event about that command carries the same `id`.
 
 | Event | Fields | When |
 |---|---|---|
-| `ready` | `protocol` (1), `installer` (its version) | once, at start |
-| `progress` | `id`, `stage`, `done`, `total` | while a command runs; `stage` is `hash`, `verify`, `convert`, `patch` or `write` |
+| `ready` | `protocol` (1), `installer` (its version) | once, at start, before any command is read |
+| `progress` | `id`, `stage`, `done`, `total` | while a command runs; `stage` is `hash`, `verify`, `convert`, `patch` or `write`: `hash`, `verify` and `write` count bytes, `convert` and `patch` count steps |
 | `log` | `id`, `text` | a line for the builder's Details view |
 | `result` | `id`, `value` | the command finished; `value` as below |
 | `error` | `id`, `code`, `message` | the command failed; nothing else follows for it |
@@ -73,10 +75,13 @@ Results:
   "options": {"economy": ["skill", "classic"], "switches": [{"id":
   "charge_boots", "needs": "rac2"}, {"id": "strafing", "needs": "rac2"},
   {"id": "quick_select_pages", "needs": null}]}}]`
-- `identify`: `{"disc": "rac1" | "rac2" | null, "name", "region", "sha256",
-  "known": true | false}`. An image of the right game in the wrong version
-  is `known: false` with the game's name and region, so the builder can say
-  "This is the US version".
+- `identify`: `{"disc": "rac1" | "rac2" | null, "game": "rac1" | "rac2" |
+  null, "name", "region", "sha256", "known": true | false}`. `disc` is set
+  only for an image the edition is built from; `game` and `name` (as the
+  edition's `editions` entry names that disc) for any version of one of the
+  games, so for an image of the right game in the wrong version the builder
+  can say "This is the US version". An image that is no PS2 disc has every
+  field null and `known: false`.
 - `plan`: `{"in": ["charge_boots", ...], "left_out": [{"id": "strafing",
   "because": "no_rac2" | "chosen"}], "bytes_needed": n}`.
 - `build`: `{"path", "sha256"}`.

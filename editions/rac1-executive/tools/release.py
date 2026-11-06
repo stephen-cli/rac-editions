@@ -193,6 +193,7 @@ def main() -> int:
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
     edition = {
         "edition": "rac1-executive",
+        **payload.EDITION,
         "commit": commit.strip(),
         "discs": {name: iso_image.sha256(path) for name, path in discs.items()},
         "modseg_base": base,

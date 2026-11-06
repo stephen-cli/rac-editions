@@ -406,7 +406,7 @@ def main() -> int:
         raise SystemExit(f"missing {convert} (the edition's wrench fork, branch executive-edition)")
 
     strips = build_word(read_glb(src / "mesh.glb"))
-    view = ROOT / "build/sign"
+    view = args.out.parent                  # the mesh for viewing goes beside the class core
     view.mkdir(parents=True, exist_ok=True)
     glb = view / "gadgetron_sign.glb"
     write_glb(glb, strips)

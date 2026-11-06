@@ -47,6 +47,16 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 COMMON = HERE.parents[2] / "common"
 
+# What the builder shows for the edition and its discs (edition.json, the protocol's editions command).
+EDITION = {
+    "name": "Executive Edition",
+    "game": "Ratchet & Clank",
+    "disc_names": {
+        "rac1": {"name": "Ratchet & Clank", "region": "PAL", "required": True},
+        "rac2": {"name": "Going Commando", "region": "USA", "required": False},
+    },
+}
+
 # The builder's choice of Challenge Mode economy: the features each leaves out. "skill", the default, is the bolt
 # multiplier (x1 base); "classic" keeps retail's doubling and limiter (the limiter's 301-351 fix is in both, and the
 # Metal Detector pays 10x in both).

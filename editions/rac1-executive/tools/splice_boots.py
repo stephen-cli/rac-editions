@@ -394,8 +394,7 @@ def levels(f):
     return out
 
 
-def paint_image(image: Path, names, wad, wrench: Path) -> int:
-    work = ROOT / "build/splice"
+def paint_image(image: Path, names, wad, wrench: Path, work: Path) -> int:
     work.mkdir(parents=True, exist_ok=True)
     with image.open("r+b") as f:
         for level, (header_lba, data_lba, data_sectors) in enumerate(levels(f)):
@@ -421,6 +420,8 @@ def main() -> int:
     ap.add_argument("--texture", type=Path, default=None,
                     help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
+    ap.add_argument("--work", type=Path, default=ROOT / "build/splice",
+                    help="a folder for the compressor's files (the installer gives each build its own)")
     ap.add_argument("--fonts-only", action="store_true",
                     help="only paint the seed glyphs into the fonts: a build without the Charge Boots")
     args = ap.parse_args()
@@ -429,7 +430,7 @@ def main() -> int:
     from level import SECTION_NAMES
 
     if args.fonts_only:
-        return paint_image(args.image, SECTION_NAMES, wad, args.wrench)
+        return paint_image(args.image, SECTION_NAMES, wad, args.wrench, args.work)
     texture = args.texture or args.openrac / "assets/wrench/rac2-ntsc/moby_classes/unsorted/3696/0.png"
     if not args.class_core.is_file():
         raise SystemExit(f"missing {args.class_core} (tools/gen_boots.py)")
@@ -438,7 +439,7 @@ def main() -> int:
     if width & (width - 1) or height & (height - 1) or width < 8:
         raise SystemExit(f"{texture}: {width}x{height} is not a power-of-two texture")
     palette = gs_palette(colours)
-    work = ROOT / "build/splice"
+    work = args.work
     work.mkdir(parents=True, exist_ok=True)
 
     with args.image.open("r+b") as f:
