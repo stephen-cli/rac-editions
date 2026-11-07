@@ -19,10 +19,10 @@ PCSX2; every other way hung the load at stage 7, waiting for the sound bank):
               sequences and the gadget blobs come after it). Placed after the
               gadget blobs, past +0x7C, the class hung the load. Every core
               offset past the insertion moves up (core_pointers). Compressed
-              again with wrench's compressor, about 3.5% smaller than retail's
-              (Hoven: 12.75 MB against 13.21 MB), so every new archive is
-              smaller than the retail one; decoded back with OpenRAC's decoder,
-              which enforces the game's rules, and compared.
+              again with the edition's compressor (installer/core's rac-wad), about
+              12% smaller than retail's, so every new archive is smaller than
+              the retail one; rac-wad decodes the stream back by the game's
+              rules and compares it.
   core_index  raw. The moby class table must stay where it is, right after
               the header (moved, even unchanged, it hangs the load): it grows
               in place by one entry and the tables after it move down 32
@@ -49,7 +49,7 @@ the wrench fork's mobyconvert) and the class's texture, an indexed PNG from
 wrench's unpack of the R&C2 disc. A build without the Charge Boots
 (--fonts-only) only paints the seed glyphs into the fonts.
 
-  python tools/splice_boots.py IMAGE [--openrac DIR] [--wrench wrench/bin/wrenchbuild.exe] [--fonts-only]
+  python tools/splice_boots.py IMAGE [--openrac DIR] [--rac-wad EXE] [--fonts-only]
 """
 import argparse
 import struct
@@ -63,6 +63,7 @@ ROOT = HERE.parent
 SECTOR = 2048
 TOC_LBA, LEVEL_TABLE = 1500, 0x28C8
 TAIL_SECTORS = 32
+RAC_WAD = ROOT.parents[1] / "installer/core/build" / ("rac-wad.exe" if sys.platform == "win32" else "rac-wad")
 CLASS_ID = 2000
 MAX_CLASSES = 222          # moby_class_resources[224], less the two classes the level's loader registers after
                            # the table's (the shared overlay's 0x0023FA00, for the level's content variant): a
@@ -130,15 +131,29 @@ def gs_palette(colours) -> bytes:
     return bytes(out)
 
 
-def recompress(data: bytes, wrench: Path, work: Path) -> bytes:
-    """DATA as a WAD stream, by wrench's compressor (wrenchbuild compress)."""
-    import subprocess
-    raw, packed = work / "core.bin", work / "core.wad"
-    raw.write_bytes(data)
-    result = subprocess.run([str(wrench), "compress", str(raw), "-o", str(packed)], capture_output=True, text=True)
-    if result.returncode != 0 or not packed.is_file():
-        raise SystemExit(f"wrenchbuild compress failed: {result.stdout}{result.stderr}")
-    return packed.read_bytes()
+class Wad:
+    """The edition's WAD codec, installer/core's rac-wad: decode reads a stream as the game does, encode compresses
+    and checks the stream by decoding it back. The bytes go each way through files in WORK."""
+
+    def __init__(self, exe: Path, work: Path):
+        self.exe, self.work = exe, work
+        work.mkdir(parents=True, exist_ok=True)
+
+    def _run(self, op: str, data: bytes) -> bytes:
+        import subprocess
+        src, dst = self.work / f"{op}.in", self.work / f"{op}.out"
+        src.write_bytes(data)
+        dst.unlink(missing_ok=True)
+        result = subprocess.run([str(self.exe), op, str(src), "-o", str(dst)], capture_output=True, text=True)
+        if result.returncode != 0 or not dst.is_file():
+            raise SystemExit(f"rac-wad {op} failed: {result.stdout}{result.stderr}")
+        return dst.read_bytes()
+
+    def decode(self, stream: bytes) -> bytes:
+        return self._run("decompress", stream)
+
+    def encode(self, data: bytes) -> bytes:
+        return self._run("compress", data)
 
 
 def table(index: bytes, at: int, size: int):
@@ -250,19 +265,17 @@ def rebuild(archive: bytes, names, sections, data: dict) -> bytes:
     return bytes(out)
 
 
-def fonts_level(archive: bytes, names, wad, wrench: Path, work: Path) -> tuple[bytes, dict]:
+def fonts_level(archive: bytes, names, wad: Wad) -> tuple[bytes, dict]:
     """The level with the seed glyphs painted into its fonts and nothing else, for a build without the
     Charge Boots: the core decoded, painted, recompressed, and the stream's size written to the index."""
     sections = [struct.unpack_from("<ii", archive, 8 * i) for i in range(len(names))]
     data = {n: archive[o:o + s] for n, (o, s) in zip(names, sections)}
     index = bytearray(data["core_index"])
-    core = wad(data["core_data"])
+    core = wad.decode(data["core_data"])
     if len(core) != struct.unpack_from("<I", index, 0x8C)[0]:
         raise SystemExit("the core data does not decode to the size its index gives")
     painted = paint_fonts(index, core)
-    stream = recompress(painted, wrench, work)
-    if wad(stream) != painted:
-        raise SystemExit("the recompressed core data does not decode to the painted core")
+    stream = wad.encode(painted)
     struct.pack_into("<I", index, 0x88, len(stream))
     grew = len(stream) - len(data["core_data"])
     data.update(core_index=bytes(index), core_data=stream)
@@ -271,7 +284,7 @@ def fonts_level(archive: bytes, names, wad, wrench: Path, work: Path) -> tuple[b
 
 
 def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palette: bytes,
-                 width: int, height: int, wad, wrench: Path, work: Path, stage: int = 4) -> tuple[bytes, dict]:
+                 width: int, height: int, wad: Wad, stage: int = 4) -> tuple[bytes, dict]:
     """STAGE (for isolating a load failure): 1 insert the bytes into the core only, 2 also add
     the palette and the texture entry, 4 also add the class."""
     sections = [struct.unpack_from("<ii", archive, 8 * i) for i in range(len(names))]
@@ -305,7 +318,7 @@ def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palett
     # moby, tie and shrub class blobs; Ratchet's sequences and the gadget blobs follow it, in
     # memory the engine reuses: a class placed there hung the load), and every core offset past
     # the insertion moved up. Texture offsets count from textures_base, which stays put.
-    retail_core = wad(stream)
+    retail_core = wad.decode(stream)
     if len(retail_core) != core_size:
         raise SystemExit("the core data does not decode to the size its index gives")
     retail_core = paint_fonts(index, retail_core)
@@ -332,7 +345,7 @@ def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palett
     insert[tex_at - insert_at:tex_at - insert_at + len(pixels)] = pixels
     new_core = retail_core[:insert_at] + bytes(insert) + retail_core[insert_at:]
     new_core_size = len(new_core)
-    new_stream = recompress(new_core, wrench, work)
+    new_stream = wad.encode(new_core)       # checked by decoding it back, by the game's rules
 
     # GS RAM: the palette
     pal_at = len(gs)
@@ -371,10 +384,6 @@ def splice_level(archive: bytes, names, core_class: bytes, pixels: bytes, palett
     while len(index) % 0x10:
         index.append(0)
 
-    # check: the new stream decodes, by the game's rules, to the new core
-    if wad(new_stream) != new_core:
-        raise SystemExit("the recompressed core data does not decode to the new core")
-
     data.update(core_index=bytes(index), gs_ram=bytes(gs), core_data=new_stream)
     out = rebuild(archive, names, sections, data)
     return out, {"classes": n_cls + 1, "texture": n_tex, "core_grew": delta, "shifted": shifted,
@@ -394,13 +403,12 @@ def levels(f):
     return out
 
 
-def paint_image(image: Path, names, wad, wrench: Path, work: Path) -> int:
-    work.mkdir(parents=True, exist_ok=True)
+def paint_image(image: Path, names, wad: Wad) -> int:
     with image.open("r+b") as f:
         for level, (header_lba, data_lba, data_sectors) in enumerate(levels(f)):
             f.seek(data_lba * SECTOR)
             archive = f.read(data_sectors * SECTOR)
-            new, info = fonts_level(archive, names, wad, wrench, work)
+            new, info = fonts_level(archive, names, wad)
             f.seek(data_lba * SECTOR)
             f.write(new + bytes(len(archive) - len(new)))
             f.seek(header_lba * SECTOR + 8)
@@ -419,18 +427,18 @@ def main() -> int:
                     default=ROOT / "build/charge_boots.bin")
     ap.add_argument("--texture", type=Path, default=None,
                     help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
+    ap.add_argument("--rac-wad", type=Path, default=RAC_WAD, help="the edition's compressor (installer/core)")
     ap.add_argument("--work", type=Path, default=ROOT / "build/splice",
                     help="a folder for the compressor's files (the installer gives each build its own)")
     ap.add_argument("--fonts-only", action="store_true",
                     help="only paint the seed glyphs into the fonts: a build without the Charge Boots")
     args = ap.parse_args()
     sys.path.insert(0, str(EDITOR))
-    from formats import wad
     from level import SECTION_NAMES
 
+    wad = Wad(args.rac_wad, args.work)
     if args.fonts_only:
-        return paint_image(args.image, SECTION_NAMES, wad, args.wrench, args.work)
+        return paint_image(args.image, SECTION_NAMES, wad)
     texture = args.texture or args.openrac / "assets/wrench/rac2-ntsc/moby_classes/unsorted/3696/0.png"
     if not args.class_core.is_file():
         raise SystemExit(f"missing {args.class_core} (tools/gen_boots.py)")
@@ -439,8 +447,6 @@ def main() -> int:
     if width & (width - 1) or height & (height - 1) or width < 8:
         raise SystemExit(f"{texture}: {width}x{height} is not a power-of-two texture")
     palette = gs_palette(colours)
-    work = args.work
-    work.mkdir(parents=True, exist_ok=True)
 
     with args.image.open("r+b") as f:
         f.seek(0, 2)
@@ -450,8 +456,7 @@ def main() -> int:
         for level, (header_lba, data_lba, data_sectors) in enumerate(levels(f)):
             f.seek(data_lba * SECTOR)
             archive = f.read(data_sectors * SECTOR)
-            new, info = splice_level(archive, SECTION_NAMES, core_class, pixels, palette, width, height, wad,
-                                     args.wrench, work)
+            new, info = splice_level(archive, SECTION_NAMES, core_class, pixels, palette, width, height, wad)
             # In place: splice_level refuses an archive larger than the old one.
             f.seek(data_lba * SECTOR)
             f.write(new + bytes(len(archive) - len(new)))

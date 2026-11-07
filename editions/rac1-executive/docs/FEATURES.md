@@ -1225,9 +1225,10 @@ What the game requires, found by changing one thing at a time on Hoven
 
 So: the moby class table must stay right after the core index header; the
 class blobs must sit in the resident part of the core, below +0x7C (wrench's
-scene_view_size); the texture and upload tables may move. Retail packs its
-core data about 3.5% looser than wrench's compressor, which leaves room for
-the additions with every archive still smaller than retail's.
+scene_view_size); the texture and upload tables may move. The edition's
+compressor (installer/core/wad.c) packs core data about 12% tighter than
+retail, which leaves room for the additions with every archive still smaller
+than retail's.
 
 ## x2: the Charge Boots posed from Ratchet's leg (2026-10-18) — fixed, verified in PCSX2
 

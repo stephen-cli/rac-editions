@@ -10,7 +10,7 @@ keeps its alignment) and every core offset past it moves up by as much
 (splice_boots.core_pointers), and every texture whose pixels lie past it,
 the Charge Boots' among them (splice_boots.shift_textures); the class stays inside the part of the core
 the engine keeps resident (below +0x7C), where the level had it. The core
-is compressed again with wrench's compressor and checked by decoding it back
+is compressed again with the edition's compressor and checked by decoding it back
 with OpenRAC's decoder; the core index takes the new sizes (+0x88, +0x8C);
 everything else in the archive is copied byte for byte. The archive is
 never larger than the retail one, so while the level's archive sits in the
@@ -20,7 +20,7 @@ it goes at the end of the image and the volume size grows. The level header's
 data range is pointed at it. Run it after splice_boots.py, which rewrites
 every level's archive from the one the header names.
 
-  python tools/splice_sign.py IMAGE [--openrac DIR] [--wrench wrench/bin/wrenchbuild.exe]
+  python tools/splice_sign.py IMAGE [--openrac DIR] [--rac-wad EXE]
                                     [--class-core build/sign/gadgetron_sign.bin]
 """
 import argparse
@@ -28,7 +28,7 @@ import struct
 import sys
 from pathlib import Path
 
-from splice_boots import LEVEL_TABLE, SECTOR, TAIL_SECTORS, TOC_LBA, core_pointers, recompress, shift_textures, table
+from splice_boots import LEVEL_TABLE, RAC_WAD, SECTOR, TAIL_SECTORS, TOC_LBA, Wad, core_pointers, shift_textures, table
 
 HERE = Path(__file__).resolve().parent
 EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
@@ -38,14 +38,14 @@ CLASS_ID = 1891
 STEP = 0x100
 
 
-def replace_class(archive: bytes, names, blob: bytes, wad, wrench: Path, work: Path) -> tuple[bytes, dict]:
+def replace_class(archive: bytes, names, blob: bytes, wad: Wad) -> tuple[bytes, dict]:
     sections = [struct.unpack_from("<ii", archive, 8 * i) for i in range(len(names))]
     data = {n: archive[o:o + s] for n, (o, s) in zip(names, sections)}
     first = min(o for o, s in sections if s)
     head = archive[:first]
 
     index = bytearray(data["core_index"])
-    core = wad(data["core_data"])
+    core = wad.decode(data["core_data"])
     core_size, = struct.unpack_from("<I", index, 0x8C)
     if len(core) != core_size:
         raise SystemExit("the core data does not decode to the size its index gives")
@@ -70,9 +70,7 @@ def replace_class(archive: bytes, names, blob: bytes, wad, wrench: Path, work: P
             shifted += 1
     shifted += shift_textures(index, end, delta)    # the Charge Boots texture (splice_boots.py) lies past the sign
     new_core = core[:start] + blob + bytes(region - len(blob)) + core[end:]
-    new_stream = recompress(new_core, wrench, work)
-    if wad(new_stream) != new_core:
-        raise SystemExit("the recompressed core data does not decode to the new core")
+    new_stream = wad.encode(new_core)       # checked by decoding it back, by the game's rules
     struct.pack_into("<I", index, 0x88, len(new_stream))
     struct.pack_into("<I", index, 0x8C, len(new_core))
     data.update(core_index=bytes(index), core_data=new_stream)
@@ -104,20 +102,18 @@ def main() -> int:
                     default=ROOT / "build/sign/gadgetron_sign.bin")
     ap.add_argument("--retail", type=Path, default=None,
                     help="the retail image, for its archive size (default OpenRAC's PAL baserom)")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
+    ap.add_argument("--rac-wad", type=Path, default=RAC_WAD, help="the edition's compressor (installer/core)")
     ap.add_argument("--work", type=Path, default=ROOT / "build/splice",
                     help="a folder for the compressor's files (the installer gives each build its own)")
     args = ap.parse_args()
     sys.path.insert(0, str(EDITOR))
-    from formats import wad
     from level import SECTION_NAMES
 
     if not args.class_core.is_file():
         raise SystemExit(f"missing {args.class_core} (tools/gen_sign.py)")
     blob = args.class_core.read_bytes()
     retail = args.retail or args.openrac / "games/rac1/baserom/SCES_509.16.iso"
-    work = args.work
-    work.mkdir(parents=True, exist_ok=True)
+    wad = Wad(args.rac_wad, args.work)
 
     def level_range(f):
         f.seek(TOC_LBA * SECTOR)
@@ -136,7 +132,7 @@ def main() -> int:
         header_lba, data_lba, data_sectors = level_range(f)
         f.seek(data_lba * SECTOR)
         archive = f.read(data_sectors * SECTOR)
-        new, info = replace_class(archive, SECTION_NAMES, blob, wad, args.wrench, work)
+        new, info = replace_class(archive, SECTION_NAMES, blob, wad)
         if len(new) > retail_sectors * SECTOR:
             raise SystemExit(f"the new archive ({len(new):#x} bytes) "
                              f"is larger than the retail one ({retail_sectors * SECTOR:#x})")

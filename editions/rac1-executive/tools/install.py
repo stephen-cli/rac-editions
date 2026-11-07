@@ -8,8 +8,10 @@ image byte for byte.
 
   python tools/install.py [--rac1 RAC1.iso] [--rac2 RAC2.iso | --no-rac2] [-o OUT.iso | --in-place]
                           [--economy skill|classic] [--without SWITCH ...]
-                          [--payload build/payload] [--wrench DIR] [--unpacked DIR] [--data DIR]
-  python tools/install.py --serve [--payload build/payload] [--wrench DIR] [--unpacked DIR] [--data DIR]
+                          [--payload build/payload] [--wrench DIR] [--unpacked DIR] [--core DIR]
+                          [--data DIR]
+  python tools/install.py --serve [--payload build/payload] [--wrench DIR] [--unpacked DIR] [--core DIR]
+                          [--data DIR]
 
 The discs default to the OpenRAC checkout's baseroms beside rac-editions,
 the image to build/iso/executive-edition.iso; when an emulator has that
@@ -69,6 +71,8 @@ import iso_image  # noqa: E402
 import payload  # noqa: E402
 
 EXE_NAME = "SCES_509.16;1"
+CORE_BUILD = ROOT.parents[1] / "installer/core/build"       # the installer core's tools: rac-wad, rac-vag
+EXE = ".exe" if sys.platform == "win32" else ""
 PROTOCOL = 1
 RESTORE_MAGIC = b"RCEDREST"
 
@@ -446,22 +450,22 @@ def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, jo
         boots = tmp / "charge_boots.bin"
         helpdesk = tmp / "helpdesk"
         openrac = unpacked.parents[1]           # gen_boots and gen_sign find the unpacks there
-        wrenchbuild = tools["wrench"] / "bin/wrenchbuild.exe"
+        rac_wad = tools["core"] / f"rac-wad{EXE}"
         if "charge_boots" in on:
             steps = [("gen_boots", [py, HERE / "gen_boots.py", "--openrac", openrac, "--wrench", tools["wrench"],
                                     "-o", boots]),
                      ("splice_boots", [py, HERE / "splice_boots.py", output, "--class-core", boots, "--texture",
                                        unpacked / "rac2-ntsc/moby_classes/unsorted/3696/0.png",
-                                       "--wrench", wrenchbuild, "--work", tmp / "splice"], LEVEL_LINE)]
+                                       "--rac-wad", rac_wad, "--work", tmp / "splice"], LEVEL_LINE)]
         else:
-            steps = [("splice_fonts", [py, HERE / "splice_boots.py", output, "--fonts-only", "--wrench", wrenchbuild,
+            steps = [("splice_fonts", [py, HERE / "splice_boots.py", output, "--fonts-only", "--rac-wad", rac_wad,
                                        "--work", tmp / "splice"], LEVEL_LINE)]
         steps += [
             ("gen_sign", [py, HERE / "gen_sign.py", "--openrac", openrac, "--wrench", tools["wrench"],
                           "--bank", unpacked / "rac1-pal", "-o", sign]),
             ("splice_sign", [py, HERE / "splice_sign.py", output, "--class-core", sign, "--retail", rac1,
-                             "--wrench", wrenchbuild, "--work", tmp / "splice"]),
-            ("extra_classes", [py, HERE / "extra_classes.py", "splice", output, "--wrench", wrenchbuild,
+                             "--rac-wad", rac_wad, "--work", tmp / "splice"]),
+            ("extra_classes", [py, HERE / "extra_classes.py", "splice", output, "--rac-wad", rac_wad,
                                "--work", tmp / "classes"], CLASS_OR_LEVEL_LINE),
             ("gen_helpdesk", [py, HERE / "gen_helpdesk.py", "--iso", rac1, "--recipes", pay / "helpdesk.json",
                               "-o", helpdesk, "--c-out", tmp / "gen_helpdesk.c"],
@@ -627,12 +631,13 @@ def main() -> int:
     ap.add_argument("--payload", type=Path, default=ROOT / "build/payload")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
     ap.add_argument("--unpacked", type=Path, default=openrac / "assets/wrench")
+    ap.add_argument("--core", type=Path, default=CORE_BUILD, help="the installer core's built tools (rac-wad, rac-vag)")
     ap.add_argument("--data", type=Path, default=ROOT / "build/installer-data",
                     help="a folder the installer keeps between runs (the discs' hashes)")
     ap.add_argument("-o", "--output", type=Path, default=None)
     ap.add_argument("--in-place", action="store_true", help="make the PAL disc's image the edition")
     args = ap.parse_args()
-    tools = {"wrench": args.wrench, "unpacked": args.unpacked}
+    tools = {"wrench": args.wrench, "unpacked": args.unpacked, "core": args.core, "data": args.data}
     cache = HashCache(args.data)
     if args.serve:
         return serve(args.payload, tools, cache)

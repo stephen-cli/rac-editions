@@ -26,7 +26,7 @@ carried the blob compressed and loaded it at run time into a third part of the
 gadget buffer, whose room came out of the HUD arena: the menus' icons no longer
 fit there and decompressed over address 0.
 
-  python tools/extra_classes.py splice IMAGE [--openrac DIR] [--wrench EXE]
+  python tools/extra_classes.py splice IMAGE [--openrac DIR] [--rac-wad EXE]
 
 splice edits the levels of IMAGE in place (an image tools/install.py is making,
 after tools/splice_boots.py): the blob and the pixels go into the core, the
@@ -43,8 +43,8 @@ HERE = Path(__file__).resolve().parent
 EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
-from splice_boots import (SECTOR, TOC_LBA, LEVEL_TABLE, MAX_CLASSES, MAX_SLOT, INDEX_POINTERS,   # noqa: E402
-                          table, core_pointers, shift_textures, recompress)
+from splice_boots import (RAC_WAD, SECTOR, TOC_LBA, LEVEL_TABLE, MAX_CLASSES, MAX_SLOT, INDEX_POINTERS,   # noqa: E402
+                          Wad, table, core_pointers, shift_textures)
 
 # class id -> (name, the level whose data it is copied from); what a level gets when its data lacks the class, in
 # this order while its class table has room: the infobot first (it hosts checks), then the can (two items' model),
@@ -205,7 +205,7 @@ def rebuilt_sound_block(index: bytes, classes: int) -> bytes:
     return bytes(out)
 
 
-def splice_level(archive: bytes, level: int, names, sources: dict, wad, wrench: Path, work: Path):
+def splice_level(archive: bytes, level: int, names, sources: dict, wad: Wad):
     """ARCHIVE with every extra class it lacks, or None when it lacks none. SOURCES: class id ->
     (blob, textures) from class_source. Returns (archive, report)."""
     head, data, sections = parts(archive, names)
@@ -231,7 +231,7 @@ def splice_level(archive: bytes, level: int, names, sources: dict, wad, wrench: 
 
     core_size, = struct.unpack_from("<I", index, 0x8C)
     stream_size = len(data["core_data"])
-    core = wad(data["core_data"])
+    core = wad.decode(data["core_data"])
     if len(core) != core_size:
         raise SystemExit("the core data does not decode to the size its index gives")
     textures_base, = struct.unpack_from("<I", index, 0x60)
@@ -281,9 +281,7 @@ def splice_level(archive: bytes, level: int, names, sources: dict, wad, wrench: 
     _, _, textures = table(index, 0x38, 16)
     _, _, uploads = table(index, 0x00, 16)
     new_core = core[:insert_at] + bytes(insert) + core[insert_at:]
-    new_stream = recompress(new_core, wrench, work)
-    if wad(new_stream) != new_core:
-        raise SystemExit("the recompressed core data does not decode to the new core")
+    new_stream = wad.encode(new_core)       # checked by decoding it back, by the game's rules
     for upload, palette in new_uploads:
         gs += palette
 
@@ -322,10 +320,8 @@ def splice_level(archive: bytes, level: int, names, sources: dict, wad, wrench: 
 
 def splice(args) -> int:
     sys.path.insert(0, str(EDITOR))
-    from formats import wad
     from level import SECTION_NAMES
-    work = args.work
-    work.mkdir(parents=True, exist_ok=True)
+    wad = Wad(args.rac_wad, args.work)
     with args.image.open("r+b") as f:
         f.seek(0, 2)
         if f.tell() % SECTOR:
@@ -336,7 +332,7 @@ def splice(args) -> int:
             _, lba, sectors = archives[source]
             f.seek(lba * SECTOR)
             _, data, _ = parts(f.read(sectors * SECTOR), SECTION_NAMES)
-            sources[cid] = class_source(wad(data["core_data"]), data["core_index"], data["gs_ram"], cid, source)
+            sources[cid] = class_source(wad.decode(data["core_data"]), data["core_index"], data["gs_ram"], cid, source)
             blob, texes = sources[cid]
             print(f"class {cid} ({name}) from level {source}: {len(blob):#x} bytes, "
                   f"{len(texes)} textures ({sum(len(p) for _, p, _, _ in texes):#x} bytes)")
@@ -345,7 +341,7 @@ def splice(args) -> int:
             header_lba, data_lba, data_sectors = archives[level]
             f.seek(data_lba * SECTOR)
             archive = f.read(data_sectors * SECTOR)
-            new, info = splice_level(archive, level, SECTION_NAMES, sources, wad, args.wrench, work)
+            new, info = splice_level(archive, level, SECTION_NAMES, sources, wad)
             if new is None:
                 continue
             if len(new) <= len(archive):
@@ -375,7 +371,7 @@ def main() -> int:
     sub = ap.add_subparsers(dest="command", required=True)
     s = sub.add_parser("splice")
     s.add_argument("image", type=Path)
-    s.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench/bin/wrenchbuild.exe")
+    s.add_argument("--rac-wad", type=Path, default=RAC_WAD, help="the edition's compressor (installer/core)")
     s.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     s.add_argument("--work", type=Path, default=ROOT / "build/splice_classes",
                    help="a folder for the compressor's files (the installer gives each build its own)")
