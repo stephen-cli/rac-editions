@@ -28,7 +28,7 @@ import struct
 import sys
 from pathlib import Path
 
-from splice_boots import SECTOR, TAIL_SECTORS, TOC_LBA
+from level_data import SECTOR, TAIL_SECTORS, TOC_LBA
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent

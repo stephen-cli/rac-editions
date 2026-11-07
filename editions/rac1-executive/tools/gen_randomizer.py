@@ -419,7 +419,7 @@ def gadget_sizes(openrac: Path) -> dict[int, int]:
     from formats import wad
     from level import SECTION_NAMES
     from overlay_patch import level_data_ranges, SECTOR
-    from extra_classes import parts
+    from level_data import parts
     iso = openrac / "games/rac1/baserom/SCES_509.16.iso"
     lba, sectors = level_data_ranges(iso)[1]
     with iso.open("rb") as f:

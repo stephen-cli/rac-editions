@@ -1,50 +1,39 @@
 #!/usr/bin/env python3
 """
-Extra moby classes for levels whose data lacks them.
+Extra moby classes for levels whose data lacks them (a stage of tools/patch_levels.py).
 
 A level's data holds its moby classes in the core, which the engine keeps
 whole in RAM, each listed in the core index's class table with its blob's
-offset. An extra class goes in the same way, as tools/splice_boots.py puts the
-Charge Boots class into every level: the blob and its textures' pixels where
-the moby class blobs end, and a class table entry with its offset, so that the
+offset. An extra class goes in the same way as the Charge Boots class
+(tools/splice_boots.py): the blob and its textures' pixels where the moby
+class blobs end, and a class table entry with its offset, so that the
 level's loader registers it like its own. For the Randomizer's stand-ins of
 items in the world (src/randomizer_world.c): the infobot (class 750) on the
 five levels without it (Aridia, Gaspar, Pokitaru, Kalebo III, Veldin), from
 Novalis's data, and the items that exist on one planet only, each from its
 own planet: the Hoverboard (84, Aridia), the Zoomerator (1002, Rilgar), the
 Nanotech can (645, Orxon), the Codebot (1428, Quartu), the Raritanium (37,
-Hoven).
+Hoven). The classes are copied from their levels as the patch leaves them
+(after the Charge Boots and the fonts), and each level gets the palettes in
+GS RAM and, in the core index, the texture entries, the class entry, and a
+sound span for every class (the boots' class had none).
 
 Each moves the level's heap and its last block, the effect pool, nearer the
 stack by its blob and its pixels: the infobot 0x1A200 bytes, the five items
 some 139 KB together. A level too near the stack goes without the items
 (SKIP), and their stand-ins there are the chicken. A level's class table has
-room for 222 classes (splice_boots.MAX_CLASSES): a level near that gets the
+room for 222 classes (level_data.MAX_CLASSES): a level near that gets the
 extra classes in EXTRA's order while they fit (Umbris all but the Codebot,
 Batalia the can and the Hoverboard, Gemlik the can). A first version
 carried the blob compressed and loaded it at run time into a third part of the
 gadget buffer, whose room came out of the HUD arena: the menus' icons no longer
 fit there and decompressed over address 0.
-
-  python tools/extra_classes.py splice IMAGE [--openrac DIR] [--rac-wad EXE]
-
-splice edits the levels of IMAGE in place (an image tools/install.py is making,
-after tools/splice_boots.py): the blob and the pixels go into the core, the
-palettes into GS RAM, and the core index gets the texture entries, the class
-entry, and a sound span for every class (the boots' class had none). A level
-whose archive outgrows its sectors moves to new sectors at the end of the image.
 """
-import argparse
 import struct
-import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
-ROOT = HERE.parent
-sys.path.insert(0, str(HERE))
-from splice_boots import (RAC_WAD, SECTOR, TOC_LBA, LEVEL_TABLE, MAX_CLASSES, MAX_SLOT, INDEX_POINTERS,   # noqa: E402
-                          Wad, table, core_pointers, shift_textures)
+from level_data import (INDEX_POINTERS, MAX_CLASSES, MAX_SLOT, SECTOR, Level, check_uploads, core_pointers,
+                        level_archives, moby_classes_end, parts, section_names, shift_textures, table)
 
 # class id -> (name, the level whose data it is copied from); what a level gets when its data lacks the class, in
 # this order while its class table has room: the infobot first (it hosts checks), then the can (two items' model),
@@ -66,49 +55,7 @@ SKIP = {
     6: ONE_PLANET_ITEMS,                # Blarg: 82 KB
     15: ONE_PLANET_ITEMS,               # Quartu: 135 KB
 }
-LEVELS = 19
 SPAN_FIXED = 2                      # the sound block's spans before the classes': the slot table, the remap
-TAIL_SECTORS = 32                   # after a relocated archive: the stream reader reads past the end
-
-
-def level_archives(f):
-    """level -> (header LBA, data LBA, data sectors) from the table of contents."""
-    f.seek(TOC_LBA * SECTOR)
-    toc = f.read(6 * SECTOR)
-    out = {}
-    for level in range(LEVELS):
-        header_lba, _ = struct.unpack_from("<2I", toc, LEVEL_TABLE + 8 * level)
-        f.seek(header_lba * SECTOR + 8)
-        data_lba, data_sectors = struct.unpack("<2I", f.read(8))
-        out[level] = (header_lba, data_lba, data_sectors)
-    return out
-
-
-def parts(archive: bytes, names):
-    """(the archive's head, {section: bytes}) and the sections' (offset, size)."""
-    sections = [struct.unpack_from("<ii", archive, 8 * i) for i in range(len(names))]
-    data = {n: archive[o:o + s] for n, (o, s) in zip(names, sections)}
-    first = min(o for o, s in sections if s)
-    return archive[:first], data, sections
-
-
-def assemble(head: bytes, data: dict, names, sections) -> bytes:
-    """The archive back from its sections, each at a 0x100 boundary, whole sectors."""
-    out = bytearray(head)
-    words = []
-    for n, (o, s) in zip(names, sections):
-        if not s:
-            words.append((0, 0))
-            continue
-        while len(out) % 0x100:
-            out.append(0)
-        words.append((len(out), len(data[n])))
-        out += data[n]
-    for i, (o, s) in enumerate(words):
-        struct.pack_into("<ii", out, 8 * i, o, s)
-    while len(out) % SECTOR:
-        out.append(0)
-    return bytes(out)
 
 
 def missing(index: bytes, level: int) -> tuple[list[int], list[int]]:
@@ -129,12 +76,10 @@ def texture_size(w: int, h: int, mips: int) -> int:
 def disc_class(iso: Path, level: int, cid: int, decode) -> tuple[bytes, list]:
     """CID's blob and its textures (class_source) as level LEVEL holds them on the PAL disc ISO; DECODE decodes
     the level's core data (Wad.decode)."""
-    sys.path.insert(0, str(EDITOR))
-    from level import SECTION_NAMES
     with iso.open("rb") as f:
         _, lba, sectors = level_archives(f)[level]
         f.seek(lba * SECTOR)
-        _, data, _ = parts(f.read(sectors * SECTOR), SECTION_NAMES)
+        _, data, _ = parts(f.read(sectors * SECTOR), section_names())
     return class_source(decode(data["core_data"]), data["core_index"], data["gs_ram"], cid, level)
 
 
@@ -217,43 +162,20 @@ def rebuilt_sound_block(index: bytes, classes: int) -> bytes:
     return bytes(out)
 
 
-def splice_level(archive: bytes, level: int, names, sources: dict, wad: Wad):
-    """ARCHIVE with every extra class it lacks, or None when it lacks none. SOURCES: class id ->
-    (blob, textures) from class_source. Returns (archive, report)."""
-    head, data, sections = parts(archive, names)
-    index = bytearray(data["core_index"])
-    gs = bytearray(data["gs_ram"])
-    wanted, left_out = missing(index, level)
+def add_extra_classes(level: Level, sources: dict) -> dict | None:
+    """The extra classes LEVEL lacks added to it, or None when it lacks none. SOURCES: class id -> (blob, textures)
+    from class_source."""
+    index, gs, core = level.index, level.gs, level.core
+    wanted, left_out = missing(index, level.number)
     if not wanted:
-        return None, None
-    n_cls, classes_at, classes = table(index, 0x18, 32)
-    n_tex, _, textures = table(index, 0x38, 16)
-    _, _, uploads = table(index, 0x00, 16)
+        return None
+    n_cls, classes_at, _ = table(index, 0x18, 32)
+    n_tex, _, _ = table(index, 0x38, 16)
     if n_cls + len(wanted) > MAX_CLASSES:
-        raise SystemExit(f"no room: {n_cls} classes")
-    cursor = 0
-    for e in uploads:
-        psm, packed, address, _ = struct.unpack("<IIII", e)
-        if address != cursor:
-            raise SystemExit("the GS RAM upload list is not sequential")
-        w, h = packed & 0xFFFF, packed >> 16
-        cursor += max(w * h, 0x100) if psm == 0x13 else 0x200 if psm == 2 else 0x400
-    if cursor != len(gs):
-        raise SystemExit(f"the GS RAM image is {len(gs):#x} bytes but its upload list covers {cursor:#x}")
-
-    core_size, = struct.unpack_from("<I", index, 0x8C)
-    stream_size = len(data["core_data"])
-    core = wad.decode(data["core_data"])
-    if len(core) != core_size:
-        raise SystemExit("the core data does not decode to the size its index gives")
+        raise SystemExit(f"level {level.number}: no room: {n_cls} classes")
+    check_uploads(index, gs)
     textures_base, = struct.unpack_from("<I", index, 0x60)
-    resident_end, = struct.unpack_from("<I", index, 0x7C)
-    moby_starts = [struct.unpack_from("<i", e)[0] for e in classes if struct.unpack_from("<i", e)[0] > 0]
-    pointers = core_pointers(index)
-    insert_at = min(o for _, o in pointers if o > max(moby_starts))
-    if not textures_base < insert_at <= resident_end:
-        raise SystemExit(f"unexpected core layout: textures at {textures_base:#x}, moby classes end at {insert_at:#x}, "
-                         f"resident part ends at {resident_end:#x}")
+    insert_at = moby_classes_end(index)
 
     # The insert: each class's blob, then its textures' pixels, 0x100 apart.
     insert = bytearray()
@@ -282,7 +204,7 @@ def splice_level(archive: bytes, level: int, names, sources: dict, wad: Wad):
         new_classes.append((blob_at, struct.pack("<iiii", blob_at, cid, 0, 0) + slot_list))
     delta = len(insert)
     shifted = 0
-    for where, offset in pointers:
+    for where, offset in core_pointers(index):
         if offset >= insert_at:
             struct.pack_into("<i", index, where, offset + delta)
             shifted += 1
@@ -292,8 +214,7 @@ def splice_level(archive: bytes, level: int, names, sources: dict, wad: Wad):
     # shift, and the hero's held weapon decompressed garbage into the trap at its level's load).
     _, _, textures = table(index, 0x38, 16)
     _, _, uploads = table(index, 0x00, 16)
-    new_core = core[:insert_at] + bytes(insert) + core[insert_at:]
-    new_stream = wad.encode(new_core)       # checked by decoding it back, by the game's rules
+    level.core = core[:insert_at] + bytes(insert) + core[insert_at:]
     for upload, palette in new_uploads:
         gs += palette
 
@@ -319,78 +240,6 @@ def splice_level(archive: bytes, level: int, names, sources: dict, wad: Wad):
         index.append(0)
     struct.pack_into("<I", index, 0x70, len(index))
     index += block
-    struct.pack_into("<I", index, 0x88, len(new_stream))
-    struct.pack_into("<I", index, 0x8C, len(new_core))
     while len(index) % 0x10:
         index.append(0)
-
-    data.update(core_index=bytes(index), gs_ram=bytes(gs), core_data=new_stream)
-    out = assemble(head, data, names, sections)
-    return out, {"classes": wanted, "left_out": left_out, "core_grew": delta, "shifted": shifted, "insert": insert_at,
-                 "stream_grew": len(new_stream) - stream_size, "archive": len(out) - len(archive)}
-
-
-def splice(args) -> int:
-    sys.path.insert(0, str(EDITOR))
-    from level import SECTION_NAMES
-    wad = Wad(args.rac_wad, args.work)
-    with args.image.open("r+b") as f:
-        f.seek(0, 2)
-        if f.tell() % SECTOR:
-            raise SystemExit("the image is not a whole number of sectors")
-        archives = level_archives(f)
-        sources = {}
-        for cid, (name, source) in EXTRA.items():   # all read before any level is spliced
-            _, lba, sectors = archives[source]
-            f.seek(lba * SECTOR)
-            _, data, _ = parts(f.read(sectors * SECTOR), SECTION_NAMES)
-            sources[cid] = class_source(wad.decode(data["core_data"]), data["core_index"], data["gs_ram"], cid, source)
-            blob, texes = sources[cid]
-            print(f"class {cid} ({name}) from level {source}: {len(blob):#x} bytes, "
-                  f"{len(texes)} textures ({sum(len(p) for _, p, _, _ in texes):#x} bytes)")
-        moved = 0
-        for level in range(LEVELS):
-            header_lba, data_lba, data_sectors = archives[level]
-            f.seek(data_lba * SECTOR)
-            archive = f.read(data_sectors * SECTOR)
-            new, info = splice_level(archive, level, SECTION_NAMES, sources, wad)
-            if new is None:
-                continue
-            if len(new) <= len(archive):
-                f.seek(data_lba * SECTOR)
-                f.write(new + bytes(len(archive) - len(new)))
-                where = f"in place at sector {data_lba}"
-            else:
-                f.seek(0, 2)
-                data_lba = f.tell() // SECTOR
-                f.write(new + bytes(TAIL_SECTORS * SECTOR))
-                moved += 1
-                where = f"moved to new sectors at {data_lba}"
-            f.seek(header_lba * SECTOR + 8)
-            f.write(struct.pack("<2I", data_lba, len(new) // SECTOR))
-            print(f"level {level:2d}: classes {info['classes']} at {info['insert']:#x} "
-                  f"({info['shifted']} offsets shifted), core +{info['core_grew']:#x}, "
-                  f"archive {info['archive']:+#x} against the one before, {where}")
-            if info["left_out"]:
-                print(f"level {level:2d}: no room in the class table for {info['left_out']}")
-        f.seek(0, 2)
-        print(f"{args.image.name}: {moved} level archives moved to the end; image {f.tell() // SECTOR} sectors")
-    return 0
-
-
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    sub = ap.add_subparsers(dest="command", required=True)
-    s = sub.add_parser("splice")
-    s.add_argument("image", type=Path)
-    s.add_argument("--rac-wad", type=Path, default=RAC_WAD, help="the edition's compressor (installer/core)")
-    s.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
-    s.add_argument("--work", type=Path, default=ROOT / "build/splice_classes",
-                   help="a folder for the compressor's files (the installer gives each build its own)")
-    s.set_defaults(run=splice)
-    args = ap.parse_args()
-    return args.run(args)
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    return {"classes": wanted, "left_out": left_out, "core_grew": delta, "shifted": shifted, "insert": insert_at}

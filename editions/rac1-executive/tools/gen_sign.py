@@ -40,7 +40,7 @@ which is how retail's agree to 0.03%. The result is read back with OpenRAC's
 moby reader and checked.
 
 Writes build/sign/gadgetron_sign.bin (the class core, which
-tools/splice_sign.py splices into Kalebo III) and build/sign/gadgetron_sign.glb
+tools/patch_levels.py splices into Kalebo III) and build/sign/gadgetron_sign.glb
 (the mesh, for viewing).
 
   python tools/gen_sign.py [--rac1 SCES_509.16.iso] [--rac-moby EXE] [--rac-wad EXE] [-o build/sign/gadgetron_sign.bin]
@@ -62,7 +62,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[2] / "common"))
 import core_tools  # noqa: E402
 from extra_classes import disc_class  # noqa: E402
-from splice_boots import Wad  # noqa: E402
+from level_data import Wad  # noqa: E402
 CLASS_ID = 1891
 LEVEL = 16                          # Kalebo III, the only level with the sign
 
@@ -380,7 +380,7 @@ def enclosing_sphere(points):
             c.append(det(mk) / dm)
         return tuple(c), math.dist(c, a)
 
-    pts = list(set(points))
+    pts = sorted(set(points))           # a fixed order before the shuffle, whatever the set's
     random.Random(0).shuffle(pts)
     sys.setrecursionlimit(max(sys.getrecursionlimit(), 4 * len(pts) + 100))
 

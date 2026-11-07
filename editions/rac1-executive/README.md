@@ -179,8 +179,9 @@ your own PS2 BIOS), or burn it to a DVD for a real PS2.
 
 `install.py` takes a copy of your disc and changes it in place: the new
 executable goes in new sectors at the end of the image, each level's code is
-patched where it is, and the Charge Boots and Kalebo III's sign are spliced
-into the levels' data where it sits. The rest of the disc stays byte-for-byte
+patched where it is, and each level's data is patched once (the Charge Boots,
+Kalebo III's sign, the Randomizer's extra classes and the seed glyphs) and
+written back in the sectors it had. The rest of the disc stays byte-for-byte
 yours.
 
 What a release ships (`tools/payload.py`) holds no bytes of either game. The

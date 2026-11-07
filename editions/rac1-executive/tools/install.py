@@ -376,12 +376,9 @@ class Steps:
             self.job.progress("patch", done, self.total)
 
 
-# Each patch step's share of the time a full build took, out of 100 (measured: the two level splices about 170 s
-# each, the HelpDesk lines 47 s, Kalebo III's sign 9 s, the others under a second), and the line a tool prints per
-# level it splices, of 19 (extra_classes first reads its 6 classes from the levels they come from, a line each).
-PATCH_SHARES = {"gen_boots": 1, "splice_boots": 42, "splice_fonts": 42, "gen_sign": 1, "splice_sign": 2,
-                "extra_classes": 42, "gen_helpdesk": 12, "splice_helpdesk": 1}
-LEVEL_LINE = (r"level +\d+:", 19)
+# Each patch step's share of the time a full build took, out of 100 (measured), and the line patch_levels prints
+# per unit of work: one per extra class it reads from its level (6), then one per level it patches (19).
+PATCH_SHARES = {"gen_boots": 5, "gen_sign": 4, "patch_levels": 89, "gen_helpdesk": 1, "splice_helpdesk": 1}
 CLASS_OR_LEVEL_LINE = (r"(level +\d+:|class \d+ \()", 6 + 19)
 
 
@@ -449,23 +446,16 @@ def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, jo
         rac_wad = core_tools.tool("rac-wad", tools["core"])
         rac_vag = core_tools.tool("rac-vag", tools["core"])
         rac_moby = core_tools.tool("rac-moby", tools["core"])
+        steps, with_boots = [], []
         if "charge_boots" in on:
-            steps = [("gen_boots", [py, HERE / "gen_boots.py", "--rac1", rac1, "--rac2", discs["rac2"],
-                                    "--rac-moby", rac_moby, "--rac-wad", rac_wad,
-                                    "-o", boots]),
-                     ("splice_boots", [py, HERE / "splice_boots.py", output, "--class-core", boots,
-                                       "--rac2", discs["rac2"], "--rac-wad", rac_wad, "--work", tmp / "splice"],
-                      LEVEL_LINE)]
-        else:
-            steps = [("splice_fonts", [py, HERE / "splice_boots.py", output, "--fonts-only", "--rac-wad", rac_wad,
-                                       "--work", tmp / "splice"], LEVEL_LINE)]
+            steps.append(("gen_boots", [py, HERE / "gen_boots.py", "--rac1", rac1, "--rac2", discs["rac2"],
+                                        "--rac-moby", rac_moby, "--rac-wad", rac_wad, "-o", boots]))
+            with_boots = ["--boots", boots, "--rac2", discs["rac2"]]
         steps += [
             ("gen_sign", [py, HERE / "gen_sign.py", "--rac1", rac1, "--rac-moby", rac_moby, "--rac-wad", rac_wad,
                           "-o", sign]),
-            ("splice_sign", [py, HERE / "splice_sign.py", output, "--class-core", sign, "--retail", rac1,
-                             "--rac-wad", rac_wad, "--work", tmp / "splice"]),
-            ("extra_classes", [py, HERE / "extra_classes.py", "splice", output, "--rac-wad", rac_wad,
-                               "--work", tmp / "classes"], CLASS_OR_LEVEL_LINE),
+            ("patch_levels", [py, HERE / "patch_levels.py", output, *with_boots, "--sign", sign, "--rac-wad", rac_wad,
+                              "--work", tmp / "levels"], CLASS_OR_LEVEL_LINE),
             ("gen_helpdesk", [py, HERE / "gen_helpdesk.py", "--iso", rac1, "--recipes", pay / "helpdesk.json",
                               "-o", helpdesk, "--c-out", tmp / "gen_helpdesk.c", "--rac-vag", rac_vag,
                               "--cache", tools["data"] / "helpdesk", "--no-preview"],

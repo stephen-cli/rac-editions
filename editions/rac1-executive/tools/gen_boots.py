@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Convert Going Commando's Charge Boots model to an R&C1 moby class core,
-which tools/splice_boots.py splices into every level of the image.
+which tools/patch_levels.py splices into every level of the image.
 
 R&C2 names the Charge Boots in its weapon table (record 54 of g_weaponTable:
 text 0xA9F "Charge Boots", foot slot, moby class 0xE70 = 3696 on both feet),
@@ -38,8 +38,8 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[2] / "common"))
 import core_tools  # noqa: E402
 from extra_classes import disc_class  # noqa: E402
+from level_data import Wad  # noqa: E402
 from rac2_anim import rac2_class  # noqa: E402
-from splice_boots import Wad  # noqa: E402
 
 CLASS_ID = 2000
 RAC2_CLASS = 3696
