@@ -137,9 +137,60 @@ static bool is_separator(char c)
     return c == '\\' || c == '/';
 }
 
+#define SEPARATOR '\\'
+
+bool file_remove(const char *path)
+{
+    wchar_t *wide = wide_path(path);
+    if (wide == NULL) {
+        errno = EINVAL;
+        return false;
+    }
+    bool removed = _wremove(wide) == 0;
+    free(wide);
+    return removed;
+}
+
+bool file_free_space(const char *folder, uint64_t *free_bytes)
+{
+    wchar_t *wide = wide_path(folder);
+    if (wide == NULL) {
+        return false;
+    }
+    /* the drive's free bytes, as Python's shutil.disk_usage counts them */
+    ULARGE_INTEGER total_free;
+    BOOL asked = GetDiskFreeSpaceExW(wide, NULL, NULL, &total_free);
+    free(wide);
+    *free_bytes = total_free.QuadPart;
+    return asked != 0;
+}
+
+/* The length of PATH's anchor: "C:\" or "C:", "\\server\share\", "\", or none. */
+static size_t anchor_length(const char *path)
+{
+    if (path[0] != 0 && path[1] == ':') {
+        return is_separator(path[2]) ? 3 : 2;
+    }
+    if (is_separator(path[0]) && is_separator(path[1])) {
+        /* \\server\share\ */
+        size_t at = 2;
+        for (int parts = 0; parts < 2 && path[at] != 0; parts++) {
+            while (path[at] != 0 && !is_separator(path[at])) {
+                at++;
+            }
+            if (path[at] != 0) {
+                at++;
+            }
+        }
+        return at;
+    }
+    return is_separator(path[0]) ? 1 : 0;
+}
+
 #else
 #include <limits.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 
 FILE *file_open(const char *path, const char *mode)
@@ -202,7 +253,91 @@ static bool is_separator(char c)
 {
     return c == '/';
 }
+
+#define SEPARATOR '/'
+
+bool file_remove(const char *path)
+{
+    return remove(path) == 0;
+}
+
+bool file_free_space(const char *folder, uint64_t *free_bytes)
+{
+    struct statvfs status;
+    if (statvfs(folder, &status) != 0) {
+        return false;
+    }
+    /* the bytes free to an unprivileged writer, as Python's shutil.disk_usage counts them */
+    *free_bytes = (uint64_t)status.f_bavail * status.f_frsize;
+    return true;
+}
+
+static size_t anchor_length(const char *path)
+{
+    return is_separator(path[0]) ? 1 : 0;
+}
 #endif
+
+void path_clean(const char *path, char *clean, size_t capacity)
+{
+    if (capacity == 0) {
+        return;
+    }
+    size_t anchor = anchor_length(path);
+    size_t used = 0;
+    for (size_t i = 0; i < anchor && used + 1 < capacity; i++) {
+        clean[used++] = is_separator(path[i]) ? SEPARATOR : path[i];
+    }
+    const char *part = path + anchor;
+    while (*part != 0) {
+        size_t length = 0;
+        while (part[length] != 0 && !is_separator(part[length])) {
+            length++;
+        }
+        bool kept = length > 0 && !(length == 1 && part[0] == '.');
+        if (kept) {
+            if (used > anchor && used + 1 < capacity) {
+                clean[used++] = SEPARATOR;
+            }
+            for (size_t i = 0; i < length && used + 1 < capacity; i++) {
+                clean[used++] = part[i];
+            }
+        }
+        part += length;
+        while (is_separator(*part)) {
+            part++;
+        }
+    }
+    if (used == 0 && capacity > 1) {
+        clean[used++] = '.';
+    }
+    clean[used] = 0;
+}
+
+void path_parent(const char *path, char *parent, size_t capacity)
+{
+    if (capacity == 0) {
+        return;
+    }
+    size_t anchor = anchor_length(path);
+    size_t last = strlen(path);
+    while (last > anchor && !is_separator(path[last - 1])) {
+        last--;
+    }
+    size_t length;
+    if (last > anchor) {
+        length = last - 1;          /* up to the last separator */
+    } else if (anchor > 0) {
+        length = anchor;            /* "C:\x" has "C:\"; a root, itself */
+    } else {
+        length = 0;                 /* "x" is in "." */
+    }
+    if (length == 0) {
+        snprintf(parent, capacity, ".");
+        return;
+    }
+    snprintf(parent, capacity, "%.*s", (int)length, path);
+}
 
 bool file_read_at(FILE *file, uint64_t offset, void *buffer, size_t size)
 {

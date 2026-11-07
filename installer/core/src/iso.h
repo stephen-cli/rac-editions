@@ -29,6 +29,9 @@ typedef struct {
 /* NAME's record in the root directory ("SYSTEM.CNF;1"); false when the image is no ISO 9660 image or has none. */
 bool iso_find(FILE *image, const char *name, IsoEntry *entry);
 
+/* The record of the file at PATH ("G/LEVEL1.WAD"): folders by name, then the file by its name without ";1". */
+bool iso_find_path(FILE *image, const char *path, IsoEntry *entry);
+
 /* NAME's bytes in a new buffer the caller frees, and their size; NULL when there is no such file. */
 uint8_t *iso_read_file(FILE *image, const char *name, size_t *size);
 
@@ -48,6 +51,7 @@ typedef struct {
     uint32_t sectors;           /* the image's length in sectors, with what was appended */
     bool grew;
     bool failed;                /* a write failed: the image is not to be used */
+    int error;                  /* errno of the first failed write (ENOSPC for a full drive) */
 } IsoImage;
 
 /* PATH opened for writing in place; false when it cannot be. */

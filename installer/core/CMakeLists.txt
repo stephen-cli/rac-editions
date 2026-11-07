@@ -21,19 +21,26 @@ function(strict_warnings target)
 endfunction()
 
 add_library(rac_core STATIC
+    src/build.c
     src/disc.c
     src/elf.c
     src/files.c
+    src/fill.c
     src/hash_cache.c
     src/installer.c
     src/iso.c
     src/job.c
-    src/json.c
     src/serve.c
     src/sha256.c
 )
 target_include_directories(rac_core PUBLIC src)
 strict_warnings(rac_core)
+
+# JSON on its own, for the libraries beside the core that read it (moby_mesh.c)
+add_library(rac_json STATIC src/json.c)
+target_include_directories(rac_json PUBLIC src)
+strict_warnings(rac_json)
+target_link_libraries(rac_core PUBLIC rac_json)
 
 # Threads, locks and the job pool, on their own so the tools below can run on the pool without the whole core.
 # Win32 threads on Windows; pthreads (-pthread) elsewhere.
@@ -76,12 +83,41 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/wad.c)
     endif()
 endif()
 
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/moby.c)
+    # moby classes read and written in either game's layout (wrench's mobyconvert, ported)
+    add_library(moby STATIC moby.c)
+    target_include_directories(moby PUBLIC .)
+    strict_warnings(moby)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/moby_mesh.c)
+        # wrench's mesh export and packet builder, its float maths reproduced bit for bit: no fused multiply-adds
+        target_sources(moby PRIVATE moby_mesh.c)
+        target_link_libraries(moby PRIVATE rac_json)
+        if(NOT MSVC)
+            set_source_files_properties(moby_mesh.c PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
+        endif()
+    endif()
+    if(NOT MSVC)
+        target_link_libraries(moby PUBLIC m)
+    endif()
+    target_link_libraries(rac_core PUBLIC moby)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tools/rac-moby.c)
+        add_executable(rac-moby tools/rac-moby.c)
+        target_link_libraries(rac-moby PRIVATE moby)
+        strict_warnings(rac-moby)
+    endif()
+endif()
+
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/vag.c)
     add_library(vag STATIC vag.c)
     target_include_directories(vag PUBLIC .)
     strict_warnings(vag)
     if(NOT MSVC)
         target_link_libraries(vag PUBLIC m)
+    endif()
+    target_link_libraries(rac_core PUBLIC vag)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/helpdesk.c)
+        # the HelpDesk lines' patch step, which makes them on the job pool
+        target_sources(rac_core PRIVATE helpdesk.c)
     endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tools/rac-vag.c)
         add_executable(rac-vag tools/rac-vag.c)

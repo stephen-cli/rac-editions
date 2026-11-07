@@ -45,4 +45,18 @@ bool file_replace(const char *from, const char *to);
 /* DIRECTORY and the folders above it that are missing. */
 bool file_make_directories(const char *directory);
 
+/* PATH deleted; false with errno set when it could not be. */
+bool file_remove(const char *path);
+
+/* The bytes free to write on the drive that holds FOLDER; false when it cannot be asked. */
+bool file_free_space(const char *folder, uint64_t *free_bytes);
+
+/* PATH as Python's pathlib spells it, so messages name paths as tools/install.py's do: on Windows "/" becomes
+   "\", and on both, repeated separators, "." parts and a trailing separator (but a root's) go. */
+void path_clean(const char *path, char *clean, size_t capacity);
+
+/* The folder that holds PATH (a cleaned path), as pathlib's parent: "C:\" for "C:\x.iso", "." for "x.iso", and
+   a root for itself. */
+void path_parent(const char *path, char *parent, size_t capacity);
+
 #endif

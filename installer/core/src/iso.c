@@ -1,5 +1,6 @@
 #include "iso.h"
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,15 +23,15 @@ static bool root_directory(FILE *image, uint32_t *extent, uint32_t *size)
     return true;
 }
 
-bool iso_find(FILE *image, const char *name, IsoEntry *entry)
+/*
+ * NAME's record in the directory at EXTENT of SIZE bytes; with WITHOUT_VERSION, a record matches by its name
+ * without its ";1". false when there is none or the directory cannot be read.
+ */
+static bool find_in_directory(FILE *image, uint32_t extent, uint32_t size, const char *name, size_t name_length,
+                              bool without_version, IsoEntry *entry)
 {
-    uint32_t extent;
-    uint32_t size;
-    if (!root_directory(image, &extent, &size)) {
-        return false;
-    }
-    /* A PS2 disc's root directory takes a sector or two; a larger one is no image of a PS2 disc. */
-    if (size == 0 || size > 64 * ISO_SECTOR) {
+    /* a PS2 disc's directories take a few sectors; a larger one is no image of a PS2 disc */
+    if (size == 0 || size > 512 * ISO_SECTOR) {
         return false;
     }
     uint8_t *directory = malloc(size);
@@ -38,7 +39,6 @@ bool iso_find(FILE *image, const char *name, IsoEntry *entry)
         free(directory);
         return false;
     }
-    size_t name_length = strlen(name);
     bool found = false;
     size_t position = 0;
     while (position < size) {
@@ -52,9 +52,17 @@ bool iso_find(FILE *image, const char *name, IsoEntry *entry)
             break;
         }
         const uint8_t *record = directory + position;
-        uint8_t record_name_length = record[32];
-        if (33u + record_name_length <= length && record_name_length == name_length &&
-            memcmp(record + 33, name, name_length) == 0) {
+        size_t record_name_length = record[32];
+        if (33u + record_name_length > length) {
+            break;
+        }
+        if (without_version) {
+            const uint8_t *version = memchr(record + 33, ';', record_name_length);
+            if (version != NULL) {
+                record_name_length = (size_t)(version - (record + 33));
+            }
+        }
+        if (record_name_length == name_length && memcmp(record + 33, name, name_length) == 0) {
             entry->record_offset = (uint64_t)extent * ISO_SECTOR + position;
             entry->extent = read_u32_le(record + 2);
             entry->size = read_u32_le(record + 10);
@@ -65,6 +73,39 @@ bool iso_find(FILE *image, const char *name, IsoEntry *entry)
     }
     free(directory);
     return found;
+}
+
+bool iso_find(FILE *image, const char *name, IsoEntry *entry)
+{
+    uint32_t extent;
+    uint32_t size;
+    if (!root_directory(image, &extent, &size) || size > 64 * ISO_SECTOR) {
+        return false;
+    }
+    return find_in_directory(image, extent, size, name, strlen(name), false, entry);
+}
+
+bool iso_find_path(FILE *image, const char *path, IsoEntry *entry)
+{
+    uint32_t extent;
+    uint32_t size;
+    if (!root_directory(image, &extent, &size)) {
+        return false;
+    }
+    const char *part = path;
+    for (;;) {
+        const char *slash = strchr(part, '/');
+        size_t length = slash != NULL ? (size_t)(slash - part) : strlen(part);
+        if (!find_in_directory(image, extent, size, part, length, true, entry)) {
+            return false;
+        }
+        if (slash == NULL) {
+            return true;
+        }
+        extent = entry->extent;
+        size = entry->size;
+        part = slash + 1;
+    }
 }
 
 uint8_t *iso_read_file(FILE *image, const char *name, size_t *size)
@@ -105,6 +146,9 @@ bool iso_image_open(IsoImage *image, const char *path)
 void iso_image_write(IsoImage *image, uint64_t offset, const void *bytes, size_t size)
 {
     if (!file_write_at(image->file, offset, bytes, size)) {
+        if (!image->failed) {
+            image->error = errno;
+        }
         image->failed = true;
     }
 }
@@ -173,6 +217,9 @@ bool iso_image_finish(IsoImage *image)
         iso_image_write(image, ISO_VOLUME_SIZE_OFFSET, field, sizeof field);
     }
     if (fclose(image->file) != 0) {
+        if (!image->failed) {
+            image->error = errno;
+        }
         image->failed = true;
     }
     image->file = NULL;

@@ -3,9 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bytes.h"
 #include "files.h"
 #include "iso.h"
 #include "sha256.h"
+#include "wad.h"
 
 /* Read in chunks this size: large enough that progress events stay few, small enough to cancel quickly. */
 #define HASH_CHUNK (16u << 20)
@@ -104,4 +106,47 @@ bool disc_kind(const char *path, DiscKind *kind)
     }
     fclose(image);
     return true;
+}
+
+/* The file the table of contents names at ENTRY ({sector, sectors}), read whole from the R&C1 disc at PATH. */
+uint8_t *disc_read_toc_file(const char *path, uint32_t entry, size_t *size)
+{
+    FILE *file = file_open(path, "rb");
+    if (file == NULL) {
+        return NULL;
+    }
+    uint8_t place[8];
+    uint8_t *bytes = NULL;
+    if (file_read_at(file, (uint64_t)DISC_TOC_SECTOR * ISO_SECTOR + entry, place, sizeof place)) {
+        uint64_t sector = read_u32_le(place);
+        size_t length = (size_t)read_u32_le(place + 4) * ISO_SECTOR;
+        bytes = malloc(length > 0 ? length : 1);
+        if (bytes != NULL && !file_read_at(file, sector * ISO_SECTOR, bytes, length)) {
+            free(bytes);
+            bytes = NULL;
+        }
+        *size = length;
+    }
+    fclose(file);
+    return bytes;
+}
+
+/* A WAD stream decompressed into a new buffer the caller frees; NULL when it is not one the game reads. */
+uint8_t *disc_unwad(const uint8_t *stream, size_t size, size_t *out_size)
+{
+    for (size_t capacity = 1 << 22; capacity <= (size_t)64 << 20; capacity *= 2) {
+        uint8_t *out = malloc(capacity);
+        if (out == NULL) {
+            return NULL;
+        }
+        enum wad_error result = wad_decompress(stream, size, out, capacity, out_size);
+        if (result == WAD_OK) {
+            return out;
+        }
+        free(out);
+        if (result != WAD_TOO_LARGE) {
+            return NULL;
+        }
+    }
+    return NULL;
 }
