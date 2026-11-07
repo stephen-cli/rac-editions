@@ -46,6 +46,7 @@ KINDS = [
     ("ee_rz_vendor_class", "ee_rz_vendor_class_c", ["j     {c}", "addiu $6, $0, {n}"]),
     ("ee_rz_health_draw", "ee_rz_health_draw_c", ["j     {c}", "addiu $5, $0, {n}"]),
     ("ee_rz_level_init", "ee_rz_level_init_c", ["j     {c}", "addiu $4, $0, {n}"]),
+    ("ee_rz_place_mobys", "ee_rz_place_mobys_c", ["j     {c}", "addiu $7, $0, {n}"]),
     ("ee_rz_vendor_icon", "ee_rz_vendor_icon_c", ["j     {c}", "addiu $6, $0, {n}"]),
     ("ee_rz_vendor_text", "ee_rz_vendor_text_c", ["j     {c}", "addiu $5, $0, {n}"]),
     ("ee_rz_vendor_model", "ee_rz_vendor_model_c", ["j     {c}", "addiu $6, $0, {n}"]),

@@ -117,6 +117,9 @@ LEVEL_DATA = {
     # CreateMoby's lui/lw pairs of +4 and +0x10
     "mobys_placed_end": ("func_0020D348", 0x14, 0x18),
     "mobys_end": ("func_0020D348", 0x7C, 0x80),
+    # rz: the level's core data record (D_L00_00173F00 in level 0: the gameplay data at +4, whose word +0x44 is
+    # the offset of the moby records), from InitLevelRenderGlobals's lui/addiu
+    "level_core": ("func_L00_002422D8", 0x4, 0xC),
 }
 # Where the title screen's programs have the data, for LEVEL_DATA entries read from a level's
 # own function: the executable function that addresses it there (its address is the same in both).
@@ -158,6 +161,9 @@ TITLE_ONLY = {"func_001EB7C0", "func_0021A610", "func_00219E90"}
 # Level functions Veldin's tutorial (level 0) lacks, which LVL() names only from Randomizer code that runs at a check's
 # host: the tutorial has no checks, and its entry is 0. The Gold Bolt's glow (the chicken stand-in's).
 NOT_IN_TUTORIAL = {"func_L01_00309848", "func_L01_00309928"}
+# Functions of a moby class only some levels have, which LVL() names only from code that runs at that class: the
+# entries of the levels without it are 0. The teleporter pad's (class 1135) switching on, which Umbris's end uses.
+ONLY_WITH_CLASS = {"func_L01_00309F00", "func_L01_0030AC10"}
 
 
 def catalogue(openrac: Path) -> dict[str, dict[int, int]]:
@@ -274,6 +280,8 @@ def main() -> int:
                     addrs = [places[name].get(level) for level in range(19)]
                     if addrs[0] is None and name in NOT_IN_TUTORIAL:
                         addrs[0] = 0                  # never called there
+                    if name in ONLY_WITH_CLASS:
+                        addrs = [a or 0 for a in addrs]
                     if any(a is None for a in addrs):
                         missing = [level for level, a in enumerate(addrs) if a is None]
                         raise SystemExit(f"{name} is not in every level (missing {missing});"

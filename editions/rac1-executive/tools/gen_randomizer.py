@@ -63,6 +63,9 @@ ITEM_DISPLAY = "func_L00_0029C9E8"      # Vendor_InitItemDisplay: the item shown
 LOAD_CLASS = "func_00205270"
 HEALTH_BANK = "func_L00_00235790"       # Hud_RegisterHealthBank: HudHealthDraw's address in its lui/addiu
 LEVEL_INIT = "func_L00_0023D9C0"        # InitLevelResidentState, called once per level load by the level's init
+PLACE_MOBYS = "func_L00_002422D8"       # InitLevelRenderGlobals, which places the level's mobys from their records
+CLEAR_MOBYS = 0xF18                     # + 0xF18: fill_transfer_words(table, 0, size), the moby table cleared right
+FILL_WORDS = "func_001F99B0"            # after the records are found and before the first is read
 ICON_STRIP = "func_00239A00"            # VendorDrawIconStrip: GetIconFrame per entry (frame 0 a purchase, 2 ammo)
 ITEM_PANEL = "func_00239CF8"            # VendorDrawItemPanel: msg_string for the entry's name
 GET_ICON = "func_00200198"
@@ -298,6 +301,12 @@ def patches(level: int, at) -> list[tuple[int, int | None, int]]:
         raise SystemExit(f"level {level}: MobyLoadTimeUpdatePass + 0x{LOAD_PASS_CALL:X} is not jalr $3 "
                          f"({lv.word(load):08X})")
     out.append((load, JALR_V1, jal(modseg_symbol(f"ee_rz_moby_update_{level:02d}"))))
+    # the placing of the level's mobys, where their records are in place and not yet read (Umbris's exit lift)
+    clear = lv.place[PLACE_MOBYS] + CLEAR_MOBYS
+    if lv.word(clear) != jal(lv.place[FILL_WORDS]):
+        raise SystemExit(f"level {level}: InitLevelRenderGlobals + 0x{CLEAR_MOBYS:X} is not jal {FILL_WORDS} "
+                         f"({lv.word(clear):08X})")
+    out.append((clear, lv.word(clear), jal(modseg_symbol(f"ee_rz_place_mobys_{level:02d}"))))
     return out
 
 

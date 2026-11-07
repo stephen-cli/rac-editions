@@ -855,6 +855,83 @@ ee_rz_level_init_17:
 ee_rz_level_init_18:
     j     ee_rz_level_init_c
     addiu $4, $0, 18
+.extern ee_rz_place_mobys_c
+.globl ee_rz_place_mobys_00
+ee_rz_place_mobys_00:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 0
+.globl ee_rz_place_mobys_01
+ee_rz_place_mobys_01:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 1
+.globl ee_rz_place_mobys_02
+ee_rz_place_mobys_02:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 2
+.globl ee_rz_place_mobys_03
+ee_rz_place_mobys_03:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 3
+.globl ee_rz_place_mobys_04
+ee_rz_place_mobys_04:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 4
+.globl ee_rz_place_mobys_05
+ee_rz_place_mobys_05:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 5
+.globl ee_rz_place_mobys_06
+ee_rz_place_mobys_06:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 6
+.globl ee_rz_place_mobys_07
+ee_rz_place_mobys_07:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 7
+.globl ee_rz_place_mobys_08
+ee_rz_place_mobys_08:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 8
+.globl ee_rz_place_mobys_09
+ee_rz_place_mobys_09:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 9
+.globl ee_rz_place_mobys_10
+ee_rz_place_mobys_10:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 10
+.globl ee_rz_place_mobys_11
+ee_rz_place_mobys_11:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 11
+.globl ee_rz_place_mobys_12
+ee_rz_place_mobys_12:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 12
+.globl ee_rz_place_mobys_13
+ee_rz_place_mobys_13:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 13
+.globl ee_rz_place_mobys_14
+ee_rz_place_mobys_14:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 14
+.globl ee_rz_place_mobys_15
+ee_rz_place_mobys_15:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 15
+.globl ee_rz_place_mobys_16
+ee_rz_place_mobys_16:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 16
+.globl ee_rz_place_mobys_17
+ee_rz_place_mobys_17:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 17
+.globl ee_rz_place_mobys_18
+ee_rz_place_mobys_18:
+    j     ee_rz_place_mobys_c
+    addiu $7, $0, 18
 .extern ee_rz_vendor_icon_c
 .globl ee_rz_vendor_icon_00
 ee_rz_vendor_icon_00:

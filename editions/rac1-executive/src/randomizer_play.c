@@ -590,14 +590,23 @@ static void o2_early_fixes(s32 L)
  * flies Ratchet to Batalia (func_0022F4A0). With the check holding another item, the item was given before Ratchet
  * reached it and the flight went to Batalia regardless. So the controller is held in state 8, and the hangar's
  * infobot is taken as a world infobot (src/randomizer_world.c). Retail lets Ratchet out of the pit and into the
- * hangar only on a later visit: the exit lift (class 1474) and the hangar door (class 1128) read the level's
- * triggers as the level loaded them (mission_state), the lift appearing and the door shutting for good once the
- * boss's trigger 2 is done. With the boss beaten, the lift's copy of trigger 2 is set at once, so it appears and
- * carries Ratchet up; the door's force-open word (pvars + 0x3C) makes it open after the boss, then and on every
- * later visit, so the infobot stays reachable; the bridge to the hangar (class 1129) extends without waiting for
- * the boss's state (its target, pvars + 0xB0, -1), as on a later visit the boss is gone. Retail's end plays only
- * for Batalia's own infobot. */
+ * hangar only on a later visit: the exit lift (class 1474) is placed only by a load with the boss's trigger 2 done
+ * (its record's flags: 0x2 and not 0x1), and it and the hangar door (class 1128) read the level's triggers as the
+ * level loaded them (mission_state), the lift showing and the door shutting for good once trigger 2 is done. So the
+ * lift's record is placed at every load (ee_rz_place_mobys_c: flag 0x1, placed while the trigger is open too), the
+ * lift hiding itself until its copy of trigger 2 is done; with the boss beaten, that copy is set at once, so it
+ * appears and carries Ratchet up. The door's force-open word (pvars + 0x3C) makes it open after the boss, then and
+ * on every later visit, so the infobot stays reachable; the bridge to the hangar (class 1129) extends without
+ * waiting for the boss's state (its target, pvars + 0xB0, -1), as on a later visit the boss is gone. Retail's end
+ * plays only for Batalia's own infobot. The two teleporter pads (class 1135), one at the top of the lift and one by
+ * the ship, stay off until Ratchet stands in their cuboid 14 on the lift's landing (the arena's intro volume too).
+ * With the boss beaten, a pad whose save bit is clear is switched on as that cuboid would: its save bit, so the pads
+ * are on at every later visit, then the pad and its glow shown. (A pad's switching on also wakes its partner, state
+ * 1 but hidden and unsaved, so the test is the bit's.) */
 DECLARE_LVL_DATA(mission_state);        /* the level's triggers as the level loaded them */
+DECLARE_LVL(func_L01_00309F00);         /* the teleporter pad's switching on: its save bit */
+DECLARE_LVL(func_L01_0030AC10);         /* the teleporter pad and its glow shown */
+typedef void (*PadFn)(void *);
 #define UMBRIS              7
 #define BATALIA_INFOBOT     (RZ_INFOBOT_NOVALIS + 8 - 1)
 #define UMBRIS_SCENES_CLASS 436
@@ -607,14 +616,62 @@ DECLARE_LVL_DATA(mission_state);        /* the level's triggers as the level loa
 #define UMBRIS_DOOR_FORCE   0x3C        /* its pvars: nonzero, opens once trigger 2 is done instead of shutting */
 #define UMBRIS_BRIDGE_CLASS 1129
 #define UMBRIS_BRIDGE_TARGET 0xB0       /* its pvars: the moby whose state extends it, -1 none */
+#define UMBRIS_PAD_CLASS    1135
+#define PAD_ON              1           /* its states: waiting for Ratchet */
+#define PAD_OFF             5           /* hidden until Ratchet stands in its cuboid */
 #define SNAGGLEBEAST_TRIGGER 2
+#define UMBRIS_LIFT_UID     458
+DECLARE_LVL_DATA(level_core);           /* the level's core data: the gameplay data at +4 */
+DECLARE_LVL(func_001F99B0);             /* fill_transfer_words(words, value, count) */
+typedef void (*FillFn)(void *, u32, s32);
+#define GAMEPLAY_MOBYS      0x44        /* the gameplay data's offset of its moby records */
+#define MOBYS_HEAD          0x10        /* their count at +0, the first record after */
+#define RECORD_MISSION      1           /* a record's words: its size at 0, then its mission, */
+#define RECORD_FLAGS        2           /* its flags (0x1 placed while the mission is open, 0x2 once done), */
+#define RECORD_UID          3           /* its uid */
+#define PLACE_WHILE_OPEN    0x1
+
+/* Whether Umbris's end in level L is the Randomizer's: the Batalia infobot's check holds another item. */
+static s32 umbris_end_moved(s32 L)
+{
+    s32 check = rz_check_for_vanilla(BATALIA_INFOBOT);
+    return active && L == UMBRIS && check >= 0 && ee_rz_layout_item(check) != BATALIA_INFOBOT;
+}
+
+/* InitLevelRenderGlobals's clearing of the moby table of level L, right before it places the level's mobys from
+ * their records (fill_transfer_words(table, value, count) at + 0xF18): Umbris's exit lift's record is placed while
+ * the boss's trigger is open too, when its end is the Randomizer's. */
+void ee_rz_place_mobys_c(void *table, u32 value, s32 count, s32 L)
+{
+    if (umbris_end_moved(L)) {
+        u8 *gameplay = *(u8 **)(LVL_DATA(L, level_core, u8 *) + 4);
+        u8 *records = gameplay + *(u32 *)(gameplay + GAMEPLAY_MOBYS);
+        s32 records_count = *(s32 *)records;
+        u32 *record = (u32 *)(records + MOBYS_HEAD);
+        s32 i;
+        for (i = 0; i < records_count; i++) {
+            if (record[RECORD_UID] == UMBRIS_LIFT_UID && record[RECORD_MISSION] == SNAGGLEBEAST_TRIGGER) {
+                record[RECORD_FLAGS] |= PLACE_WHILE_OPEN;
+                break;
+            }
+            record = (u32 *)((u8 *)record + (record[0] & ~3u));
+        }
+    }
+    LVL(L, func_001F99B0, FillFn)(table, value, count);
+}
+
+/* Whether a moby's save bit in level L is set. */
+static s32 moby_saved(void *moby, s32 L)
+{
+    u32 uid = MOBY_UID(moby);
+    return (LEVEL_BITS[L * 256 + (uid >> 3)] >> (uid & 7)) & 1;
+}
 
 /* Before a moby's update in level L: 1 when it must not run (Umbris's scene controller at its end). */
 static s32 umbris_end(void *moby, s32 L)
 {
-    s32 check = rz_check_for_vanilla(BATALIA_INFOBOT);
     s32 boss_beaten;
-    if (L != UMBRIS || check < 0 || ee_rz_layout_item(check) == BATALIA_INFOBOT) {
+    if (!umbris_end_moved(L)) {
         return 0;
     }
     boss_beaten = LEVEL_TRIGGERS[UMBRIS * 16 + SNAGGLEBEAST_TRIGGER] == 0xFF;
@@ -632,6 +689,15 @@ static s32 umbris_end(void *moby, s32 L)
     case UMBRIS_BRIDGE_CLASS:
         if (boss_beaten) {
             *(volatile s32 *)(MOBY_PVARS(moby) + UMBRIS_BRIDGE_TARGET) = -1;
+        }
+        return 0;
+    case UMBRIS_PAD_CLASS:
+        if (boss_beaten && MOBY_STATE(moby) != 0 && !moby_saved(moby, L)) {
+            LVL(L, func_L01_00309F00, PadFn)(moby);
+            LVL(L, func_L01_0030AC10, PadFn)(moby);
+            if (MOBY_STATE(moby) == PAD_OFF) {
+                MOBY_STATE(moby) = PAD_ON;
+            }
         }
         return 0;
     }

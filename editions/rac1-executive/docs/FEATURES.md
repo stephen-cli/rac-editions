@@ -4970,13 +4970,31 @@ The scene controller (class 436) waits in its state 8 for the Snagglebeast dead
 and Ratchet in the hangar's volume, then plays its scenes, unlocks Batalia as the
 check's giver, saves and flies Ratchet to Batalia. With the check holding another
 item it is held in state 8, so no scenes, no unlock and no flight, and the
-hangar's infobot is taken as a world infobot. With the Snagglebeast beaten
-(trigger 2), the exit lift's copy of the trigger (`mission_state`) is set so it
-appears, the hangar door's force-open word (pvars + 0x3C) keeps it open then and
-on later visits, and the bridge extends without waiting for the boss (pvars +
-0xB0 = -1). Tested in PCSX2 on a visit after the boss: door open, bridge out,
-infobot taken (the Blaster's demo), no flight; the fight itself and the lift
-ride are not tested.
+hangar's infobot is taken as a world infobot.
+
+Retail places the exit lift (class 1474) only when Umbris loads with the
+Snagglebeast's trigger 2 already done, so on the visit that beat the boss the
+pit had no way out: the lift's moby record is placed only once its mission is
+done (flags 0x2, not 0x1). A hook on InitLevelRenderGlobals's clearing of the
+moby table (+ 0xF18, after the records are found and before they are read)
+adds flag 0x1 to that record, so the lift is placed on every load and hides
+itself until its copy of the trigger (`mission_state`) is done; with the boss
+beaten that copy is set at once, and the lift appears and carries Ratchet up.
+The hangar door's force-open word (pvars + 0x3C) keeps it open then and on later
+visits, and the bridge extends without waiting for the boss (pvars + 0xB0 = -1).
+The two teleporter pads (class 1135), at the lift's landing and by the ship,
+stay off until Ratchet stands in their cuboid 14; with the boss beaten, a pad
+whose save bit is clear is switched on as that cuboid would (its save bit, then
+the pad and its glow shown), so the pads are on then and at every later visit.
+
+Tested in PCSX2 on the visit that beats the boss (trigger 2 set by hand with the
+boss deleted; the fight itself is not tested): the lift placed hidden, shown at
+the trigger, the infobot taken in the hangar with no flight, the lift ride to the
+landing, and the top pad's teleport to the ship. On a later visit the same, with
+the lift placed by retail. A first run with the boss left in its idle state 0
+(never woken by its scene controller, which the harness had skipped) froze at the
+pad's teleport in an effect's collision transform; with the boss deleted, as its
+death leaves it, it did not.
 
 ## rz: Blarg Station's shuttle and the Rilgar infobot (2026-11-07) — built; awaiting test
 
