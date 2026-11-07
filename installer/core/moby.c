@@ -662,9 +662,10 @@ static uint32_t write_vertex_table(struct writer *w, const struct moby_vertex_ta
     }
     if (count + epilogue >= 7)
         set_u16(last, epilogue_indices[epilogue]);
-    for (size_t i = epilogue + 1; i < epilogue_count; i++) {
-        if (count + i >= 7)
-            set_u16(last + 4 + (i - epilogue - 1) * 2, epilogue_indices[i]);
+    /* the rest go into its second half: 6 slots, and at most 7 - 1 indices remain */
+    for (size_t slot = 0; slot < (VERTEX_SIZE - 4) / 2 && epilogue + 1 + slot < epilogue_count; slot++) {
+        if (count + epilogue + 1 + slot >= 7)
+            set_u16(last + 4 + slot * 2, epilogue_indices[epilogue + 1 + slot]);
     }
     memcpy(vertices + out_count++ * VERTEX_SIZE, last, VERTEX_SIZE);
     append(w, vertices, out_count * VERTEX_SIZE);

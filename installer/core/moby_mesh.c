@@ -1741,7 +1741,7 @@ static int read_skin(struct status *s, struct blend_slot *cache, const uint8_t *
                      size_t three_way, struct skin *skin)
 {
     int8_t bits_9_15 = (int8_t)((get_u16(stored) & 0xfe00) >> 9);
-    struct skin src[3];
+    struct skin src[3] = {0};   /* read only after its loads succeed; zeroed because gcc cannot see that */
 
     if (index < two_way) {
         /* loads bytes 2 and 3, weights 4 and 5, transfer store 6, blend store 7 */
