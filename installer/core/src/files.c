@@ -21,6 +21,15 @@ static wchar_t *wide_path(const char *path)
         return NULL;
     }
     MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, wide, length);
+    /* A path with the "\\?\" prefix (Tauri's resource folder is one) reaches the file system as it is, so its
+       "/" are not taken as separators; the core joins names on with "/", so they become "\" here. */
+    if (wcsncmp(wide, L"\\\\?\\", 4) == 0) {
+        for (wchar_t *c = wide; *c != 0; c++) {
+            if (*c == L'/') {
+                *c = L'\\';
+            }
+        }
+    }
     return wide;
 }
 
