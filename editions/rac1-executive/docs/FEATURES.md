@@ -4962,3 +4962,17 @@ describes the first design; the value has stayed in the record since the pop-in
 fix. Tested in PCSX2 by writing a slightly-off widened value into Oltanis's view
 record: it comes back to 0.84, and a new game value is still widened once. The
 cutscenes themselves are not replayed.
+
+## rz: Umbris's end with another item for Batalia's infobot (2026-11-07) — built; awaiting test
+
+The scene controller (class 436) waits in its state 8 for the Snagglebeast dead
+and Ratchet in the hangar's volume, then plays its scenes, unlocks Batalia as the
+check's giver, saves and flies Ratchet to Batalia. With the check holding another
+item it is held in state 8, so no scenes, no unlock and no flight, and the
+hangar's infobot is taken as a world infobot. With the Snagglebeast beaten
+(trigger 2), the exit lift's copy of the trigger (`mission_state`) is set so it
+appears, the hangar door's force-open word (pvars + 0x3C) keeps it open then and
+on later visits, and the bridge extends without waiting for the boss (pvars +
+0xB0 = -1). Tested in PCSX2 on a visit after the boss: door open, bridge out,
+infobot taken (the Blaster's demo), no flight; the fight itself and the lift
+ride are not tested.

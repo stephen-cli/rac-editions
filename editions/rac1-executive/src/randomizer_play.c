@@ -584,6 +584,60 @@ static void o2_early_fixes(s32 L)
     }
 }
 
+/* Umbris's end. Its scene controller (class 436, func_L07_002F6F20) waits in state 8 for the Snagglebeast dead and
+ * Ratchet in the hangar's volume (cuboid 29, which reaches some 13 units before the infobot), then hides the
+ * infobot, plays two scenes and a movie, unlocks Batalia itself (UnlockPlanet(8), the check's giver), saves and
+ * flies Ratchet to Batalia (func_0022F4A0). With the check holding another item, the item was given before Ratchet
+ * reached it and the flight went to Batalia regardless. So the controller is held in state 8, and the hangar's
+ * infobot is taken as a world infobot (src/randomizer_world.c). Retail lets Ratchet out of the pit and into the
+ * hangar only on a later visit: the exit lift (class 1474) and the hangar door (class 1128) read the level's
+ * triggers as the level loaded them (mission_state), the lift appearing and the door shutting for good once the
+ * boss's trigger 2 is done. With the boss beaten, the lift's copy of trigger 2 is set at once, so it appears and
+ * carries Ratchet up; the door's force-open word (pvars + 0x3C) makes it open after the boss, then and on every
+ * later visit, so the infobot stays reachable; the bridge to the hangar (class 1129) extends without waiting for
+ * the boss's state (its target, pvars + 0xB0, -1), as on a later visit the boss is gone. Retail's end plays only
+ * for Batalia's own infobot. */
+DECLARE_LVL_DATA(mission_state);        /* the level's triggers as the level loaded them */
+#define UMBRIS              7
+#define BATALIA_INFOBOT     (RZ_INFOBOT_NOVALIS + 8 - 1)
+#define UMBRIS_SCENES_CLASS 436
+#define UMBRIS_SCENES_END   8           /* waiting for the boss dead and Ratchet at the hangar */
+#define UMBRIS_LIFT_CLASS   1474
+#define UMBRIS_DOOR_CLASS   1128
+#define UMBRIS_DOOR_FORCE   0x3C        /* its pvars: nonzero, opens once trigger 2 is done instead of shutting */
+#define UMBRIS_BRIDGE_CLASS 1129
+#define UMBRIS_BRIDGE_TARGET 0xB0       /* its pvars: the moby whose state extends it, -1 none */
+#define SNAGGLEBEAST_TRIGGER 2
+
+/* Before a moby's update in level L: 1 when it must not run (Umbris's scene controller at its end). */
+static s32 umbris_end(void *moby, s32 L)
+{
+    s32 check = rz_check_for_vanilla(BATALIA_INFOBOT);
+    s32 boss_beaten;
+    if (L != UMBRIS || check < 0 || ee_rz_layout_item(check) == BATALIA_INFOBOT) {
+        return 0;
+    }
+    boss_beaten = LEVEL_TRIGGERS[UMBRIS * 16 + SNAGGLEBEAST_TRIGGER] == 0xFF;
+    switch (MOBY_CLASS(moby)) {
+    case UMBRIS_SCENES_CLASS:
+        return MOBY_STATE(moby) == UMBRIS_SCENES_END;
+    case UMBRIS_LIFT_CLASS:
+        if (boss_beaten) {
+            LVL_DATA(L, mission_state, volatile u8 *)[SNAGGLEBEAST_TRIGGER] = 0xFF;
+        }
+        return 0;
+    case UMBRIS_DOOR_CLASS:
+        *(volatile s32 *)(MOBY_PVARS(moby) + UMBRIS_DOOR_FORCE) = 1;
+        return 0;
+    case UMBRIS_BRIDGE_CLASS:
+        if (boss_beaten) {
+            *(volatile s32 *)(MOBY_PVARS(moby) + UMBRIS_BRIDGE_TARGET) = -1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
 /* --- the level and the frame ----------------------------------------------------------------------------------- */
 
 /* Read the record for level L: whether this is a Randomizer save. */
@@ -655,7 +709,7 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
     }
     if (active) {
         open_lab_door(moby, L);
-        if (rz_world_before(moby, update, L)) {
+        if (umbris_end(moby, L) || rz_world_before(moby, update, L)) {
             return;
         }
     }
