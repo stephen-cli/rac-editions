@@ -1274,7 +1274,8 @@ static void bolt_update(void *bolt, void (*update)(void *), s32 L)
 
 /* Play or an in-level cutscene, where the stand-ins are kept. The galactic map runs the level's moby updates too;
  * with the stand-ins kept there, leaving Oltanis crashed the game on the map every time (an R5900 jump to an address
- * made of text), and the same flight without them did not. There a stand-in only keeps its own update from running. */
+ * made of text), and the same flight without them did not. There a stand-in only keeps its own update from running,
+ * and a live stand-in bolt, which has one, is deleted (rz_world_before). */
 static s32 in_level(s32 L)
 {
     s32 mode = *(volatile s32 *)LVL_DATA(L, game_mode, u8 *);
@@ -1293,6 +1294,13 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
         return 1;
     }
     if (!in_level(L)) {
+        /* A live stand-in bolt is the one stand-in that runs an update of its own (GoldBoltUpdate, its glow
+         * included): on the galactic map and through the flight it would go on running over the level the next
+         * planet's load is writing over. It goes instead; its host makes a new one once play resumes. */
+        if (mark_of(moby) == BOLT_MARK) {
+            LVL(L, func_0020D678, DeleteFn)(moby);
+            return 1;
+        }
         return 0;
     }
     if (shuttle_takes_infobot(moby, L)) {

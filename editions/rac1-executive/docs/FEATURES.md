@@ -4291,13 +4291,14 @@ written, and made again at the host's next update; without one, the host
 keeps its own model.
 
 **The class in every level.** Aridia's, Gaspar's, Pokitaru's, Kalebo III's
-and Veldin's data lack class 750. tools/extra_classes.py (run by
-tools/install.py) copies Novalis's blob (0x15140 bytes) and its two textures' pixels
+and Veldin's data lack class 750. tools/extra_classes.py (a stage of
+tools/patch_levels.py, which tools/install.py runs) copies Novalis's blob (0x15140 bytes) and its two textures' pixels
 (0x5000 bytes) into each of those cores where the moby classes end, as
 tools/splice_boots.py does for the Charge Boots: the class table grows in
 place, the texture and GS RAM upload tables get the new entries, the
 palettes go into GS RAM, the sound block gets a span per class, and an
-archive that outgrows its sectors moves to the end of the image. The tables
+archive that outgrows its retail sectors moves to the end of the image
+(none does: every patched archive fits in its retail sectors). The tables
 are read again after the core's offsets shift, since the boots' texture and
 the gadget blobs lie past the insertion. The cores grow by 0x1A200 bytes,
 which moves the heap and its last block, the effect pool, that much nearer
@@ -4987,3 +4988,14 @@ first: the infobot taken as a world infobot, or the trigger set if it is gone,
 and the shuttle back to state 1. Retail's sequence plays only for Rilgar's own
 infobot, not yet collected. Tested in PCSX2 with the shuttle put in state 6 by
 hand: the item's banner, no cutscene, the screen as in play.
+
+## rz: a live stand-in bolt is removed off play (2026-11-07) — built; awaiting test
+
+A Gold Bolt standing in at a pickup or infobot is a live bolt running
+GoldBoltUpdate, glow included: the one stand-in with an update of its own. In any
+game mode but play and an in-level cutscene (the galactic map, the flight, the
+menus) it is now deleted when its update would run, and its host makes a new one
+once play resumes. A Randomizer run froze twice in flights between Quartu and
+Gaspar, the two planets of that seed with such a bolt (the Bolt Grabber's and the
+Pilot's Helmet's); PCSX2 flew that seed's layout between them ten times without
+a fault, so this is a precaution, not a confirmed cause.
