@@ -42,10 +42,12 @@ A feature left out loses its words, its holes stay zero, and its HelpDesk
 lines and its class are not added; the mod segment's ee_features word
 (src/features.c) says which features are in.
 
-Until the edition's own converters and compressor replace them, the class
-splices still use wrench (--wrench: the edition's fork, built) and wrench's
-unpacks of the two discs (--unpacked: OpenRAC's assets/wrench, with
-rac1-pal and rac2-ntsc in it).
+The levels' data is compressed again, and the HelpDesk lines made, by the
+installer core's tools (--core: installer/core's build folder, with rac-wad
+and rac-vag). Until the edition's own converters replace them, the Charge
+Boots' and the sign's classes are still made with wrench (--wrench: the
+edition's fork, built) from wrench's unpacks of the two discs (--unpacked:
+OpenRAC's assets/wrench, with rac1-pal and rac2-ntsc in it).
 """
 import argparse
 import contextlib
@@ -468,7 +470,8 @@ def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, jo
             ("extra_classes", [py, HERE / "extra_classes.py", "splice", output, "--rac-wad", rac_wad,
                                "--work", tmp / "classes"], CLASS_OR_LEVEL_LINE),
             ("gen_helpdesk", [py, HERE / "gen_helpdesk.py", "--iso", rac1, "--recipes", pay / "helpdesk.json",
-                              "-o", helpdesk, "--c-out", tmp / "gen_helpdesk.c"],
+                              "-o", helpdesk, "--c-out", tmp / "gen_helpdesk.c", "--rac-vag", tools["core"] / f"rac-vag{EXE}",
+                              "--cache", tools["data"] / "helpdesk", "--no-preview"],
              (r"slot \d+:", len(json.loads((pay / "helpdesk.json").read_text())["lines"]))),
             ("splice_helpdesk", [py, HERE / "splice_helpdesk.py", output, "--audio", helpdesk]),
         ]

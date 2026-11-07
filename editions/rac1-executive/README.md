@@ -158,18 +158,23 @@ wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac1/baserom/SCES_509.16.iso -o 
 wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac2/ntsc/baserom/SCUS_972.68.iso -o OpenRAC/assets/wrench/rac2-ntsc
 ```
 
-**4. Build the edition.**
+**4. Build the installer core and the edition.**
 
 ```sh
 cd rac-editions
+cmake -S installer/core -B installer/core/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build installer/core/build
 python editions/rac1-executive/tools/release.py
 python editions/rac1-executive/tools/install.py
 ```
 
-`release.py` takes about five minutes. It compiles the game from source,
-checks it against your disc, builds the edition's code and writes what a
-release ships to `build/payload`. `install.py` makes the disc image from
-that and your two discs, as a player's installer does:
+The installer core (`installer/core`, C) holds the tools `install.py` runs
+for the heavy work: `rac-wad` compresses the levels' data, `rac-vag` makes the
+HelpDesk lines. `release.py` takes about five minutes. It compiles the game
+from source, checks it against your disc, builds the edition's code and
+writes what a release ships to `build/payload`. `install.py` makes the disc
+image from that and your two discs, as a player's installer does, in about a
+minute:
 
 ```
 rac-editions/editions/rac1-executive/build/iso/executive-edition.iso
