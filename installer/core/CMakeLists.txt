@@ -17,6 +17,10 @@ function(strict_warnings target)
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
         # fseeko and ftello with 64-bit offsets on 32-bit systems
         target_compile_definitions(${target} PRIVATE _FILE_OFFSET_BITS=64 _POSIX_C_SOURCE=200809L)
+        if(APPLE)
+            # POSIX alone hides what macOS adds to it: st_mtimespec, _SC_NPROCESSORS_ONLN
+            target_compile_definitions(${target} PRIVATE _DARWIN_C_SOURCE)
+        endif()
     endif()
 endfunction()
 

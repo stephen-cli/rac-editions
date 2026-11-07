@@ -8,9 +8,11 @@ then what ships is written to build/payload with every byte taken from a
 disc cut out. tools/install.py makes the image from the payload and the
 player's discs.
 
-  python tools/release.py [--openrac DIR] [--skip-build] [-o build/payload]
+  python tools/release.py [--openrac DIR] [--skip-build] [-o build/payload] [--zip]
 
---skip-build packages the outputs of the last build as they are.
+--skip-build packages the outputs of the last build as they are. --zip also
+writes the payload as rac1-executive-payload.zip beside it, the asset a
+rac-editions release carries for the desktop builder.
 
 Before it writes the payload, the tool proves the holes: each one's bytes are
 made from the discs the way the installer makes them and must equal what
@@ -36,6 +38,9 @@ sys.path.insert(0, str(HERE))
 import iso_image  # noqa: E402
 import payload  # noqa: E402
 
+# The payload as a rac-editions release carries it, for the desktop builder to bundle: the payload's files at
+# the archive's root (installer/README.md, "Releases").
+ZIP_NAME = "rac1-executive-payload.zip"
 RAC1_ISO = "games/rac1/baserom/SCES_509.16.iso"
 RAC2_ISO = "games/rac2/ntsc/baserom/SCUS_972.68.iso"
 EXE_NAME = "SCES_509.16;1"
@@ -167,6 +172,8 @@ def main() -> int:
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--skip-build", action="store_true")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/payload")
+    ap.add_argument("--zip", action="store_true",
+                    help=f"also write {ZIP_NAME} beside the payload, the asset a rac-editions release carries")
     args = ap.parse_args()
     if not args.skip_build:
         build(args.openrac)
@@ -207,6 +214,9 @@ def main() -> int:
     shutil.copyfile(ROOT / "build/overlay.tsv", out / "overlay.tsv")
     shutil.copyfile(ROOT / "audio/helpdesk.json", out / "helpdesk.json")
     print(f"wrote {out}: {len(hole_list)} holes, {len(exe)} executable words")
+    if args.zip:
+        archive = shutil.make_archive(str(out.parent / ZIP_NAME.removesuffix(".zip")), "zip", out)
+        print(f"wrote {archive}")
     return 0
 
 

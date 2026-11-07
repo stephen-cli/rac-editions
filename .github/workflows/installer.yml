@@ -1,0 +1,68 @@
+# The installer core (installer/core): built and tested on every platform the desktop builder ships for, on
+# every push. When a release is published, each platform's rac-installer is attached to it, named as Tauri's
+# sidecars are (rac-installer-<target triple>[.exe]), for rac-editions-web's builder to bundle; the editions'
+# payloads (tools/release.py's build/payload, zipped) are attached by hand, since only a machine with the
+# discs can build them.
+name: installer
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Installer core (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write   # to attach the binaries to a published release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            runner: windows-latest
+            triples: x86_64-pc-windows-msvc
+          - name: Linux
+            runner: ubuntu-latest
+            triples: x86_64-unknown-linux-gnu
+          # One Apple Silicon runner builds both Macs: clang cross-compiles to x86_64.
+          - name: macOS
+            runner: macos-latest
+            triples: aarch64-apple-darwin x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build and test
+        shell: bash
+        run: |
+          for triple in ${{ matrix.triples }}; do
+            options=(-DCMAKE_BUILD_TYPE=Release)
+            case $triple in
+              # The C runtime linked in, so players need no Visual C++ redistributable.
+              *windows*) options+=(-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded) ;;
+              aarch64-apple-darwin) options+=(-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0) ;;
+              x86_64-apple-darwin) options+=(-DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0) ;;
+            esac
+            cmake -S installer/core -B "build/$triple" "${options[@]}"
+            cmake --build "build/$triple" --config Release --parallel
+            # The tests run where the binaries can: the x86_64 Mac build is only compiled on the arm64 runner.
+            if [ "$triple" != x86_64-apple-darwin ]; then
+              ctest --test-dir "build/$triple" -C Release --output-on-failure
+            fi
+            mkdir -p sidecars
+            exe=$([ "$RUNNER_OS" = Windows ] && echo .exe || true)
+            program=$(find "build/$triple" -name "rac-installer$exe" -type f | head -n 1)
+            cp "$program" "sidecars/rac-installer-$triple$exe"
+          done
+          ls -l sidecars
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" sidecars/* --clobber

@@ -102,3 +102,21 @@ Error codes, which the builder turns into words: `unknown_disc`,
 `wrong_version`, `image_incomplete` (shorter than the disc), `missing_disc`,
 `no_space`, `not_writable`, `cancelled`, `internal` (with the details in
 `message`).
+
+## Releases
+
+A rac-editions release carries what the desktop builder bundles:
+
+- `rac-installer-<target triple>[.exe]` for each platform the builder ships
+  for (`x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`,
+  `aarch64-apple-darwin`, `x86_64-apple-darwin`), named as Tauri names its
+  sidecars. The `installer` workflow builds and tests them on every push and
+  attaches them when a release is published; the Windows one has the C
+  runtime linked in.
+- `<edition>-payload.zip` for each edition, the payload's files at its root.
+  Only a machine with the discs can build a payload, so it is attached by
+  hand: `python tools/release.py --zip` writes it beside `build/payload`.
+
+The builder pins one release and starts its installer as
+`rac-installer --serve --payload <the edition's payload> --data <a folder of
+its own>`.
