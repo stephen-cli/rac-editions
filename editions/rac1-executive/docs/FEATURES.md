@@ -4291,14 +4291,13 @@ written, and made again at the host's next update; without one, the host
 keeps its own model.
 
 **The class in every level.** Aridia's, Gaspar's, Pokitaru's, Kalebo III's
-and Veldin's data lack class 750. tools/extra_classes.py (a stage of
-tools/patch_levels.py, which tools/install.py runs) copies Novalis's blob (0x15140 bytes) and its two textures' pixels
+and Veldin's data lack class 750. tools/extra_classes.py (run by
+tools/install.py) copies Novalis's blob (0x15140 bytes) and its two textures' pixels
 (0x5000 bytes) into each of those cores where the moby classes end, as
 tools/splice_boots.py does for the Charge Boots: the class table grows in
 place, the texture and GS RAM upload tables get the new entries, the
 palettes go into GS RAM, the sound block gets a span per class, and an
-archive that outgrows its retail sectors moves to the end of the image
-(none does: every patched archive fits in its retail sectors). The tables
+archive that outgrows its sectors moves to the end of the image. The tables
 are read again after the core's offsets shift, since the boots' texture and
 the gadget blobs lie past the insertion. The cores grow by 0x1A200 bytes,
 which moves the heap and its last block, the effect pool, that much nearer
