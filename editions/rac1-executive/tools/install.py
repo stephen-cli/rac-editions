@@ -8,8 +8,8 @@ image byte for byte.
 
   python tools/install.py [--rac1 RAC1.iso] [--rac2 RAC2.iso | --no-rac2] [-o OUT.iso | --in-place]
                           [--economy skill|classic] [--without SWITCH ...]
-                          [--payload build/payload] [--wrench DIR] [--unpacked DIR]
-  python tools/install.py --serve [--payload build/payload] [--wrench DIR] [--unpacked DIR]
+                          [--payload build/payload] [--wrench DIR] [--unpacked DIR] [--data DIR]
+  python tools/install.py --serve [--payload build/payload] [--wrench DIR] [--unpacked DIR] [--data DIR]
 
 The discs default to the OpenRAC checkout's baseroms beside rac-editions,
 the image to build/iso/executive-edition.iso; when an emulator has that
@@ -23,7 +23,8 @@ charge_boots, strafing, quick_select_pages); without Going Commando
 (--no-rac2) the Charge Boots and strafing are left out.
 
 --serve speaks the builder's protocol (installer/README.md, "The
-protocol") on standard input and output instead.
+protocol") on standard input and output instead. --data is a folder kept
+between runs, with the discs' hashes, so a disc is hashed once.
 
 In order: the discs are checked by hash; the image is a copy of the PAL disc;
 the mod segment gets its holes filled from the discs and is added to the
@@ -45,8 +46,11 @@ unpacks of the two discs (--unpacked: OpenRAC's assets/wrench, with
 rac1-pal and rac2-ntsc in it).
 """
 import argparse
+import contextlib
+import errno
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -103,17 +107,22 @@ class Job:
 
     def check(self) -> None:
         if self.cancelled.is_set():
-            raise InstallError("cancelled", "the build was cancelled")
+            raise InstallError("cancelled", "cancelled")
 
-    def run(self, *cmd) -> None:
-        """A tool of the pipeline, its output as log lines; stopped when the job is cancelled."""
+    def run(self, *cmd, on_line=None) -> None:
+        """A tool of the pipeline, its output as log lines (each also given to ON_LINE); stopped when the job is
+        cancelled."""
         self.check()
         self.log("== " + Path(str(cmd[1])).name)
-        # stdin is closed: under --serve the installer's own stdin is the builder's protocol, never a tool's
+        # stdin is closed: under --serve the installer's own stdin is the builder's protocol, never a tool's.
+        # Unbuffered, a tool's lines arrive as it prints them, so the progress that counts them moves with them.
         self.process = subprocess.Popen([str(c) for c in cmd], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                        stderr=subprocess.STDOUT, text=True, errors="replace")
+                                        stderr=subprocess.STDOUT, text=True, errors="replace",
+                                        env={**os.environ, "PYTHONUNBUFFERED": "1"})
         for line in self.process.stdout:
             self.log(line.rstrip())
+            if on_line:
+                on_line(line)
         code = self.process.wait()
         self.process = None
         self.check()
@@ -149,6 +158,69 @@ def hash_file(path: Path, job: Job, stage: str = "hash") -> str:
     return h.hexdigest()
 
 
+class HashCache:
+    """The SHA-256 of every disc image hashed before, by its resolved path, size and modification time: a disc
+    checked when it was added is not hashed again for the build. Kept in DATA/hashes.json between runs."""
+
+    def __init__(self, data: Path):
+        self.path = data / "hashes.json"
+        self.lock = threading.Lock()
+        try:
+            self.known = json.loads(self.path.read_text())
+        except (OSError, ValueError):
+            self.known = {}
+
+    @staticmethod
+    def key(path: Path) -> str:
+        st = path.stat()
+        return f"{path.resolve()}|{st.st_size}|{st.st_mtime_ns}"
+
+    def get(self, path: Path) -> str | None:
+        with self.lock:
+            return self.known.get(self.key(path))
+
+    def put(self, path: Path, digest: str) -> None:
+        with self.lock:
+            self.known[self.key(path)] = digest
+            try:                                # a cache that cannot be saved only costs a second hash later
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                part = self.path.with_name(self.path.name + ".part")
+                part.write_text(json.dumps(self.known, indent=1))
+                os.replace(part, self.path)
+            except OSError:
+                pass
+
+
+def disc_hash(path: Path, stage: str, job: Job, cache: HashCache) -> tuple[str, bool]:
+    """PATH's SHA-256 and whether it was checked earlier: from CACHE then (one progress event, done == total),
+    else hashed with progress events in STAGE."""
+    size = path.stat().st_size
+    digest = cache.get(path)
+    if digest:
+        job.progress(stage, size, size)
+        return digest, True
+    job.log(f"checking {path} ({size / (1 << 30):.1f} GB)")
+    digest = hash_file(path, job, stage)
+    cache.put(path, digest)
+    return digest, False
+
+
+def disc_label(edition: dict, game: str, region: str | None = None) -> str:
+    names = edition["disc_names"][game]
+    return f"{names['name']} ({region or names['region']})"
+
+
+@contextlib.contextmanager
+def writing(path: Path):
+    """Failures to write PATH as the protocol's errors: no_space for a full drive, else not_writable."""
+    try:
+        yield
+    except OSError as e:
+        if e.errno == errno.ENOSPC:
+            raise InstallError("no_space", f"{path}: the drive is full") from e
+        raise InstallError("not_writable", f"{path}: {e.strerror or e}") from e
+
+
 def copy_file(src: Path, dst: Path, job: Job) -> None:
     total = src.stat().st_size
     done = 0
@@ -160,7 +232,7 @@ def copy_file(src: Path, dst: Path, job: Job) -> None:
             job.progress("write", done, total)
 
 
-def identify(path: Path, edition: dict, job: Job) -> dict:
+def identify(path: Path, edition: dict, job: Job, cache: HashCache) -> dict:
     """Which disc PATH is: by its boot file, then by its hash against the edition's."""
     if not path.is_file():
         raise InstallError("missing_disc", f"{path} does not exist")
@@ -170,29 +242,39 @@ def identify(path: Path, edition: dict, job: Job) -> dict:
             f.seek(iso_image.VOLUME_SIZE)
             volume = struct.unpack("<I", f.read(4))[0] * iso_image.SECTOR
     except (SystemExit, OSError, struct.error, IndexError, ValueError):     # not an ISO 9660 image of a PS2 disc
+        job.log(f"{path}: not an image of a PS2 disc")
         return {"disc": None, "game": None, "name": None, "region": None, "sha256": None, "known": False}
     boot = next((line.split("\\")[-1].split(";")[0] for line in cnf.splitlines() if line.startswith("BOOT2")), "")
     game, region = BOOT_FILES.get(boot, (None, None))
     name = edition["disc_names"][game]["name"] if game in edition["disc_names"] else None
     if path.stat().st_size < volume:
         raise InstallError("image_incomplete", f"{path} ends before its last sector: the image is incomplete")
-    digest = hash_file(path, job)
+    digest, earlier = disc_hash(path, "hash", job, cache)
     known = game is not None and edition["discs"].get(game) == digest
+    if earlier:
+        job.log(f"{path}: checked earlier")
+    if known:
+        job.log(f"sha256 {digest} matches {disc_label(edition, game)}")
+    elif name:
+        job.log(f"sha256 {digest}: {name} ({region}), not the version this edition is built from")
+    else:
+        job.log(f"sha256 {digest}: not a disc of this edition")
     return {"disc": game if known else None, "game": game, "name": name, "region": region, "sha256": digest,
             "known": known}
 
 
-def mod_segment(pay: Path, discs: dict, left_out: set[str]) -> bytes:
-    """The mod segment with its holes filled, but for LEFT_OUT's, which stay zero."""
+def mod_segment(pay: Path, discs: dict, left_out: set[str], step) -> bytes:
+    """The mod segment with its holes filled, but for LEFT_OUT's, which stay zero; STEP() after each hole."""
     seg = bytearray((pay / "modseg.bin").read_bytes())
     filler = payload.Filler(discs)
     for hole in json.loads((pay / "holes.json").read_text()):
-        if hole["symbol"] in left_out:
-            continue
-        blob = filler.fill(hole["symbol"], hole["fill"])
-        if len(blob) != hole["size"]:
-            raise InstallError("internal", f"{hole['symbol']}: {len(blob)} bytes made, the hole holds {hole['size']}")
-        seg[hole["offset"]:hole["offset"] + hole["size"]] = blob
+        if hole["symbol"] not in left_out:
+            blob = filler.fill(hole["symbol"], hole["fill"])
+            if len(blob) != hole["size"]:
+                raise InstallError("internal",
+                                   f"{hole['symbol']}: {len(blob)} bytes made, the hole holds {hole['size']}")
+            seg[hole["offset"]:hole["offset"] + hole["size"]] = blob
+        step()
     return bytes(seg)
 
 
@@ -200,10 +282,52 @@ def tsv(path: Path) -> list[list[str]]:
     return [line.split("\t") for line in path.read_text().splitlines() if line and not line.startswith("#")]
 
 
-def plan(edition: dict, discs: dict, options: dict) -> dict:
-    """What a build with these discs and options has in, what it leaves out and why, and the space it needs."""
+def check_output(discs: dict, output: dict, bytes_needed: int) -> None:
+    """Raises not_writable for an output the build could not write (a folder, one of the discs, a file in use or
+    read-only, a folder that cannot be made or written), and no_space for a drive with less than BYTES_NEEDED free."""
+    rac1 = Path(discs["rac1"])
+    try:
+        if output["mode"] == "new":
+            target = Path(output["path"])
+            if target.is_dir():
+                raise InstallError("not_writable", f"{target} is a folder: the image needs a file name")
+            if any(target.resolve() == Path(p).resolve() for p in discs.values()):
+                raise InstallError("not_writable", f"{target} is one of the discs the edition is built from")
+            if target.exists():
+                target.open("ab").close()       # in use (an emulator has it open) or read-only
+            elif target.parent.is_dir():        # a name the system takes, in a folder that takes files
+                target.open("xb").close()
+                target.unlink()
+            folder = target.parent
+        elif output["mode"] == "in_place":
+            rac1.open("r+b").close()
+            folder = rac1.parent
+        else:
+            raise InstallError("internal", f"unknown output mode {output['mode']}")
+        while not folder.exists():              # the folders the build would make: the nearest one there must take them
+            if folder == folder.parent:         # a drive that is not there
+                raise InstallError("not_writable", f"{folder} does not exist")
+            folder = folder.parent
+        if not folder.is_dir():
+            raise InstallError("not_writable", f"{folder} is a file, not a folder")
+        tempfile.TemporaryFile(dir=folder).close()
+        free = shutil.disk_usage(folder).free
+    except OSError as e:
+        raise InstallError("not_writable", f"{e.filename or output.get('path')}: {e.strerror or e}") from e
+    except ValueError as e:                     # a path the system cannot name
+        raise InstallError("not_writable", f"{output.get('path')}: {e}") from e
+    if free < bytes_needed:
+        raise InstallError("no_space", f"{folder} has {free >> 20} MB free; the build needs {bytes_needed >> 20} MB")
+
+
+def plan(edition: dict, discs: dict, options: dict, output: dict | None = None) -> dict:
+    """What a build with these discs and options has in, what it leaves out and why, and the space it needs; with
+    OUTPUT, also whether it can be written there."""
     if "rac1" not in discs:
         raise InstallError("missing_disc", "the edition is built from Ratchet & Clank (PAL)")
+    for path in discs.values():
+        if not Path(path).is_file():
+            raise InstallError("missing_disc", f"{path} does not exist")
     without = options.get("without", [])
     unknown = [s for s in without if s not in payload.SWITCHES]
     if unknown or options.get("economy", "skill") not in payload.ECONOMIES:
@@ -211,16 +335,63 @@ def plan(edition: dict, discs: dict, options: dict) -> dict:
     on = [name for name, s in payload.SWITCHES.items() if name not in without and s["disc"] in discs]
     left_out = [{"id": name, "because": "chosen" if name in without else f"no_{s['disc']}"}
                 for name, s in payload.SWITCHES.items() if name not in on]
-    size = Path(discs["rac1"]).stat().st_size
-    return {"in": on, "left_out": left_out, "bytes_needed": size + GROWTH}
+    # updating in place also writes the restore file, beside a full copy made first
+    growth = 2 * GROWTH if output and output["mode"] == "in_place" else GROWTH
+    needed = Path(discs["rac1"]).stat().st_size + growth
+    if output:
+        check_output(discs, output, needed)
+    return {"in": on, "left_out": left_out, "bytes_needed": needed}
 
 
-def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, job: Job) -> None:
+class Steps:
+    """The patch stage's progress, in shares of the time each step took in a measured build (PATCH_SHARES, out of
+    about 100), so done/total rises evenly. A step whose tool prints a line per unit of work (a level spliced, a
+    HelpDesk line made) moves within its share as the lines come."""
+
+    def __init__(self, job: Job, steps: list):
+        self.job, self.steps = job, steps
+        self.total = sum(PATCH_SHARES[s[0]] for s in steps)
+
+    def run(self, after: dict) -> None:
+        """Each step's tool, then AFTER[its name]() where there is one."""
+        done = 0
+        self.job.progress("patch", 0, self.total)
+        for name, cmd, *unit in self.steps:
+            share = PATCH_SHARES[name]
+            seen = 0
+
+            def tick(line, start=done, share=share):
+                nonlocal seen
+                pattern, count = unit[0]
+                if re.match(pattern, line):
+                    seen += 1
+                    self.job.progress("patch", start + share * min(seen, count) // count, self.total)
+
+            self.job.run(*cmd, on_line=tick if unit else None)
+            if name in after:
+                after[name]()
+            done += share
+            self.job.progress("patch", done, self.total)
+
+
+# Each patch step's share of the time a full build took, out of 100 (measured: the two level splices about 170 s
+# each, the HelpDesk lines 47 s, Kalebo III's sign 9 s, the others under a second), and the line a tool prints per
+# level it splices, of 19 (extra_classes first reads its 6 classes from the levels they come from, a line each).
+PATCH_SHARES = {"gen_boots": 1, "splice_boots": 42, "splice_fonts": 42, "gen_sign": 1, "splice_sign": 2,
+                "extra_classes": 42, "gen_helpdesk": 12, "splice_helpdesk": 1}
+LEVEL_LINE = (r"level +\d+:", 19)
+CLASS_OR_LEVEL_LINE = (r"(level +\d+:|class \d+ \()", 6 + 19)
+
+
+def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, job: Job, cache: HashCache) -> None:
     """Make the image at OUTPUT (a new file)."""
     edition = json.loads((pay / "edition.json").read_text())
     for name, path in discs.items():
-        if hash_file(Path(path), job, "verify") != edition["discs"][name]:
+        digest, earlier = disc_hash(Path(path), "verify", job, cache)
+        if digest != edition["discs"][name]:
             raise InstallError("unknown_disc", f"{path}: not the disc this edition is built from ({name})")
+        label = disc_label(edition, name)
+        job.log(f"{label}: checked earlier, sha256 {digest}" if earlier else f"sha256 {digest} matches {label}")
     rac1 = Path(discs["rac1"])
     discs = {name: Path(path) for name, path in discs.items()}
     economy = options.get("economy", "skill")
@@ -232,8 +403,17 @@ def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, jo
     left_out_words |= {f for name in off for f in payload.SWITCHES[name]["features"]}
     left_out_lines = {u for name in off for u in payload.SWITCHES[name]["helpdesk"]}
 
-    job.progress("convert", 0, 1)
-    seg = bytearray(mod_segment(pay, discs, left_out_holes))
+    holes = len(json.loads((pay / "holes.json").read_text()))
+    converted = 0
+
+    def step():
+        nonlocal converted
+        converted += 1
+        job.check()
+        job.progress("convert", converted, holes + 2)
+
+    job.progress("convert", 0, holes + 2)
+    seg = bytearray(mod_segment(pay, discs, left_out_holes, step))
     struct.pack_into("<I", seg, edition["features_word"], sum(payload.SWITCHES[name]["bit"] for name in on))
     switch_data = json.loads((pay / "switches.json").read_text())
     for name in off:
@@ -241,59 +421,61 @@ def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, jo
             seg[at:at + len(blob) // 2] = bytes.fromhex(blob)
     with rac1.open("rb") as f:
         exe = bytearray(iso_image.add_segment(iso_image.read_file(f, EXE_NAME), edition["modseg_base"], bytes(seg)))
+    step()
     for off_text, word in tsv(pay / "exe.tsv"):
         struct.pack_into("<I", exe, int(off_text, 16), int(word, 16))
+    step()
 
     job.log(f"copying {rac1} -> {output}")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    if shutil.disk_usage(output.parent).free < rac1.stat().st_size + GROWTH:
-        raise InstallError("no_space", f"{output.parent} has too little free space for the image")
-    copy_file(rac1, output, job)
-    image = iso_image.Image(output)
-    image.replace_file(EXE_NAME, bytes(exe))
-    words = [w for w in tsv(pay / "overlay.tsv") if w[0] not in left_out_words]
-    for _feature, off_text, word in words:
-        image.write_word(int(off_text, 16), int(word, 16))
-    image.finish()
+    with writing(output):
+        output.parent.mkdir(parents=True, exist_ok=True)
+        copy_file(rac1, output, job)
+        image = iso_image.Image(output)
+        image.replace_file(EXE_NAME, bytes(exe))
+        words = [w for w in tsv(pay / "overlay.tsv") if w[0] not in left_out_words]
+        for _feature, off_text, word in words:
+            image.write_word(int(off_text, 16), int(word, 16))
+        image.finish()
     job.log(f"the boot executable with the mod segment ({len(exe)} bytes); {len(words)} level-code words")
 
     py = sys.executable
-    steps = 6
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         unpacked = tools["unpacked"]
         sign = tmp / "gadgetron_sign.bin"
+        boots = tmp / "charge_boots.bin"
+        helpdesk = tmp / "helpdesk"
         openrac = unpacked.parents[1]           # gen_boots and gen_sign find the unpacks there
         wrenchbuild = tools["wrench"] / "bin/wrenchbuild.exe"
-        job.progress("patch", 0, steps)
         if "charge_boots" in on:
-            boots = tmp / "charge_boots.bin"
-            job.run(py, HERE / "gen_boots.py", "--openrac", openrac, "--wrench", tools["wrench"], "-o", boots)
-            job.run(py, HERE / "splice_boots.py", output, "--class-core", boots,
-                    "--texture", unpacked / "rac2-ntsc/moby_classes/unsorted/3696/0.png", "--wrench", wrenchbuild,
-                    "--work", tmp / "splice")
+            steps = [("gen_boots", [py, HERE / "gen_boots.py", "--openrac", openrac, "--wrench", tools["wrench"],
+                                    "-o", boots]),
+                     ("splice_boots", [py, HERE / "splice_boots.py", output, "--class-core", boots, "--texture",
+                                       unpacked / "rac2-ntsc/moby_classes/unsorted/3696/0.png",
+                                       "--wrench", wrenchbuild, "--work", tmp / "splice"], LEVEL_LINE)]
         else:
-            job.run(py, HERE / "splice_boots.py", output, "--fonts-only", "--wrench", wrenchbuild,
-                    "--work", tmp / "splice")
-        job.progress("patch", 1, steps)
-        job.run(py, HERE / "gen_sign.py", "--openrac", openrac, "--wrench", tools["wrench"],
-                "--bank", unpacked / "rac1-pal", "-o", sign)
-        job.progress("patch", 2, steps)
-        job.run(py, HERE / "splice_sign.py", output, "--class-core", sign, "--retail", rac1, "--wrench", wrenchbuild,
-                "--work", tmp / "splice")
-        job.progress("patch", 3, steps)
-        job.run(py, HERE / "extra_classes.py", "splice", output, "--wrench", wrenchbuild, "--work", tmp / "classes")
-        job.progress("patch", 4, steps)
-        helpdesk = tmp / "helpdesk"
-        job.run(py, HERE / "gen_helpdesk.py", "--iso", rac1, "--recipes", pay / "helpdesk.json", "-o", helpdesk,
-                "--c-out", tmp / "gen_helpdesk.c")
-        for line in json.loads((pay / "helpdesk.json").read_text())["lines"]:
-            if line["use"] in left_out_lines:
-                for vag in helpdesk.glob(f"{line['slot']}_*.vag"):
-                    vag.unlink()
-        job.progress("patch", 5, steps)
-        job.run(py, HERE / "splice_helpdesk.py", output, "--audio", helpdesk)
-        job.progress("patch", 6, steps)
+            steps = [("splice_fonts", [py, HERE / "splice_boots.py", output, "--fonts-only", "--wrench", wrenchbuild,
+                                       "--work", tmp / "splice"], LEVEL_LINE)]
+        steps += [
+            ("gen_sign", [py, HERE / "gen_sign.py", "--openrac", openrac, "--wrench", tools["wrench"],
+                          "--bank", unpacked / "rac1-pal", "-o", sign]),
+            ("splice_sign", [py, HERE / "splice_sign.py", output, "--class-core", sign, "--retail", rac1,
+                             "--wrench", wrenchbuild, "--work", tmp / "splice"]),
+            ("extra_classes", [py, HERE / "extra_classes.py", "splice", output, "--wrench", wrenchbuild,
+                               "--work", tmp / "classes"], CLASS_OR_LEVEL_LINE),
+            ("gen_helpdesk", [py, HERE / "gen_helpdesk.py", "--iso", rac1, "--recipes", pay / "helpdesk.json",
+                              "-o", helpdesk, "--c-out", tmp / "gen_helpdesk.c"],
+             (r"slot \d+:", len(json.loads((pay / "helpdesk.json").read_text())["lines"]))),
+            ("splice_helpdesk", [py, HERE / "splice_helpdesk.py", output, "--audio", helpdesk]),
+        ]
+
+        def leave_out_lines():
+            for line in json.loads((pay / "helpdesk.json").read_text())["lines"]:
+                if line["use"] in left_out_lines:
+                    for vag in helpdesk.glob(f"{line['slot']}_*.vag"):
+                        vag.unlink()
+
+        Steps(job, steps).run(after={"gen_helpdesk": leave_out_lines})
 
 
 def write_restore(original: Path, edition_image: Path, restore: Path, job: Job) -> None:
@@ -318,30 +500,24 @@ def write_restore(original: Path, edition_image: Path, restore: Path, job: Job) 
             job.progress("write", done, total)
 
 
-def build(pay: Path, discs: dict, options: dict, output: dict, tools: dict, job: Job) -> dict:
+def build(pay: Path, discs: dict, options: dict, output: dict, tools: dict, job: Job, cache: HashCache) -> dict:
     """A build as the protocol's build command asks for it: a new image, or the PAL disc's image updated in place
     (made beside it first, so a cancel or a failure leaves the original as it was)."""
     rac1 = Path(discs["rac1"])
-    if output["mode"] == "new":
-        target = Path(output["path"])
-        if target.resolve() == rac1.resolve():
-            raise InstallError("not_writable", "the new image cannot be the disc's own image")
-        work = target
-    elif output["mode"] == "in_place":
-        target = rac1
-        work = rac1.with_name(rac1.name + ".building")
-        if shutil.disk_usage(rac1.parent).free < rac1.stat().st_size + 2 * GROWTH:
-            raise InstallError("no_space", f"{rac1.parent} has too little free space to update the image in place")
-    else:
-        raise InstallError("internal", f"unknown output mode {output['mode']}")
+    plan(json.loads((pay / "edition.json").read_text()), discs, options, output)
+    target = Path(output["path"]) if output["mode"] == "new" else rac1
+    work = target if output["mode"] == "new" else rac1.with_name(rac1.name + ".building")
     try:
-        install(pay, discs, options, work, tools, job)
+        install(pay, discs, options, work, tools, job, cache)
         if output["mode"] == "in_place":
-            write_restore(rac1, work, rac1.with_name(rac1.name + ".restore"), job)
-            os.replace(work, rac1)
+            restore = rac1.with_name(rac1.name + ".restore")
+            with writing(restore):
+                write_restore(rac1, work, restore, job)
+            with writing(rac1):
+                os.replace(work, rac1)
     except BaseException:
-        if work.exists():
-            work.unlink()
+        with contextlib.suppress(OSError):
+            work.unlink(missing_ok=True)
         raise
     return {"path": str(target), "sha256": hash_file(target, job, "verify")}
 
@@ -367,9 +543,10 @@ class ServeJob(Job):
         self.send({"event": "progress", "id": self.cid, "stage": stage, "done": done, "total": total})
 
 
-def serve(pay: Path, tools: dict) -> int:
-    """The builder's protocol: one JSON command per line in, one JSON event per line out. A build runs in a thread
-    of its own, so a cancel can reach it; the other commands answer in order."""
+def serve(pay: Path, tools: dict, cache: HashCache) -> int:
+    """The builder's protocol: one JSON command per line in, one JSON event per line out. A build or an identify
+    runs in a thread of its own, so discs are checked side by side and a cancel can reach any of them; the other
+    commands answer in order."""
     lock = threading.Lock()
     out = sys.stdout
 
@@ -405,16 +582,19 @@ def serve(pay: Path, tools: dict) -> int:
             send({"event": "error", "id": None, "code": "internal", "message": f"bad command: {e}"})
             continue
         job = ServeJob(send, cid)
+
+        def background(fn):
+            jobs[cid] = job
+            threading.Thread(target=answer, daemon=True, args=(cid, fn, job)).start()
+
         if cmd == "editions":
             answer(cid, lambda j: editions_list(pay), job)
         elif cmd == "identify":
-            answer(cid, lambda j: identify(Path(msg["path"]), edition, j), job)
+            background(lambda j, path=Path(msg["path"]): identify(path, edition, j, cache))
         elif cmd == "plan":
-            answer(cid, lambda j: plan(edition, msg["discs"], msg.get("options", {})), job)
+            answer(cid, lambda j: plan(edition, msg["discs"], msg.get("options", {}), msg.get("output")), job)
         elif cmd == "build":
-            jobs[cid] = job
-            threading.Thread(target=answer, daemon=True, args=(cid, lambda j: build(
-                pay, msg["discs"], msg.get("options", {}), msg["output"], tools, j), job)).start()
+            background(lambda j, m=msg: build(pay, m["discs"], m.get("options", {}), m["output"], tools, j, cache))
         elif cmd == "cancel":
             running = jobs.get(msg.get("of"))
             if running:
@@ -441,18 +621,21 @@ def main() -> int:
     ap.add_argument("--payload", type=Path, default=ROOT / "build/payload")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
     ap.add_argument("--unpacked", type=Path, default=openrac / "assets/wrench")
+    ap.add_argument("--data", type=Path, default=ROOT / "build/installer-data",
+                    help="a folder the installer keeps between runs (the discs' hashes)")
     ap.add_argument("-o", "--output", type=Path, default=None)
     ap.add_argument("--in-place", action="store_true", help="make the PAL disc's image the edition")
     args = ap.parse_args()
     tools = {"wrench": args.wrench, "unpacked": args.unpacked}
+    cache = HashCache(args.data)
     if args.serve:
-        return serve(args.payload, tools)
+        return serve(args.payload, tools, cache)
     discs = {"rac1": args.rac1} if args.no_rac2 else {"rac1": args.rac1, "rac2": args.rac2}
     options = {"economy": args.economy, "without": args.without}
     output = {"mode": "in_place"} if args.in_place else \
         {"mode": "new", "path": str(args.output or free_name(ROOT / "build/iso/executive-edition.iso"))}
     try:
-        result = build(args.payload, discs, options, output, tools, Job())
+        result = build(args.payload, discs, options, output, tools, Job(), cache)
     except InstallError as e:
         print(f"install.py: {e} ({e.code})", file=sys.stderr)
         return 1

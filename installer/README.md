@@ -45,9 +45,16 @@ command carries the same `id`. For example
 |---|---|---|
 | `editions` | | lists the editions this installer has payloads for |
 | `identify` | `path` | hashes a disc image and says which disc it is |
-| `plan` | `edition`, `discs`, `options`, `output` | checks a build without making it: what is in, what is left out and why, the space needed |
+| `plan` | `edition`, `discs`, `options`, `output` | checks a build without making it: what is in, what is left out and why, the space needed, and with `output`, whether the image can be written there |
 | `build` | as `plan` | makes the image |
-| `cancel` | `of` (the `id` of a running `build`) | stops it; a new image is deleted, an image updated in place is restored |
+| `cancel` | `of` (the `id` of a running `build` or `identify`) | stops it; a new image is deleted, an image updated in place is restored |
+
+`build` and `identify` run side by side, so two discs are checked at once;
+the other commands answer in order. The installer keeps each disc image's
+SHA-256 between runs, by its path, size and modification time, so a disc
+checked when it was added is not hashed again for the build: its `verify`
+stage is one `progress` event with `done` equal to `total`. The new image's
+final check is always a full hash.
 
 - `discs`: `{"rac1": "<path>", "rac2": "<path>"}`, each optional but the
   edition's base disc.
@@ -62,7 +69,7 @@ command carries the same `id`. For example
 | Event | Fields | When |
 |---|---|---|
 | `ready` | `protocol` (1), `installer` (its version) | once, at start, before any command is read |
-| `progress` | `id`, `stage`, `done`, `total` | while a command runs; `stage` is `hash`, `verify`, `convert`, `patch` or `write`: `hash`, `verify` and `write` count bytes, `convert` and `patch` count steps |
+| `progress` | `id`, `stage`, `done`, `total` | while a command runs; `stage` is `hash`, `verify`, `convert`, `patch` or `write`: `hash`, `verify` and `write` count bytes, `convert` counts the mod segment's holes and the executable's steps, `patch` counts shares of the time each step takes (about 100 in all) |
 | `log` | `id`, `text` | a line for the builder's Details view |
 | `result` | `id`, `value` | the command finished; `value` as below |
 | `error` | `id`, `code`, `message` | the command failed; nothing else follows for it |
@@ -83,7 +90,10 @@ Results:
   can say "This is the US version". An image that is no PS2 disc has every
   field null and `known: false`.
 - `plan`: `{"in": ["charge_boots", ...], "left_out": [{"id": "strafing",
-  "because": "no_rac2" | "chosen"}], "bytes_needed": n}`.
+  "because": "no_rac2" | "chosen"}], "bytes_needed": n}`. With `output`,
+  `not_writable` for a folder, one of the discs, a file in use or read-only,
+  or a folder that cannot be made or written, and `no_space` for a drive
+  with less than `bytes_needed` free.
 - `build`: `{"path", "sha256"}`.
 
 Error codes, which the builder turns into words: `unknown_disc`,
