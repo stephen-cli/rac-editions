@@ -4923,3 +4923,17 @@ come from CreateMoby's lui/lw pairs in each level (`LEVEL_DATA`
 `mobys_placed_end` and `mobys_end`, tools/modseg.py). A black screen after a
 death on Oltanis in a Randomizer save matches this; PCSX2 holds zeros there and
 does not hang, so the console has not confirmed it yet.
+
+## rz: a weapon's demo is staged at the find (2026-11-07) — built; awaiting test
+
+A find's touch reaches 3 units, so Ratchet can take it in the air. Oltanis's Gold
+Bolt on the narrow ledge under the Magneboot path's ice can be taken in a drop
+beside the ledge. The demo was staged where Ratchet was, and
+`start_vendor_exit_cutscene` put the scene on the ground below: the pit's floor,
+with the camera inside the level. Afterwards Ratchet went back to his place in
+the air and fell into the pit. The demo is now staged at the find itself (the
+bolt, pickup or infobot, each over its floor), turned by `stage_facing` as
+before. Ratchet goes back where he took the weapon only if he stood on ground
+there (a `coll_line` 1 unit down from his feet hits), else onto the stage.
+Tested in PCSX2 with the Suck Cannon at that bolt, taken in the air over the
+drop and from the ledge.

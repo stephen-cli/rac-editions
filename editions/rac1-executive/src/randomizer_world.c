@@ -792,15 +792,19 @@ static s32 pickup_touched(void *moby, const struct PickupSite *site)
  * (vendor_exit_cutscene_local_offset, 4 units ahead) turned by the moby's turn, on the ground there, with Ratchet
  * facing back toward the moby (stage yaw = moby yaw + pi), and the scene's camera moves in front of him, looking
  * back at him: measured for every vendor weapon, within DEMO_CAMERA_POINTS in the stage's frame. The edition stages
- * it where Ratchet took the item, and turns the stage until that camera sees him clear of the level (stage_demo):
+ * it at the find itself (a Gold Bolt, a pickup or an infobot, each over the floor it lies on), not where Ratchet took
+ * it: a find's touch reaches 3 units, so he can take it in the air beside a ledge, and staged there the scene went
+ * to the ground below the drop (Oltanis's Gold Bolt on the ledge under the Magneboot path's ice: the pit's floor,
+ * the camera inside the level). It turns the stage until that camera sees him clear of the level (stage_facing):
  * first with the camera on the side the play camera was, then turning a step at a time either way, each facing
  * tested with coll_line from his chest to the camera's points; the first clear facing is taken, or the least
  * blocked. The vendor moby is then placed so the game's own staging lands on the find: the offset is read from
  * the level's copy of start_vendor_exit_cutscene, whose `addiu $a1, $gp, offset` at + 0x80 names it in every
  * level. Staged facing Ratchet from the find's middle, as before, the scene and its camera ran into whatever stood
- * there (the cliff at Eudora's Gold Bolt). Once play resumes, Ratchet goes back where he found the weapon, facing
- * as he did (Hero_ResetToPosition, func_L00_00217718, with the camera reset, as Kerwan's taxis put him at a stop),
- * and the vendor moby is deleted. */
+ * there (the cliff at Eudora's Gold Bolt). Once play resumes, Ratchet goes back where he found the weapon if he
+ * stood on ground there (a line STAGE_GROUND down from his feet hits), else onto the stage, facing as he did
+ * (Hero_ResetToPosition, func_L00_00217718, with the camera reset, as Kerwan's taxis put him at a stop): put back
+ * in the air over that drop, he fell into the pit. The vendor moby is then deleted. */
 DECLARE_LVL(func_L00_0029BA20);         /* open_vendor_menu(vendor moby) */
 DECLARE_LVL(func_L00_0029C070);         /* start_vendor_exit_cutscene */
 DECLARE_LVL(func_L00_00217718);         /* Hero_ResetToPosition(position, rotation, state, reset camera) */
@@ -819,6 +823,7 @@ typedef s32 (*CollLineFn)(const f32 *, const f32 *, s32, void *, void *);
 #define STAGE_OFFSET_AT     0x80       /* start_vendor_exit_cutscene: addiu $a1, $gp, vendor_exit_cutscene_local_offset */
 #define ADDIU_A1_GP         0x27850000u
 #define STAGE_CHEST         1.0f        /* the lines start this high above the stage */
+#define STAGE_GROUND        1.0f        /* Ratchet stands on ground: a line this far down from his feet hits */
 #define STAGE_STEPS         16          /* facings tried: the first, then 22.5 degrees more each way in turn */
 #define STEP_COS            0.92387953f
 #define STEP_SIN            0.38268343f
@@ -845,7 +850,8 @@ static s32 vendor_item(s32 item)
     return (item >= RZ_SUCK_CANNON && item <= RZ_DECOY_GLOVE) || item == RZ_TAUNTER || item == RZ_DRONE_DEVICE;
 }
 
-/* Ratchet's place and turn when he found the weapon of a demo under way (Hero_ResetToPosition's quads). */
+/* Where Ratchet goes once a demo under way ends, and his turn when he found its weapon (Hero_ResetToPosition's
+ * quads): where he found it if he stood on ground there, else the stage. */
 static f32 demo_return[2][4] __attribute__((aligned(16)));
 
 /* The level's vendor_exit_cutscene_local_offset: the stage's place from the vendor moby, in the moby's frame. */
@@ -881,6 +887,19 @@ static s32 stage_blocked(const f32 *stage, f32 dx, f32 dy, s32 L)
         }
     }
     return blocked;
+}
+
+/* Ratchet stands on ground in level L: a line from just above his feet to STAGE_GROUND below them hits. */
+static s32 hero_on_ground(s32 L)
+{
+    f32 from[4] __attribute__((aligned(16)));
+    f32 to[4] __attribute__((aligned(16)));
+    from[0] = to[0] = HERO_POS[0];
+    from[1] = to[1] = HERO_POS[1];
+    from[2] = HERO_POS[2] + 0.2f;
+    to[2] = HERO_POS[2] - STAGE_GROUND;
+    from[3] = to[3] = 0.0f;
+    return LVL(L, func_L00_001EFFF0, CollLineFn)(from, to, 0, HERO_MOBY, 0) != 0;
 }
 
 static f32 square_root(f32 x)
@@ -961,15 +980,15 @@ static void place_demo_vendor(u8 *m, const f32 *stage, const f32 *facing, s32 L)
     MOBY_ROT_F(m, 2) = LVL(L, func_L00_001FF860, AtanFn)(fx, fy);
 }
 
-/* The demo of ITEM, found in level L: 1 if it starts, 0 for an item without one (the RYNO has none). It is staged
- * where Ratchet stands. */
-static s32 start_weapon_demo(s32 item, s32 L)
+/* The demo of ITEM, found at FIND in level L: 1 if it starts, 0 for an item without one (the RYNO has none). It is
+ * staged at the find. */
+static s32 start_weapon_demo(s32 item, const f32 *find, s32 L)
 {
     s32 id = rz_item_game_id(item);
     u8 *vendor_record = LVL_DATA(L, vendor_state, u8 *);
     f32 stage[3], facing[2];
     u8 *m;
-    s32 i;
+    s32 i, grounded;
     if (!vendor_item(item) || LVL_DATA(L, vendor_demos, s32 *)[id] < 0 || demo_vendor != 0
         || !class_in_memory(VENDOR_CLASS, L)) {
         return 0;
@@ -978,12 +997,13 @@ static s32 start_weapon_demo(s32 item, s32 L)
     if (m == 0) {
         return 0;
     }
-    for (i = 0; i < 4; i++) {
-        demo_return[0][i] = HERO_POS[i];
-        demo_return[1][i] = HERO_ROT[i];
-    }
+    grounded = hero_on_ground(L);
     for (i = 0; i < 3; i++) {
-        stage[i] = HERO_POS[i];
+        stage[i] = find[i];
+    }
+    for (i = 0; i < 4; i++) {
+        demo_return[0][i] = grounded || i == 3 ? HERO_POS[i] : stage[i];
+        demo_return[1][i] = HERO_ROT[i];
     }
     stage_facing(stage, facing, L);
     place_demo_vendor(m, stage, facing, L);
@@ -1058,16 +1078,27 @@ void rz_world_any_frame(s32 L)
     }
 }
 
-/* ITEM was found in level L: a weapon's demo, if it has one. */
-static void found(s32 item, s32 L)
+/* HOST's place, into OUT. */
+static void host_place(const void *host, f32 *out)
 {
-    start_weapon_demo(item, L);
+    s32 i;
+    for (i = 0; i < 3; i++) {
+        out[i] = *(volatile f32 *)((const u8 *)host + MOBY_POS + 4 * i);
+    }
+}
+
+/* ITEM was found at FIND in level L: a weapon's demo, if it has one. */
+static void found(s32 item, const f32 *find, s32 L)
+{
+    start_weapon_demo(item, find, L);
 }
 
 /* HOST's check taken at once: its mission trigger done (as a pickup's own touch does), the check collected with
- * its banner, the autosave, the host and its stand-in deleted; a weapon's demo then. */
+ * its banner, the autosave, the host and its stand-in deleted; a weapon's demo then, staged where the host was. */
 static void take(void *host, u16 key, s32 check, s32 L)
 {
+    f32 find[3];
+    host_place(host, find);
     if (MOBY_MISSION(host) != 0xFF) {
         LVL(L, func_L00_002512D8, MissionFn)(MOBY_MISSION(host));
     }
@@ -1075,7 +1106,7 @@ static void take(void *host, u16 key, s32 check, s32 L)
     ee_rz_save_c(0, -1, L);
     drop(key, host, L);
     LVL(L, func_0020D678, DeleteFn)(host);
-    found(ee_rz_layout_item(check), L);
+    found(ee_rz_layout_item(check), find, L);
 }
 
 /* A world infobot's check: one of level L's own, unlocking the planet at its pvars; -1 for any other infobot. */
@@ -1203,6 +1234,7 @@ static s32 in_level(s32 L)
  * touch, or, holding a Gold Bolt, stands still and hidden, its own touch test never run, while the bolt waits. */
 s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
 {
+    f32 find[3];
     s32 check;
     if (marked(moby)) {
         return 1;
@@ -1222,9 +1254,10 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
             return 1;
         }
         *(volatile s32 *)(MOBY_PVARS(moby) + GOLD_QUIET) = 1;
+        host_place(moby, find);                 /* before its update, which may delete it */
         update(moby);
         if (ee_rz_check_collected(check)) {     /* taken by this update: its autosave collected the check */
-            found(ee_rz_layout_item(check), L);
+            found(ee_rz_layout_item(check), find, L);
         }
         carry(KEY_SPOT(spot), moby, ee_rz_layout_item(check), L);
         return 1;
