@@ -40,6 +40,7 @@ The images default to the baseroms of the OpenRAC checkout (--openrac, else
 OPENRAC, else ../OpenRAC); the disc readers are common/openrac_editor's.
 """
 import argparse
+import functools
 import math
 import os
 import struct
@@ -99,17 +100,22 @@ class Iso9660:
         return at, length
 
 
-def rac2_ratchet(iso_path: Path, level: int = 1):
-    """(joint count, {slot: sequence bytes}) of R&C2's Ratchet from level LEVEL's archive."""
+@functools.lru_cache(maxsize=2)
+def rac2_level(iso_path: Path, level: int) -> tuple[bytes, bytes]:
+    """R&C2 level LEVEL's core index and decoded core data, decoded once for every sequence and class read from it."""
     sys.path.insert(0, str(EDITOR))
     from level import decoded
     iso = Iso9660(iso_path)
     lba, _ = iso.find(f"G/LEVEL{level}.WAD")
-    head = iso.read(lba, 0x60)
-    data_sector, _ = struct.unpack_from("<II", head, 0x10)
+    data_sector, _ = struct.unpack_from("<II", iso.read(lba, 0x60), 0x10)
     slots = struct.unpack_from("<24I", iso.read(lba, 0x60, data_sector * SECTOR), 0)
     index = iso.read(lba, slots[3], data_sector * SECTOR + slots[2])
-    core = decoded(iso.read(lba, slots[19], data_sector * SECTOR + slots[18]))
+    return index, decoded(iso.read(lba, slots[19], data_sector * SECTOR + slots[18]))
+
+
+def rac2_ratchet(iso_path: Path, level: int = 1):
+    """(joint count, {slot: sequence bytes}) of R&C2's Ratchet from level LEVEL's archive."""
+    index, core = rac2_level(iso_path, level)
     table_at = u32(index, 0x78)
     offsets = struct.unpack_from("<256I", index, table_at)
     ends = sorted(o for o in offsets if o) + [len(core)]
@@ -330,14 +336,7 @@ def rac2_class(iso_path: Path, class_id: int, level: int = 1) -> bytes:
     """Moby class CLASS_ID's blob from R&C2 level LEVEL: the core index's moby class
     table (+0x18: count, offset; 32-byte entries, core offset then class id), the blob
     ending where the next class starts."""
-    sys.path.insert(0, str(EDITOR))
-    from level import decoded
-    iso = Iso9660(iso_path)
-    lba, _ = iso.find(f"G/LEVEL{level}.WAD")
-    data_sector, _ = struct.unpack_from("<II", iso.read(lba, 0x60), 0x10)
-    slots = struct.unpack_from("<24I", iso.read(lba, 0x60, data_sector * SECTOR), 0)
-    index = iso.read(lba, slots[3], data_sector * SECTOR + slots[2])
-    core = decoded(iso.read(lba, slots[19], data_sector * SECTOR + slots[18]))
+    index, core = rac2_level(iso_path, level)
     count, at = struct.unpack_from("<II", index, 0x18)
     table = [struct.unpack_from("<ii", index, at + 32 * i) for i in range(count)]
     starts = sorted({o for o, _ in table if o > 0}) + [len(core)]
