@@ -1166,6 +1166,52 @@ static u16 host_key(void *host)
     return KEY_PICKUP;
 }
 
+/* Blarg Station's shuttle (class 1109, ShuttleUpdate func_L06_003039B8) ends its ride at the dormant Rilgar infobot
+ * it wakes (its pvars + 0x10C, the infobot's index), and in its state 6, once Ratchet is within 3.5 units of it
+ * (across, not in height, before the infobot's own 1-unit touch), plays the arrival cutscene (StartCutscene 12),
+ * deletes the infobot, unlocks Rilgar, sets level trigger 0 and goes on to the Rilgar infobot's video (movie 5)
+ * and, with the Hoverboard owned, a second cutscene. With the check holding another item, or already collected,
+ * that sequence played anyway, and the screen stayed black after it. So the shuttle's state 6 is taken first, a
+ * little wider: the infobot is taken as a world infobot's touch is (take: the trigger, the check and its banner,
+ * the autosave), or, already gone, the trigger set; the shuttle goes to its idle state 1, where its states 7 and 9
+ * end. Retail's sequence plays only for Rilgar's own infobot, not yet collected. */
+#define BLARG               6
+#define SHUTTLE_CLASS       1109
+#define SHUTTLE_AT_INFOBOT  6
+#define SHUTTLE_IDLE        1
+#define SHUTTLE_INFOBOT     0x10C       /* its pvars: the infobot's index in the moby table */
+#define SHUTTLE_REACH       4.0f        /* the shuttle's 3.5, a little wider */
+#define SHUTTLE_TRIGGER     0           /* the level trigger the shuttle sets */
+#define RILGAR_INFOBOT      (RZ_INFOBOT_NOVALIS + 5 - 1)
+
+static s32 shuttle_takes_infobot(void *shuttle, s32 L)
+{
+    s32 check = rz_check_for_vanilla(RILGAR_INFOBOT);
+    u8 *infobot;
+    f32 dx, dy;
+    if (L != BLARG || MOBY_CLASS(shuttle) != SHUTTLE_CLASS || MOBY_STATE(shuttle) != SHUTTLE_AT_INFOBOT || check < 0
+        || (ee_rz_layout_item(check) == RILGAR_INFOBOT && !ee_rz_check_collected(check))) {
+        return 0;
+    }
+    infobot = (u8 *)MOBY_TABLE(L) + MOBY_SIZE * *(volatile s32 *)(MOBY_PVARS(shuttle) + SHUTTLE_INFOBOT);
+    dx = HERO_POS[0] - *(volatile f32 *)(infobot + MOBY_POS);
+    dy = HERO_POS[1] - *(volatile f32 *)(infobot + MOBY_POS + 4);
+    if (dx * dx + dy * dy >= SHUTTLE_REACH * SHUTTLE_REACH) {
+        return 0;
+    }
+    if (MOBY_STATE(infobot) >= 0 && MOBY_CLASS(infobot) == INFOBOT_CLASS && !ee_rz_check_collected(check)) {
+        take(infobot, host_key(infobot), check, L);
+    } else {
+        if (MOBY_STATE(infobot) >= 0 && MOBY_CLASS(infobot) == INFOBOT_CLASS) {
+            drop(host_key(infobot), infobot, L);
+            LVL(L, func_0020D678, DeleteFn)(infobot);
+        }
+        LVL(L, func_L00_002512D8, MissionFn)(SHUTTLE_TRIGGER);
+    }
+    MOBY_STATE(shuttle) = SHUTTLE_IDLE;
+    return 1;
+}
+
 /* Clank at BOLT, as near as GoldBoltUpdate's touch wants Ratchet. GoldBoltUpdate takes no touch from Clank (only in
  * hero modes 0 and 3): retail puts no Gold Bolt where Clank goes, but a pickup or an infobot of a Clank section (on
  * Orxon before the O2 Mask) can hold one. */
@@ -1248,6 +1294,9 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
     }
     if (!in_level(L)) {
         return 0;
+    }
+    if (shuttle_takes_infobot(moby, L)) {
+        return 1;
     }
     if (mark_of(moby) == BOLT_MARK) {
         bolt_update(moby, update, L);

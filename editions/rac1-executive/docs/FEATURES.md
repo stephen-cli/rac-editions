@@ -4976,3 +4976,14 @@ on later visits, and the bridge extends without waiting for the boss (pvars +
 0xB0 = -1). Tested in PCSX2 on a visit after the boss: door open, bridge out,
 infobot taken (the Blaster's demo), no flight; the fight itself and the lift
 ride are not tested.
+
+## rz: Blarg Station's shuttle and the Rilgar infobot (2026-11-07) — built; awaiting test
+
+The shuttle (class 1109, ShuttleUpdate) ends its ride at the woken Rilgar
+infobot, and in its state 6, within 3.5 units, plays cutscene 12, deletes the
+infobot, unlocks Rilgar and goes on to the Rilgar infobot's video: whatever the
+check held, and the screen stayed black after them. That state is now taken
+first: the infobot taken as a world infobot, or the trigger set if it is gone,
+and the shuttle back to state 1. Retail's sequence plays only for Rilgar's own
+infobot, not yet collected. Tested in PCSX2 with the shuttle put in state 6 by
+hand: the item's banner, no cutscene, the screen as in play.
