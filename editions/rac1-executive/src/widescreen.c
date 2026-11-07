@@ -150,31 +150,71 @@ static f32 framing(s32 L, f32 *content)
 /* --- the view ------------------------------------------------------------ */
 
 static s32 view_suspended;      /* the vendor's monitor screens are drawn with the 4:3 view (below) */
-static s32 view_level = -1;     /* the level whose view record holds view_written */
-static u32 view_written;        /* the bits of the widened value this hook left in +0xB0 */
-static f32 view_orig;           /* and the game's own value it stands for */
 static s32 view_applied;        /* the setting the full-screen view was last built with */
 
 /* The widened field of view stays in the record: the renderers' culling
  * (TfragProc, TieProc, ShrubProc, MobyProc) loads +0xA0..+0xBF itself every
  * frame for its side planes, so a value put back after the projection was
  * built culled at the old 4:3 edges (objects popped in at the sides, owner
- * 2026-10-19). On the next call the hook recognises its own value by its
- * bits and starts again from the game's; any other value is the game's new
- * one. A view built in 4:3 (setting off, a render to a texture, the vendor's
- * monitors) gets the game's value back. */
-typedef union { f32 f; u32 u; } FloatBits;
+ * 2026-10-19). So game code can read the widened value and write it back:
+ * a level's path camera (Oltanis's camera 20, func_L14_00316388, the shared
+ * initialize_path_camera of Orxon and others) saves +0xB0 as it starts,
+ * writes FOV stops on the way, and puts the saved value back at its end,
+ * recomputed through the fast sine and cosine. Taken as the game's own, that
+ * widened value was widened again, and the view stayed some 96 degrees wide
+ * (Oltanis's statue cutscene). The hook therefore remembers the last
+ * VIEW_PAIRS widened values it wrote with the game's values they stand for,
+ * and a value within VIEW_MATCH of one of them is taken as that one; any
+ * other value is the game's new one. A view built in 4:3 (setting off, a
+ * render to a texture, the vendor's monitors) gets the game's value back. */
+#define VIEW_PAIRS  8
+#define VIEW_MATCH  0.001f      /* relative: well above the fast sine/cosine's error, far below any FOV step */
+static s32 view_level = -1;     /* the level whose view record the pairs are of */
+static struct { f32 wide; f32 orig; } view_pairs[VIEW_PAIRS];
+static s32 view_pair_count;
+static s32 view_pair_next;
+
+/* The game's value that VALUE, read from level L's view record, stands for. */
+static f32 view_original(f32 value, s32 L)
+{
+    s32 i;
+    if (L != view_level) {
+        view_level = L;
+        view_pair_count = 0;
+        view_pair_next = 0;
+        return value;
+    }
+    for (i = 0; i < view_pair_count; i++) {
+        f32 d = value - view_pairs[i].wide;
+        if ((d < 0.0f ? -d : d) <= view_pairs[i].wide * VIEW_MATCH) {
+            return view_pairs[i].orig;
+        }
+    }
+    return value;
+}
+
+/* WIDE, written for the game's ORIG. */
+static void view_remember(f32 wide, f32 orig)
+{
+    s32 last = (view_pair_next + VIEW_PAIRS - 1) % VIEW_PAIRS;
+    if (view_pair_count > 0 && view_pairs[last].wide == wide) {
+        return;
+    }
+    view_pairs[view_pair_next].wide = wide;
+    view_pairs[view_pair_next].orig = orig;
+    view_pair_next = (view_pair_next + 1) % VIEW_PAIRS;
+    if (view_pair_count < VIEW_PAIRS) {
+        view_pair_count++;
+    }
+}
 
 u32 ee_view_pre_c(s32 L)
 {
     volatile f32 *fov = (volatile f32 *)(view_record(L) + VIEW_FOV);
     volatile f32 *src = (volatile f32 *)(view_record(L) + VIEW_FOV_SRC);
-    FloatBits cur;
-    f32 orig;
+    f32 orig = view_original(*fov, L);
     s32 full = SCREEN[0] == RES_W && SCREEN[1] == RES_H;
 
-    cur.f = *fov;
-    orig = (L == view_level && cur.u == view_written) ? view_orig : cur.f;
     *src = orig;
     *fov = orig;
     if (full && !view_suspended) {
@@ -183,16 +223,13 @@ u32 ee_view_pre_c(s32 L)
     if (ws_on() && !view_suspended) {
         f32 content;
         f32 zoom = framing(L, &content);
-        FloatBits wide;
         /* Square pixels on the stretched screen: the horizontal scale is 3/4
          * of the 4:3 one at the same vertical scale, so the horizontal field
          * is 4/3 of the original divided by the zoom. */
-        wide.f = orig * (4.0f / 3.0f) / zoom;
+        f32 wide = orig * (4.0f / 3.0f) / zoom;
         *src = orig / zoom;
-        *fov = wide.f;
-        view_level = L;
-        view_written = wide.u;
-        view_orig = orig;
+        *fov = wide;
+        view_remember(wide, orig);
     }
     return LVL(L, func_001F3140, u32) + 8;
 }

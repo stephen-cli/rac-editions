@@ -4947,3 +4947,18 @@ stand-in bolt at a pickup or infobot is made by CreateMoby, which clears pvars,
 so the camera sat on the level's cuboid 0 (on Gaspar, 176 units from the Pilot's
 Helmet). The stand-in sets both to -1. Tested in PCSX2 at Oltanis's Morph-o-Ray
 pickup: the camera circles Ratchet 5 units out.
+
+## 16:9: a path camera's restored field of view (2026-11-07) — built; awaiting test
+
+A level's path camera (Oltanis's camera 20, the shared initialize_path_camera
+of Orxon and others) saves the view's +0xB0 as it starts and writes it back at
+its end, recomputed through the fast sine and cosine. The 16:9 hook leaves its
+widened value there (the renderers' culling reads it), recognised it only by its
+exact bits, took the write-back as the game's own and widened it again: some 96
+degrees instead of 80 after Oltanis's statue. The hook now keeps its last eight
+widened values with the game's values they stand for and takes a value within
+0.1% of one as that one. The entry above that says the hook puts +0xB0 back
+describes the first design; the value has stayed in the record since the pop-in
+fix. Tested in PCSX2 by writing a slightly-off widened value into Oltanis's view
+record: it comes back to 0.84, and a new game value is still widened once. The
+cutscenes themselves are not replayed.
