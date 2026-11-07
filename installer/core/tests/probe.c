@@ -4,8 +4,9 @@
  *   probe segment IMAGE SEGMENT ADDRESS OUT     the boot executable of IMAGE with SEGMENT added at ADDRESS (hex)
  *   probe replace IMAGE NAME FILE               NAME in IMAGE replaced by FILE's bytes, then the image finished
  *   probe holes PAYLOAD RAC1 RAC2 OUT           every hole of PAYLOAD filled from the discs, to OUT/SYMBOL.bin
- *   probe build PAYLOAD COMMAND.json DATA       a build command's discs, options and output, built without the
- *                                               patch stage; its events printed as JSON lines
+ *   probe build PAYLOAD COMMAND.json DATA [patch]
+ *                                               a build command's discs, options and output, built without the
+ *                                               patch stage, or with it given patch; its events printed as JSON lines
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -139,9 +140,9 @@ static void print_log(Job *job, const char *text)
     text_free(&line);
 }
 
-/* A build without the patch stage: PAYLOAD, a JSON command's discs, options and output (in COMMAND_FILE), its
-   events and its answer printed as JSON lines. */
-static int build(const char *payload_directory, const char *command_file, const char *data)
+/* A build of PAYLOAD with a JSON command's discs, options and output (in COMMAND_FILE), its events and its answer
+   printed as JSON lines; build_patch is its patch stage when PATCH, else it has none. */
+static int build(const char *payload_directory, const char *command_file, const char *data, bool patch)
 {
     size_t size = 0;
     char *text = file_read_all(command_file, &size);
@@ -157,7 +158,8 @@ static int build(const char *payload_directory, const char *command_file, const 
     Job job = {.progress = print_progress, .log = print_log};
     Text answer = {0};
     bool built = command_build(&payload, cache, json_get(command, "discs"), json_get(command, "options"),
-                               json_get(command, "output"), NULL, NULL, &job, &answer, &error);
+                               json_get(command, "output"), patch ? build_patch : NULL, NULL, &job,
+                               &answer, &error);
     if (built) {
         printf("{\"event\": \"result\", \"value\": %s}\n", answer.text);
     } else {
@@ -179,8 +181,8 @@ static int build(const char *payload_directory, const char *command_file, const 
 
 int main(int argc, char **argv)
 {
-    if (argc == 5 && strcmp(argv[1], "build") == 0) {
-        return build(argv[2], argv[3], argv[4]);
+    if ((argc == 5 || (argc == 6 && strcmp(argv[5], "patch") == 0)) && strcmp(argv[1], "build") == 0) {
+        return build(argv[2], argv[3], argv[4], argc == 6);
     }
     if (argc == 6 && strcmp(argv[1], "holes") == 0) {
         return holes(argv[2], argv[3], argv[4], argv[5]);

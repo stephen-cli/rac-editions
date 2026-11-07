@@ -30,6 +30,12 @@ typedef struct {
 typedef bool BuildPatch(void *context, IsoImage *image, const BuildFacts *facts, Job *job, InstallError *error);
 
 /*
+ * The edition's patch stage, a BuildPatch: the levels' data (levels.h), then the HelpDesk lines (the switches'
+ * left-out uses not made), in one "patch" progress of their shares. CONTEXT is unused.
+ */
+bool build_patch(void *context, IsoImage *image, const BuildFacts *facts, Job *job, InstallError *error);
+
+/*
  * A build with DISCS, OPTIONS and OUTPUT as the protocol's build command asks for it: its answer is
  * {"path", "sha256"} of the image made. PATCH (with CONTEXT) is the patch stage; NULL leaves it out, which makes
  * the image as it stands before that stage.

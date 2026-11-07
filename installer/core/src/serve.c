@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "build.h"
 #include "json.h"
 #include "thread.h"
 
@@ -189,6 +190,10 @@ static void answer(ServeJob *serve_job)
     } else if (strcmp(name, "plan") == 0) {
         answered = command_plan(server->payload, json_get(command, "discs"), json_get(command, "options"),
                                 json_get(command, "output"), &value, &error);
+    } else if (strcmp(name, "build") == 0) {
+        answered = command_build(server->payload, server->cache, json_get(command, "discs"),
+                                 json_get(command, "options"), json_get(command, "output"), build_patch, NULL,
+                                 &serve_job->job, &value, &error);
     } else {
         error.code = "internal";
         snprintf(error.message, sizeof error.message, "unknown command %s", name);

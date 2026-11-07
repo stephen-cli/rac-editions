@@ -10,6 +10,9 @@
 #include "elf.h"
 #include "files.h"
 #include "fill.h"
+#include "helpdesk.h"
+#include "levels.h"
+#include "sign.h"
 
 #define COPY_CHUNK (16u << 20)       /* the copy's reads: progress events stay few, a cancel is quick */
 #define RESTORE_CHUNK (1u << 20)
@@ -411,6 +414,66 @@ static bool install(const Payload *payload, HashCache *cache, const Json *discs,
     }
     free(exe);
     return made;
+}
+
+/* A step of the patch stage: its own progress, done of total, shown as its share of the stage's. */
+typedef struct {
+    Job job;
+    uint64_t start;                 /* the stage's progress before this step */
+    uint64_t share;                 /* the step's part of the stage's total */
+    uint64_t stage_total;
+} PatchStep;
+
+static void patch_step_progress(Job *job, const char *stage, uint64_t done, uint64_t total)
+{
+    PatchStep *step = (PatchStep *)job;
+    uint64_t within = total > 0 ? step->share * (done < total ? done : total) / total : step->share;
+    job_progress(job->parent, stage, step->start + within, step->stage_total);
+}
+
+static void patch_step_log(Job *job, const char *text)
+{
+    job_log(job->parent, "%s", text);
+}
+
+/* The patch stage's shares, out of PATCH_TOTAL: the level pass takes most of a build's time (the levels' data
+   decoded, patched and encoded again), the HelpDesk lines the rest. */
+#define PATCH_TOTAL 100
+#define PATCH_LEVELS 87
+#define PATCH_HELPDESK 13
+
+bool build_patch(void *context, IsoImage *image, const BuildFacts *facts, Job *job, InstallError *error)
+{
+    (void)context;
+    const char *base = json_get_string(facts->discs, payload_base_disc(facts->payload));
+    job_progress(job, "patch", 0, PATCH_TOTAL);
+    /* Kalebo III's sign reads GADGETRON again: its class rebuilt from the PAL disc's own GALACTRON sign */
+    size_t sign_size = 0;
+    uint8_t *sign = make_sign(base, &sign_size, error);
+    if (sign == NULL) {
+        return false;
+    }
+    PatchStep levels = {{.progress = patch_step_progress, .log = patch_step_log, .parent = job}, 0, PATCH_LEVELS,
+                        PATCH_TOTAL};
+    bool patched_levels = patch_levels(image, facts, sign, sign_size, &levels.job, error);
+    free(sign);
+    if (!patched_levels) {
+        return false;
+    }
+    PatchStep step = {{.progress = patch_step_progress, .log = patch_step_log, .parent = job}, PATCH_LEVELS,
+                      PATCH_HELPDESK, PATCH_TOTAL};
+    size_t size = 0;
+    char *recipes = payload_file(facts->payload, "helpdesk.json", &size);
+    if (recipes == NULL) {
+        return install_fail(error, "internal", "the payload's helpdesk.json cannot be read");
+    }
+    bool patched = patch_helpdesk(image, base, (const uint8_t *)recipes, size, facts->left_out_lines, &step.job,
+                                  error);
+    free(recipes);
+    if (patched) {
+        job_progress(job, "patch", PATCH_TOTAL, PATCH_TOTAL);
+    }
+    return patched;
 }
 
 /* RESTORE: the original's length, then every sector the edition changes within it, with its original bytes.

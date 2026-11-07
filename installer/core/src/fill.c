@@ -452,10 +452,55 @@ static void draw_arm(uint8_t cell[CELL_H][CELL_W], const uint8_t colours[256][4]
     }
 }
 
+bool glyph_cells(const uint8_t *pixels, const uint8_t *palette, uint8_t *cells, char *error, size_t capacity)
+{
+    /* the palette as the GS reads it (CSM1), alpha doubled to 0..255 */
+    uint8_t colours[256][4];
+    for (unsigned i = 0; i < 256; i++) {
+        const uint8_t *entry = palette + 4 * csm1(i);
+        memcpy(colours[i], entry, 3);
+        colours[i][3] = (uint8_t)(entry[3] * 2 > 255 ? 255 : entry[3] * 2);
+    }
+    uint8_t blank = pixels[0xFF];
+    for (int g = 0; g < GLYPHS; g++) {
+        const Glyph *glyph = &GLYPH_CELLS[g];
+        for (int y = 0; y < CELL_H; y++) {
+            for (int x = 0; x < CELL_W; x++) {
+                if (pixels[(glyph->v + (unsigned)y) * FONT_W + glyph->u + (unsigned)x] != blank) {
+                    return failed(error, capacity, "the font's cell at u 0x%X, v 0x%X is not empty", glyph->u,
+                                  glyph->v);
+                }
+            }
+        }
+        uint8_t (*cell)[CELL_W] = (uint8_t (*)[CELL_W])(cells + (unsigned)g * CELL_H * CELL_W);
+        memset(cell, blank, CELL_H * CELL_W);
+        if (glyph->arm) {
+            draw_arm(cell, (const uint8_t (*)[4])colours, glyph->which);
+        } else {
+            for (int y = 0; y < CELL_H; y++) {
+                memcpy(&cell[y][FACE_SHIFT], pixels + (BUTTON_V + (unsigned)y) * FONT_W + glyph->which,
+                       CELL_W - FACE_SHIFT);
+            }
+        }
+    }
+    return true;
+}
+
+void glyph_paint(uint8_t *pixels, const uint8_t *cells)
+{
+    for (int g = 0; g < GLYPHS; g++) {
+        const Glyph *glyph = &GLYPH_CELLS[g];
+        for (int y = 0; y < CELL_H; y++) {
+            memcpy(pixels + (glyph->v + (unsigned)y) * FONT_W + glyph->u,
+                   cells + ((unsigned)g * CELL_H + (unsigned)y) * CELL_W, CELL_W);
+        }
+    }
+}
+
 static bool fill_glyphs(Filler *filler, uint8_t *out, size_t size, char *error, size_t capacity)
 {
-    if (size != 3 * GLYPHS * CELL_H * CELL_W) {
-        return failed(error, capacity, "%d bytes made, the hole holds %zu", 3 * GLYPHS * CELL_H * CELL_W, size);
+    if (size != 3 * GLYPH_CELLS_SIZE) {
+        return failed(error, capacity, "%d bytes made, the hole holds %zu", 3 * GLYPH_CELLS_SIZE, size);
     }
     const char *rac1 = json_get_string(filler->discs, "rac1");
     size_t stored_size = 0;
@@ -497,36 +542,9 @@ static bool fill_glyphs(Filler *filler, uint8_t *out, size_t size, char *error, 
             free(lump);
             return failed(error, capacity, "font %u is outside the title screen's data", font);
         }
-        const uint8_t *pixels = lump + pixels_at;
-        /* the palette as the GS reads it (CSM1), alpha doubled to 0..255 */
-        uint8_t colours[256][4];
-        for (unsigned i = 0; i < 256; i++) {
-            const uint8_t *entry_bytes = lump + palette_at + 4 * csm1(i);
-            memcpy(colours[i], entry_bytes, 3);
-            colours[i][3] = (uint8_t)(entry_bytes[3] * 2 > 255 ? 255 : entry_bytes[3] * 2);
-        }
-        uint8_t blank = pixels[0xFF];
-        for (int g = 0; g < GLYPHS; g++) {
-            const Glyph *glyph = &GLYPH_CELLS[g];
-            for (int y = 0; y < CELL_H; y++) {
-                for (int x = 0; x < CELL_W; x++) {
-                    if (pixels[(glyph->v + (unsigned)y) * FONT_W + glyph->u + (unsigned)x] != blank) {
-                        free(lump);
-                        return failed(error, capacity, "the font's cell at u 0x%X, v 0x%X is not empty", glyph->u,
-                                      glyph->v);
-                    }
-                }
-            }
-            uint8_t (*cell)[CELL_W] = (uint8_t (*)[CELL_W])(out + ((font - 1) * GLYPHS + (unsigned)g) * CELL_H * CELL_W);
-            memset(cell, blank, CELL_H * CELL_W);
-            if (glyph->arm) {
-                draw_arm(cell, (const uint8_t (*)[4])colours, glyph->which);
-            } else {
-                for (int y = 0; y < CELL_H; y++) {
-                    memcpy(&cell[y][FACE_SHIFT], pixels + (BUTTON_V + (unsigned)y) * FONT_W + glyph->which,
-                           CELL_W - FACE_SHIFT);
-                }
-            }
+        if (!glyph_cells(lump + pixels_at, lump + palette_at, out + (font - 1) * GLYPH_CELLS_SIZE, error, capacity)) {
+            free(lump);
+            return false;
         }
     }
     free(lump);

@@ -1,10 +1,12 @@
 # Installer
 
-The tool players run to make an edition from their own disc images. Each
-edition's `tools/install.py` is the reference implementation today; the
-installer core, in C, is to make the same images byte for byte, and serves
-both the desktop builder (`rac-editions-web`, a separate MIT repository that
-runs it as a separate program) and an on-console PS3 builder.
+The tool players run to make an edition from their own disc images. The
+installer core (`installer/core`, C11) makes them: `rac-installer --serve`
+speaks the protocol below, for the desktop builder (`rac-editions-web`, a
+separate MIT repository that runs it as a separate program), and the same
+code is to run an on-console PS3 builder. Each edition's `tools/install.py`
+is the reference implementation: the core makes the same images byte for
+byte.
 
 - **Inputs are the player's disc images.** The installer identifies each
   image by its hash and refuses ones it does not know.

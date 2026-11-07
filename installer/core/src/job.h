@@ -18,11 +18,18 @@ struct Job {
     /* Set from another thread to stop the job at its next check; a flag only, so volatile is enough. */
     volatile int cancelled;
     void *context;
+    /* The job this one is a part of (a step of a build's stage): cancelling it cancels this one too. */
+    Job *parent;
 };
 
 static inline bool job_cancelled(const Job *job)
 {
-    return job != NULL && job->cancelled != 0;
+    for (; job != NULL; job = job->parent) {
+        if (job->cancelled != 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void job_progress(Job *job, const char *stage, uint64_t done, uint64_t total);
