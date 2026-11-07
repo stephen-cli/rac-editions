@@ -4937,3 +4937,13 @@ before. Ratchet goes back where he took the weapon only if he stood on ground
 there (a `coll_line` 1 unit down from his feet hits), else onto the stage.
 Tested in PCSX2 with the Suck Cannon at that bolt, taken in the air over the
 drop and from the ledge.
+
+## rz: a stand-in Gold Bolt's hold-up camera (2026-11-07) — built; awaiting test
+
+GoldBoltUpdate's hold-up camera (func_L01_00309BB8, each frame of state 2)
+circles Ratchet when the bolt's pvars + 4 and + 8 are -1, as at most of a
+level's own spots; otherwise it pans between those two level cuboids. The live
+stand-in bolt at a pickup or infobot is made by CreateMoby, which clears pvars,
+so the camera sat on the level's cuboid 0 (on Gaspar, 176 units from the Pilot's
+Helmet). The stand-in sets both to -1. Tested in PCSX2 at Oltanis's Morph-o-Ray
+pickup: the camera circles Ratchet 5 units out.

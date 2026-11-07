@@ -544,7 +544,12 @@ static void move(u8 *m, s32 motion, void *host)
  * which may move (the Kerwan infobot); GoldBoltUpdate moves it to Ratchet for the hold-up, from its state 2. The
  * hold-up puts Ratchet 2.5 units from the bolt along its rest yaw (home.w), which a level's own spots face to open
  * ground; the stand-in's faces Ratchet, so he lands on the side he came from (facing anywhere, Gaspar's platform
- * edge put him over the lava). */
+ * edge put him over the lava). The hold-up's camera (func_L01_00309BB8, every frame of state 2) circles Ratchet when
+ * the bolt's two camera cuboids are -1, as at most of the level's spots; a few spots pan between two of the level's
+ * cuboids instead. CreateMoby clears pvars, and with both at 0 the camera sat on the level's cuboid 0 (on Gaspar,
+ * 176 units from the Pilot's Helmet), so the stand-in sets them to -1. */
+#define GOLD_CAMERA_FROM 0x4            /* GoldBoltUpdate's pvars: the hold-up camera's cuboids, -1 none */
+#define GOLD_CAMERA_TO  0x8
 #define GOLD_RESTING    1
 #define GOLD_HOLDING    2               /* Ratchet holds it up */
 #define UPDATE_ALWAYS   0xFF            /* an update distance the visibility list takes as no limit, as spawners set:
@@ -561,6 +566,8 @@ static void carry_bolt(struct StandIn *e, void *host, s32 L)
             return;
         }
         *(volatile s32 *)(MOBY_PVARS(m) + GOLD_ID) = BORROWED_SPOT;
+        *(volatile s32 *)(MOBY_PVARS(m) + GOLD_CAMERA_FROM) = -1;
+        *(volatile s32 *)(MOBY_PVARS(m) + GOLD_CAMERA_TO) = -1;
         *(volatile f32 *)(m + MOBY_POS) = *(volatile f32 *)((u8 *)host + MOBY_POS);
         *(volatile f32 *)(m + MOBY_POS + 4) = *(volatile f32 *)((u8 *)host + MOBY_POS + 4);
         *(volatile f32 *)(m + MOBY_POS_Z) = *(volatile f32 *)((u8 *)host + MOBY_POS_Z) + e->lift;
