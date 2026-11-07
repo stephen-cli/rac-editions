@@ -556,7 +556,7 @@ def serve(pay: Path, tools: dict, cache: HashCache) -> int:
             out.flush()
 
     sys.stdout = sys.stderr                     # anything printed by the pipeline stays off the protocol
-    jobs = {}
+    jobs, threads = {}, []
     edition = json.loads((pay / "edition.json").read_text())
     send({"event": "ready", "protocol": PROTOCOL, "installer": edition["commit"]})
 
@@ -585,7 +585,9 @@ def serve(pay: Path, tools: dict, cache: HashCache) -> int:
 
         def background(fn):
             jobs[cid] = job
-            threading.Thread(target=answer, daemon=True, args=(cid, fn, job)).start()
+            thread = threading.Thread(target=answer, daemon=True, args=(cid, fn, job))
+            threads.append(thread)
+            thread.start()
 
         if cmd == "editions":
             answer(cid, lambda j: editions_list(pay), job)
@@ -604,6 +606,8 @@ def serve(pay: Path, tools: dict, cache: HashCache) -> int:
             send({"event": "result", "id": cid, "value": {"cancelling": running is not None}})
         else:
             send({"event": "error", "id": cid, "code": "internal", "message": f"unknown command {cmd}"})
+    for thread in threads:                      # the input's end: the commands still running finish and answer
+        thread.join()
     return 0
 
 
