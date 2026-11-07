@@ -44,91 +44,34 @@ sectors it leaves free are zeroed, and the level header's sector count takes
 the new size; the image keeps its size. (Until 2026-10-20 each archive was
 appended at the end of the image and the old one left unused: 320 MB more.)
 
-Inputs: the class core (tools/gen_boots.py writes it, converted from R&C2 by
-the wrench fork's mobyconvert) and the class's texture, an indexed PNG from
-wrench's unpack of the R&C2 disc. A build without the Charge Boots
+Inputs: the class core (tools/gen_boots.py writes it, converted from R&C2)
+and the class's texture, read from the player's R&C2 disc (--rac2) as its
+level holds it: the pixels' 8-bit indices and the palette as GS RAM holds it
+(common/rac2_anim.py, rac2_class_texture). A build without the Charge Boots
 (--fonts-only) only paints the seed glyphs into the fonts.
 
-  python tools/splice_boots.py IMAGE [--openrac DIR] [--rac-wad EXE] [--fonts-only]
+  python tools/splice_boots.py IMAGE [--rac2 SCUS_972.68.iso] [--rac-wad EXE] [--fonts-only]
 """
 import argparse
 import struct
 import sys
-import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
+sys.path.insert(0, str(HERE.parents[2] / "common"))
+import core_tools  # noqa: E402
 ROOT = HERE.parent
 SECTOR = 2048
 TOC_LBA, LEVEL_TABLE = 1500, 0x28C8
 TAIL_SECTORS = 32
-RAC_WAD = ROOT.parents[1] / "installer/core/build" / ("rac-wad.exe" if sys.platform == "win32" else "rac-wad")
+RAC_WAD = core_tools.tool("rac-wad")
 CLASS_ID = 2000
+RAC2_CLASS = 3696           # the Charge Boots in R&C2 (tools/gen_boots.py)
 MAX_CLASSES = 222          # moby_class_resources[224], less the two classes the level's loader registers after
                            # the table's (the shared overlay's 0x0023FA00, for the level's content variant): a
                            # table of 223 hung Batalia's and Umbris's load on the loading screen
 MAX_SLOT = 0xFE            # texture slots are bytes; 0xFF ends a class's list
-
-
-def csm1(i: int) -> int:
-    return i ^ 0x18 if ((i >> 3) & 1) != ((i >> 4) & 1) else i
-
-
-def indexed_png(path: Path):
-    """(width, height, pixel indices, 256 RGBA tuples) of an 8-bit indexed PNG."""
-    d = path.read_bytes()
-    pos, idat, plte, trns = 8, b"", b"", b""
-    while pos < len(d):
-        n, kind = struct.unpack_from(">I4s", d, pos)
-        body = d[pos + 8:pos + 8 + n]
-        if kind == b"IHDR":
-            w, h, depth, ctype, _, _, interlace = struct.unpack(">2I5B", body)
-        elif kind == b"PLTE":
-            plte = body
-        elif kind == b"tRNS":
-            trns = body
-        elif kind == b"IDAT":
-            idat += body
-        pos += 12 + n
-    if depth != 8 or ctype != 3 or interlace:
-        raise SystemExit(f"{path}: expected an 8-bit indexed, non-interlaced PNG")
-    raw = zlib.decompress(idat)
-    rows, prev = [], bytearray(w)
-    for y in range(h):
-        f = raw[y * (w + 1)]
-        line = bytearray(raw[y * (w + 1) + 1:(y + 1) * (w + 1)])
-        for i in range(w):
-            a = line[i - 1] if i else 0
-            b = prev[i]
-            c = prev[i - 1] if i else 0
-            if f == 1:
-                line[i] = (line[i] + a) & 0xFF
-            elif f == 2:
-                line[i] = (line[i] + b) & 0xFF
-            elif f == 3:
-                line[i] = (line[i] + (a + b) // 2) & 0xFF
-            elif f == 4:
-                p = a + b - c
-                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
-                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 0xFF
-        rows.append(bytes(line))
-        prev = line
-    colours = []
-    for i in range(256):
-        rgb = tuple(plte[3 * i:3 * i + 3]) if 3 * i + 3 <= len(plte) else (0, 0, 0)
-        alpha = trns[i] if i < len(trns) else 255
-        colours.append(rgb + (alpha,))
-    return w, h, b"".join(rows), colours
-
-
-def gs_palette(colours) -> bytes:
-    """256 RGBA32 entries as the GS reads them: CSM1 order, alpha 0..0x80 (wrench's divide_alphas)."""
-    out = bytearray()
-    for i in range(256):
-        r, g, b, a = colours[csm1(i)]
-        out += bytes((r, g, b, 0x80 if a == 0xFF else a // 2))
-    return bytes(out)
 
 
 class Wad:
@@ -425,8 +368,8 @@ def main() -> int:
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("--class-core", type=Path,
                     default=ROOT / "build/charge_boots.bin")
-    ap.add_argument("--texture", type=Path, default=None,
-                    help="indexed PNG (default: R&C2 class 3696's, wrench unpack)")
+    ap.add_argument("--rac2", type=Path, default=None,
+                    help="the R&C2 (USA) disc, for the class's texture (default: OpenRAC's baserom)")
     ap.add_argument("--rac-wad", type=Path, default=RAC_WAD, help="the edition's compressor (installer/core)")
     ap.add_argument("--work", type=Path, default=ROOT / "build/splice",
                     help="a folder for the compressor's files (the installer gives each build its own)")
@@ -439,14 +382,14 @@ def main() -> int:
     wad = Wad(args.rac_wad, args.work)
     if args.fonts_only:
         return paint_image(args.image, SECTION_NAMES, wad)
-    texture = args.texture or args.openrac / "assets/wrench/rac2-ntsc/moby_classes/unsorted/3696/0.png"
+    rac2 = args.rac2 or args.openrac / "games/rac2/ntsc/baserom/SCUS_972.68.iso"
     if not args.class_core.is_file():
         raise SystemExit(f"missing {args.class_core} (tools/gen_boots.py)")
     core_class = args.class_core.read_bytes()
-    width, height, pixels, colours = indexed_png(texture)
+    from rac2_anim import rac2_class_texture
+    width, height, pixels, palette = rac2_class_texture(rac2, RAC2_CLASS, decode=wad.decode)
     if width & (width - 1) or height & (height - 1) or width < 8:
-        raise SystemExit(f"{texture}: {width}x{height} is not a power-of-two texture")
-    palette = gs_palette(colours)
+        raise SystemExit(f"R&C2 class {RAC2_CLASS}'s texture is {width}x{height}, not a power-of-two texture")
 
     with args.image.open("r+b") as f:
         f.seek(0, 2)

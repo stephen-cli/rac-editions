@@ -8,10 +8,8 @@ image byte for byte.
 
   python tools/install.py [--rac1 RAC1.iso] [--rac2 RAC2.iso | --no-rac2] [-o OUT.iso | --in-place]
                           [--economy skill|classic] [--without SWITCH ...]
-                          [--payload build/payload] [--wrench DIR] [--unpacked DIR] [--core DIR]
-                          [--data DIR]
-  python tools/install.py --serve [--payload build/payload] [--wrench DIR] [--unpacked DIR] [--core DIR]
-                          [--data DIR]
+                          [--payload build/payload] [--core DIR] [--data DIR]
+  python tools/install.py --serve [--payload build/payload] [--core DIR] [--data DIR]
 
 The discs default to the OpenRAC checkout's baseroms beside rac-editions,
 the image to build/iso/executive-edition.iso; when an emulator has that
@@ -42,12 +40,11 @@ A feature left out loses its words, its holes stay zero, and its HelpDesk
 lines and its class are not added; the mod segment's ee_features word
 (src/features.c) says which features are in.
 
-The levels' data is compressed again, and the HelpDesk lines made, by the
-installer core's tools (--core: installer/core's build folder, with rac-wad
-and rac-vag). Until the edition's own converters replace them, the Charge
-Boots' and the sign's classes are still made with wrench (--wrench: the
-edition's fork, built) from wrench's unpacks of the two discs (--unpacked:
-OpenRAC's assets/wrench, with rac1-pal and rac2-ntsc in it).
+The heavy work is the installer core's, in C (--core: installer/core's build
+folder): rac-wad compresses the levels' data again, rac-vag makes the HelpDesk
+lines, and rac-moby converts the Charge Boots' class and rebuilds Kalebo III's
+sign. Everything the edition takes from the games is read from the player's
+discs.
 """
 import argparse
 import contextlib
@@ -69,12 +66,11 @@ COMMON = HERE.parents[2] / "common"
 sys.path.insert(0, str(COMMON))
 sys.path.insert(0, str(HERE))
 
+import core_tools  # noqa: E402
 import iso_image  # noqa: E402
 import payload  # noqa: E402
 
 EXE_NAME = "SCES_509.16;1"
-CORE_BUILD = ROOT.parents[1] / "installer/core/build"       # the installer core's tools: rac-wad, rac-vag
-EXE = ".exe" if sys.platform == "win32" else ""
 PROTOCOL = 1
 RESTORE_MAGIC = b"RCEDREST"
 
@@ -447,30 +443,31 @@ def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, jo
     py = sys.executable
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        unpacked = tools["unpacked"]
         sign = tmp / "gadgetron_sign.bin"
         boots = tmp / "charge_boots.bin"
         helpdesk = tmp / "helpdesk"
-        openrac = unpacked.parents[1]           # gen_boots and gen_sign find the unpacks there
-        rac_wad = tools["core"] / f"rac-wad{EXE}"
+        rac_wad = core_tools.tool("rac-wad", tools["core"])
+        rac_vag = core_tools.tool("rac-vag", tools["core"])
+        rac_moby = core_tools.tool("rac-moby", tools["core"])
         if "charge_boots" in on:
-            steps = [("gen_boots", [py, HERE / "gen_boots.py", "--openrac", openrac, "--wrench", tools["wrench"],
+            steps = [("gen_boots", [py, HERE / "gen_boots.py", "--rac1", rac1, "--rac2", discs["rac2"],
+                                    "--rac-moby", rac_moby, "--rac-wad", rac_wad,
                                     "-o", boots]),
-                     ("splice_boots", [py, HERE / "splice_boots.py", output, "--class-core", boots, "--texture",
-                                       unpacked / "rac2-ntsc/moby_classes/unsorted/3696/0.png",
-                                       "--rac-wad", rac_wad, "--work", tmp / "splice"], LEVEL_LINE)]
+                     ("splice_boots", [py, HERE / "splice_boots.py", output, "--class-core", boots,
+                                       "--rac2", discs["rac2"], "--rac-wad", rac_wad, "--work", tmp / "splice"],
+                      LEVEL_LINE)]
         else:
             steps = [("splice_fonts", [py, HERE / "splice_boots.py", output, "--fonts-only", "--rac-wad", rac_wad,
                                        "--work", tmp / "splice"], LEVEL_LINE)]
         steps += [
-            ("gen_sign", [py, HERE / "gen_sign.py", "--openrac", openrac, "--wrench", tools["wrench"],
-                          "--bank", unpacked / "rac1-pal", "-o", sign]),
+            ("gen_sign", [py, HERE / "gen_sign.py", "--rac1", rac1, "--rac-moby", rac_moby, "--rac-wad", rac_wad,
+                          "-o", sign]),
             ("splice_sign", [py, HERE / "splice_sign.py", output, "--class-core", sign, "--retail", rac1,
                              "--rac-wad", rac_wad, "--work", tmp / "splice"]),
             ("extra_classes", [py, HERE / "extra_classes.py", "splice", output, "--rac-wad", rac_wad,
                                "--work", tmp / "classes"], CLASS_OR_LEVEL_LINE),
             ("gen_helpdesk", [py, HERE / "gen_helpdesk.py", "--iso", rac1, "--recipes", pay / "helpdesk.json",
-                              "-o", helpdesk, "--c-out", tmp / "gen_helpdesk.c", "--rac-vag", tools["core"] / f"rac-vag{EXE}",
+                              "-o", helpdesk, "--c-out", tmp / "gen_helpdesk.c", "--rac-vag", rac_vag,
                               "--cache", tools["data"] / "helpdesk", "--no-preview"],
              (r"slot \d+:", len(json.loads((pay / "helpdesk.json").read_text())["lines"]))),
             ("splice_helpdesk", [py, HERE / "splice_helpdesk.py", output, "--audio", helpdesk]),
@@ -632,15 +629,14 @@ def main() -> int:
     ap.add_argument("--without", action="append", default=[], metavar="SWITCH",
                     help="a feature to leave out: edition.json's switches")
     ap.add_argument("--payload", type=Path, default=ROOT / "build/payload")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
-    ap.add_argument("--unpacked", type=Path, default=openrac / "assets/wrench")
-    ap.add_argument("--core", type=Path, default=CORE_BUILD, help="the installer core's built tools (rac-wad, rac-vag)")
+    ap.add_argument("--core", type=Path, default=core_tools.BUILD,
+                    help="the installer core's build folder, with its tools (rac-wad, rac-vag, rac-moby)")
     ap.add_argument("--data", type=Path, default=ROOT / "build/installer-data",
                     help="a folder the installer keeps between runs (the discs' hashes)")
     ap.add_argument("-o", "--output", type=Path, default=None)
     ap.add_argument("--in-place", action="store_true", help="make the PAL disc's image the edition")
     args = ap.parse_args()
-    tools = {"wrench": args.wrench, "unpacked": args.unpacked, "core": args.core, "data": args.data}
+    tools = {"core": args.core, "data": args.data}
     cache = HashCache(args.data)
     if args.serve:
         return serve(args.payload, tools, cache)

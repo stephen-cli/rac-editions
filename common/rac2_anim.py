@@ -101,21 +101,29 @@ class Iso9660:
 
 
 @functools.lru_cache(maxsize=2)
-def rac2_level(iso_path: Path, level: int) -> tuple[bytes, bytes]:
-    """R&C2 level LEVEL's core index and decoded core data, decoded once for every sequence and class read from it."""
+def rac2_level(iso_path: Path, level: int, decode=None) -> tuple[bytes, bytes, bytes]:
+    """R&C2 level LEVEL's core index, GS RAM image and decoded core data, read once for every sequence, class and
+    texture taken from it. The data archive's table holds (offset, size) pairs: the core index is the second
+    section, GS RAM the third, the core data the tenth. DECODE decodes a WAD stream (default: OpenRAC's decoder,
+    in Python; the installer passes its core's)."""
     sys.path.insert(0, str(EDITOR))
-    from level import decoded
+    from formats import wad
+
+    def decoded(raw: bytes) -> bytes:
+        return (decode or wad)(raw) if raw[:3] == b"WAD" else raw
+
     iso = Iso9660(iso_path)
     lba, _ = iso.find(f"G/LEVEL{level}.WAD")
     data_sector, _ = struct.unpack_from("<II", iso.read(lba, 0x60), 0x10)
     slots = struct.unpack_from("<24I", iso.read(lba, 0x60, data_sector * SECTOR), 0)
     index = iso.read(lba, slots[3], data_sector * SECTOR + slots[2])
-    return index, decoded(iso.read(lba, slots[19], data_sector * SECTOR + slots[18]))
+    gs_ram = decoded(iso.read(lba, slots[5], data_sector * SECTOR + slots[4]))
+    return index, gs_ram, decoded(iso.read(lba, slots[19], data_sector * SECTOR + slots[18]))
 
 
 def rac2_ratchet(iso_path: Path, level: int = 1):
     """(joint count, {slot: sequence bytes}) of R&C2's Ratchet from level LEVEL's archive."""
-    index, core = rac2_level(iso_path, level)
+    index, _, core = rac2_level(iso_path, level)
     table_at = u32(index, 0x78)
     offsets = struct.unpack_from("<256I", index, table_at)
     ends = sorted(o for o in offsets if o) + [len(core)]
@@ -332,16 +340,34 @@ def emit(args) -> int:
 
 # --- the gun-arm classes ------------------------------------------------------------
 
-def rac2_class(iso_path: Path, class_id: int, level: int = 1) -> bytes:
+def rac2_class(iso_path: Path, class_id: int, level: int = 1, decode=None) -> bytes:
     """Moby class CLASS_ID's blob from R&C2 level LEVEL: the core index's moby class
     table (+0x18: count, offset; 32-byte entries, core offset then class id), the blob
     ending where the next class starts."""
-    index, core = rac2_level(iso_path, level)
+    index, _, core = rac2_level(iso_path, level, decode)
     count, at = struct.unpack_from("<II", index, 0x18)
     table = [struct.unpack_from("<ii", index, at + 32 * i) for i in range(count)]
     starts = sorted({o for o, _ in table if o > 0}) + [len(core)]
     start = next(o for o, cid in table if cid == class_id)
     return core[start:starts[starts.index(start) + 1]]
+
+
+def rac2_class_texture(iso_path: Path, class_id: int, level: int = 1, decode=None) -> tuple[int, int, bytes, bytes]:
+    """(width, height, pixels, palette) of moby class CLASS_ID's first texture in R&C2 level LEVEL, as the level
+    holds them: 8-bit indices from the core data's textures (index +0x60 their base), and the 256-entry palette
+    from GS RAM as the GS reads it (CSM1 order, alpha 0..0x80). The class's texture slots are bytes at +16 of its
+    32-byte class table entry; a texture entry (index +0x38, 16 bytes) is {pixels' offset, width, height, mip
+    levels, palette's GS RAM address / 0x100}."""
+    index, gs_ram, core = rac2_level(iso_path, level, decode)
+    count, at = struct.unpack_from("<II", index, 0x18)
+    entry = next((index[at + 32 * i:at + 32 * (i + 1)] for i in range(count)
+                  if struct.unpack_from("<i", index, at + 32 * i + 4)[0] == class_id), None)
+    if entry is None:
+        raise SystemExit(f"R&C2 level {level} has no moby class {class_id}")
+    _, textures_at = struct.unpack_from("<II", index, 0x38)
+    offset, width, height, _, palette_at = struct.unpack_from("<iHHHH", index, textures_at + 16 * entry[16])
+    base = u32(index, 0x60) + offset
+    return width, height, core[base:base + width * height], gs_ram[palette_at * 0x100:palette_at * 0x100 + 0x400]
 
 
 def class_sequence(cls: bytes, slot: int):

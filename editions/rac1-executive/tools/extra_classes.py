@@ -126,6 +126,18 @@ def texture_size(w: int, h: int, mips: int) -> int:
     return sum((w >> i) * (h >> i) for i in range(max(mips, 1)))
 
 
+def disc_class(iso: Path, level: int, cid: int, decode) -> tuple[bytes, list]:
+    """CID's blob and its textures (class_source) as level LEVEL holds them on the PAL disc ISO; DECODE decodes
+    the level's core data (Wad.decode)."""
+    sys.path.insert(0, str(EDITOR))
+    from level import SECTION_NAMES
+    with iso.open("rb") as f:
+        _, lba, sectors = level_archives(f)[level]
+        f.seek(lba * SECTOR)
+        _, data, _ = parts(f.read(sectors * SECTOR), SECTION_NAMES)
+    return class_source(decode(data["core_data"]), data["core_index"], data["gs_ram"], cid, level)
+
+
 def class_source(core: bytes, index: bytes, gs: bytes, cid: int, level: int):
     """CID's blob and its textures, from a level that has it: [(entry, pixels, palette, upload)]."""
     _, _, classes = table(index, 0x18, 32)

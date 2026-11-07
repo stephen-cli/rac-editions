@@ -52,12 +52,13 @@ import argparse
 import hashlib
 import json
 import struct
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[2] / "common"))
+import core_tools  # noqa: E402
 ROOT = HERE.parent
 SECTOR = 2048
 TOC_LBA = 1500
@@ -65,7 +66,6 @@ HELP_AUDIO = 0x1AB8
 LINES_PER_LANGUAGE = 150
 VAG_HEADER = 0x30
 ENCODER_VERSION = 1     # change when the rendering or the encoder (installer/core/vag.c) changes: invalidates the cache
-RAC_VAG = ROOT.parents[1] / "installer/core/build" / ("rac-vag.exe" if sys.platform == "win32" else "rac-vag")
 USES = ("future", "strafe", "strafe_future")
 
 
@@ -111,7 +111,7 @@ def main() -> int:
     ap.add_argument("--c-out", type=Path, default=ROOT / "build/modseg/gen_helpdesk.c")
     ap.add_argument("--cache", type=Path, help="the made lines, kept between builds (default: OUT/cache)")
     ap.add_argument("--no-preview", action="store_true", help="no WAV previews of the lines (the installer's builds)")
-    ap.add_argument("--rac-vag", type=Path, default=RAC_VAG, help="the installer core's audio tool")
+    ap.add_argument("--rac-vag", type=Path, default=core_tools.tool("rac-vag"), help="the installer core's audio tool")
     args = ap.parse_args()
 
     recipes = json.loads(args.recipes.read_text(encoding="utf-8"))
@@ -156,9 +156,7 @@ def main() -> int:
                 if not args.no_preview:
                     jobs.append(f"preview {preview / f'{stem}.wav'}")
             (tmp / "jobs.txt").write_text("\n".join(jobs) + "\n")
-            result = subprocess.run([str(args.rac_vag), str(tmp / "jobs.txt")], capture_output=True, text=True)
-            if result.returncode != 0:
-                raise SystemExit(f"rac-vag failed: {result.stdout}{result.stderr}")
+            core_tools.run(args.rac_vag, tmp / "jobs.txt")
         for _, cached, _ in build:
             cached.with_suffix(".part").replace(cached)
     for e, cached, stem in made:

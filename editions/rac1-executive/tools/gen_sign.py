@@ -6,8 +6,9 @@ from the PAL disc's own GALACTRON sign.
 The sign is moby class 1891, which only Kalebo III holds: a half ring of nine
 3D letters, placed twice back to back to make the ring the level turns. The
 PAL release spells GALACTRON and has no other copy of the word on the disc,
-so the class is rebuilt here from the owner's PAL class (wrench's unpack of
-the disc), nothing from any other disc:
+so the class is rebuilt here from the player's PAL class (read from Kalebo
+III's data on the disc, its mesh exported by the installer core's rac-moby),
+nothing from any other disc:
 
   * Each letter is a flat plate, extruded radially: a front face (texture 1),
     a back face and side walls (texture 0), flat-shaded, each quad mapped onto
@@ -30,9 +31,10 @@ the disc), nothing from any other disc:
     the outer one centred 0.437 right of the stem with a half width of 0.532
     and the full height, the inner one 0.405 and 0.367 between the bars.
 
-wrench's mobyconvert (the edition's wrench fork, --mesh) packs the new mesh
-into both of the class's LODs, keeping the rest of the class and retail's
-packet conventions; the class's bounding spheres (header +0x30 and its one
+The installer core's rac-moby (--mesh; installer/core/moby_mesh.c, written
+from wrench's moby engine and the edition's wrench fork's mobyconvert) packs
+the new mesh into both of the class's LODs, keeping the rest of the class and
+retail's packet conventions; the class's bounding spheres (header +0x30 and its one
 sequence's) are recomputed here as the smallest sphere around the vertices,
 which is how retail's agree to 0.03%. The result is read back with OpenRAC's
 moby reader and checked.
@@ -41,7 +43,7 @@ Writes build/sign/gadgetron_sign.bin (the class core, which
 tools/splice_sign.py splices into Kalebo III) and build/sign/gadgetron_sign.glb
 (the mesh, for viewing).
 
-  python tools/gen_sign.py [--openrac DIR] [--wrench DIR] [-o build/sign/gadgetron_sign.bin]
+  python tools/gen_sign.py [--rac1 SCES_509.16.iso] [--rac-moby EXE] [--rac-wad EXE] [-o build/sign/gadgetron_sign.bin]
 """
 import argparse
 import bisect
@@ -49,15 +51,20 @@ import json
 import math
 import random
 import struct
-import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 EDITOR = HERE.parents[2] / "common/openrac_editor"   # OpenRAC's disc readers, carried (common/deps.py)
 ROOT = HERE.parent
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parents[2] / "common"))
+import core_tools  # noqa: E402
+from extra_classes import disc_class  # noqa: E402
+from splice_boots import Wad  # noqa: E402
 CLASS_ID = 1891
-CLASS_DIR = "moby_classes/prop/1891_gadgetron_sign"
+LEVEL = 16                          # Kalebo III, the only level with the sign
 
 # The PAL sign's letters, by the angle (degrees, atan2(z, x) in wrench's glb axes, y up) of
 # their strips' mean vertex; the word reads towards decreasing angles. Triangle counts check
@@ -118,7 +125,7 @@ def read_glb(path: Path) -> list[dict]:
 
 def write_glb(path: Path, strips: list[dict]) -> None:
     """Strips as one mesh 'moby' (node 'moby'), a triangle strip per primitive, the way
-    wrench's unpack writes a moby class, which mobyconvert --mesh reads back."""
+    wrench's unpack writes a moby class, which rac-moby --mesh reads back."""
     blob = bytearray()
     views, accessors, primitives = [], [], []
     materials = sorted({s["material"] for s in strips})
@@ -390,35 +397,30 @@ def enclosing_sphere(points):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
-    ap.add_argument("--bank", type=Path, default=None,
-                    help="wrench unpack of the PAL disc (default OpenRAC/assets/wrench/rac1-pal)")
+    ap.add_argument("--rac1", type=Path, default=ROOT.parents[2] / "OpenRAC/games/rac1/baserom/SCES_509.16.iso",
+                    help="the PAL disc")
+    ap.add_argument("--rac-moby", type=Path, default=core_tools.tool("rac-moby"),
+                    help="the installer core's moby class tool")
+    ap.add_argument("--rac-wad", type=Path, default=core_tools.tool("rac-wad"), help="the installer core's WAD codec")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/sign/gadgetron_sign.bin")
     args = ap.parse_args()
 
-    src = (args.bank or args.openrac / "assets/wrench/rac1-pal") / CLASS_DIR
-    for need in ("core.bin", "mesh.glb"):
-        if not (src / need).is_file():
-            raise SystemExit(f"missing {src / need} (wrench unpack of the PAL disc)")
-    convert = args.wrench / "bin/mobyconvert.exe"
-    if not convert.is_file():
-        raise SystemExit(f"missing {convert} (the edition's wrench fork, branch executive-edition)")
-
-    strips = build_word(read_glb(src / "mesh.glb"))
-    view = args.out.parent                  # the mesh for viewing goes beside the class core
+    view = args.out.parent                  # the meshes for viewing go beside the class core
     view.mkdir(parents=True, exist_ok=True)
-    glb = view / "gadgetron_sign.glb"
-    write_glb(glb, strips)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        wad = Wad(args.rac_wad, tmp)
+        blob, textures = disc_class(args.rac1, LEVEL, CLASS_ID, wad.decode)
+        retail = tmp / "retail_sign.bin"
+        retail.write_bytes(blob)
+        retail_glb = view / "galactron_sign.glb"
+        core_tools.run(args.rac_moby, "mesh", retail, "rac", retail_glb, "--textures", len(textures))
 
-    core = args.out
-    core.parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run([str(convert), str(src / "core.bin"), "rac", str(core), "rac", "--mesh", str(glb)],
-                            capture_output=True, text=True)
-    sys.stdout.write(result.stdout)
-    if result.returncode != 0:
-        sys.stderr.write(result.stderr)
-        raise SystemExit("mobyconvert failed")
+        strips = build_word(read_glb(retail_glb))
+        glb = view / "gadgetron_sign.glb"
+        write_glb(glb, strips)
+        core = args.out
+        core_tools.run(args.rac_moby, "convert", retail, "rac", core, "rac", "--mesh", glb)
 
     # Bounding spheres: the class's (+0x30) and its sequences' (each sequence starts with one),
     # in vertex units, from OpenRAC's reading of the new class.
@@ -451,7 +453,7 @@ def main() -> int:
                           struct.unpack_from("<I", data, table + 0x1C)[0])
         if any(data[table + mult + 4 * transfer:table + size]):
             raise SystemExit(f"gen_sign: packet {i}'s colour multipliers are not padded with zeros"
-                             " (wrench fork too old?)")
+                             " (rac-moby too old?)")
     check = moby_class(bytes(data), bytes(range(16)), "sign").mesh
     expected = sum(map(strip_triangles, strips))
     if check.triangles != expected:
