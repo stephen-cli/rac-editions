@@ -15,12 +15,13 @@ holds only the editions' code, tools and notes, never game data.
 
 ```
 editions/    one folder per edition: its code (src/), pipeline (tools/), data, docs
-common/      tools the editions share: rac2_anim.py (Going Commando's packed animations), wsl_linux_run.sh (runs Linux
+common/      tools the editions share: rac2_anim.py (Going Commando's packed animations, and its levels' classes
+             and textures), core_tools.py (runs the installer core's tools), wsl_linux_run.sh (runs Linux
              assemblers through WSL), deps.py (the pinned dependencies, below),
              check_game_data.py (refuses game data in the repository),
              openrac_editor/ (OpenRAC's disc readers, carried unchanged)
-installer/   the end-user tool that makes an edition from your disc images (planned)
-deps.json    the OpenRAC and wrench commits the editions build against
+installer/   the end-user tool that makes an edition from your disc images; core/ its C core
+deps.json    the OpenRAC commit the editions build against
 ```
 
 ## The installer
@@ -39,20 +40,18 @@ out entirely; give it Going Commando as well and they are built in.
 ## Building an edition (development)
 
 Each edition's README lists the discs and software it needs and the steps.
-The editions' forks of [OpenRAC](https://github.com/stephen-cli/OpenRAC) and
-[wrench](https://github.com/stephen-cli/wrench) sit beside this repository
-(`OPENRAC` and `WRENCH` point elsewhere), checked out at the commits
+The editions' fork of [OpenRAC](https://github.com/stephen-cli/OpenRAC) sits
+beside this repository (`OPENRAC` points elsewhere), checked out at the commit
 [deps.json](deps.json) pins:
 
 ```
 C:\rac\OpenRAC
-C:\rac\wrench
 C:\rac\rac-editions
 ```
 
-`python common/deps.py check` says whether the checkouts are at the pins and
-the pins are pushed; each edition's build runs it first. Only building needs
-these checkouts. The OpenRAC modules that read the discs are carried in
+`python common/deps.py check` says whether the checkout is at the pin and the
+pin is pushed; each edition's build runs it first. Only building needs this
+checkout. The OpenRAC modules that read the discs are carried in
 [common/openrac_editor](common/openrac_editor/README.md), copied unchanged
 from the pinned commit with the helpers and game manifests they read, so the
 installer needs no OpenRAC. To move to

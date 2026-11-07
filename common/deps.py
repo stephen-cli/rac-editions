@@ -2,19 +2,19 @@
 """
 The editions' pinned dependencies (deps.json) and the OpenRAC code they carry.
 
-Building an edition needs OpenRAC and the editions' wrench fork checked out
-beside this repository, at the commits deps.json pins. Making an edition from
+Building an edition needs OpenRAC checked out beside this repository, at the
+commit deps.json pins. Making an edition from
 a player's discs needs neither: the few OpenRAC modules that read the discs
 are carried in common/openrac_editor, copied from the pinned commit.
 
   # checkouts at the pins? pins pushed? copies as at the pin?
-  python common/deps.py check  [--openrac DIR] [--wrench DIR] [--strict]
+  python common/deps.py check  [--openrac DIR] [--strict]
   # pin the checkouts' current HEADs
-  python common/deps.py lock   [--openrac DIR] [--wrench DIR]
+  python common/deps.py lock   [--openrac DIR]
   # copy the carried modules from the pinned OpenRAC commit
   python common/deps.py vendor [--openrac DIR]
 
-OPENRAC and WRENCH override the default checkouts (../OpenRAC, ../wrench).
+OPENRAC overrides the default checkout (../OpenRAC).
 check exits 1 when a carried module differs from the pinned commit's; with
 --strict (CI), also when a checkout is missing or a pin is on no remote branch.
 """
@@ -129,11 +129,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("command", choices=["check", "lock", "vendor"])
     ap.add_argument("--openrac", type=Path, default=Path(os.environ.get("OPENRAC") or ROOT.parent / "OpenRAC"))
-    ap.add_argument("--wrench", type=Path, default=Path(os.environ.get("WRENCH") or ROOT.parent / "wrench"))
     ap.add_argument("--strict", action="store_true", help="check: a missing checkout or an unpushed pin fails too")
     args = ap.parse_args()
     deps = json.loads(DEPS.read_text())
-    dirs = {"openrac": args.openrac, "wrench": args.wrench}
+    dirs = {"openrac": args.openrac}
     if args.command == "check":
         return check(deps, dirs, args.strict)
     return {"lock": lock, "vendor": vendor}[args.command](deps, dirs)

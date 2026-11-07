@@ -101,18 +101,16 @@ has every change in full detail, with its status.
 | [Python](https://www.python.org/) 3.10 or newer | every pipeline step |
 | The edition's fork of [OpenRAC](https://github.com/OpenRAC/OpenRAC): [stephen-cli/OpenRAC](https://github.com/stephen-cli/OpenRAC), branch `executive-edition` | builds the game's executable from source |
 | The SN ProDG toolchain mirrors: [SN-Systems-ProDG_for_PS2_3.01](https://github.com/AngheloAlf/SN-Systems-ProDG_for_PS2_3.01) and [sce_ps2_sdk_24](https://github.com/AngheloAlf/sce_ps2_sdk_24) | the PS2 compiler, assembler and linker the game was built with |
-| The edition's fork of [wrench](https://github.com/chaoticgd/wrench): [stephen-cli/wrench](https://github.com/stephen-cli/wrench), branch `executive-edition` | unpacks the discs, converts the R&C2 boots to R&C1's format, compresses level data |
-| [CMake](https://cmake.org/), [Ninja](https://ninja-build.org/) and a C++20 compiler ([MinGW-w64 GCC](https://winlibs.com/)) | to build wrench |
+| [CMake](https://cmake.org/), [Ninja](https://ninja-build.org/) and a C11 compiler ([Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) or GCC) | to build the installer core, which compresses the levels' data, makes the HelpDesk lines and converts the boots and the sign |
 | [PCSX2](https://pcsx2.net/) (optional) | to play the result |
 
 ## Build the edition, step by step
 
-Put the three repositories side by side, in a short path (the PS2 toolchain's
+Put the two repositories side by side, in a short path (the PS2 toolchain's
 `make` fails on long paths):
 
 ```
 C:\rac\OpenRAC
-C:\rac\wrench
 C:\rac\rac-editions
 ```
 
@@ -121,14 +119,13 @@ C:\rac\rac-editions
 ```sh
 cd /c/rac
 git clone -c core.autocrlf=false -b executive-edition https://github.com/stephen-cli/OpenRAC.git OpenRAC
-git clone -c core.autocrlf=false -b executive-edition https://github.com/stephen-cli/wrench.git wrench
 git clone https://github.com/stephen-cli/rac-editions.git rac-editions
-python rac-editions/common/deps.py check   # both at the commits rac-editions/deps.json pins?
+python rac-editions/common/deps.py check   # at the commit rac-editions/deps.json pins?
 ```
 
 `core.autocrlf=false` matters: Windows line endings break OpenRAC's linker
 script. If `check` names a different commit, check it out:
-`git -C OpenRAC checkout <commit>` (or `wrench`).
+`git -C OpenRAC checkout <commit>`.
 
 **2. Give OpenRAC your discs and the toolchain.**
 
@@ -148,17 +145,7 @@ python tools/overlays.py dump              # extracts each level's code from you
 cd /c/rac
 ```
 
-**3. Build wrench and unpack both discs with it.**
-
-```sh
-git -C wrench submodule update --init --recursive
-cmake -S wrench -B wrench/bin -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build wrench/bin
-wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac1/baserom/SCES_509.16.iso -o OpenRAC/assets/wrench/rac1-pal
-wrench/bin/wrenchbuild.exe unpack OpenRAC/games/rac2/ntsc/baserom/SCUS_972.68.iso -o OpenRAC/assets/wrench/rac2-ntsc
-```
-
-**4. Build the installer core and the edition.**
+**3. Build the installer core and the edition.**
 
 ```sh
 cd rac-editions
@@ -170,7 +157,8 @@ python editions/rac1-executive/tools/install.py
 
 The installer core (`installer/core`, C) holds the tools `install.py` runs
 for the heavy work: `rac-wad` compresses the levels' data, `rac-vag` makes the
-HelpDesk lines. `release.py` takes about five minutes. It compiles the game
+HelpDesk lines, `rac-moby` converts the Charge Boots from Going Commando and
+rebuilds Kalebo III's sign. `release.py` takes about five minutes. It compiles the game
 from source, checks it against your disc, builds the edition's code and
 writes what a release ships to `build/payload`. `install.py` makes the disc
 image from that and your two discs, as a player's installer does, in about a
@@ -184,7 +172,7 @@ If PCSX2 has that image open, `install.py` writes `executive-edition-2.iso`
 (and so on) beside it instead. `install.py --economy classic` builds
 retail's Challenge Mode economy.
 
-**5. Play.** Open `executive-edition.iso` in PCSX2 like any disc (you need
+**4. Play.** Open `executive-edition.iso` in PCSX2 like any disc (you need
 your own PS2 BIOS), or burn it to a DVD for a real PS2.
 
 ## How the image is built

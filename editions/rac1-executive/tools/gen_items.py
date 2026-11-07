@@ -169,7 +169,7 @@ def main() -> int:
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/modseg")
     ap.add_argument("--boots-class", type=int, default=None,
-                    help="moby class of the Charge Boots model (tools/gen_boots.py's, wrench route); "
+                    help="moby class of the Charge Boots model (tools/gen_boots.py's); "
                          "default: the Grindboots' (0xC3), for images without the new class")
     args = ap.parse_args()
     pal = args.openrac / "games/rac1"

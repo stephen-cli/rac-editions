@@ -30,10 +30,5 @@
         "games/rac4/game.json": "games/rac4/game.json"
       }
     }
-  },
-  "wrench": {
-    "url": "https://github.com/stephen-cli/wrench",
-    "branch": "executive-edition",
-    "commit": "92aa2f933d8d43879cbc4850031625b4d4108267"
   }
 }

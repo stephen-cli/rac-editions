@@ -8,7 +8,7 @@ then what ships is written to build/payload with every byte taken from a
 disc cut out. tools/install.py makes the image from the payload and the
 player's discs.
 
-  python tools/release.py [--openrac DIR] [--wrench DIR] [--skip-build] [-o build/payload]
+  python tools/release.py [--openrac DIR] [--skip-build] [-o build/payload]
 
 --skip-build packages the outputs of the last build as they are.
 
@@ -70,12 +70,12 @@ def windows_build_env(openrac: Path) -> dict:
     return env
 
 
-def build(openrac: Path, wrench: Path) -> None:
+def build(openrac: Path) -> None:
     """The decompilation, the generated tables, the mod segment, the boot executable and the level-code
     patches, as the developer build makes them."""
     pal = openrac / "games/rac1"
     py = sys.executable
-    run(py, COMMON / "deps.py", "check", "--openrac", openrac, "--wrench", wrench)
+    run(py, COMMON / "deps.py", "check", "--openrac", openrac)
     env = windows_build_env(openrac) if os.name == "nt" else None
     # By PATH: Windows would otherwise start System32's bash.exe, which is WSL's, before Git Bash's.
     run(shutil.which("bash"), "tools/build_sn.sh", cwd=pal, env=env)
@@ -165,12 +165,11 @@ def exe_words(retail_exe: bytes, base: int, modseg: bytes, final: bytes) -> list
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--openrac", type=Path, default=ROOT.parents[2] / "OpenRAC")
-    ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
     ap.add_argument("--skip-build", action="store_true")
     ap.add_argument("-o", "--out", type=Path, default=ROOT / "build/payload")
     args = ap.parse_args()
     if not args.skip_build:
-        build(args.openrac, args.wrench)
+        build(args.openrac)
 
     discs = {"rac1": args.openrac / RAC1_ISO, "rac2": args.openrac / RAC2_ISO}
     modseg_dir = ROOT / "build/modseg"

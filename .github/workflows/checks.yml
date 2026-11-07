@@ -45,11 +45,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - name: Fetch OpenRAC and wrench without their files
+      - name: Fetch OpenRAC without its files
         run: |
           # Blobless clones: deps.py reads only history and the few carried files.
           pin() { python -c "import json,sys; d=json.load(open('deps.json'))['$1']; print(d[sys.argv[1]])" "$2"; }
-          for dep in openrac wrench; do
+          for dep in openrac; do
             dir="$RUNNER_TEMP/$dep"
             git clone --quiet --filter=blob:none --no-checkout "$(pin $dep url)" "$dir"
             # HEAD at the pin when it exists, so deps.py reports the pin itself.
@@ -59,7 +59,7 @@ jobs:
           done
           git -C "$RUNNER_TEMP/openrac" fetch --quiet --filter=blob:none https://github.com/OpenRAC/OpenRAC master:refs/upstream/master
       - name: deps.json's pins exist and are pushed, and common/openrac_editor matches the pin
-        run: python common/deps.py check --strict --openrac "$RUNNER_TEMP/openrac" --wrench "$RUNNER_TEMP/wrench"
+        run: python common/deps.py check --strict --openrac "$RUNNER_TEMP/openrac"
       - name: The OpenRAC patch is what the pin carries, and applies to OpenRAC master
         run: |
           repo="$RUNNER_TEMP/openrac"
