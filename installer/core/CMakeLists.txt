@@ -14,7 +14,10 @@ function(strict_warnings target)
         target_compile_options(${target} PRIVATE /W4 /WX /utf-8)
         target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
     else()
-        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+        # No fused multiply-adds, so every platform rounds the float maths (the sign's mesh, the HelpDesk mix, the
+        # HUD palettes) alike and makes the same image: clang fuses by default, and arm64 always has FMA. MSVC
+        # fuses only with /fp:contract.
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror -ffp-contract=off)
         # fseeko and ftello with 64-bit offsets on 32-bit systems
         target_compile_definitions(${target} PRIVATE _FILE_OFFSET_BITS=64 _POSIX_C_SOURCE=200809L)
         if(APPLE)
@@ -93,12 +96,9 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/moby.c)
     target_include_directories(moby PUBLIC .)
     strict_warnings(moby)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/moby_mesh.c)
-        # wrench's mesh export and packet builder, its float maths reproduced bit for bit: no fused multiply-adds
+        # wrench's mesh export and packet builder, its float maths reproduced bit for bit
         target_sources(moby PRIVATE moby_mesh.c)
         target_link_libraries(moby PRIVATE rac_json)
-        if(NOT MSVC)
-            set_source_files_properties(moby_mesh.c PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
-        endif()
     endif()
     if(NOT MSVC)
         target_link_libraries(moby PUBLIC m)
@@ -125,11 +125,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/vag.c)
     endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/levels.c)
         # the levels' patch step: one pass over the 19 levels' data, with Kalebo III's sign made from the PAL disc
-        # (its float maths reproduced bit for bit, as moby_mesh.c's: no fused multiply-adds)
         target_sources(rac_core PRIVATE levels.c sign.c)
-        if(NOT MSVC)
-            set_source_files_properties(sign.c PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
-        endif()
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tools/rac-levels.c)
             add_executable(rac-levels tools/rac-levels.c)
             target_link_libraries(rac-levels PRIVATE rac_core)
