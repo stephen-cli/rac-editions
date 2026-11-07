@@ -112,6 +112,11 @@ LEVEL_DATA = {
     # x1: the level's mission states (D_L00_0015FD48 in level 0: a byte per mission, 0xFF once done), from the
     # bolt drop's lui/addiu (func_L00_00261B00, which tests a moby's mission there for the anti-farm limiter)
     "mission_state": ("func_L00_00261B00", 0xA4, 0xA8),
+    # rz: the level's moby array record (D_00160058 in most levels, D_L00_00160098 in levels 0, 5, 14 and 16: the
+    # table at +0, the end of the placed mobys at +4, the end of the array, spawned mobys included, at +0x10), from
+    # CreateMoby's lui/lw pairs of +4 and +0x10
+    "mobys_placed_end": ("func_0020D348", 0x14, 0x18),
+    "mobys_end": ("func_0020D348", 0x7C, 0x80),
 }
 # Where the title screen's programs have the data, for LEVEL_DATA entries read from a level's
 # own function: the executable function that addresses it there (its address is the same in both).

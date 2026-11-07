@@ -524,7 +524,7 @@ s32 ee_rz_gold_count_c(s32 L)
  * 353, uid 800): in retail the last gadgebot lock (uid 261, ten gadgebots) mans a turret (class 1346,
  * LinkedTurretUpdate) that shoots the Blarg ships and a wall, then opens that gate; the ships and the wall can
  * stay, and Ratchet leaves the room another way. The search covers every moby the level placed (the table
- * from MOBY_TABLE to LEVEL_MOBYS_END), not the update list: a moby joins that list at its first update, and the
+ * from MOBY_TABLE to MOBYS_PLACED_END), not the update list: a moby joins that list at its first update, and the
  * gadgebot door and Clank, too far from the landing site, had not had one yet.
  *
  * The Clank section's lab doors (class 1015, HeightGlideUpdate, func_L10_002DA468) open when a gadgebot lock
@@ -534,7 +534,6 @@ s32 ee_rz_gold_count_c(s32 L)
  * own first update, and the door behind lock 66 (uid 1) had not had it when its lock fired: it stayed shut for
  * good, and the Magneboots and Pokitaru's infobot behind it out of Ratchet's reach. So with the mask early every
  * lab door in state 2 is opened (open_lab_door). */
-#define LEVEL_MOBYS_END (*(volatile u32 *)0x0016005C)     /* the end of the level's placed mobys; spawned ones follow */
 #define LAB_DOOR_CLASS  1015
 #define DOOR_SHUT       2
 #define DOOR_RISING     3
@@ -542,7 +541,7 @@ s32 ee_rz_gold_count_c(s32 L)
 static void delete_mobys_with_uid(s32 uid, s32 L)
 {
     u32 moby;
-    for (moby = MOBY_TABLE; moby < LEVEL_MOBYS_END; moby += MOBY_SIZE) {
+    for (moby = MOBY_TABLE(L); moby < MOBYS_PLACED_END(L); moby += MOBY_SIZE) {
         if (MOBY_STATE(moby) >= 0 && MOBY_UID(moby) == uid) {
             LVL(L, func_0020D678, DeleteFn)((void *)moby);
         }
@@ -630,9 +629,9 @@ static s32 class_listed(s32 L, s32 class_id)
  * sells, and the rail lift back to the ship, which she is linked to, only gets its trigger volume at the purchase
  * (and is started outright by her on a later visit, once the Swingshot is owned and she goes). With her check
  * giving something else, the lift is started outright at the purchase too. */
-static void start_helga_lift(s32 lift_index)
+static void start_helga_lift(s32 lift_index, s32 L)
 {
-    u8 *lift = (u8 *)MOBY_TABLE + MOBY_SIZE * lift_index;
+    u8 *lift = (u8 *)MOBY_TABLE(L) + MOBY_SIZE * lift_index;
     if (MOBY_CLASS(lift) == LIFT_CLASS) {
         *(volatile s32 *)(MOBY_PVARS(lift) + LIFT_AUTOSTART) = 1;
     }
@@ -681,7 +680,7 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
     }
     rz_world_after(moby, L);
     if (helga_lift >= 0 && granted == rz_check_for_vanilla(RZ_SWINGSHOT) && !INVENTORY[SWINGSHOT_ID]) {
-        start_helga_lift(helga_lift);
+        start_helga_lift(helga_lift, L);
     }
     granted = -1;
 }

@@ -4909,3 +4909,17 @@ no foot slides: wading back plays the dry-ground backward step at the wading
 speed (`wade_anim`, from the lean helper's hook, which the shared movement
 case runs every frame), and the wade cycle returns when the backward stick
 or the strafe ends.
+
+## rz: the moby array in each level's own place (2026-11-07) — built; awaiting test
+
+The moby array's record (the table, the end of the placed mobys at + 4, the end
+of the array at + 0x10) is not at one address: each level program relinks that
+data, and levels 0, 5, 14 and 16 have it at 0x160098 instead of 0x160058. The
+edition read it at fixed addresses (`MOBY_TABLE` 0x160058, 0x16005C, 0x160068),
+so on Veldin 1, Rilgar, Oltanis and Kalebo III a stand-in that lost its host
+scanned a "moby" at address 0, whose pvars word at 0x78 is the kernel's
+TLB-refill code on the console, and followed it as a pointer. The addresses now
+come from CreateMoby's lui/lw pairs in each level (`LEVEL_DATA`
+`mobys_placed_end` and `mobys_end`, tools/modseg.py). A black screen after a
+death on Oltanis in a Randomizer save matches this; PCSX2 holds zeros there and
+does not hang, so the console has not confirmed it yet.

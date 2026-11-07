@@ -60,8 +60,16 @@
 #define MOBY_PVARS(m)   (*(volatile u32 *)((u8 *)(m) + 0x78))
 #define MOBY_CLASS(m)   (*(volatile u16 *)((u8 *)(m) + 0xA6))   /* oclass */
 #define MOBY_UID(m)     (*(volatile u16 *)((u8 *)(m) + 0xB2))   /* the level instance's uid, its save id */
-#define MOBY_TABLE      (*(volatile u32 *)0x00160058)          /* the level's mobys, MOBY_SIZE apart */
 #define MOBY_SIZE       0x100
+
+/* The level's moby array, MOBY_SIZE apart: a record each level program has at its own address (tools/modseg.py),
+ * the table first, then the end of the mobys the level placed (spawned ones follow), and at + 0x10 the end of the
+ * array. */
+DECLARE_LVL_DATA(mobys_placed_end);
+DECLARE_LVL_DATA(mobys_end);
+#define MOBYS_PLACED_END(L) (*LVL_DATA(L, mobys_placed_end, volatile u32 *))
+#define MOBY_TABLE(L)       (LVL_DATA(L, mobys_placed_end, volatile u32 *)[-1])
+#define MOBYS_END(L)        (*LVL_DATA(L, mobys_end, volatile u32 *))
 
 /* --- the game's functions, as the hooks call them (each program has its own copy: LVL) ------------------------ */
 

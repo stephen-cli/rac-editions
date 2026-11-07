@@ -85,8 +85,6 @@ typedef void (*LoadFn)(s32, s32);
 #define FLAG_STILL      0x40            /* its animation is not advanced (MobyUpdateLoop) */
 #define MOBY_PREV_SEQ(m) (*(volatile u8 *)((u8 *)(m) + 0x53))
 #define CLASS_SEQ_COUNT 0xC             /* the class header's number of sequences */
-#define LEVEL_MOBYS_END (*(volatile u32 *)0x0016005C)  /* the end of the level's placed mobys; spawned ones follow */
-#define MOBYS_END       (*(volatile u32 *)0x00160068)  /* the end of the moby array, spawned mobys included */
 #define MOBY_FREE_TAIL  0xFF            /* the state of the first slot of the array's free tail */
 #define FRAME_TIME      (*(volatile f32 *)0x0015EE6C)  /* g_frame_time: a frame's seconds */
 #define HERO_POS        ((volatile f32 *)(HERO_BASE + 0x80))
@@ -378,11 +376,12 @@ static s32 holds(u8 *m, void *host, u32 mark)
     return mark_of(m) == mark && MOBY_PARENT(m) == host;
 }
 
-/* The live moby with MARK naming HOST as its spawner, wherever it is now; 0 for none. */
-static u8 *find_by_host(void *host, u32 mark)
+/* The live moby with MARK naming HOST as its spawner, wherever it is now in level L; 0 for none. */
+static u8 *find_by_host(void *host, u32 mark, s32 L)
 {
     u32 moby;
-    for (moby = LEVEL_MOBYS_END; moby < MOBYS_END && (u8)MOBY_STATE(moby) != MOBY_FREE_TAIL; moby += MOBY_SIZE) {
+    for (moby = MOBYS_PLACED_END(L); moby < MOBYS_END(L) && (u8)MOBY_STATE(moby) != MOBY_FREE_TAIL;
+         moby += MOBY_SIZE) {
         if (holds((u8 *)moby, host, mark)) {
             return (u8 *)moby;
         }
@@ -413,16 +412,16 @@ static struct StandIn *entry_of(u16 key)
     return free_entry;
 }
 
-/* M, a part of a stand-in marked MARK, now hosted by HOST: 0 when the game has removed it; when the host moved to
- * HOST from OLD_HOST, the part is found by the old address and follows. */
-static u8 *follow(u8 *m, u32 mark, void *old_host, void *host)
+/* M, a part of a stand-in marked MARK, now hosted by HOST in level L: 0 when the game has removed it; when the host
+ * moved to HOST from OLD_HOST, the part is found by the old address and follows. */
+static u8 *follow(u8 *m, u32 mark, void *old_host, void *host, s32 L)
 {
     if (m != 0 && holds(m, host, mark)) {
         return m;
     }
     m = 0;
     if (old_host != 0 && old_host != host) {
-        m = find_by_host(old_host, mark);
+        m = find_by_host(old_host, mark, L);
         if (m != 0) {
             MOBY_PARENT(m) = host;
         }
@@ -430,11 +429,11 @@ static u8 *follow(u8 *m, u32 mark, void *old_host, void *host)
     return m;
 }
 
-/* E's stand-in, now hosted by HOST: 0 when there is none or the game has removed it. */
-static u8 *live(struct StandIn *e, void *host)
+/* E's stand-in, now hosted by HOST in level L: 0 when there is none or the game has removed it. */
+static u8 *live(struct StandIn *e, void *host, s32 L)
 {
-    e->model = follow(e->model, e->mark, e->host, host);
-    e->body = follow(e->body, BODY_MARK, e->host, host);
+    e->model = follow(e->model, e->mark, e->host, host, L);
+    e->body = follow(e->body, BODY_MARK, e->host, host, L);
     e->host = host;
     return e->model;
 }
@@ -445,7 +444,7 @@ static void drop(u16 key, void *host, s32 L)
     if (e == 0) {
         return;
     }
-    if (live(e, host) != 0) {
+    if (live(e, host, L) != 0) {
         LVL(L, func_0020D678, DeleteFn)(e->model);
     }
     if (e->body != 0) {
@@ -554,7 +553,7 @@ static void move(u8 *m, s32 motion, void *host)
                                          * update ran on the galactic map, far from Ratchet, and crashed there */
 static void carry_bolt(struct StandIn *e, void *host, s32 L)
 {
-    u8 *m = live(e, host);
+    u8 *m = live(e, host, L);
     if (m == 0) {
         e->mark = BOLT_MARK;
         m = e->model = make_part(GOLD_CLASS, BOLT_MARK, host, L);
@@ -656,7 +655,7 @@ static void carry(u16 key, void *host, s32 item, s32 L)
     }
     model = model_of(item, L);
     class_id = ee_debug_rz_model > 0 && class_in_memory(ee_debug_rz_model, L) ? ee_debug_rz_model : model->class_id;
-    m = live(e, host);
+    m = live(e, host, L);
     if (m != 0 && e->class_id != class_id) {    /* the debug class changed */
         LVL(L, func_0020D678, DeleteFn)(m);
         m = e->model = 0;
