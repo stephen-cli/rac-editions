@@ -7,8 +7,11 @@ the edition takes from the games is made from the player's own discs while
 the installer runs:
 
   edition.json   the edition, its version (the rac-editions commit), the
-                 SHA-256 of each disc it is built from, and the mod
-                 segment's load address
+                 SHA-256 of each disc it is built from, the mod
+                 segment's load address, and what the installer needs to
+                 know of the edition (edition_options below): the
+                 economies, the switches, the games' boot files and how
+                 much an image grows
   modseg.bin     the mod segment (tools/modseg.py), with its holes zeroed:
                  the tables made from a disc's bytes
   holes.json     each hole: its symbol, offset in the segment, size, the
@@ -79,6 +82,32 @@ SWITCHES = {
     "quick_select_pages": {"bit": 0x4, "disc": "rac1", "features": ("quick_select_pages",), "holes": (),
                            "helpdesk": ()},
 }
+
+# The games' discs the installer knows by their boot file (SYSTEM.CNF's BOOT2): the game and the region, so an image
+# of the right game in the wrong version is named as the edition names that game's disc.
+BOOT_FILES = {
+    "SCES_509.16": {"game": "rac1", "region": "PAL"},
+    "SCUS_971.99": {"game": "rac1", "region": "USA"},
+    "SCUS_972.68": {"game": "rac2", "region": "USA"},
+    "SCES_516.07": {"game": "rac2", "region": "PAL"},
+}
+
+# How much an image grows: the executable, the archives moved to new sectors and the HelpDesk lines, about 270 MB.
+# Updating in place needs twice this, for the restore file as well.
+GROWTH = 320 << 20
+
+
+def edition_options() -> dict:
+    """The installer's view of ECONOMIES, SWITCHES, BOOT_FILES and GROWTH, as edition.json carries them: the
+    economies in the builder's order, the first the default, and the switches as a list in the builder's order."""
+    return {
+        "economies": {name: list(left_out) for name, left_out in ECONOMIES.items()},
+        "switches": [{"id": name, "bit": s["bit"], "disc": s["disc"], "features": list(s["features"]),
+                      "holes": list(s["holes"]), "helpdesk": list(s["helpdesk"])} for name, s in SWITCHES.items()],
+        "boot_files": BOOT_FILES,
+        "growth": GROWTH,
+    }
+
 
 HEAD = 0x1C          # a loaded sequence's header: the first seven words of its table
 

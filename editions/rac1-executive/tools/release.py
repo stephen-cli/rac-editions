@@ -198,6 +198,7 @@ def main() -> int:
         "discs": {name: iso_image.sha256(path) for name, path in discs.items()},
         "modseg_base": base,
         "features_word": syms["ee_features"][0] - base,       # src/features.c: the switches that are in
+        **payload.edition_options(),
     }
     (out / "edition.json").write_text(json.dumps(edition, indent=2) + "\n")
     (out / "modseg.bin").write_bytes(bytes(seg))

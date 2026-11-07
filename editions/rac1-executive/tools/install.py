@@ -18,8 +18,8 @@ open, the image is numbered instead (executive-edition-2.iso, and so on).
 IMAGE.restore beside it. --economy is Challenge Mode's bolts: skill (the
 default: x1 base and the no-hit bolt multiplier) or classic (retail's
 doubled drops, without the bolt_multiplier feature's words). --without
-leaves out one of the features a player may switch off (payload.SWITCHES:
-charge_boots, strafing, quick_select_pages); without Going Commando
+leaves out one of the features a player may switch off (edition.json's
+switches: charge_boots, strafing, quick_select_pages); without Going Commando
 (--no-rac2) the Charge Boots and strafing are left out.
 
 --serve speaks the builder's protocol (installer/README.md, "The
@@ -70,17 +70,6 @@ import payload  # noqa: E402
 
 EXE_NAME = "SCES_509.16;1"
 PROTOCOL = 1
-# An image grows by the executable, the archives moved to new sectors and the HelpDesk lines, about 270 MB;
-# updating in place also needs the restore file, about as large.
-GROWTH = 320 << 20
-# The games' discs the installer knows by their boot file (SYSTEM.CNF's BOOT2): the game and the region, so a
-# wrong version is named as the edition names that game's disc.
-BOOT_FILES = {
-    "SCES_509.16": ("rac1", "PAL"),
-    "SCUS_971.99": ("rac1", "USA"),
-    "SCUS_972.68": ("rac2", "USA"),
-    "SCES_516.07": ("rac2", "PAL"),
-}
 RESTORE_MAGIC = b"RCEDREST"
 
 
@@ -245,7 +234,8 @@ def identify(path: Path, edition: dict, job: Job, cache: HashCache) -> dict:
         job.log(f"{path}: not an image of a PS2 disc")
         return {"disc": None, "game": None, "name": None, "region": None, "sha256": None, "known": False}
     boot = next((line.split("\\")[-1].split(";")[0] for line in cnf.splitlines() if line.startswith("BOOT2")), "")
-    game, region = BOOT_FILES.get(boot, (None, None))
+    known_boot = edition["boot_files"].get(boot, {})
+    game, region = known_boot.get("game"), known_boot.get("region")
     name = edition["disc_names"][game]["name"] if game in edition["disc_names"] else None
     if path.stat().st_size < volume:
         raise InstallError("image_incomplete", f"{path} ends before its last sector: the image is incomplete")
@@ -320,6 +310,16 @@ def check_output(discs: dict, output: dict, bytes_needed: int) -> None:
         raise InstallError("no_space", f"{folder} has {free >> 20} MB free; the build needs {bytes_needed >> 20} MB")
 
 
+def switches(edition: dict) -> dict:
+    """The features a player may leave out, by id (edition.json's switches)."""
+    return {s["id"]: s for s in edition["switches"]}
+
+
+def economy(edition: dict, options: dict) -> str:
+    """The Challenge Mode economy OPTIONS ask for, or the edition's default, the first it lists."""
+    return options.get("economy") or next(iter(edition["economies"]))
+
+
 def plan(edition: dict, discs: dict, options: dict, output: dict | None = None) -> dict:
     """What a build with these discs and options has in, what it leaves out and why, and the space it needs; with
     OUTPUT, also whether it can be written there."""
@@ -329,14 +329,14 @@ def plan(edition: dict, discs: dict, options: dict, output: dict | None = None) 
         if not Path(path).is_file():
             raise InstallError("missing_disc", f"{path} does not exist")
     without = options.get("without", [])
-    unknown = [s for s in without if s not in payload.SWITCHES]
-    if unknown or options.get("economy", "skill") not in payload.ECONOMIES:
+    unknown = [s for s in without if s not in switches(edition)]
+    if unknown or economy(edition, options) not in edition["economies"]:
         raise InstallError("internal", f"unknown options: {unknown or options.get('economy')}")
-    on = [name for name, s in payload.SWITCHES.items() if name not in without and s["disc"] in discs]
-    left_out = [{"id": name, "because": "chosen" if name in without else f"no_{s['disc']}"}
-                for name, s in payload.SWITCHES.items() if name not in on]
+    on = [s["id"] for s in edition["switches"] if s["id"] not in without and s["disc"] in discs]
+    left_out = [{"id": s["id"], "because": "chosen" if s["id"] in without else f"no_{s['disc']}"}
+                for s in edition["switches"] if s["id"] not in on]
     # updating in place also writes the restore file, beside a full copy made first
-    growth = 2 * GROWTH if output and output["mode"] == "in_place" else GROWTH
+    growth = edition["growth"] * (2 if output and output["mode"] == "in_place" else 1)
     needed = Path(discs["rac1"]).stat().st_size + growth
     if output:
         check_output(discs, output, needed)
@@ -394,14 +394,14 @@ def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, jo
         job.log(f"{label}: checked earlier, sha256 {digest}" if earlier else f"sha256 {digest} matches {label}")
     rac1 = Path(discs["rac1"])
     discs = {name: Path(path) for name, path in discs.items()}
-    economy = options.get("economy", "skill")
     on = plan(edition, discs, options)["in"]
-    off = [name for name in payload.SWITCHES if name not in on]
+    by_id = switches(edition)
+    off = [name for name in by_id if name not in on]
     job.log(f"features left out: {', '.join(off) or 'none'}")
-    left_out_holes = {h for name in off for h in payload.SWITCHES[name]["holes"]}
-    left_out_words = set(payload.ECONOMIES[economy])
-    left_out_words |= {f for name in off for f in payload.SWITCHES[name]["features"]}
-    left_out_lines = {u for name in off for u in payload.SWITCHES[name]["helpdesk"]}
+    left_out_holes = {h for name in off for h in by_id[name]["holes"]}
+    left_out_words = set(edition["economies"][economy(edition, options)])
+    left_out_words |= {f for name in off for f in by_id[name]["features"]}
+    left_out_lines = {u for name in off for u in by_id[name]["helpdesk"]}
 
     holes = len(json.loads((pay / "holes.json").read_text()))
     converted = 0
@@ -414,7 +414,7 @@ def install(pay: Path, discs: dict, options: dict, output: Path, tools: dict, jo
 
     job.progress("convert", 0, holes + 2)
     seg = bytearray(mod_segment(pay, discs, left_out_holes, step))
-    struct.pack_into("<I", seg, edition["features_word"], sum(payload.SWITCHES[name]["bit"] for name in on))
+    struct.pack_into("<I", seg, edition["features_word"], sum(by_id[name]["bit"] for name in on))
     switch_data = json.loads((pay / "switches.json").read_text())
     for name in off:
         for at, blob in switch_data.get(name, []):
@@ -526,9 +526,10 @@ def editions_list(pay: Path) -> list[dict]:
     edition = json.loads((pay / "edition.json").read_text())
     return [{"id": edition["edition"], "name": edition["name"], "game": edition["game"], "version": edition["commit"],
              "discs": edition["disc_names"],
-             "options": {"economy": list(payload.ECONOMIES),
-                         "switches": [{"id": name, "needs": None if s["disc"] == "rac1" else s["disc"]}
-                                      for name, s in payload.SWITCHES.items()]}}]
+             "options": {"economy": list(edition["economies"]),
+                         "switches": [{"id": s["id"],
+                                       "needs": None if edition["disc_names"][s["disc"]]["required"] else s["disc"]}
+                                      for s in edition["switches"]]}}]
 
 
 class ServeJob(Job):
@@ -620,8 +621,9 @@ def main() -> int:
     ap.add_argument("--rac2", type=Path, default=openrac / "games/rac2/ntsc/baserom/SCUS_972.68.iso",
                     help="Ratchet & Clank: Going Commando (USA)")
     ap.add_argument("--no-rac2", action="store_true", help="build without Going Commando")
-    ap.add_argument("--economy", choices=payload.ECONOMIES, default="skill")
-    ap.add_argument("--without", action="append", default=[], choices=payload.SWITCHES)
+    ap.add_argument("--economy", help="skill (the default) or classic: edition.json's economies")
+    ap.add_argument("--without", action="append", default=[], metavar="SWITCH",
+                    help="a feature to leave out: edition.json's switches")
     ap.add_argument("--payload", type=Path, default=ROOT / "build/payload")
     ap.add_argument("--wrench", type=Path, default=ROOT.parents[2] / "wrench")
     ap.add_argument("--unpacked", type=Path, default=openrac / "assets/wrench")
