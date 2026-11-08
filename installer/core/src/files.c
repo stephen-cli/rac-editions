@@ -217,11 +217,34 @@ typedef struct {
     s32 fd;
 } Lv2File;
 
+/* An lv2 error (RPCS3's ErrorCodes.h names them) as errno: the core tells a full drive (ENOSPC) and a name taken
+   (EEXIST) from other failures. */
+static int lv2_errno(s32 error)
+{
+    switch ((u32)error) {
+    case 0x80010006u:
+        return ENOENT;
+    case 0x80010012u:
+        return EISDIR;
+    case 0x80010014u:
+        return EEXIST;
+    case 0x80010023u:
+        return ENOSPC;
+    case 0x80010026u:
+        return EROFS;
+    case 0x80010029u:
+        return EACCES;
+    default:
+        return EIO;
+    }
+}
+
 static ssize_t lv2_read(void *cookie, char *buffer, size_t size)
 {
     u64 got = 0;
-    if (sysLv2FsRead(((Lv2File *)cookie)->fd, buffer, size, &got) != 0) {
-        errno = EIO;
+    s32 failed = sysLv2FsRead(((Lv2File *)cookie)->fd, buffer, size, &got);
+    if (failed != 0) {
+        errno = lv2_errno(failed);
         return -1;
     }
     return (ssize_t)got;
@@ -230,8 +253,9 @@ static ssize_t lv2_read(void *cookie, char *buffer, size_t size)
 static ssize_t lv2_write(void *cookie, const char *buffer, size_t size)
 {
     u64 written = 0;
-    if (sysLv2FsWrite(((Lv2File *)cookie)->fd, buffer, size, &written) != 0) {
-        errno = EIO;
+    s32 failed = sysLv2FsWrite(((Lv2File *)cookie)->fd, buffer, size, &written);
+    if (failed != 0) {
+        errno = lv2_errno(failed);
         return -1;
     }
     return (ssize_t)written;
@@ -278,9 +302,10 @@ FILE *file_open(const char *path, const char *mode)
         errno = ENOMEM;
         return NULL;
     }
-    if (sysLv2FsOpen(path, flags, &cookie->fd, 0666, NULL, 0) != 0) {
+    s32 failed = sysLv2FsOpen(path, flags, &cookie->fd, 0666, NULL, 0);
+    if (failed != 0) {
         free(cookie);
-        errno = ENOENT;
+        errno = lv2_errno(failed);
         return NULL;
     }
     char stream_mode[4] = {mode[0], 'b', strchr(mode, '+') != NULL ? '+' : 0, 0};
@@ -417,9 +442,12 @@ bool file_free_space(const char *folder, uint64_t *free_bytes)
 {
     /* the device a path is on: "/dev_hdd0" of "/dev_hdd0/PS2ISO" */
     char device[64];
+    if (folder[0] != '/') {
+        return false;
+    }
     const char *end = strchr(folder + 1, '/');
     size_t length = end != NULL ? (size_t)(end - folder) : strlen(folder);
-    if (folder[0] != '/' || length >= sizeof device) {
+    if (length >= sizeof device) {
         return false;
     }
     memcpy(device, folder, length);
