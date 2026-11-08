@@ -4949,20 +4949,24 @@ so the camera sat on the level's cuboid 0 (on Gaspar, 176 units from the Pilot's
 Helmet). The stand-in sets both to -1. Tested in PCSX2 at Oltanis's Morph-o-Ray
 pickup: the camera circles Ratchet 5 units out.
 
-## 16:9: a path camera's restored field of view (2026-11-07) — built; awaiting test
+## 16:9: a path camera's restored field of view (2026-11-08) — built; awaiting test
 
 A level's path camera (Oltanis's camera 20, the shared initialize_path_camera
 of Orxon and others) saves the view's +0xB0 as it starts and writes it back at
 its end, recomputed through the fast sine and cosine. The 16:9 hook leaves its
 widened value there (the renderers' culling reads it), recognised it only by its
 exact bits, took the write-back as the game's own and widened it again: some 96
-degrees instead of 80 after Oltanis's statue. The hook now keeps its last eight
-widened values with the game's values they stand for and takes a value within
-0.1% of one as that one. The entry above that says the hook puts +0xB0 back
-describes the first design; the value has stayed in the record since the pop-in
-fix. Tested in PCSX2 by writing a slightly-off widened value into Oltanis's view
-record: it comes back to 0.84, and a new game value is still widened once. The
-cutscenes themselves are not replayed.
+degrees instead of 80 after Oltanis's statue. A history of its last eight
+widened values was not enough: while the letterbox grows and shrinks the hook
+writes a new widened value every frame, and Oltanis's button cutscene, which
+raises the Swingshot targets, ended with the view widened twice (+0xB0 at 1.12
+for a game value of 0.63). The hook now remembers the game's distinct values and
+takes a value within 0.1% of one of them times 4/3 over the zoom of one of the
+letterbox's 25 steps as that one: the only values it writes. The entry above
+that says the hook puts +0xB0 back describes the first design; the value has
+stayed in the record since the pop-in fix. Tested in PCSX2 on Oltanis's button
+cutscene: +0xB0 ends at 0.84 (1.12 before), and values a camera restores
+mid-fade map back to 0.84. Orxon's gate cutscene is not replayed.
 
 ## rz: Umbris's end with another item for Batalia's infobot (2026-11-07) — built; awaiting test
 

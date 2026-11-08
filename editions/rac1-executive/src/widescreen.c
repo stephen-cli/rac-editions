@@ -162,49 +162,67 @@ static s32 view_applied;        /* the setting the full-screen view was last bui
  * writes FOV stops on the way, and puts the saved value back at its end,
  * recomputed through the fast sine and cosine. Taken as the game's own, that
  * widened value was widened again, and the view stayed some 96 degrees wide
- * (Oltanis's statue cutscene). The hook therefore remembers the last
- * VIEW_PAIRS widened values it wrote with the game's values they stand for,
- * and a value within VIEW_MATCH of one of them is taken as that one; any
- * other value is the game's new one. A view built in 4:3 (setting off, a
- * render to a texture, the vendor's monitors) gets the game's value back. */
-#define VIEW_PAIRS  8
+ * (Oltanis's statue cutscene). Only the hook writes widened values, and only
+ * of one form: a game's value times 4/3 over the zoom of one of the
+ * letterbox's LETTERBOX_MAX + 1 steps. So the hook remembers the game's
+ * distinct values (VIEW_ORIGS of them, per level), and a value within
+ * VIEW_MATCH of that form for one of them is taken as that one; any other
+ * value is the game's new one. The letterbox's growing and shrinking writes a
+ * new widened value every frame, so the form, not the values written, is what
+ * stays recognisable through a path camera with bars (Oltanis's button
+ * cutscene, which raises the Swingshot targets). A view built in 4:3 (setting off, a render to a texture, the vendor's monitors)
+ * gets the game's value back. */
+#define VIEW_ORIGS  16
 #define VIEW_MATCH  0.001f      /* relative: well above the fast sine/cosine's error, far below any FOV step */
-static s32 view_level = -1;     /* the level whose view record the pairs are of */
-static struct { f32 wide; f32 orig; } view_pairs[VIEW_PAIRS];
-static s32 view_pair_count;
-static s32 view_pair_next;
+static s32 view_level = -1;     /* the level whose view record the values are of */
+static f32 view_origs[VIEW_ORIGS];
+static s32 view_orig_count;
+static s32 view_orig_next;
+
+/* Whether VALUE is within VIEW_MATCH of TARGET. */
+static s32 view_near(f32 value, f32 target)
+{
+    f32 d = value - target;
+    return (d < 0.0f ? -d : d) <= target * VIEW_MATCH;
+}
 
 /* The game's value that VALUE, read from level L's view record, stands for. */
 static f32 view_original(f32 value, s32 L)
 {
-    s32 i;
+    s32 i, step;
     if (L != view_level) {
         view_level = L;
-        view_pair_count = 0;
-        view_pair_next = 0;
+        view_orig_count = 0;
+        view_orig_next = 0;
         return value;
     }
-    for (i = 0; i < view_pair_count; i++) {
-        f32 d = value - view_pairs[i].wide;
-        if ((d < 0.0f ? -d : d) <= view_pairs[i].wide * VIEW_MATCH) {
-            return view_pairs[i].orig;
+    for (i = 0; i < view_orig_count; i++) {
+        f32 widest = view_origs[i] * (4.0f / 3.0f);
+        if (value > widest * (1.0f + VIEW_MATCH)) {
+            continue;
+        }
+        for (step = 0; step <= LETTERBOX_MAX; step++) {
+            if (view_near(value, widest / cutscene_zoom((f32)step / (f32)LETTERBOX_MAX))) {
+                return view_origs[i];
+            }
         }
     }
     return value;
 }
 
-/* WIDE, written for the game's ORIG. */
-static void view_remember(f32 wide, f32 orig)
+/* ORIG, a game's value the hook widened. */
+static void view_remember(f32 orig)
 {
-    s32 last = (view_pair_next + VIEW_PAIRS - 1) % VIEW_PAIRS;
-    if (view_pair_count > 0 && view_pairs[last].wide == wide) {
-        return;
+    s32 i;
+    for (i = 0; i < view_orig_count; i++) {
+        if (view_origs[i] == orig) {
+            return;
+        }
     }
-    view_pairs[view_pair_next].wide = wide;
-    view_pairs[view_pair_next].orig = orig;
-    view_pair_next = (view_pair_next + 1) % VIEW_PAIRS;
-    if (view_pair_count < VIEW_PAIRS) {
-        view_pair_count++;
+    view_origs[view_orig_next] = orig;
+    view_orig_next = (view_orig_next + 1) % VIEW_ORIGS;
+    if (view_orig_count < VIEW_ORIGS) {
+        view_orig_count++;
     }
 }
 
@@ -229,7 +247,7 @@ u32 ee_view_pre_c(s32 L)
         f32 wide = orig * (4.0f / 3.0f) / zoom;
         *src = orig / zoom;
         *fov = wide;
-        view_remember(wide, orig);
+        view_remember(orig);
     }
     return LVL(L, func_001F3140, u32) + 8;
 }
