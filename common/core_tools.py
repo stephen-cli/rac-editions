@@ -1,7 +1,7 @@
 """
 The installer core's tools, which the editions' Python tools run for the heavy work: rac-wad (the levels' WAD
-codec), rac-vag (the HelpDesk lines' audio) and rac-moby (moby classes). installer/core is C; its CMake builds them
-into installer/core/build.
+codec), rac-vag (the HelpDesk lines' audio), rac-moby (moby classes) and rac-levels (the levels' patch; release.py
+runs its --check). installer/core is C; its CMake builds them into installer/core/build.
 """
 import subprocess
 import sys
@@ -12,7 +12,7 @@ EXE = ".exe" if sys.platform == "win32" else ""
 
 
 def tool(name: str, build: Path = BUILD) -> Path:
-    """The tool NAME (rac-wad, rac-vag, rac-moby) in the core's build folder BUILD."""
+    """The tool NAME (rac-wad, rac-vag, rac-moby, rac-levels) in the core's build folder BUILD."""
     return build / f"{name}{EXE}"
 
 

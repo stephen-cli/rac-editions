@@ -158,7 +158,8 @@ python editions/rac1-executive/tools/install.py
 The installer core (`installer/core`, C) holds the tools `install.py` runs
 for the heavy work: `rac-wad` compresses the levels' data, `rac-vag` makes the
 HelpDesk lines, `rac-moby` converts the Charge Boots from Going Commando and
-rebuilds Kalebo III's sign. `release.py` takes about five minutes. It compiles the game
+rebuilds Kalebo III's sign, and `rac-levels --check` checks that every level's
+patched data still fits in its sectors on the disc. `release.py` takes about five minutes. It compiles the game
 from source, checks it against your disc, builds the edition's code and
 writes what a release ships to `build/payload`. `install.py` makes the disc
 image from that and your two discs, as a player's installer does, in about a

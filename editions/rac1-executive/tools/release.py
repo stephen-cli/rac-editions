@@ -16,7 +16,9 @@ rac-editions release carries for the desktop builder.
 
 Before it writes the payload, the tool proves the holes: each one's bytes are
 made from the discs the way the installer makes them and must equal what
-the build linked there.
+the build linked there. It also checks that every level's patched data fits
+in the sectors the disc gives it (the installer core's rac-levels --check),
+which a build that writes the image in one pass needs.
 """
 import argparse
 import json
@@ -35,6 +37,7 @@ COMMON = HERE.parents[2] / "common"
 sys.path.insert(0, str(COMMON))
 sys.path.insert(0, str(HERE))
 
+import core_tools  # noqa: E402
 import iso_image  # noqa: E402
 import payload  # noqa: E402
 
@@ -135,6 +138,15 @@ def holes(modseg: bytearray, base: int, syms: dict, discs: dict, recipe: list) -
     return out
 
 
+def check_levels(discs: dict) -> None:
+    """Every level's patched archive fits in the sectors the disc gives it, with the Charge Boots and without
+    them (without, a level's class table has room for more of the extra classes, so its archive can be larger).
+    The installer core writes a new image in one pass, each level in its own sectors: it has nowhere else to put
+    one that does not fit."""
+    for without in ([], ["--without", "charge_boots"]):
+        core_tools.run(core_tools.tool("rac-levels"), "--check", discs["rac1"], discs["rac2"], *without)
+
+
 ROW = 20                         # a Controls row: {label, &flag, on, off, 0}
 TEXT_STRAFE = 0x540E             # "Strafing" (src/modseg.h EE_TEXT_STRAFE)
 
@@ -186,6 +198,7 @@ def main() -> int:
     recipe = json.loads((modseg_dir / "gen_rz_words.json").read_text())
     syms = symbols(modseg_dir / "modseg.elf")
     hole_list = holes(seg, base, syms, discs, recipe)
+    check_levels(discs)
 
     with discs["rac1"].open("rb") as f:
         retail_exe = iso_image.read_file(f, EXE_NAME)
