@@ -7,11 +7,28 @@
 #include "files.h"
 #include "iso.h"
 #include "sha256.h"
+#include "thread.h"
 #include "wad.h"
 
 /* Read in chunks this size: large enough that progress events stay few, small enough to cancel quickly. */
 #define HASH_CHUNK (16u << 20)
 
+/* A chunk of the file being hashed, read on a thread of its own while the chunk before it is hashed. */
+typedef struct {
+    FILE *file;
+    uint8_t *into;
+    size_t got;
+    bool failed;
+} HashRead;
+
+static void hash_read(void *argument)
+{
+    HashRead *read = argument;
+    read->got = fread(read->into, 1, HASH_CHUNK, read->file);
+    read->failed = read->got == 0 && ferror(read->file);
+}
+
+/* Each chunk is hashed while the next is read, so the time is the slower of the two, not both. */
 DiscHashResult disc_hash(const char *path, Job *job, const char *stage, char hex[65])
 {
     FILE *file = file_open(path, "rb");
@@ -20,8 +37,10 @@ DiscHashResult disc_hash(const char *path, Job *job, const char *stage, char hex
     }
     uint64_t total = file_size(file);
     file_seek(file, 0);
-    uint8_t *chunk = malloc(HASH_CHUNK);
-    if (chunk == NULL) {
+    uint8_t *chunks[2] = {malloc(HASH_CHUNK), malloc(HASH_CHUNK)};
+    if (chunks[0] == NULL || chunks[1] == NULL) {
+        free(chunks[0]);
+        free(chunks[1]);
         fclose(file);
         return DISC_UNREADABLE;
     }
@@ -29,23 +48,34 @@ DiscHashResult disc_hash(const char *path, Job *job, const char *stage, char hex
     sha256_start(&hash);
     uint64_t done = 0;
     DiscHashResult result = DISC_HASHED;
+    HashRead current = {file, chunks[0], 0, false};
+    hash_read(&current);
     for (;;) {
         if (job_cancelled(job)) {
             result = DISC_CANCELLED;
             break;
         }
-        size_t got = fread(chunk, 1, HASH_CHUNK, file);
-        if (got == 0) {
-            if (ferror(file)) {
+        if (current.got == 0) {
+            if (current.failed) {
                 result = DISC_UNREADABLE;
             }
             break;
         }
-        sha256_add(&hash, chunk, got);
-        done += got;
+        /* the next chunk read beside the hashing, or after it when no thread can be had */
+        HashRead next = {file, current.into == chunks[0] ? chunks[1] : chunks[0], 0, false};
+        Thread *reading = thread_start(hash_read, &next);
+        sha256_add(&hash, current.into, current.got);
+        if (reading != NULL) {
+            thread_join(reading);
+        } else {
+            hash_read(&next);
+        }
+        done += current.got;
         job_progress(job, stage, done, total);
+        current = next;
     }
-    free(chunk);
+    free(chunks[0]);
+    free(chunks[1]);
     fclose(file);
     if (result == DISC_HASHED) {
         uint8_t digest[32];

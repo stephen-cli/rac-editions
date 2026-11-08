@@ -55,8 +55,14 @@ command carries the same `id`. For example
 the other commands answer in order. The installer keeps each disc image's
 SHA-256 between runs, by its path, size and modification time, so a disc
 checked when it was added is not hashed again for the build: its `verify`
-stage is one `progress` event with `done` equal to `total`. The new image's
-final check is always a full hash.
+stage is one `progress` event with `done` equal to `total`.
+
+A new image is written in one pass, front to back, and hashed as it is
+written: its build's stages are `verify` (each disc), `convert`, `patch`
+(the levels and HelpDesk lines made ready) and `write` (the image, each
+level patched as the writing reaches it). An image updated in place is
+copied and patched (`write`, `patch`), its restore file written (`write`),
+and then hashed in full (`verify`).
 
 - `discs`: `{"rac1": "<path>", "rac2": "<path>"}`, each optional but the
   edition's base disc.
