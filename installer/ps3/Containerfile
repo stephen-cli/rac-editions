@@ -1,0 +1,29 @@
+# The PS3 builder's toolchain: ps3dev (the PPU/SPU GCC from ps3toolchain's prebuilt nightly, PSL1GHT and
+# ps3libraries built from source) at pinned commits, on Ubuntu 24.04 (the prebuilt toolchain needs its glibc). Build with podman or docker:
+#
+#   podman build -t rac-ps3dev installer/ps3
+#
+# and compile in it with the checkout mounted (installer/ps3/README.md).
+FROM --platform=linux/amd64 docker.io/library/ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends autoconf automake bison bzip2 \
+        ca-certificates clang cmake curl flex g++ gcc git libelf-dev libgmp3-dev libncurses-dev libssl-dev \
+        libtool libtool-bin make ninja-build patch pkg-config python-is-python3 python3 python3-dev \
+        subversion tar texinfo wget xz-utils zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG PS3DEV_COMMIT=ae86d7c283bebca0a0aaab670183ef869307f8ba
+ARG PSL1GHT_COMMIT=dd4e8c9be744e3273d665c393fa6d97a87402e2e
+ARG PS3LIBRARIES_COMMIT=f671e1158e5db2520c172bd600d55d9fce3d15d0
+
+ENV PS3DEV=/usr/local/ps3dev
+ENV PSL1GHT=/usr/local/ps3dev
+ENV PATH=$PATH:/usr/local/ps3dev/bin:/usr/local/ps3dev/ppu/bin:/usr/local/ps3dev/spu/bin
+
+RUN git clone https://github.com/ps3dev/ps3dev.git /opt/ps3dev \
+    && git -C /opt/ps3dev checkout --quiet $PS3DEV_COMMIT \
+    && cd /opt/ps3dev \
+    && PSL1GHT_REF=$PSL1GHT_COMMIT PS3LIBRARIES_REF=$PS3LIBRARIES_COMMIT ./build-all.sh \
+    && rm -rf /opt/ps3dev/build
+
+WORKDIR /src

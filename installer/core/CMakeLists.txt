@@ -18,8 +18,9 @@ function(strict_warnings target)
         # HUD palettes) alike and makes the same image: clang fuses by default, and arm64 always has FMA. MSVC
         # fuses only with /fp:contract.
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror -ffp-contract=off)
-        # fseeko and ftello with 64-bit offsets on 32-bit systems
-        target_compile_definitions(${target} PRIVATE _FILE_OFFSET_BITS=64 _POSIX_C_SOURCE=200809L)
+        # fseeko and ftello with 64-bit offsets on 32-bit systems; POSIX 2008 with X/Open's realpath, which older
+        # C libraries (glibc before 2.38) declare only for X/Open
+        target_compile_definitions(${target} PRIVATE _FILE_OFFSET_BITS=64 _XOPEN_SOURCE=700)
         if(APPLE)
             # POSIX alone hides what macOS adds to it: st_mtimespec, _SC_NPROCESSORS_ONLN
             target_compile_definitions(${target} PRIVATE _DARWIN_C_SOURCE)

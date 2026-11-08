@@ -1,6 +1,6 @@
 /*
  * Threads and locks, for --serve: a build and each identify run in a thread of their own, so two discs are checked
- * side by side and a cancel can reach any of them. Windows threads, POSIX threads; the PS3's are to come.
+ * side by side and a cancel can reach any of them. Windows threads, POSIX threads, and the PS3 lv2's PPU threads.
  */
 #ifndef RAC_THREAD_H
 #define RAC_THREAD_H

@@ -2,10 +2,12 @@
  * build: an edition's image made from a release payload and the player's discs, as tools/install.py's build makes
  * it. In order: the discs are checked by hash; the mod segment gets its holes filled from the discs (fill.h), the
  * features word and the bytes of the features left out, and goes into the boot executable as a second loadable
- * segment, with the executable's own changed words; the image is a copy of the base disc with that executable in
- * it and the level programs' changed words written in place; then the patch stage (the levels' data and the
- * HelpDesk lines) runs on the image. Updating the base disc's image in place makes the image beside it first,
- * then writes the restore file and moves the image over the original.
+ * segment, with the executable's own changed words. A new image with the edition's patch stage (build_patch) is
+ * then written in one pass and hashed as it is written: the base disc read front to back, each level patched as
+ * the writing reaches it (levels_produce), the executable, the level programs' changed words and the HelpDesk
+ * lines laid in on the way. Otherwise the image is a copy of the base disc with the executable and the words
+ * written in place, and then the patch stage runs on it. Updating the base disc's image in place makes the image
+ * beside it first that way, then writes the restore file and moves the image over the original.
  */
 #ifndef RAC_BUILD_H
 #define RAC_BUILD_H

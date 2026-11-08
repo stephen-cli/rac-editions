@@ -10,8 +10,6 @@
 /* At most this many identifies and builds at once; the builder runs one build and a disc or two. */
 #define MAX_RUNNING 16
 
-typedef struct Server Server;
-
 /* A command's job: its events carry the command's id, written back exactly as the builder sent it. */
 typedef struct {
     Job job;
@@ -23,7 +21,8 @@ typedef struct {
 struct Server {
     const Payload *payload;
     HashCache *cache;
-    FILE *output;
+    ServerSend *send;
+    void *send_context;
     Lock *output_lock;          /* one event per line, whole, whichever thread sends it */
     Lock *running_lock;
     ServeJob *running[MAX_RUNNING];
@@ -35,9 +34,7 @@ static void send_line(Server *server, const Text *line)
         return;
     }
     lock_take(server->output_lock);
-    fwrite(line->text, 1, line->length, server->output);
-    fputc('\n', server->output);
-    fflush(server->output);
+    server->send(server->send_context, line->text, line->length);
     lock_release(server->output_lock);
 }
 
@@ -241,7 +238,7 @@ static char *read_line(FILE *input, size_t *length)
     return line.text;
 }
 
-static void handle_line(Server *server, const char *line, size_t length)
+static void handle_command(Server *server, const char *line, size_t length)
 {
     char parse_error[128];
     Json *command = json_parse(line, length, parse_error, sizeof parse_error);
@@ -296,37 +293,77 @@ static void handle_line(Server *server, const char *line, size_t length)
     free_job(serve_job);
 }
 
-int serve(const Payload *payload, HashCache *cache, FILE *input, FILE *output)
+Server *server_new(const Payload *payload, HashCache *cache, ServerSend *send, void *context)
 {
-    Server server = {.payload = payload, .cache = cache, .output = output};
-    server.output_lock = lock_new();
-    server.running_lock = lock_new();
-    if (server.output_lock == NULL || server.running_lock == NULL) {
-        return 1;
+    Server *server = calloc(1, sizeof *server);
+    if (server == NULL) {
+        return NULL;
+    }
+    *server = (Server){.payload = payload, .cache = cache, .send = send, .send_context = context};
+    server->output_lock = lock_new();
+    server->running_lock = lock_new();
+    if (server->output_lock == NULL || server->running_lock == NULL) {
+        lock_free(server->output_lock);
+        lock_free(server->running_lock);
+        free(server);
+        return NULL;
     }
     Text ready = {0};
     text_add(&ready, "{\"event\": \"ready\", \"protocol\": ");
     text_format(&ready, "%d, \"installer\": ", PROTOCOL_VERSION);
     text_add_json_string(&ready, payload_commit(payload));
     text_add(&ready, "}");
-    send_line(&server, &ready);
+    send_line(server, &ready);
     text_free(&ready);
+    return server;
+}
 
+void server_command(Server *server, const char *line, size_t length)
+{
+    size_t start = 0;
+    while (start < length && (line[start] == ' ' || line[start] == '\t')) {
+        start++;
+    }
+    if (start < length) {
+        handle_command(server, line, length);
+    }
+}
+
+void server_free(Server *server)
+{
+    if (server == NULL) {
+        return;
+    }
+    while (running_count(server) > 0) {
+        thread_sleep(50);
+    }
+    lock_free(server->output_lock);
+    lock_free(server->running_lock);
+    free(server);
+}
+
+/* An event line to the FILE in CONTEXT, flushed so the builder sees it at once. */
+static void send_to_file(void *context, const char *line, size_t length)
+{
+    FILE *output = context;
+    fwrite(line, 1, length, output);
+    fputc('\n', output);
+    fflush(output);
+}
+
+int serve(const Payload *payload, HashCache *cache, FILE *input, FILE *output)
+{
+    Server *server = server_new(payload, cache, send_to_file, output);
+    if (server == NULL) {
+        return 1;
+    }
     size_t length;
     char *line;
     while ((line = read_line(input, &length)) != NULL) {
-        size_t start = 0;
-        while (start < length && (line[start] == ' ' || line[start] == '\t')) {
-            start++;
-        }
-        if (start < length) {
-            handle_line(&server, line, length);
-        }
+        server_command(server, line, length);
         free(line);
     }
     /* the input has ended: the identifies and builds still running answer before the installer exits */
-    while (running_count(&server) > 0) {
-        thread_sleep(50);
-    }
+    server_free(server);
     return 0;
 }
