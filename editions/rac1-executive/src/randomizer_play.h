@@ -7,6 +7,7 @@
  *   src/randomizer_text.c    the banners that name what was received, and the givers' prompts with the item's
  *                            name hidden
  *   src/randomizer_vendor.c  the Gadgetron vendor's list, and its mystery entries (the tile, "???", the chicken)
+ *   src/randomizer_map.c     the pause map's reward markers, the mystery tile until their check is collected
  *   src/randomizer_hud.c     the health display's 7 orbs
  *
  * The record behind it all (the layout, the checks collected) is src/randomizer_save.c; the logic that made the
@@ -83,6 +84,43 @@ typedef void (*VoidFn)(void);
 
 const char *ee_msg_string_edition(s32 id);          /* src/text.c */
 
+/* --- the Missions page and the map (tools/gen_randomizer.py's tables) ------------------------------------------ */
+
+/* What a mission condition names, as Mission_CheckCondition (func_0020C940) tests it: a planet unlocked, an item
+ * owned (its "had" byte, type 3, names the same item), a special item's flag byte. */
+#define RZ_SOURCE_PLANET    1
+#define RZ_SOURCE_ITEM      2
+#define RZ_SOURCE_FLAG      6
+#define RZ_MISSION_SOURCES  4
+
+struct RzSource {
+    u8 kind;                            /* RZ_SOURCE_* */
+    u8 arg;                             /* the planet, the item id or the flag byte */
+};
+
+/* A text of the Missions page or a map label that names a reward: its planet and the rewards its mission's
+ * conditions name (a label's: its marker's mission's, and the reward its icon shows). */
+struct RzMissionText {
+    u16 text;
+    u8 planet;
+    u8 count;
+    struct RzSource sources[RZ_MISSION_SOURCES];
+};
+
+/* A map marker whose icon is a reward's own: an item's HUD icon, a special item's, an infobot's marker. */
+struct RzMapIcon {
+    u8 planet;
+    u16 texture;
+    u8 frame;
+    u8 backdrop;                        /* drawn on a dark backdrop (the icon's flags & 0x40) */
+    struct RzSource source;
+};
+
+extern const struct RzMissionText ee_rz_mission_texts[];
+extern const s32 ee_rz_mission_text_count;
+extern const struct RzMapIcon ee_rz_map_icons[];
+extern const s32 ee_rz_map_icon_count;
+
 /* --- between the files ----------------------------------------------------------------------------------------- */
 
 /* randomizer_play.c */
@@ -90,6 +128,8 @@ s32 rz_play_active(void);                           /* the game in memory is a R
 s32 rz_play_owned(s32 item_id);                     /* the item is really owned, whether or not the view is on */
 void rz_play_collect(s32 check, s32 L);             /* CHECK collected now: its item, once, with its banner */
 s32 ee_rz_save_c(s32 slot, s32 flags, s32 L);       /* memcard_Save, with the collected view off around it */
+s32 rz_play_map_planet(s32 L);                      /* the planet the pause map and the Missions page show */
+s32 rz_play_hidden_check(const struct RzSource *source, s32 planet);   /* SOURCE's check: PLANET's, uncollected */
 
 /* randomizer_world.c */
 void rz_world_forget(void);                         /* a level's visit starts: no stand-ins yet */

@@ -117,6 +117,9 @@ LEVEL_DATA = {
     # CreateMoby's lui/lw pairs of +4 and +0x10
     "mobys_placed_end": ("func_0020D348", 0x14, 0x18),
     "mobys_end": ("func_0020D348", 0x7C, 0x80),
+    # rz: the pause map's state (D_001A01F0 in the executable: + 0x224 the planet the map and the Missions page
+    # show), from Mission_UpdateObjectives's lui/addiu
+    "map_state": ("func_0020C7A0", 0x4, 0xC),
     # rz: the level's core data record (D_L00_00173F00 in level 0: the gameplay data at +4, whose word +0x44 is
     # the offset of the moby records), from InitLevelRenderGlobals's lui/addiu
     "level_core": ("func_L00_002422D8", 0x4, 0xC),

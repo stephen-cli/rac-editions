@@ -21,10 +21,11 @@
  * Rilgar's RYNO salesman). While the vendor's menu is up only the vendor
  * checks' names are replaced, those of every planet, as a vendor sells the
  * stock of every planet visited, and only while the cursor is on a purchase
- * entry: an ammo entry is for a weapon owned and names it. The pause menu is
- * left alone (it names the items owned), as are the edition's own strings
- * (its banners name the reward). A HelpDesk line on that planet naming the
- * item reads "???" too. */
+ * entry: an ammo entry is for a weapon owned and names it. The pause menu
+ * names the items owned and is left alone, but for its Missions page and
+ * the map's labels (redact_mission_text); the edition's own strings (its
+ * banners name the reward) are left alone too. A HelpDesk line on that
+ * planet naming the item reads "???" too. */
 #include "randomizer_play.h"
 
 #define LANGUAGES       8               /* the game's language ids, g_language */
@@ -34,7 +35,9 @@
 #define BANNER_TICKS    300             /* as long as GiveItem's own banner: scale_ticks(0x12C) */
 #define REDACTED        "???"
 #define REDACT_BUFFERS  4               /* strings handed out at once: a prompt's callers draw several together */
-#define REDACT_MAX      256
+#define REDACT_MAX      384             /* the longest mission text is 318 bytes (0x532B in German) */
+#define COLOUR_ON       '\x0C'          /* the game's colour codes around a name: orange, then back */
+#define COLOUR_OFF      '\x08'
 #define MODE_PAUSE      3
 #define LEVELS          19
 
@@ -55,6 +58,9 @@ extern const int ee_text_first, ee_text_count;                      /* the editi
 static const s32 SPECIAL_ITEMS[5] = {
     RZ_ZOOMERATOR, RZ_RARITANIUM, RZ_CODEBOT, RZ_PREMIUM_NANOTECH, RZ_ULTRA_NANOTECH,
 };
+
+/* For the PINE test scripts: mission texts redacted; the last one's id. */
+volatile u32 ee_debug_rz_redact[2];
 
 /* src/text_hook.s keeps msg_string's caller here while ee_rz_redact_c runs: its return address, the id, the
  * program. */
@@ -258,6 +264,114 @@ static const char *check_name(s32 check)
     return display_name(row->vanilla);
 }
 
+/* --- the Missions page and the map's labels ------------------------------------------------------------------ */
+
+static s32 word_char(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || (u8)c >= 0x80;
+}
+
+static s32 ignored(char c)
+{
+    return c == '-' || c == ' ' || c == COLOUR_ON || c == COLOUR_OFF;
+}
+
+static char folded(char c)
+{
+    return c >= 'A' && c <= 'Z' ? (char)(c - 'A' + 'a') : c;
+}
+
+/* The length of TEXT's match of NAME at its start, ignoring case, hyphens, spaces and colour codes, ending where a
+ * word ends; 0 for none. */
+static s32 loose_match(const char *text, const char *name)
+{
+    s32 t = 0, n = 0;
+    for (;;) {
+        while (name[n] && ignored(name[n])) {
+            n++;
+        }
+        if (!name[n]) {
+            break;
+        }
+        while (t > 0 && ignored(text[t])) {
+            t++;
+        }
+        if (!text[t] || folded(text[t]) != folded(name[n])) {
+            return 0;
+        }
+        t++;
+        n++;
+    }
+    return t > 0 && !word_char(text[t]) ? t : 0;
+}
+
+/* TEXT with every whole-word NAME (loose_match) replaced by REDACTED, its colour codes with it, in the next
+ * buffer; 0 when NAME is not in TEXT. */
+static const char *redact_loose(const char *text, const char *name)
+{
+    s32 i, at = 0, found = 0;
+    char *out = redacted[next_redacted];
+    for (i = 0; text[i] && at < REDACT_MAX - 1;) {
+        s32 length = (i == 0 || !word_char(text[i - 1])) && word_char(text[i]) ? loose_match(text + i, name) : 0;
+        if (length > 0) {
+            if (at > 0 && out[at - 1] == COLOUR_ON) {
+                at--;
+            }
+            at = append(out, REDACT_MAX, at, REDACTED);
+            i += length;
+            if (text[i] == COLOUR_OFF) {
+                i++;
+            }
+            found = 1;
+        } else {
+            out[at++] = text[i++];
+        }
+    }
+    out[at] = 0;
+    if (!found) {
+        return 0;
+    }
+    next_redacted = (next_redacted + 1) % REDACT_BUFFERS;
+    return out;
+}
+
+static const struct RzMissionText *mission_text(s32 id)
+{
+    s32 i;
+    for (i = 0; i < ee_rz_mission_text_count; i++) {
+        if (ee_rz_mission_texts[i].text == id) {
+            return &ee_rz_mission_texts[i];
+        }
+    }
+    return 0;
+}
+
+/* A Missions page text or a map label (ID) names the rewards of a planet's missions ("Buy Heli-Pack from Al"):
+ * each of its mission's rewards that is an uncollected check of its planet has its name replaced; another
+ * planet's reward is a prerequisite and stays ("Trade Raritanium for Persuader" on Pokitaru hides the Persuader
+ * only). A text names its reward the way the check's giver does, but two Pokitaru texts spell theirs their own
+ * way ("Buy Thrusterpack from Bob", "Help owner for O2 mask"), so the match ignores case, hyphens, spaces and the
+ * colour codes. */
+static const char *redact_mission_text(const char *text, s32 id)
+{
+    const struct RzMissionText *entry = mission_text(id);
+    s32 i;
+    if (entry == 0) {
+        return text;
+    }
+    for (i = 0; i < entry->count; i++) {
+        s32 check = rz_play_hidden_check(&entry->sources[i], entry->planet);
+        const char *name = check >= 0 ? check_name(check) : 0;
+        const char *redacted_text = name != 0 ? redact_loose(text, name) : 0;
+        if (redacted_text != 0) {
+            text = redacted_text;
+            ee_debug_rz_redact[0]++;
+            ee_debug_rz_redact[1] = (u32)id;
+        }
+    }
+    return text;
+}
+
 static s32 edition_string(s32 id)
 {
     return id >= ee_text_first && id < ee_text_first + ee_text_count;
@@ -267,9 +381,11 @@ static s32 edition_string(s32 id)
 const char *ee_rz_redact_c(const char *text, s32 id, s32 L)
 {
     s32 check, checks;
-    if (text == 0 || !rz_play_active() || L < 0 || L >= LEVELS || edition_string(id)
-        || *(volatile s32 *)LVL_DATA(L, game_mode, u8 *) == MODE_PAUSE || infobot_banner(text)) {
+    if (text == 0 || !rz_play_active() || L < 0 || L >= LEVELS || edition_string(id) || infobot_banner(text)) {
         return text;
+    }
+    if (*(volatile s32 *)LVL_DATA(L, game_mode, u8 *) == MODE_PAUSE) {
+        return redact_mission_text(text, id);
     }
     checks = ee_rz_bonus_planet() != 0 ? RZ_CHECKS_MAX : RZ_CHECKS_BASE;
     for (check = 0; check < checks; check++) {

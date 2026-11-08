@@ -713,6 +713,71 @@ static s32 umbris_end(void *moby, s32 L)
     return 0;
 }
 
+/* --- the Missions page and the map ------------------------------------------------------------------------------ */
+
+/* The pause menu's Missions page and map show a planet's missions (tools/gen_randomizer.py describes the tables).
+ * Mission_UpdateObjectives (func_0020C7A0) marks each one hidden, open or done from its two conditions, which test
+ * the planets unlocked, the items owned and the special items' flags, and a marker shows on the map while its
+ * mission is open. With the rewards shuffled those are the wrong questions, as they are for the givers: "Buy
+ * Heli-Pack from Al" would tick when a Heli-Pack came from elsewhere, and stay open after Al's check gave
+ * something else. So the update runs under the collected view of the planet shown, as a giver's update does: a
+ * condition naming one of that planet's checks' retail rewards reads whether the check is collected, and one
+ * naming another planet's (Aridia's "Use your Swingshot", a prerequisite) keeps the truth. The predicates of the
+ * type-7 conditions read the same bytes. EnterMenuMode, DrawMapScreen, MissionMenu_Init, LevelSelectMenu_Update and
+ * initialize_pause_menu call the update; the statuses are worked out afresh each time and never saved. */
+DECLARE_LVL(func_0020C7A0);             /* Mission_UpdateObjectives() */
+DECLARE_LVL_DATA(map_state);            /* D_001A01F0 in the executable */
+#define MAP_PLANET(L)   (LVL_DATA(L, map_state, volatile s32 *)[0x224 / 4])
+
+/* For the PINE test scripts: updates; updates under the view; the planet of the last; the view already on. */
+volatile u32 ee_debug_rz_mission[4];
+
+s32 rz_play_map_planet(s32 L)
+{
+    return MAP_PLANET(L);
+}
+
+/* The check whose retail reward SOURCE names; -1 for none. */
+static s32 check_of_source(const struct RzSource *source)
+{
+    switch (source->kind) {
+    case RZ_SOURCE_PLANET:
+        return check_of_planet(source->arg);
+    case RZ_SOURCE_ITEM:
+        return source->arg < ITEMS ? check_of_item_id(source->arg) : -1;
+    case RZ_SOURCE_FLAG:
+        return source->arg < FLAG_BYTES ? check_of_flag(source->arg) : -1;
+    default:
+        return -1;
+    }
+}
+
+s32 rz_play_hidden_check(const struct RzSource *source, s32 planet)
+{
+    s32 check = check_of_source(source);
+    return in_view(check, planet) && !ee_rz_check_collected(check) ? check : -1;
+}
+
+/* Mission_UpdateObjectives in level L's program. */
+s32 ee_rz_mission_update_c(s32 L)
+{
+    s32 planet = MAP_PLANET(L);
+    s32 result;
+    ee_debug_rz_mission[0]++;
+    ee_debug_rz_mission[2] = (u32)planet;
+    if (!active || view_on) {               /* the view is on only inside a moby update, which no menu runs in */
+        if (view_on) {
+            ee_debug_rz_mission[3]++;
+        }
+        return LVL(L, func_0020C7A0, CountFn)();
+    }
+    ee_debug_rz_mission[1]++;
+    view_apply(planet);
+    result = LVL(L, func_0020C7A0, CountFn)();
+    view_restore(L);
+    return result;
+}
+
 /* --- the level and the frame ----------------------------------------------------------------------------------- */
 
 /* Read the record for level L: whether this is a Randomizer save. */

@@ -22,8 +22,11 @@ where a giver decides to stay or go; the level's init calls InitLevelResidentSta
 (func_L00_0023D9C0) at every load, a reload of the same level too; and
 Hud_RegisterHealthBank (func_L00_00235790) loads
 HudHealthDraw's address (lui/addiu), which the edition's drawer takes over
-for the 7-orb health of the Ultra Nanotech without the Premium. This scans
-each level's code for those places and:
+for the 7-orb health of the Ultra Nanotech without the Premium. The pause
+menu's Missions page and map ask Mission_UpdateObjectives (func_0020C7A0)
+for the shown planet's mission statuses, and the map draws its markers'
+icons through GetIconFrame (func_00200198) in DrawMapView (func_00205E70).
+This scans each level's code for those places and:
 
   emits build/modseg/gen_rz.c    per level, the classes whose update gets the
                                  collected view (src/randomizer_play.c): the
@@ -31,7 +34,10 @@ each level's code for those places and:
                                  the functions the GiveItem and UnlockPlanet
                                  calls sit in, plus the givers that set a flag
                                  instead (GIVER_FUNCTIONS); and the banners'
-                                 words from the game's text table
+                                 words from the game's text table; and the
+                                 Missions page's and the map's texts and
+                                 item markers that name a check's reward,
+                                 from the executable's mission tables
   patches(level, at)             the call sites as (address, retail word, new
                                  word) for tools/overlay_patch.py's feature
                                  randomizer, redirected to that level's stubs
@@ -77,6 +83,11 @@ VEC_ADD = "func_001F9BD8"               # FastVecAdd(out, a, b)
 ADDU_A2_A2_MASK, ADDU_A2_A2 = 0xFFE0FFFF, 0x00C03021   # addu $a2, $a2, $rt: b is a table's entry
 MENU_UPDATE = "func_L00_0029D988"       # VendorMenuUpdate: msg_string for the selected item's slogan
 HEALTH_DRAW = "func_L00_0023A1A0"
+MISSION_UPDATE = "func_0020C7A0"        # Mission_UpdateObjectives: the shown planet's mission statuses (pause menu)
+MISSION_UPDATE_CALLS = 5                # EnterMenuMode, DrawMapScreen, MissionMenu_Init, LevelSelectMenu_Update,
+                                        # initialize_pause_menu
+MAP_VIEW = "func_00205E70"              # DrawMapView: the pause map's markers, each through GetIconFrame
+MAP_VIEW_ICON_CALLS = 5
 HEALTH_DRAW_HI, HEALTH_DRAW_LO = 0xC, 0x20
 LUI_T0, ADDIU_T0_T0 = 0x3C080000, 0x25080000
 UPDATE_LOOP = "func_00213C78"
@@ -223,6 +234,15 @@ def sites(lv: Level) -> dict:
             out["item_banner"] += [a for a in lv.calls(lv.place[SHOW_BANNER], begin, begin + lv.sizes[name])
                                    if a not in out["item_banner"]]
     out["item_banner"].sort()
+    out["mission_update"] = lv.calls(lv.place[MISSION_UPDATE])
+    if len(out["mission_update"]) != MISSION_UPDATE_CALLS:
+        raise SystemExit(f"level {lv.level}: {len(out['mission_update'])} calls of Mission_UpdateObjectives, "
+                         f"not {MISSION_UPDATE_CALLS}")
+    view = lv.place[MAP_VIEW]
+    out["map_icon"] = lv.calls(lv.place[GET_ICON], view, view + lv.sizes[MAP_VIEW])
+    if len(out["map_icon"]) != MAP_VIEW_ICON_CALLS:
+        raise SystemExit(f"level {lv.level}: DrawMapView calls GetIconFrame {len(out['map_icon'])} times, "
+                         f"not {MAP_VIEW_ICON_CALLS}")
     start = lv.place[PAUSE_SLOTS]
     out["slots_end"] = lv.calls(lv.place[END_PAGING], start, start + lv.sizes[PAUSE_SLOTS])
     if len(out["slots_end"]) != 1:
@@ -281,7 +301,8 @@ def patches(level: int, at) -> list[tuple[int, int | None, int]]:
                        ("vendor_icon", "ee_rz_vendor_icon"), ("vendor_text", "ee_rz_vendor_text"),
                        ("vendor_model", "ee_rz_vendor_model"), ("vendor_place", "ee_rz_vendor_place"),
                        ("vendor_slogan", "ee_rz_vendor_slogan"), ("vendor_holo", "ee_rz_vendor_holo"),
-                       ("vendor_holo_add", "ee_rz_vendor_holo_add")):
+                       ("vendor_holo_add", "ee_rz_vendor_holo_add"),
+                       ("mission_update", "ee_rz_mission_update"), ("map_icon", "ee_rz_map_icon")):
         for addr in found[kind]:
             out.append((addr, lv.word(addr), jal(modseg_symbol(f"{stub}_{level:02d}"))))
     # HudHealthDraw's address, as Hud_RegisterHealthBank materialises it: the edition's drawer instead
@@ -428,6 +449,153 @@ EFFECT_POOL_LW = 0x1C
 GAME_GP = 0x166D00
 
 
+# The pause menu's Missions page and map (src/randomizer_text.c, src/randomizer_map.c). Each planet's missions
+# are a list of 0x28-byte nodes in the executable's data (D_001A2EF0[planet], ended by id 0): +0x00 the short
+# text, +0x02/+0x04 the reveal condition (type, argument), +0x08/+0x0C the done condition, +0x14 up to four
+# long texts, +0x1C a callback choosing among them. Mission_CheckCondition (func_0020C940) reads type 1 the
+# planet unlocked, 2 the item owned, 3 the item "had", 6 a flag byte (0-7 the special items, higher ones level
+# events), 7 a predicate's answer; types 4 and 5 read level progress. The map's markers are 0x28-byte icons
+# (D_001A2F40[planet], ended by flags & 4): +0x02 the node whose status shows the marker, +0x06/+0x08 the
+# texture and frame, +0x0A the label text. Every level program carries the same tables, relocated, so they are
+# read once from the executable.
+EXECUTABLE = "games/rac1/baserom/SCES_509.16"   # in the OpenRAC checkout
+MISSION_LISTS, MAP_ICON_LISTS = 0x1A2EF0, 0x1A2F40
+NODE_SIZE = ICON_SIZE = 0x28
+ICON_LIST_END = 0x4
+SOURCE_PLANET, SOURCE_ITEM, SOURCE_FLAG = 1, 2, 6   # src/randomizer_play.h RZ_SOURCE_*
+SPECIAL_FLAGS = 8
+MISSION_SOURCES = 4                     # src/randomizer_play.h RZ_MISSION_SOURCES
+# The inventory bytes the type-7 conditions read (MissionCond_*, src/game/missionfunc.c in rac1-decomp); their
+# other reads are level progress and level events.
+PREDICATE_ITEMS = {
+    0x20CB80: [],                                           # MissionCond_Obj18AndSpecial18
+    0x20CBA8: [],                                           # MissionCond_Obj2FAndSpecials
+    0x20CBE0: [],                                           # MissionCond_Obj3FAnd40
+    0x20CC10: [],                                           # MissionCond_Obj42AndSpecial55
+    0x20CC38: [],                                           # MissionCond_Obj46AndSpecial61
+    0x20CC60: [(SOURCE_ITEM, 21)],                          # MissionCond_Obj57AndItem3D: the Morph-o-Ray had
+    0x20CC88: [(SOURCE_ITEM, 31), (SOURCE_ITEM, 33)],       # MissionCond_Items1FAnd21: Hologuise, Map-o-Matic
+}
+ITEM_ICON_BASE = 0xEA60                 # an item's HUD icon: ITEM_ICON_BASE + its id
+MAP_MARKERS = 0xE99A                    # the map's own markers, by frame: 2 the quest marker, 4 an infobot's
+INFOBOT_MARKER = 4
+ICON_BACKDROP = 0x40                    # a marker drawn on a dark backdrop (the item icons)
+SPECIAL_ICONS = {(0xEAC8, 0): (SOURCE_FLAG, 0),             # the Zoomerator
+                 (0xEAC9, 0): (SOURCE_FLAG, 1),             # the Raritanium
+                 (0xEAC9, 3): (SOURCE_FLAG, 4),             # the Premium Nanotech
+                 (0xEAC9, 4): (SOURCE_FLAG, 5)}             # the Ultra Nanotech
+
+
+def executable_reader(openrac: Path):
+    """read(address, size) over the executable's loaded segments."""
+    elf = (openrac / EXECUTABLE).read_bytes()
+    phoff, = struct.unpack_from("<I", elf, 0x1C)
+    phentsize, phnum = struct.unpack_from("<HH", elf, 0x2A)
+    segments = []
+    for i in range(phnum):
+        kind, offset, vaddr, _paddr, filesz, _memsz = struct.unpack_from("<6I", elf, phoff + i * phentsize)
+        if kind == 1:                   # PT_LOAD
+            segments.append((vaddr, elf[offset:offset + filesz]))
+
+    def read(addr: int, size: int) -> bytes:
+        for base, data in segments:
+            if base <= addr and addr + size <= base + len(data):
+                return data[addr - base:addr - base + size]
+        raise SystemExit(f"{EXECUTABLE}: 0x{addr:08X} is in no loaded segment")
+    return read
+
+
+def condition_sources(kind: int, arg: int) -> list[tuple[int, int]]:
+    """The rewards a mission condition names, as (RZ_SOURCE_*, argument)."""
+    if kind == 1:
+        return [(SOURCE_PLANET, arg)]
+    if kind in (2, 3):
+        return [(SOURCE_ITEM, arg)]
+    if kind == 6:
+        return [(SOURCE_FLAG, arg)] if arg < SPECIAL_FLAGS else []
+    if kind == 7:
+        if arg not in PREDICATE_ITEMS:
+            raise SystemExit(f"a mission condition calls 0x{arg:08X}, which PREDICATE_ITEMS does not know")
+        return PREDICATE_ITEMS[arg]
+    return []
+
+
+def icon_source(texture: int, frame: int, node_sources: list):
+    """The reward a map marker's icon shows (an item's, or an infobot's: its mission's planet), or None for a
+    generic marker."""
+    if ITEM_ICON_BASE <= texture < ITEM_ICON_BASE + ITEM_COUNT and frame == 0:
+        return (SOURCE_ITEM, texture - ITEM_ICON_BASE)
+    if (texture, frame) == (MAP_MARKERS, INFOBOT_MARKER):
+        planets = [s for s in node_sources if s[0] == SOURCE_PLANET]
+        if len(planets) != 1:
+            raise SystemExit(f"an infobot marker's mission names {len(planets)} planets, not one")
+        return planets[0]
+    return SPECIAL_ICONS.get((texture, frame))
+
+
+def mission_tables(openrac: Path) -> list[str]:
+    """ee_rz_mission_texts: each text of the Missions page and the map labels that names a reward, its planet and
+    the rewards its mission's conditions name (a label: its marker's node's, and the reward its icon shows);
+    ee_rz_map_icons: per planet, the markers whose icon is a reward's."""
+    read = executable_reader(openrac)
+
+    def word(addr):
+        return struct.unpack("<I", read(addr, 4))[0]
+    texts = {}
+    icons = {}
+
+    def add(text, planet, sources):
+        if text in texts and texts[text][0] != planet:
+            raise SystemExit(f"text 0x{text:04X} is shown on planets {texts[text][0]} and {planet}")
+        have = texts.setdefault(text, (planet, []))[1]
+        for source in sources:
+            if source not in have:
+                have.append(source)
+    for planet in range(LEVELS):
+        nodes = []
+        at = word(MISSION_LISTS + 4 * planet)
+        while True:
+            short, reveal, reveal_arg, done, done_arg = struct.unpack_from("<hhih2xi", read(at, 0x10))
+            if short == 0:
+                break
+            longs = [t for t in struct.unpack_from("<4h", read(at + 0x14, 8)) if t > 0]
+            sources = condition_sources(reveal, reveal_arg) + condition_sources(done, done_arg)
+            nodes.append(sources)
+            for text in ([short] if short > 0 else []) + longs:
+                add(text, planet, sources)
+            at += NODE_SIZE
+        at = word(MAP_ICON_LISTS + 4 * planet)
+        while True:
+            _id, link, flags, texture, frame, label = struct.unpack_from("<hhHHhh", read(at, 12))
+            if flags & ICON_LIST_END:
+                break
+            source = icon_source(texture, frame, nodes[link] if link >= 0 else [])
+            if source is not None:
+                icons[(planet, texture, frame)] = (source, int(bool(flags & ICON_BACKDROP)))
+            if label > 0:
+                add(label, planet, (nodes[link] if link >= 0 else []) + ([source] if source else []))
+            at += ICON_SIZE
+    named = sorted((text, planet, sources) for text, (planet, sources) in texts.items() if sources)
+    lines = ["/* the Missions page's and the map labels' texts that name a reward: the text, its planet, and the",
+             "   rewards its mission's conditions name (src/randomizer_play.h RZ_SOURCE_*) */",
+             f"const struct RzMissionText ee_rz_mission_texts[{len(named)}] = {{"]
+    for text, planet, sources in named:
+        if len(sources) > MISSION_SOURCES:
+            raise SystemExit(f"text 0x{text:04X} names {len(sources)} rewards, more than {MISSION_SOURCES}")
+        cells = ", ".join(f"{{ {k}, {a} }}" for k, a in sources + [(0, 0)] * (MISSION_SOURCES - len(sources)))
+        lines.append(f"    {{ 0x{text:04X}, {planet}, {len(sources)}, {{ {cells} }} }},")
+    lines.append("};")
+    lines.append(f"const s32 ee_rz_mission_text_count = {len(named)};")
+    lines.append("/* the map markers whose icon is a reward's: the planet, the texture, the frame, whether it has a")
+    lines.append("   backdrop, the reward */")
+    lines.append(f"const struct RzMapIcon ee_rz_map_icons[{len(icons)}] = {{")
+    for (planet, texture, frame), ((kind, arg), backdrop) in sorted(icons.items()):
+        lines.append(f"    {{ {planet}, 0x{texture:04X}, {frame}, {backdrop}, {{ {kind}, {arg} }} }},")
+    lines.append("};")
+    lines.append(f"const s32 ee_rz_map_icon_count = {len(icons)};")
+    return lines
+
+
 def gadget_sizes(openrac: Path) -> dict[int, int]:
     """class id -> its size unpacked, from level 1's gadget directory (every level's is the same)."""
     sys.path.insert(0, str(ROOT.parents[1] / "common/openrac_editor"))
@@ -462,9 +630,11 @@ def emit(openrac: Path, out: Path) -> None:
     lines = ["/* generated by tools/gen_randomizer.py: per level, the classes whose moby update runs under",
              "   the Randomizer's collected view (src/randomizer_play.c); 0xFFFF ends a list. Then the",
              "   banners' words from the game's text table, by the game's language id. */",
-             '#include "modseg.h"']
+             '#include "modseg.h"',
+             '#include "randomizer_play.h"']
     out.mkdir(parents=True, exist_ok=True)
     lines += banner_tables(openrac, out)
+    lines += mission_tables(openrac)
     for level, lv in sorted(levels(openrac).items()):
         found = sites(lv)
         cls = classes(lv, role_map, found)

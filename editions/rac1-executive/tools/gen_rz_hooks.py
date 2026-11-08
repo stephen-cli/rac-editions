@@ -54,6 +54,9 @@ KINDS = [
     ("ee_rz_vendor_slogan", "ee_rz_vendor_slogan_c", ["j     {c}", "addiu $5, $0, {n}"]),
     ("ee_rz_vendor_holo", "ee_rz_vendor_holo_c", ["j     {c}", "addiu $5, $0, {n}"]),
     ("ee_rz_vendor_holo_add", "ee_rz_vendor_holo_add_c", ["j     {c}", "addiu $7, $0, {n}"]),
+    # Mission_UpdateObjectives() takes no argument
+    ("ee_rz_mission_update", "ee_rz_mission_update_c", ["j     {c}", "addiu $4, $0, {n}"]),
+    ("ee_rz_map_icon", "ee_rz_map_icon_c", ["j     {c}", "addiu $6, $0, {n}"]),
     # the moby update loop's jalr $3: the moby is in $4; the update function becomes the hook's second argument
     ("ee_rz_moby_update", "ee_rz_moby_update_c", ["addiu $6, $0, {n}", "j     {c}", "addu  $5, $3, $0"]),
     # the pause menu's name box draw: not a patched call but a widget's draw pointer, which src/goodies.c sets

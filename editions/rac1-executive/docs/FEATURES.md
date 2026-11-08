@@ -5037,3 +5037,73 @@ for that check. The HelpDesk line still names the Hydrodisplacer. Tested in PCSX
 with Clank's mode held by hand and the check marked collected in the record: no
 sequence before, the sequence and "You found the Morph-o-ray!" after; the pickup
 as Clank itself is not played.
+
+## rz: the Missions page and the map follow the checks (2026-11-08) — built; tested in PCSX2
+
+**What it does.** In a Randomizer game the pause map's Missions page ticks a
+mission when its check is collected, not when its retail reward is owned: on
+Novalis "Buy Infobot from mechanic" ticks at the mechanic's check, whatever it
+gave, and stays open while Aridia is unlocked by another check. A mission's
+marker on the map stays until its check is collected. While a mission's check
+is uncollected its texts name its reward "???" ("Buy ??? from Al", "Buy ??? for
+1,000 bolts" on the map's label), and the marker of an item or an infobot shows
+the map's own "?" quest marker instead of the item's icon. A reward of another
+planet named in a mission is a prerequisite and stays as retail has it:
+Aridia's "Use your Swingshot", Pokitaru's "Trade Raritanium for Persuader"
+(the Persuader hidden, the Raritanium and its marker shown). Retail and
+Challenge Mode saves are unchanged.
+
+**How the game does it.** Each planet's missions are a list of 0x28-byte nodes
+(D_001A2EF0[planet]: the short text, a reveal and a done condition, up to four
+long texts and a callback choosing among them), and its map markers a list of
+0x28-byte icons (D_001A2F40[planet]: the node whose status shows the marker,
+the texture and frame, the label text). Mission_UpdateObjectives
+(func_0020C7A0) marks each node of the planet shown (D_001A01F0 + 0x224)
+hidden, open or done from Mission_CheckCondition (func_0020C940): type 1 a
+planet unlocked, 2 an item owned, 3 an item "had", 6 a flag byte (0-7 the
+special items), 7 a predicate (MissionCond_*), 4 and 5 level progress. A
+marker shows while its node is open (Map_RefreshIcons, func_0020CDE0). The
+statuses are worked out afresh whenever the pause menu opens, the Missions
+page opens or the map changes planet, and are never saved. 89 nodes, 95
+icons; every level program holds the same tables, relocated.
+
+**How.** The five calls of Mission_UpdateObjectives in each level program run
+it under the collected view (src/randomizer_play.c) of the planet shown, as a
+giver's update does: a byte naming one of that planet's checks' retail rewards
+reads whether the check is collected, any other byte the truth; the
+predicates read the same bytes. The planet shown is `LEVEL_DATA` `map_state`
++ 0x224 (tools/modseg.py), from the update's own lui/addiu.
+tools/gen_randomizer.py reads the executable's mission tables and lists each
+text that names a reward with the rewards its mission's conditions name (a
+label: its marker's mission's, and the reward its icon shows), and the
+markers whose icon is a reward's: 16 item icons (0xEA60 + item, the special
+items' 0xEAC8/0xEAC9 frames) and 3 infobot markers (0xE99A frame 4, the
+mechanic's, the deserter's, the scrap merchant's). In the pause menu
+ee_rz_redact_c (src/randomizer_text.c) hides, in a listed text, the name of
+each of its rewards that is an uncollected check of its planet. The match
+ignores case, hyphens, spaces and the colour codes, at word boundaries,
+because two Pokitaru texts spell their reward their own way ("Buy
+Thrusterpack from Bob", "Help owner for O2 mask"); the redaction buffers grew
+to 384 bytes for the longest mission text (318 bytes). DrawMapView's five
+GetIconFrame calls (func_00205E70; src/randomizer_map.c) give a listed
+marker of the map's planet the quest marker (0xE99A frame 2) while its reward
+is hidden, and take the item icons' dark backdrop (the icon's flags & 0x40)
+off for that time.
+
+**Tested in PCSX2 over PINE.** A Python model of Mission_UpdateObjectives
+first matched retail on a Challenge Mode save in 144 cases: every planet, and
+every condition's source byte flipped one at a time. With a Randomizer record
+in that save, 360 cases matched the collected view's model: each check of
+each planet in the four states of reward owned and check collected, and every
+source flipped; the remap changes a status in 329 of them. On the Randomizer
+test save itself, Novalis's three missions show ticked with Aridia and Kerwan
+locked. The retail save runs the update with nothing redacted and no marker
+changed. The "???" texts and the quest markers show on Kerwan, Novalis, Orxon
+and Pokitaru, and go once the checks are collected. Untested on the PS3.
+
+**Known limit.** A few French, German, Spanish and Italian texts spell a
+reward differently from that language's item name ("Infobot" where the French
+name is "Inforobot", "Grindboots" in German labels, Spanish labels written in
+Italian), so the name shows there: 18 texts. Hiding them needs per-language
+spellings cut from the player's disc, a new kind of step in the installer's
+word recipe (installer/core/src/fill.c).

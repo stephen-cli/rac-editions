@@ -1471,6 +1471,160 @@ ee_rz_vendor_holo_add_17:
 ee_rz_vendor_holo_add_18:
     j     ee_rz_vendor_holo_add_c
     addiu $7, $0, 18
+.extern ee_rz_mission_update_c
+.globl ee_rz_mission_update_00
+ee_rz_mission_update_00:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 0
+.globl ee_rz_mission_update_01
+ee_rz_mission_update_01:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 1
+.globl ee_rz_mission_update_02
+ee_rz_mission_update_02:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 2
+.globl ee_rz_mission_update_03
+ee_rz_mission_update_03:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 3
+.globl ee_rz_mission_update_04
+ee_rz_mission_update_04:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 4
+.globl ee_rz_mission_update_05
+ee_rz_mission_update_05:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 5
+.globl ee_rz_mission_update_06
+ee_rz_mission_update_06:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 6
+.globl ee_rz_mission_update_07
+ee_rz_mission_update_07:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 7
+.globl ee_rz_mission_update_08
+ee_rz_mission_update_08:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 8
+.globl ee_rz_mission_update_09
+ee_rz_mission_update_09:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 9
+.globl ee_rz_mission_update_10
+ee_rz_mission_update_10:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 10
+.globl ee_rz_mission_update_11
+ee_rz_mission_update_11:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 11
+.globl ee_rz_mission_update_12
+ee_rz_mission_update_12:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 12
+.globl ee_rz_mission_update_13
+ee_rz_mission_update_13:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 13
+.globl ee_rz_mission_update_14
+ee_rz_mission_update_14:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 14
+.globl ee_rz_mission_update_15
+ee_rz_mission_update_15:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 15
+.globl ee_rz_mission_update_16
+ee_rz_mission_update_16:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 16
+.globl ee_rz_mission_update_17
+ee_rz_mission_update_17:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 17
+.globl ee_rz_mission_update_18
+ee_rz_mission_update_18:
+    j     ee_rz_mission_update_c
+    addiu $4, $0, 18
+.extern ee_rz_map_icon_c
+.globl ee_rz_map_icon_00
+ee_rz_map_icon_00:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 0
+.globl ee_rz_map_icon_01
+ee_rz_map_icon_01:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 1
+.globl ee_rz_map_icon_02
+ee_rz_map_icon_02:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 2
+.globl ee_rz_map_icon_03
+ee_rz_map_icon_03:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 3
+.globl ee_rz_map_icon_04
+ee_rz_map_icon_04:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 4
+.globl ee_rz_map_icon_05
+ee_rz_map_icon_05:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 5
+.globl ee_rz_map_icon_06
+ee_rz_map_icon_06:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 6
+.globl ee_rz_map_icon_07
+ee_rz_map_icon_07:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 7
+.globl ee_rz_map_icon_08
+ee_rz_map_icon_08:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 8
+.globl ee_rz_map_icon_09
+ee_rz_map_icon_09:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 9
+.globl ee_rz_map_icon_10
+ee_rz_map_icon_10:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 10
+.globl ee_rz_map_icon_11
+ee_rz_map_icon_11:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 11
+.globl ee_rz_map_icon_12
+ee_rz_map_icon_12:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 12
+.globl ee_rz_map_icon_13
+ee_rz_map_icon_13:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 13
+.globl ee_rz_map_icon_14
+ee_rz_map_icon_14:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 14
+.globl ee_rz_map_icon_15
+ee_rz_map_icon_15:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 15
+.globl ee_rz_map_icon_16
+ee_rz_map_icon_16:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 16
+.globl ee_rz_map_icon_17
+ee_rz_map_icon_17:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 17
+.globl ee_rz_map_icon_18
+ee_rz_map_icon_18:
+    j     ee_rz_map_icon_c
+    addiu $6, $0, 18
 .extern ee_rz_moby_update_c
 .globl ee_rz_moby_update_00
 ee_rz_moby_update_00:
