@@ -199,14 +199,123 @@ static size_t anchor_length(const char *path)
 #else
 #include <limits.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <sys/types.h>
+#if defined(__lv2ppu__)
+/* the PS3's lv2: newlib's POSIX calls over its file system, which has no links and no statvfs */
+#include <lv2/sysfs.h>
+#include <ppu-lv2.h>
+#else
+#include <sys/statvfs.h>
+#endif
 
+#if defined(__lv2ppu__)
+/* The toolchain's stdio loses an image's size past 4 GB (a seek to the end comes back cut to 32 bits, and the
+   stream then reads nothing), while lv2's own calls are 64-bit. So a file is a stdio stream over those calls. */
+#include <sys/file.h>
+
+typedef struct {
+    s32 fd;
+} Lv2File;
+
+static ssize_t lv2_read(void *cookie, char *buffer, size_t size)
+{
+    u64 got = 0;
+    if (sysLv2FsRead(((Lv2File *)cookie)->fd, buffer, size, &got) != 0) {
+        errno = EIO;
+        return -1;
+    }
+    return (ssize_t)got;
+}
+
+static ssize_t lv2_write(void *cookie, const char *buffer, size_t size)
+{
+    u64 written = 0;
+    if (sysLv2FsWrite(((Lv2File *)cookie)->fd, buffer, size, &written) != 0) {
+        errno = EIO;
+        return -1;
+    }
+    return (ssize_t)written;
+}
+
+#ifdef __LARGE64_FILES
+static int lv2_seek(void *cookie, _off64_t *offset, int whence)
+#else
+static int lv2_seek(void *cookie, off_t *offset, int whence)
+#endif
+{
+    u64 position = 0;
+    if (sysLv2FsLSeek64(((Lv2File *)cookie)->fd, (u64)*offset, whence, &position) != 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    *offset = (off_t)position;
+    return 0;
+}
+
+static int lv2_close(void *cookie)
+{
+    s32 closed = sysLv2FsClose(((Lv2File *)cookie)->fd);
+    free(cookie);
+    return closed == 0 ? 0 : -1;
+}
+
+FILE *file_open(const char *path, const char *mode)
+{
+    /* the modes the core uses: "rb", "r+b", "wb", "ab", "wbx" */
+    s32 flags;
+    if (mode[0] == 'r') {
+        flags = strchr(mode, '+') != NULL ? SYS_O_RDWR : SYS_O_RDONLY;
+    } else if (mode[0] == 'w') {
+        flags = SYS_O_WRONLY | SYS_O_CREAT | (strchr(mode, 'x') != NULL ? SYS_O_EXCL : SYS_O_TRUNC);
+    } else if (mode[0] == 'a') {
+        flags = SYS_O_WRONLY | SYS_O_CREAT | SYS_O_APPEND;
+    } else {
+        errno = EINVAL;
+        return NULL;
+    }
+    Lv2File *cookie = malloc(sizeof *cookie);
+    if (cookie == NULL) {
+        errno = ENOMEM;
+        return NULL;
+    }
+    if (sysLv2FsOpen(path, flags, &cookie->fd, 0666, NULL, 0) != 0) {
+        free(cookie);
+        errno = ENOENT;
+        return NULL;
+    }
+    char stream_mode[4] = {mode[0], 'b', strchr(mode, '+') != NULL ? '+' : 0, 0};
+    cookie_io_functions_t functions = {lv2_read, lv2_write, lv2_seek, lv2_close};
+    FILE *file = fopencookie(cookie, stream_mode, functions);
+    if (file == NULL) {
+        sysLv2FsClose(cookie->fd);
+        free(cookie);
+        return NULL;
+    }
+    /* reads and writes in 1 MiB, not stdio's 1 KiB: the PS3's hard drive, between a disc image read and the new
+       image written, is many times faster in large pieces (64 KiB copied at 12 MB/s) */
+    setvbuf(file, NULL, _IOFBF, 1024 * 1024);
+    return file;
+}
+#else
 FILE *file_open(const char *path, const char *mode)
 {
     return fopen(path, mode);
 }
+#endif
 
+#if defined(__lv2ppu__)
+bool file_info(const char *path, FileInfo *info)
+{
+    sysFSStat status;
+    if (sysLv2FsStat(path, &status) != 0) {
+        return false;
+    }
+    info->size = status.st_size;
+    info->modified_ns = (int64_t)status.st_mtime * 1000000000;   /* lv2 keeps whole seconds */
+    info->is_directory = S_ISDIR(status.st_mode);
+    return true;
+}
+#else
 bool file_info(const char *path, FileInfo *info)
 {
     struct stat status;
@@ -222,6 +331,7 @@ bool file_info(const char *path, FileInfo *info)
     info->is_directory = S_ISDIR(status.st_mode);
     return true;
 }
+#endif
 
 bool file_seek(FILE *file, uint64_t offset)
 {
@@ -234,6 +344,28 @@ uint64_t file_size(FILE *file)
     return (uint64_t)ftello(file);
 }
 
+#if defined(__lv2ppu__)
+/* lv2 has no links, and its paths are absolute ("/dev_hdd0/..."), so a path that exists is its own real spelling. */
+bool file_resolve(const char *path, char *resolved, size_t capacity)
+{
+    struct stat status;
+    if (stat(path, &status) != 0 || strlen(path) >= capacity) {
+        return false;
+    }
+    strcpy(resolved, path);
+    return true;
+}
+
+/* lv2 renames only onto a free name, so the file being replaced goes first. */
+bool file_replace(const char *from, const char *to)
+{
+    struct stat status;
+    if (stat(to, &status) == 0 && remove(to) != 0) {
+        return false;
+    }
+    return rename(from, to) == 0;
+}
+#else
 bool file_resolve(const char *path, char *resolved, size_t capacity)
 {
     char *real = realpath(path, NULL);
@@ -252,6 +384,7 @@ bool file_replace(const char *from, const char *to)
 {
     return rename(from, to) == 0;
 }
+#endif
 
 static bool make_directory(const char *directory)
 {
@@ -270,6 +403,35 @@ bool file_remove(const char *path)
     return remove(path) == 0;
 }
 
+#if defined(__lv2ppu__)
+/* lv2's sys_fs_disk_free (syscall 840): a device's size and free bytes. Not the sys_fs library's
+   cellFsGetFreeSize (PSL1GHT's sysFsGetFreeSize): a console hangs in that unless the library is loaded first,
+   and webMAN MOD uses the syscall too. */
+static s32 disk_free(const char *device, u64 *total, u64 *available)
+{
+    lv2syscall3(840, (u64)(uintptr_t)device, (u64)(uintptr_t)total, (u64)(uintptr_t)available);
+    return_to_user_prog(s32);
+}
+
+bool file_free_space(const char *folder, uint64_t *free_bytes)
+{
+    /* the device a path is on: "/dev_hdd0" of "/dev_hdd0/PS2ISO" */
+    char device[64];
+    const char *end = strchr(folder + 1, '/');
+    size_t length = end != NULL ? (size_t)(end - folder) : strlen(folder);
+    if (folder[0] != '/' || length >= sizeof device) {
+        return false;
+    }
+    memcpy(device, folder, length);
+    device[length] = 0;
+    u64 total = 0, available = 0;
+    if (disk_free(device, &total, &available) != 0) {
+        return false;
+    }
+    *free_bytes = available;
+    return true;
+}
+#else
 bool file_free_space(const char *folder, uint64_t *free_bytes)
 {
     struct statvfs status;
@@ -280,6 +442,7 @@ bool file_free_space(const char *folder, uint64_t *free_bytes)
     *free_bytes = (uint64_t)status.f_bavail * status.f_frsize;
     return true;
 }
+#endif
 
 static size_t anchor_length(const char *path)
 {
