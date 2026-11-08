@@ -4960,13 +4960,19 @@ degrees instead of 80 after Oltanis's statue. A history of its last eight
 widened values was not enough: while the letterbox grows and shrinks the hook
 writes a new widened value every frame, and Oltanis's button cutscene, which
 raises the Swingshot targets, ended with the view widened twice (+0xB0 at 1.12
-for a game value of 0.63). The hook now remembers the game's distinct values and
-takes a value within 0.1% of one of them times 4/3 over the zoom of one of the
-letterbox's 25 steps as that one: the only values it writes. The entry above
-that says the hook puts +0xB0 back describes the first design; the value has
-stayed in the record since the pop-in fix. Tested in PCSX2 on Oltanis's button
-cutscene: +0xB0 ends at 0.84 (1.12 before), and values a camera restores
-mid-fade map back to 0.84. Orxon's gate cutscene is not replayed.
+for a game value of 0.63). Recognising widened values by their form, a game
+value times 4/3 over the zoom of one of the letterbox's 25 steps, fixed that
+but took a zoom's own values for widened ones: Oltanis's missile cutscene
+stuttered as it zoomed. The hook now knows the widened value it wrote last and
+remembers settled ones, written 8 frames running, with the game's values they
+stand for (8 of them per level), and takes a value within 0.1% of one as that
+one. A path camera saves a view that has stood (the play view, or the full bars
+of the button cutscene), while the letterbox's fades and a zoom change every
+frame and are not remembered. The entry above that says the hook puts +0xB0
+back describes the first design; the value has stayed in the record since the
+pop-in fix. Tested in PCSX2 on Oltanis's button cutscene (+0xB0 ends at 0.84)
+and with zoom values between 0.45 and 0.82 written a quarter second apart, each
+widened once; the missile and Orxon's gate cutscenes are not replayed.
 
 ## rz: Umbris's end with another item for Batalia's infobot (2026-11-07) — built; awaiting test
 
