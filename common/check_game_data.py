@@ -39,6 +39,10 @@ LARGE_OK = {".md", ".txt"}
 # Files this check passes on purpose, with why.
 ALLOWED = {
     "editions/rac1-executive/art/charge_boots.png": "the Charge Boots menu icon, drawn for the edition",
+    "installer/ps3/data/fonts/Barlow-Regular.ttf": "the PS3 builder's text font, SIL Open Font License",
+    "installer/ps3/data/fonts/Barlow-SemiBold.ttf": "the PS3 builder's text font, SIL Open Font License",
+    "installer/ps3/data/fonts/ChakraPetch-Bold.ttf": "the PS3 builder's heading font, SIL Open Font License",
+    "installer/ps3/data/fonts/ChakraPetch-SemiBold.ttf": "the PS3 builder's heading font, SIL Open Font License",
 }
 
 
