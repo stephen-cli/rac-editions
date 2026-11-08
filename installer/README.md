@@ -111,7 +111,7 @@ Error codes, which the builder turns into words: `unknown_disc`,
 
 ## Releases
 
-A rac-editions release carries what the desktop builder bundles:
+A rac-editions release carries what the desktop builder bundles, and the PS3 builder:
 
 - `rac-installer-<target triple>[.exe]` for each platform the builder ships
   for (`x86_64-pc-windows-msvc`, `x86_64-unknown-linux-gnu`,
@@ -122,6 +122,10 @@ A rac-editions release carries what the desktop builder bundles:
 - `<edition>-payload.zip` for each edition, the payload's files at its root.
   Only a machine with the discs can build a payload, so it is attached by
   hand: `python tools/release.py --zip` writes it beside `build/payload`.
+- `EditionsBuilder.pkg`, the PS3 builder (`ps3/README.md`) with the
+  Executive Edition's payload inside, for the PS3's Package Manager. It is
+  built in the PS3 toolchain's container (`make pkg PAYLOAD=<payload>`) and
+  attached by hand with the payload.
 
 The builder pins one release and starts its installer as
 `rac-installer --serve --payload <the edition's payload> --data <a folder of
