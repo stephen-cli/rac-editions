@@ -5021,3 +5021,19 @@ once play resumes. A Randomizer run froze twice in flights between Quartu and
 Gaspar, the two planets of that seed with such a bolt (the Bolt Grabber's and the
 Pilot's Helmet's); PCSX2 flew that seed's layout between them ten times without
 a fault, so this is a precaution, not a confirmed cause.
+
+## rz: Blarg Station's Hydrodisplacer sequence (2026-11-08) — built; awaiting test
+
+Retail's Hydrodisplacer on Blarg Station ends in a sequence of its own: class
+1028 (UpdateMoby_1028), once Clank is out and the Hydrodisplacer is owned, plays
+the bridge scene, sets the level's trigger 1, plays the HelpDesk line about the
+Hydrodisplacer, shows "You've found the Hydrodisplacer!" and saves; class 1061
+starts scene 3 on the same condition. Both read the real inventory, so with the
+Hydrodisplacer from another check the sequence ran as soon as Clank went out, the
+check's item named "???", and with the check giving something else it never ran.
+Both classes now update under the collected view, where the Hydrodisplacer is
+owned once its check is collected, and the sequence's banner is the Randomizer's
+for that check. The HelpDesk line still names the Hydrodisplacer. Tested in PCSX2
+with Clank's mode held by hand and the check marked collected in the record: no
+sequence before, the sequence and "You found the Morph-o-ray!" after; the pickup
+as Clank itself is not played.

@@ -84,19 +84,25 @@ UPDATE_CALL = 0x58                      # MobyUpdateLoop + 0x58: jalr $3, the mo
 LOAD_PASS = "func_L00_002657B8"          # MobyLoadTimeUpdatePass: every moby's update once at the level's load,
 LOAD_PASS_CALL = 0xC8                    # before the first MobyUpdateLoop, + 0xC8: jalr $3 as well
 JALR_V1 = 0x0060F809
-# Givers that set a flag or a planet rather than call GiveItem, and the pickups that
-# delete themselves once their reward is owned: their classes get the view too.
+# Givers that set a flag or a planet rather than call GiveItem, the pickups that delete themselves
+# once their reward is owned, and the sequences that follow a pickup once its reward is owned: their
+# classes get the view too.
 GIVER_FUNCTIONS = ("func_L00_002D7298",    # InfobotUpdate: deletes itself once its planet is unlocked
                    "func_L10_002E9718",    # NanotechVendorUpdate: the two upgrades' flags
                    "func_L11_002CC950",    # Moby37Update: the Raritanium
                    "func_L00_002A5218",    # Moby1005Update: the Trespasser and Hydrodisplacer pickups
                    "func_L00_002C2A20",    # class 188's update, whose helper Moby188_StateStep gives an item
-                   "func_L05_00317F80")    # UpdateMoby_918, the Rilgar race's host: the Zoomerator's flag at a win
+                   "func_L05_00317F80",    # UpdateMoby_918, the Rilgar race's host: the Zoomerator's flag at a win
+                   "func_L06_002F69D0",    # UpdateMoby_1028: Blarg Station's Hydrodisplacer, once owned with Clank
+                                           # out: the bridge, trigger, HelpDesk line, banner and autosave
+                   "func_L06_002FDA70")    # UpdateMoby_1061: its scene 3, once the Hydrodisplacer is owned
 # Givers that set a flag and show their own banner, right after it or on a later update after their
-# autosave: the Rilgar race's "You won a Platinum Zoomerator!" and the Nanotech vendor's "Premium/Ultra
-# Nanotech" message would replace the Randomizer's banner.
+# autosave: the Rilgar race's "You won a Platinum Zoomerator!", the Nanotech vendor's "Premium/Ultra
+# Nanotech" message and Blarg Station's "You've found the Hydrodisplacer!" would replace the Randomizer's
+# banner.
 FLAG_BANNER_FUNCTIONS = ("func_L05_00317F80",    # UpdateMoby_918
-                         "func_L10_002E9718")    # NanotechVendorUpdate
+                         "func_L10_002E9718",    # NanotechVendorUpdate
+                         "func_L06_002F69D0")    # UpdateMoby_1028
 LEVELS = 19
 
 

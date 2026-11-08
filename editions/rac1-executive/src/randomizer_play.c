@@ -133,6 +133,7 @@ static s32 granted = -1;                /* the check collected during the moby u
  * FLAG_BANNER_FUNCTIONS) and shows the Randomizer's banner for the check instead. */
 #define TEXT_PREMIUM_BOUGHT 0x271C
 #define TEXT_ULTRA_BOUGHT   0x271D
+#define TEXT_HYDRODISPLACER_FOUND 0x177C  /* Blarg Station's "You've found the Hydrodisplacer!" (UpdateMoby_1028) */
 static s32 nanotech_check = -1;         /* the Nanotech check bought, its banner still due; -1 none */
 
 s32 rz_play_active(void)
@@ -424,8 +425,9 @@ void ee_rz_unlock_planet_c(s32 planet, s32 L)
 
 /* ShowBanner(text, ticks) inside GiveItem, and in a giver's own function (Al's "You got the Heli-Pack upgrade!"
  * right after his GiveItem, the Rilgar race's "You won a Platinum Zoomerator!" right after its flag, the Nanotech
- * vendor's after its autosave): the Randomizer's banner for the item it is giving, or gave this frame, or the
- * special item's check its giver has just set the flag of, or the Nanotech check bought. */
+ * vendor's after its autosave, Blarg Station's Hydrodisplacer sequence after its scene): the Randomizer's banner
+ * for the item it is giving, or gave this frame, or the special item's check its giver has just set the flag of,
+ * the Nanotech check bought, or the check of Blarg Station's Hydrodisplacer. */
 void ee_rz_item_banner_c(s32 text, s32 ticks, s32 L)
 {
     if (active && pending_item != RZ_ITEM_NONE) {
@@ -447,6 +449,13 @@ void ee_rz_item_banner_c(s32 text, s32 ticks, s32 L)
         banner_due = 0;
         rz_show_item_banner(last_check, last_item, L);
         return;
+    }
+    if (active && text == TEXT_HYDRODISPLACER_FOUND) {
+        s32 check = check_of_item_id(rz_item_game_id(RZ_HYDRODISPLACER));
+        if (check >= 0) {
+            rz_show_item_banner(check, ee_rz_layout_item(check), L);
+            return;
+        }
     }
     LVL(L, func_L00_00264DB8, BannerFn)(text, ticks);
 }
