@@ -540,6 +540,10 @@ static bool stream_image(const BuildFacts *facts, const char *base, const char *
             levels_span(plan, level, &first, &count);
         }
         uint64_t span_start = level < LEVEL_COUNT ? (uint64_t)first * ISO_SECTOR : retail_bytes;
+        if (span_start < at) {
+            made = install_fail(error, "internal", "level %d starts before level %d ends", level, level - 1);
+            break;
+        }
         if (level < LEVEL_COUNT && at == span_start) {
             size_t size = (size_t)count * ISO_SECTOR;
             uint8_t *span = malloc(size);
