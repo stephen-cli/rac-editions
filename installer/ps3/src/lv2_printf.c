@@ -127,6 +127,23 @@ void lv2_log_open(const char *path)
     }
 }
 
+/* What the writer has yet to write, written now: the app is ending, and the writer's next turn may not come. */
+void lv2_log_flush(void)
+{
+    if (log_fd < 0) {
+        return;
+    }
+    /* a turn of the writer first, so the lines it has taken land before these */
+    thread_sleep(300);
+    lock_take(log_lock);
+    u64 written;
+    if (log_pending_length > 0) {
+        sysLv2FsWrite(log_fd, log_pending, log_pending_length, &written);
+    }
+    log_pending_length = 0;
+    lock_release(log_lock);
+}
+
 /* TEXT added to what the writer has yet to write; dropped when that is full. */
 static void log_add(const char *text, size_t length)
 {

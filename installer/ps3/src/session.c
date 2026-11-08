@@ -344,6 +344,7 @@ void session_open(Session *session, Client *client, const Places *places)
 }
 
 static void scan_take(Session *session);
+static void scan_free(struct Scan *scan);
 
 /* Sends the next waiting image to be identified, one at a time: the discs share one drive. */
 static void check_next(Session *session)
@@ -538,6 +539,15 @@ void session_rescan(Session *session)
     session->scanned = true;
     session->planned = false;
     scan_start(session);
+}
+
+void session_close(Session *session)
+{
+    if (session->scan != NULL) {
+        thread_join(session->scan->thread);
+        scan_free(session->scan);
+        session->scan = NULL;
+    }
 }
 
 bool session_discs_settled(const Session *session)

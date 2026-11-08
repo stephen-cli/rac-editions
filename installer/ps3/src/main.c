@@ -96,6 +96,7 @@ int main(int argc, char **argv)
             thread_sleep(50);
         }
     }
+    session_close(&session);
     client_close(client);
     ui_close();
     draw_close();

@@ -21,9 +21,10 @@
 
 /* src/lv2_printf.c: what the app prints, also kept in a file */
 void lv2_log_open(const char *path);
+void lv2_log_flush(void);
 
-/* The main thread's stack: 1 MB, as SDL's software drawing and FreeType's glyph rendering run on it and overran
-   PSL1GHT's 64 KB default. */
+/* The main thread's stack: 1 MB, as FreeType's glyph rendering and the core's plan run on it, and PSL1GHT's 64 KB
+   default is too little. */
 SYS_PROCESS_PARAM(1001, 0x100000)
 
 static volatile bool quitting;
@@ -84,6 +85,7 @@ void platform_close(void)
 {
     ioPadEnd();
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT3);
+    lv2_log_flush();
 }
 
 unsigned platform_pad(void)

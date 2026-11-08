@@ -106,6 +106,10 @@ typedef struct {
 /* Starts the session: asks for the edition and looks in the discs folder. */
 void session_open(Session *session, Client *client, const Places *places);
 
+/* Ends the session before its client closes: the scan of the images' boot files, if still running, is waited
+   for, as it reads the edition's files. */
+void session_close(Session *session);
+
 /* Takes in the core's events and starts the next disc check; once a frame. */
 void session_update(Session *session);
 
