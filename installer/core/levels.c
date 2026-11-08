@@ -16,6 +16,10 @@
  * hangs the load), the tables after it moving down; the texture table and the GS RAM upload list are copied to the
  * index's end with their new entries.
  *
+ * Two ways in, one patch: patch_levels reads and writes each level on an image; levels_produce patches one level's
+ * span (its header and archive) handed to it by a writer that streams the new image front to back. Both share a
+ * plan, made first: the levels' places, the boots and the extra classes' sources.
+ *
  * Memory: one level is in memory at a time: its archive as read (a few MB), its decoded core (16-24 MB) and, while it
  * is compressed again, the stream and a copy decoded back to check it. The six levels the extra classes come from
  * are prepared once for their classes alone (kept: the blobs, pixels and palettes, some 300 KB) and again at their
@@ -38,7 +42,6 @@
 #include "pool.h"
 #include "wad.h"
 
-#define LEVELS 19
 #define TOC_LEVEL_TABLE 0x28C8u     /* in the table of contents: {u32 header sector, u32} per level */
 #define SECTIONS 11
 #define SECTION_CORE_INDEX 2
@@ -293,9 +296,9 @@ static bool check_index(const struct level *level, InstallError *error)
 }
 
 /* The levels' places on the image FILE, from the table of contents. */
-static bool read_places(FILE *file, struct place places[LEVELS], InstallError *error)
+static bool read_places(FILE *file, struct place places[LEVEL_COUNT], InstallError *error)
 {
-    for (int number = 0; number < LEVELS; number++) {
+    for (int number = 0; number < LEVEL_COUNT; number++) {
         uint8_t entry[4], header[8];
 
         if (!file_read_at(file, (uint64_t)DISC_TOC_SECTOR * ISO_SECTOR + TOC_LEVEL_TABLE + 8u * (unsigned)number,
@@ -311,10 +314,10 @@ static bool read_places(FILE *file, struct place places[LEVELS], InstallError *e
 
 /* Whether the levels' archives and headers keep apart, so a level's archive written in place leaves every other
    level's as the disc had it. */
-static bool places_apart(const struct place places[LEVELS])
+static bool places_apart(const struct place places[LEVEL_COUNT])
 {
-    for (int a = 0; a < LEVELS; a++) {
-        for (int b = 0; b < LEVELS; b++) {
+    for (int a = 0; a < LEVEL_COUNT; a++) {
+        for (int b = 0; b < LEVEL_COUNT; b++) {
             uint64_t start = places[b].sector, end = start + places[b].sectors;
 
             if (a != b && places[a].sector < end && start < (uint64_t)places[a].sector + places[a].sectors)
@@ -350,8 +353,10 @@ static bool read_sections(struct level *level, size_t size, InstallError *error)
     return true;
 }
 
-/* Level NUMBER's archive, read from FILE at PLACE, its core decoded. */
-static bool read_level(FILE *file, const struct place *place, int number, struct level *level, InstallError *error)
+/* Level NUMBER's archive, PLACE's sectors of it, its core decoded: copied from ARCHIVE, or read from FILE when
+   ARCHIVE is NULL. */
+static bool read_level(FILE *file, const uint8_t *archive, const struct place *place, int number, struct level *level,
+                       InstallError *error)
 {
     size_t size = (size_t)place->sectors * ISO_SECTOR, decoded = 0, expected;
     enum wad_error result;
@@ -361,7 +366,9 @@ static bool read_level(FILE *file, const struct place *place, int number, struct
     level->archive = malloc(size ? size : 1);
     if (!level->archive)
         return out_of_memory(error);
-    if (!file_read_at(file, (uint64_t)place->sector * ISO_SECTOR, level->archive, size))
+    if (archive)
+        memcpy(level->archive, archive, size);
+    else if (!file_read_at(file, (uint64_t)place->sector * ISO_SECTOR, level->archive, size))
         return install_fail(error, "internal", "level %d's archive cannot be read", number);
     if (!read_sections(level, size, error))
         return false;
@@ -1361,17 +1368,17 @@ static bool read_disc_class(const char *rac1, int number, int32_t id, struct cla
                             InstallError *error)
 {
     FILE *disc = file_open(rac1, "rb");
-    struct place places[LEVELS];
+    struct place places[LEVEL_COUNT];
     struct level level = {0};
     bool ok;
 
     if (!disc)
         return install_fail(error, "internal", "cannot read the PAL disc %s", rac1);
-    if (number < 0 || number >= LEVELS) {
+    if (number < 0 || number >= LEVEL_COUNT) {
         fclose(disc);
         return install_fail(error, "internal", "there is no level %d", number);
     }
-    ok = read_places(disc, places, error) && read_level(disc, &places[number], number, &level, error) &&
+    ok = read_places(disc, places, error) && read_level(disc, NULL, &places[number], number, &level, error) &&
          class_source(&level, id, source, error);
     fclose(disc);
     level_free(&level);
@@ -1454,65 +1461,66 @@ static bool make_boots(const char *rac1, const char *rac2, struct boots *boots, 
 
 /* ------------------------------------------------------------------------------------------------- the pass */
 
-struct patch {
-    IsoImage *image;
-    struct place places[LEVELS];
-    const struct boots *boots;          /* NULL without the Charge Boots */
+struct LevelsPlan {
+    FILE *source;                       /* the levels as the disc has them, for the extra classes' sources */
+    struct place places[LEVEL_COUNT];
+    struct boots boots;
+    bool with_boots;
     const uint8_t *sign;
     size_t sign_size;
     struct class_source sources[EXTRA_CLASSES];
     unsigned threads;
-    bool appended;                      /* an archive went at the image's end */
     Job *job;
     uint64_t done;
     uint64_t total;
 };
 
-/* Level NUMBER with everything but its extra classes, and what was done to it in DONE. */
-static bool prepare_level(struct patch *patch, int number, struct level *level, char *done, size_t capacity,
-                          InstallError *error)
+/* Level NUMBER with everything but its extra classes, and what was done to it in DONE: its archive copied from
+   ARCHIVE, or read from the plan's source when ARCHIVE is NULL. */
+static bool prepare_level(LevelsPlan *plan, int number, const uint8_t *archive, struct level *level, char *done,
+                          size_t capacity, InstallError *error)
 {
-    if (!read_level(patch->image->file, &patch->places[number], number, level, error) ||
+    if (!read_level(plan->source, archive, &plan->places[number], number, level, error) ||
         !paint_fonts(level, error))
         return false;
     snprintf(done, capacity, "fonts");
-    if (patch->boots) {
+    if (plan->with_boots) {
         size_t insert_at = 0, shifted = 0;
 
-        if (!add_boots(level, patch->boots, &insert_at, &shifted, error))
+        if (!add_boots(level, &plan->boots, &insert_at, &shifted, error))
             return false;
         text_extend(done, capacity, ", boots class at 0x%zx (%zu offsets shifted)", insert_at, shifted);
     }
     if (number == SIGN_LEVEL) {
         size_t old = 0;
 
-        if (!replace_sign(level, patch->sign, patch->sign_size, &old, error))
+        if (!replace_sign(level, plan->sign, plan->sign_size, &old, error))
             return false;
-        text_extend(done, capacity, ", sign 0x%zx -> 0x%zx bytes", old, patch->sign_size);
+        text_extend(done, capacity, ", sign 0x%zx -> 0x%zx bytes", old, plan->sign_size);
     }
     return true;
 }
 
 /* The extra classes copied from their levels as this patch leaves them before their own extra classes. */
-static bool read_sources(struct patch *patch, InstallError *error)
+static bool read_sources(LevelsPlan *plan, InstallError *error)
 {
     struct level level = {0};
     char done[256];
     bool ok = true;
 
     for (int k = 0; k < EXTRA_CLASSES && ok; k++) {
-        const struct class_source *source = &patch->sources[k];
+        const struct class_source *source = &plan->sources[k];
 
-        if (job_cancelled(patch->job))
+        if (job_cancelled(plan->job))
             ok = install_fail(error, "cancelled", "cancelled");
         else if (level.archive == NULL || level.number != EXTRA[k].level) {
             level_free(&level);
-            ok = prepare_level(patch, EXTRA[k].level, &level, done, sizeof done, error);
+            ok = prepare_level(plan, EXTRA[k].level, NULL, &level, done, sizeof done, error);
         }
-        if (ok && class_source(&level, EXTRA[k].id, &patch->sources[k], error)) {
-            job_log(patch->job, "class %d (%s) from level %d: 0x%zx bytes, %zu textures", (int)EXTRA[k].id,
+        if (ok && class_source(&level, EXTRA[k].id, &plan->sources[k], error)) {
+            job_log(plan->job, "class %d (%s) from level %d: 0x%zx bytes, %zu textures", (int)EXTRA[k].id,
                     EXTRA[k].name, EXTRA[k].level, source->blob_size, source->texture_count);
-            job_progress(patch->job, "patch", ++patch->done, patch->total);
+            job_progress(plan->job, "patch", ++plan->done, plan->total);
         } else {
             ok = false;
         }
@@ -1568,14 +1576,14 @@ static uint8_t *assemble(const struct level *level, const uint8_t *stream, size_
 /* LEVEL's archive with its core compressed again (on the thread pool, then checked by decoding it back, by the
    game's rules) and the index's sizes (+0x88, +0x8C) to match; in a zeroed buffer of at least MINIMUM bytes. The
    decoded core is freed. */
-static uint8_t *encode_level(struct patch *patch, struct level *level, size_t minimum, size_t *size,
+static uint8_t *encode_level(LevelsPlan *plan, struct level *level, size_t minimum, size_t *size,
                              InstallError *error)
 {
     size_t core_size = level->core.size, stream_size = 0, decoded = 0;
     uint8_t *stream = malloc(wad_bound(core_size)), *check = NULL, *archive = NULL;
 
     if (stream)
-        stream_size = wad_compress(level->core.bytes, core_size, stream, pool_run, &patch->threads);
+        stream_size = wad_compress(level->core.bytes, core_size, stream, pool_run, &plan->threads);
     if (stream_size)
         check = malloc(core_size + 1);
     if (!check) {
@@ -1602,77 +1610,47 @@ static uint8_t *encode_level(struct patch *patch, struct level *level, size_t mi
     return archive;
 }
 
-/* ARCHIVE (SIZE bytes, zeroed up to at least the level's sectors) in level NUMBER's own sectors when it fits, the
-   rest of them zeroed; else at the image's end, after the blank tail the archive appended before it keeps (the
-   stream reader reads past an archive's end; the last archive's tail is the image's own). The level's header is
-   pointed at it. */
-static bool write_archive(struct patch *patch, int number, const uint8_t *archive, size_t size, char *where,
-                          size_t capacity, InstallError *error)
+/* Level NUMBER's new archive (*SIZE bytes, zeroed up to at least its sectors): prepared, given its extra classes
+   and encoded, from ARCHIVE (its archive as the disc has it) or from the plan's source when ARCHIVE is NULL. What
+   was done to it in DONE, and the extra classes its class table has no room for in NO_ROOM ("" when none). */
+static uint8_t *make_archive(LevelsPlan *plan, int number, const uint8_t *archive, size_t *size, char *done,
+                             size_t done_capacity, char *no_room, size_t no_room_capacity, InstallError *error)
 {
-    const struct place *place = &patch->places[number];
-    size_t region = (size_t)place->sectors * ISO_SECTOR;
-    uint8_t field[8];
-    uint32_t sector;
-
-    if (size <= region) {
-        sector = place->sector;
-        iso_image_write(patch->image, (uint64_t)sector * ISO_SECTOR, archive, region);
-        snprintf(where, capacity, "in place at sector %u", sector);
-    } else {
-        if (patch->appended) {
-            uint8_t *tail = calloc(ISO_TAIL_SECTORS, ISO_SECTOR);
-
-            if (!tail)
-                return out_of_memory(error);
-            iso_image_append(patch->image, tail, (size_t)ISO_TAIL_SECTORS * ISO_SECTOR);
-            free(tail);
-        }
-        sector = iso_image_append(patch->image, archive, size);
-        patch->appended = true;
-        snprintf(where, capacity, "moved to new sectors at %u", sector);
-    }
-    write_u32_le(field, sector);
-    write_u32_le(field + 4, (uint32_t)(size / ISO_SECTOR));
-    iso_image_write(patch->image, (uint64_t)place->header_sector * ISO_SECTOR + 8, field, sizeof field);
-    return !patch->image->failed || image_failed(patch->image, error);
-}
-
-/* Level NUMBER prepared, given its extra classes, encoded and written. */
-static bool patch_level(struct patch *patch, int number, InstallError *error)
-{
-    struct level level;
+    struct level level = {0};
     int wanted[EXTRA_CLASSES], left_out[EXTRA_CLASSES];
     int32_t ids[EXTRA_CLASSES];
-    size_t wanted_count = 0, left_count = 0, size = 0;
-    char done[512], where[64], list[64];
-    uint8_t *archive = NULL;
-    bool ok;
+    size_t wanted_count = 0, left_count = 0;
+    char list[64];
+    uint8_t *made = NULL;
 
-    ok = prepare_level(patch, number, &level, done, sizeof done, error) &&
-         add_extra_classes(&level, patch->sources, wanted, &wanted_count, left_out, &left_count, error);
-    if (ok && wanted_count) {
-        for (size_t k = 0; k < wanted_count; k++)
-            ids[k] = EXTRA[wanted[k]].id;
-        id_list(list, sizeof list, ids, wanted_count);
-        text_extend(done, sizeof done, ", classes %s", list);
-    }
-    if (ok)
-        ok = (archive = encode_level(patch, &level, (size_t)patch->places[number].sectors * ISO_SECTOR, &size,
-                                     error)) != NULL &&
-             write_archive(patch, number, archive, size, where, sizeof where, error);
-    if (ok) {
-        job_log(patch->job, "level %2d: %s; archive 0x%zx bytes, %s", number, done, size, where);
-        if (wanted_count && left_count) {
-            for (size_t k = 0; k < left_count; k++)
-                ids[k] = EXTRA[left_out[k]].id;
-            id_list(list, sizeof list, ids, left_count);
-            job_log(patch->job, "  no room in level %d's class table for %s", number, list);
+    no_room[0] = 0;
+    if (prepare_level(plan, number, archive, &level, done, done_capacity, error) &&
+        add_extra_classes(&level, plan->sources, wanted, &wanted_count, left_out, &left_count, error)) {
+        if (wanted_count) {
+            for (size_t k = 0; k < wanted_count; k++)
+                ids[k] = EXTRA[wanted[k]].id;
+            id_list(list, sizeof list, ids, wanted_count);
+            text_extend(done, done_capacity, ", classes %s", list);
+            if (left_count) {
+                for (size_t k = 0; k < left_count; k++)
+                    ids[k] = EXTRA[left_out[k]].id;
+                id_list(no_room, no_room_capacity, ids, left_count);
+            }
         }
-        job_progress(patch->job, "patch", ++patch->done, patch->total);
+        made = encode_level(plan, &level, (size_t)plan->places[number].sectors * ISO_SECTOR, size, error);
     }
-    free(archive);
     level_free(&level);
-    return ok;
+    return made;
+}
+
+/* The log lines and the progress step for level NUMBER, written WHERE. */
+static void level_done(LevelsPlan *plan, int number, const char *done, const char *no_room, size_t size,
+                       const char *where)
+{
+    job_log(plan->job, "level %2d: %s; archive 0x%zx bytes, %s", number, done, size, where);
+    if (no_room[0])
+        job_log(plan->job, "  no room in level %d's class table for %s", number, no_room);
+    job_progress(plan->job, "patch", ++plan->done, plan->total);
 }
 
 static bool is_left_out(const char *const *left_out, const char *id)
@@ -1684,37 +1662,155 @@ static bool is_left_out(const char *const *left_out, const char *id)
     return false;
 }
 
+LevelsPlan *levels_plan(FILE *source, const BuildFacts *facts, const uint8_t *sign, size_t size, Job *job,
+                        InstallError *error)
+{
+    const char *rac1 = json_get_string(facts->discs, "rac1"), *rac2 = json_get_string(facts->discs, "rac2");
+    LevelsPlan *plan = calloc(1, sizeof *plan);
+    bool ok;
+
+    if (!plan) {
+        out_of_memory(error);
+        return NULL;
+    }
+    *plan = (LevelsPlan){.source = source, .sign = sign, .sign_size = size, .threads = pool_cpus(), .job = job,
+                         .total = EXTRA_CLASSES + LEVEL_COUNT};
+    ok = rac1 || install_fail(error, "missing_disc", "the levels' patch needs the PAL disc");
+    ok = ok && read_places(source, plan->places, error);
+    if (ok && !places_apart(plan->places))
+        ok = install_fail(error, "internal", "the levels' data overlap on the image");
+    if (ok && rac2 && !is_left_out(facts->left_out, "charge_boots")) {
+        ok = make_boots(rac1, rac2, &plan->boots, job, error);
+        plan->with_boots = ok;
+    }
+    if (ok) {
+        job_progress(job, "patch", 0, plan->total);
+        ok = read_sources(plan, error);
+    }
+    if (!ok) {
+        levels_plan_free(plan);
+        return NULL;
+    }
+    return plan;
+}
+
+void levels_span(const LevelsPlan *plan, int number, uint32_t *first, uint32_t *count)
+{
+    const struct place *place = &plan->places[number];
+
+    *first = place->header_sector;
+    *count = place->sector + place->sectors - place->header_sector;
+}
+
+bool levels_produce(LevelsPlan *plan, int number, uint8_t *span, size_t size, size_t *archive_size,
+                    InstallError *error)
+{
+    const struct place *place;
+    size_t region, archive_at, made_size = 0;
+    char done[512], no_room[64], where[64];
+    uint32_t first, count;
+    uint8_t *made;
+
+    if (number < 0 || number >= LEVEL_COUNT)
+        return install_fail(error, "internal", "there is no level %d", number);
+    if (job_cancelled(plan->job))
+        return install_fail(error, "cancelled", "cancelled");
+    place = &plan->places[number];
+    levels_span(plan, number, &first, &count);
+    if (size != (size_t)count * ISO_SECTOR)
+        return install_fail(error, "internal", "level %d's span is 0x%zx bytes, not its 0x%zx", number, size,
+                            (size_t)count * ISO_SECTOR);
+    region = (size_t)place->sectors * ISO_SECTOR;
+    archive_at = (size_t)(place->sector - place->header_sector) * ISO_SECTOR;
+    made = make_archive(plan, number, span + archive_at, &made_size, done, sizeof done, no_room, sizeof no_room,
+                        error);
+    if (!made)
+        return false;
+    if (made_size > region) {
+        free(made);
+        return install_fail(error, "internal", "level %d's archive (0x%zx bytes) does not fit its 0x%zx", number,
+                            made_size, region);
+    }
+    /* in its own sectors; the header (the span's first sector) gets the archive's new length */
+    memcpy(span + archive_at, made, region);
+    free(made);
+    write_u32_le(span + 8, place->sector);
+    write_u32_le(span + 12, (uint32_t)(made_size / ISO_SECTOR));
+    snprintf(where, sizeof where, "in place at sector %u", place->sector);
+    level_done(plan, number, done, no_room, made_size, where);
+    *archive_size = made_size;
+    return true;
+}
+
+void levels_plan_free(LevelsPlan *plan)
+{
+    if (!plan)
+        return;
+    for (int k = 0; k < EXTRA_CLASSES; k++)
+        class_source_free(&plan->sources[k]);
+    free(plan->boots.core_class);
+    free(plan->boots.pixels);
+    free(plan);
+}
+
+/* ARCHIVE (SIZE bytes, zeroed up to at least PLACE's sectors) in the level's own sectors on IMAGE when it fits, the
+   rest of them zeroed; else at the image's end, after the blank tail the archive appended before it (*APPENDED)
+   keeps (the stream reader reads past an archive's end; the last archive's tail is the image's own). The level's
+   header is pointed at it. */
+static bool write_archive(IsoImage *image, const struct place *place, bool *appended, const uint8_t *archive,
+                          size_t size, char *where, size_t capacity, InstallError *error)
+{
+    size_t region = (size_t)place->sectors * ISO_SECTOR;
+    uint8_t field[8];
+    uint32_t sector;
+
+    if (size <= region) {
+        sector = place->sector;
+        iso_image_write(image, (uint64_t)sector * ISO_SECTOR, archive, region);
+        snprintf(where, capacity, "in place at sector %u", sector);
+    } else {
+        if (*appended) {
+            uint8_t *tail = calloc(ISO_TAIL_SECTORS, ISO_SECTOR);
+
+            if (!tail)
+                return out_of_memory(error);
+            iso_image_append(image, tail, (size_t)ISO_TAIL_SECTORS * ISO_SECTOR);
+            free(tail);
+        }
+        sector = iso_image_append(image, archive, size);
+        *appended = true;
+        snprintf(where, capacity, "moved to new sectors at %u", sector);
+    }
+    write_u32_le(field, sector);
+    write_u32_le(field + 4, (uint32_t)(size / ISO_SECTOR));
+    iso_image_write(image, (uint64_t)place->header_sector * ISO_SECTOR + 8, field, sizeof field);
+    return !image->failed || image_failed(image, error);
+}
+
 bool patch_levels(IsoImage *image, const BuildFacts *facts, const uint8_t *sign, size_t size, Job *job,
                   InstallError *error)
 {
-    const char *rac1 = json_get_string(facts->discs, "rac1"), *rac2 = json_get_string(facts->discs, "rac2");
-    struct patch patch = {.image = image, .sign = sign, .sign_size = size, .threads = pool_cpus(), .job = job,
-                          .total = EXTRA_CLASSES + LEVELS};
-    struct boots boots = {0};
-    bool ok;
+    LevelsPlan *plan = levels_plan(image->file, facts, sign, size, job, error);
+    bool ok = plan != NULL, appended = false;
 
-    if (!rac1)
-        return install_fail(error, "missing_disc", "the levels' patch needs the PAL disc");
-    ok = read_places(image->file, patch.places, error);
-    if (ok && !places_apart(patch.places))
-        ok = install_fail(error, "internal", "the levels' data overlap on the image");
-    if (ok && rac2 && !is_left_out(facts->left_out, "charge_boots")) {
-        ok = make_boots(rac1, rac2, &boots, job, error);
-        patch.boots = &boots;
-    }
-    if (ok) {
-        job_progress(job, "patch", 0, patch.total);
-        ok = read_sources(&patch, error);
-    }
-    for (int number = 0; ok && number < LEVELS; number++) {
-        ok = job_cancelled(job) ? install_fail(error, "cancelled", "cancelled") : patch_level(&patch, number, error);
+    for (int number = 0; ok && number < LEVEL_COUNT; number++) {
+        char done[512], no_room[64], where[64];
+        size_t made_size = 0;
+        uint8_t *made = NULL;
+
+        if (job_cancelled(job))
+            ok = install_fail(error, "cancelled", "cancelled");
+        else
+            ok = (made = make_archive(plan, number, NULL, &made_size, done, sizeof done, no_room, sizeof no_room,
+                                      error)) != NULL &&
+                 write_archive(image, &plan->places[number], &appended, made, made_size, where, sizeof where, error);
+        if (ok)
+            level_done(plan, number, done, no_room, made_size, where);
+        free(made);
     }
     if (ok)
-        job_log(job, "%d levels patched; image %u sectors", LEVELS,
+        job_log(job, "%d levels patched; image %u sectors", LEVEL_COUNT,
                 image->sectors + (image->grew ? ISO_TAIL_SECTORS : 0u));
-    for (int k = 0; k < EXTRA_CLASSES; k++)
-        class_source_free(&patch.sources[k]);
-    free(boots.core_class);
-    free(boots.pixels);
+    levels_plan_free(plan);
     return ok;
 }

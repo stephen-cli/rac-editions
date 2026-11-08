@@ -202,44 +202,18 @@ static int by_slot(const void *a, const void *b)
     return ((const struct line *)a)->slot - ((const struct line *)b)->slot;
 }
 
-/* The made lines at the end of IMAGE in slot order, each entered in its help-audio table; progress from DONE of
- * TOTAL steps. */
-static bool write_lines(IsoImage *image, struct helpdesk *helpdesk, Job *job, size_t done, size_t total,
-                        InstallError *error)
+static void free_helpdesk(struct helpdesk *helpdesk)
 {
-    qsort(helpdesk->lines, helpdesk->line_count, sizeof *helpdesk->lines, by_slot);
-    for (size_t k = 0; k < helpdesk->line_count; k++) {
-        const struct line *line = &helpdesk->lines[k];
-        uint64_t entry = (uint64_t)DISC_TOC_SECTOR * ISO_SECTOR + HELP_AUDIO_TABLE + 4u * (uint32_t)line->slot;
-        uint8_t old[4];
-        uint32_t sector;
-
-        if (job_cancelled(job)) {
-            install_fail(error, "cancelled", "cancelled");
-            return false;
-        }
-        if (!file_read_at(image->file, entry, old, sizeof old) || u32_le(old) != 0) {
-            install_fail(error, "internal", "HelpDesk slot %d is already filled: the image is not a fresh copy",
-                         line->slot);
-            return false;
-        }
-        sector = iso_image_append(image, line->vag, line->size);
-        iso_image_write_word(image, entry, sector);
-        job_log(job, "  slot %d: %d_%s.vag, %zu bytes at sector %u", line->slot, line->slot, line->name,
-                line->size, sector);
-        job_progress(job, "patch", ++done, total);
-    }
-    if (image->failed) {
-        install_fail(error, image->error == ENOSPC ? "no_space" : "not_writable", "the image could not be written");
-        return false;
-    }
-    job_log(job, "%zu HelpDesk lines in slots %d-%d", helpdesk->line_count, helpdesk->lines[0].slot,
-            helpdesk->lines[helpdesk->line_count - 1].slot);
-    return true;
+    for (size_t s = 0; s < helpdesk->source_count; s++)
+        free(helpdesk->sources[s].samples);
+    for (size_t k = 0; helpdesk->lines && k < helpdesk->line_count; k++)
+        free(helpdesk->lines[k].vag);
+    free(helpdesk->lines);
 }
 
-bool patch_helpdesk(IsoImage *image, const char *rac1, const uint8_t *recipes, size_t size,
-                    const char *const *left_out_uses, Job *job, InstallError *error)
+/* The lines made into OUT, in slot order; progress from 0 to their count of STEPS_PER_LINE times as many steps. */
+static bool make_lines(const char *rac1, const uint8_t *recipes, size_t size, const char *const *left_out_uses,
+                       Job *job, size_t steps_per_line, HelpdeskLines *out, InstallError *error)
 {
     char parse_error[128];
     Json *json = json_parse((const char *)recipes, size, parse_error, sizeof parse_error);
@@ -248,9 +222,9 @@ bool patch_helpdesk(IsoImage *image, const char *rac1, const uint8_t *recipes, s
     uint8_t table[4 * LINES_PER_LANGUAGE];
     FILE *disc = NULL;
     unsigned threads = pool_cpus();
-    size_t total;
     bool ok = false;
 
+    memset(out, 0, sizeof *out);
     if (!all || all->type != JSON_ARRAY) {
         install_fail(error, "internal", "helpdesk.json: %s", json ? "no lines" : parse_error);
         goto out;
@@ -272,26 +246,117 @@ bool patch_helpdesk(IsoImage *image, const char *rac1, const uint8_t *recipes, s
         goto out;
     }
 
-    total = 2 * helpdesk.line_count;
-    job_progress(job, "patch", 0, total);
+    job_progress(job, "patch", 0, steps_per_line * helpdesk.line_count);
     pool_run(&threads, make_line, helpdesk.lines, helpdesk.line_count);
+    out->lines = calloc(helpdesk.line_count, sizeof *out->lines);
+    if (!out->lines) {
+        install_fail(error, "internal", "out of memory");
+        goto out;
+    }
+    qsort(helpdesk.lines, helpdesk.line_count, sizeof *helpdesk.lines, by_slot);
     for (size_t k = 0; k < helpdesk.line_count; k++) {
-        if (!helpdesk.lines[k].vag) {
-            install_fail(error, "internal", "out of memory making HelpDesk line %d", helpdesk.lines[k].slot);
+        struct line *line = &helpdesk.lines[k];
+        HelpdeskLine *made = &out->lines[out->count];
+
+        made->name = malloc(strlen(line->name) + 1);
+        if (!line->vag || !made->name) {
+            free(made->name);
+            install_fail(error, "internal", "out of memory making HelpDesk line %d", line->slot);
             goto out;
         }
+        strcpy(made->name, line->name);
+        made->slot = line->slot;
+        made->vag = line->vag;
+        made->size = line->size;
+        made->entry = (uint64_t)DISC_TOC_SECTOR * ISO_SECTOR + HELP_AUDIO_TABLE + 4u * (uint32_t)line->slot;
+        line->vag = NULL;       /* OUT's now */
+        out->count++;
     }
-    job_progress(job, "patch", helpdesk.line_count, total);
-    ok = write_lines(image, &helpdesk, job, helpdesk.line_count, total, error);
+    job_progress(job, "patch", helpdesk.line_count, steps_per_line * helpdesk.line_count);
+    ok = true;
 
 out:
-    for (size_t s = 0; s < helpdesk.source_count; s++)
-        free(helpdesk.sources[s].samples);
-    for (size_t k = 0; helpdesk.lines && k < helpdesk.line_count; k++)
-        free(helpdesk.lines[k].vag);
-    free(helpdesk.lines);
+    free_helpdesk(&helpdesk);
+    if (!ok)
+        helpdesk_free(out);
     if (disc)
         fclose(disc);
     json_free(json);
+    return ok;
+}
+
+bool helpdesk_make(const char *rac1, const uint8_t *recipes, size_t size, const char *const *left_out_uses, Job *job,
+                   HelpdeskLines *out, InstallError *error)
+{
+    return make_lines(rac1, recipes, size, left_out_uses, job, 1, out, error);
+}
+
+uint32_t helpdesk_place(HelpdeskLines *lines, uint32_t first_sector)
+{
+    uint32_t sector = first_sector;
+
+    for (size_t k = 0; k < lines->count; k++) {
+        lines->lines[k].sector = sector;
+        sector += (uint32_t)(lines->lines[k].size / ISO_SECTOR);
+    }
+    return sector - first_sector;
+}
+
+void helpdesk_free(HelpdeskLines *lines)
+{
+    for (size_t k = 0; lines->lines && k < lines->count; k++) {
+        free(lines->lines[k].name);
+        free(lines->lines[k].vag);
+    }
+    free(lines->lines);
+    memset(lines, 0, sizeof *lines);
+}
+
+/* LINES at the end of IMAGE in slot order, each entered in its help-audio table; progress from DONE of TOTAL
+ * steps. */
+static bool write_lines(IsoImage *image, HelpdeskLines *lines, Job *job, size_t done, size_t total,
+                        InstallError *error)
+{
+    helpdesk_place(lines, image->sectors);
+    for (size_t k = 0; k < lines->count; k++) {
+        const HelpdeskLine *line = &lines->lines[k];
+        uint8_t old[4];
+
+        if (job_cancelled(job)) {
+            install_fail(error, "cancelled", "cancelled");
+            return false;
+        }
+        if (!file_read_at(image->file, line->entry, old, sizeof old) || u32_le(old) != 0) {
+            install_fail(error, "internal", "HelpDesk slot %d is already filled: the image is not a fresh copy",
+                         line->slot);
+            return false;
+        }
+        if (iso_image_append(image, line->vag, line->size) != line->sector) {
+            install_fail(error, "internal", "HelpDesk slot %d did not go where it was placed", line->slot);
+            return false;
+        }
+        iso_image_write_word(image, line->entry, line->sector);
+        job_log(job, "  slot %d: %d_%s.vag, %zu bytes at sector %u", line->slot, line->slot, line->name,
+                line->size, line->sector);
+        job_progress(job, "patch", ++done, total);
+    }
+    if (image->failed) {
+        install_fail(error, image->error == ENOSPC ? "no_space" : "not_writable", "the image could not be written");
+        return false;
+    }
+    job_log(job, "%zu HelpDesk lines in slots %d-%d", lines->count, lines->lines[0].slot,
+            lines->lines[lines->count - 1].slot);
+    return true;
+}
+
+bool patch_helpdesk(IsoImage *image, const char *rac1, const uint8_t *recipes, size_t size,
+                    const char *const *left_out_uses, Job *job, InstallError *error)
+{
+    HelpdeskLines lines;
+    bool ok = make_lines(rac1, recipes, size, left_out_uses, job, 2, &lines, error);
+
+    if (ok && lines.count)
+        ok = write_lines(image, &lines, job, lines.count, 2 * lines.count, error);
+    helpdesk_free(&lines);
     return ok;
 }
