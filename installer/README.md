@@ -122,6 +122,9 @@ A rac-editions release carries what the desktop builder bundles, and the PS3 bui
 - `<edition>-payload.zip` for each edition, the payload's files at its root.
   Only a machine with the discs can build a payload, so it is attached by
   hand: `python tools/release.py --zip` writes it beside `build/payload`.
+  The payload's version, which the builders show, is the release's tag
+  when the commit has one (`v0.3.0`), so the tag is made before the
+  payload is built; between releases it is the commit.
 - `EditionsBuilder.pkg`, the PS3 builder (`ps3/README.md`) with the
   Executive Edition's payload inside, for the PS3's Package Manager. It is
   built in the PS3 toolchain's container (`make pkg PAYLOAD=<payload>`) and

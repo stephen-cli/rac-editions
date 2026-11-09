@@ -311,7 +311,7 @@ Server *server_new(const Payload *payload, HashCache *cache, ServerSend *send, v
     Text ready = {0};
     text_add(&ready, "{\"event\": \"ready\", \"protocol\": ");
     text_format(&ready, "%d, \"installer\": ", PROTOCOL_VERSION);
-    text_add_json_string(&ready, payload_commit(payload));
+    text_add_json_string(&ready, payload_version(payload));
     text_add(&ready, "}");
     send_line(server, &ready);
     text_free(&ready);

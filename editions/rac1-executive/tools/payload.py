@@ -6,9 +6,10 @@ A release carries the edition's own work and no bytes of either game. What
 the edition takes from the games is made from the player's own discs while
 the installer runs:
 
-  edition.json   the edition, its version (the rac-editions commit), the
-                 SHA-256 of each disc it is built from, the mod
-                 segment's load address, and what the installer needs to
+  edition.json   the edition, its version (the release's tag, or the
+                 rac-editions commit between releases), the SHA-256
+                 of each disc it is built from, the mod segment's load
+                 address, and what the installer needs to
                  know of the edition (edition_options below): the
                  economies, the switches, the games' boot files and how
                  much an image grows

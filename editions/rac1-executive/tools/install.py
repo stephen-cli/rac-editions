@@ -518,7 +518,7 @@ def build(pay: Path, discs: dict, options: dict, output: dict, tools: dict, job:
 
 def editions_list(pay: Path) -> list[dict]:
     edition = json.loads((pay / "edition.json").read_text())
-    return [{"id": edition["edition"], "name": edition["name"], "game": edition["game"], "version": edition["commit"],
+    return [{"id": edition["edition"], "name": edition["name"], "game": edition["game"], "version": edition["version"],
              "discs": edition["disc_names"],
              "options": {"economy": list(edition["economies"]),
                          "switches": [{"id": s["id"],
@@ -553,7 +553,7 @@ def serve(pay: Path, tools: dict, cache: HashCache) -> int:
     sys.stdout = sys.stderr                     # anything printed by the pipeline stays off the protocol
     jobs, threads = {}, []
     edition = json.loads((pay / "edition.json").read_text())
-    send({"event": "ready", "protocol": PROTOCOL, "installer": edition["commit"]})
+    send({"event": "ready", "protocol": PROTOCOL, "installer": edition["version"]})
 
     def answer(cid, fn, job):
         try:

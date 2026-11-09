@@ -209,11 +209,14 @@ def main() -> int:
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
+    # the version: a release's tag on this commit (v0.3.0), or else the commit
+    tag = subprocess.run(["git", "-C", str(ROOT), "describe", "--tags", "--exact-match", "--match", "v[0-9]*", "HEAD"],
+                         capture_output=True, text=True).stdout.strip()
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout
     edition = {
         "edition": "rac1-executive",
         **payload.EDITION,
-        "commit": commit.strip(),
+        "version": tag or commit.strip(),
         "discs": {name: iso_image.sha256(path) for name, path in discs.items()},
         "modseg_base": base,
         "features_word": syms["ee_features"][0] - base,       # src/features.c: the switches that are in

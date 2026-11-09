@@ -51,9 +51,9 @@ void payload_close(Payload *payload)
     memset(payload, 0, sizeof *payload);
 }
 
-const char *payload_commit(const Payload *payload)
+const char *payload_version(const Payload *payload)
 {
-    return json_get_string(payload->edition, "commit");
+    return json_get_string(payload->edition, "version");
 }
 
 /* The edition's name for GAME's disc ("Going Commando"), or NULL when the edition uses no disc of that game. */
@@ -85,7 +85,7 @@ bool command_editions(const Payload *payload, Text *answer, InstallError *error)
     text_add(answer, ", \"game\": ");
     text_add_json_string(answer, json_get_string(edition, "game"));
     text_add(answer, ", \"version\": ");
-    text_add_json_string(answer, payload_commit(payload));
+    text_add_json_string(answer, payload_version(payload));
     text_add(answer, ", \"discs\": ");
     text_add_json(answer, json_get(edition, "disc_names"));
     text_add(answer, ", \"options\": {\"economy\": [");

@@ -42,8 +42,9 @@ void payload_disc_label(const Payload *payload, const char *game, const char *re
 /* Whether the JSON array LIST holds the string STRING. */
 bool json_list_has(const Json *list, const char *string);
 
-/* The edition's commit, which names this installer's version in the protocol's ready event. */
-const char *payload_commit(const Payload *payload);
+/* The edition's version: its release's tag ("v0.3.0"), or the rac-editions commit between releases. It also names
+   this installer's version in the protocol's ready event. */
+const char *payload_version(const Payload *payload);
 
 /* editions: the editions this installer has payloads for, as the builder shows them. */
 bool command_editions(const Payload *payload, Text *answer, InstallError *error);
