@@ -20,11 +20,13 @@ add_executable(ps3-preview
     src/client.c
     src/draw_sdl.c
     src/main.c
+    src/net_pc.c
     src/platform_pc.c
     src/screens.c
     src/script.c
     src/session.c
     src/ui.c
+    src/update.c
     src/words.c
 )
 target_link_libraries(ps3-preview PRIVATE rac_core SDL2::SDL2 SDL2::SDL2main SDL2_ttf::SDL2_ttf SDL2_image::SDL2_image)

@@ -28,6 +28,8 @@ typedef struct {
     char payload[512];          /* the edition's payload, beside the app */
     char data[512];             /* the app's own data: the discs' hashes */
     char fonts[512];
+    char certificates[512];     /* the root certificates for HTTPS (net.h), a PEM file */
+    char packages[512];         /* where a downloaded update is saved: /dev_hdd0/packages */
 } Places;
 
 /* Starts the controller and the system's callbacks and fills PLACES; false when the app cannot run. */

@@ -15,6 +15,7 @@
 #include "session.h"
 #include "thread.h"
 #include "ui.h"
+#include "update.h"
 
 static Screens screens;
 static Session session;
@@ -61,6 +62,7 @@ int main(int argc, char **argv)
     }
 
     unsigned held = 0;
+    bool update_started = false;
     Uint32 timing_since = SDL_GetTicks(), frame_started = timing_since, slowest = 0;
     unsigned timed_frames = 0;
     while (!platform_quitting() && !screens.quit && !script_quitting()) {
@@ -82,6 +84,11 @@ int main(int argc, char **argv)
         if (client != NULL) {
             session_update(&session);
         }
+        /* the update check, once the payload has said which version this is */
+        if (session.have_edition && !update_started) {
+            update_start(session.version, places.certificates, places.packages);
+            update_started = true;
+        }
         screens_frame(&screens, &session, pressed);
         ui_finish();
         SDL_Surface *shot = draw_end(script_shot_due());
@@ -96,6 +103,7 @@ int main(int argc, char **argv)
             thread_sleep(50);
         }
     }
+    update_close();
     session_close(&session);
     client_close(client);
     ui_close();

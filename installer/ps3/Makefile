@@ -40,6 +40,18 @@ $(BUILD)/libcore.a: $(CORE_OBJECTS)
 	rm -f $@
 	ppu-ar rcs $@ $^
 
+# The app's version in PARAM.SFO (APP_VER, which the XMB shows): the payload's, when it is a release's tag, as its
+# major and minor numbers, two digits each (v1.2.3 is 01.02; the patch number is left out); 00.00 (the template's)
+# between releases.
+PAYLOAD_VERSION := $(if $(PAYLOAD),$(shell sed -n 's/^ *"version": "\(.*\)",*$$/\1/p' $(PAYLOAD)/edition.json))
+APP_VER := $(shell echo '$(PAYLOAD_VERSION)' | sed -n 's/^v\([0-9]\{1,2\}\)\.\([0-9]\{1,2\}\)\.[0-9]\{1,\}$$/\1 \2/p' \
+	| xargs -r printf '%02d.%02d')
+ifneq ($(filter v%,$(PAYLOAD_VERSION)),)
+ifeq ($(APP_VER),)
+$(error $(PAYLOAD_VERSION) does not fit APP_VER's two-digit major and minor numbers)
+endif
+endif
+
 # An ELF made into a game folder: APPID, TITLE, ICON0.PNG, the PARAM.SFO template, the EBOOT (a fake-signed SELF, which RPCS3 and HEN
 # consoles run) and the payload.
 define game_folder
@@ -48,7 +60,8 @@ define game_folder
 	$(STRIP) $(2) -o $(BUILD)/stripped.elf
 	sprxlinker $(BUILD)/stripped.elf
 	fself $(BUILD)/stripped.elf $(1)/USRDIR/EBOOT.BIN
-	sfo --title "$(4)" --appid "$(3)" -f $(6) $(1)/PARAM.SFO
+	sed 's/^\(\s*\)00\.00$$/\1$(or $(APP_VER),00.00)/' $(6) > $(BUILD)/sfo.xml
+	sfo --title "$(4)" --appid "$(3)" -f $(BUILD)/sfo.xml $(1)/PARAM.SFO
 	cp $(5) $(1)/ICON0.PNG
 	$(if $(PAYLOAD),cp -r $(PAYLOAD) $(1)/USRDIR/payload)
 endef
@@ -82,22 +95,25 @@ $(BUILD)/src/sha_spu.o: spu/sha_spu_job.h
 $(BUILD)/smoke.elf: $(BUILD)/tests/smoke.o $(BUILD)/src/lv2_printf.o $(SPU_OBJECTS) $(BUILD)/libcore.a
 	$(CC) $(LDFLAGS) $(WRAP_SPU) $^ $(LIBS) -o $@
 
-# The builder: src/ but the preview's platform, on PSL1GHT's SDL2 and SDL2_ttf.
-APP_SOURCES := $(filter-out src/platform_pc.c src/draw_sdl.c,$(wildcard src/*.c))
+# The builder: src/ but the preview's platform, on PSL1GHT's SDL2 and SDL2_ttf, and libcurl over mbedTLS for the
+# update check.
+APP_SOURCES := $(filter-out src/platform_pc.c src/draw_sdl.c src/net_pc.c,$(wildcard src/*.c))
 APP_OBJECTS := $(patsubst %.c,$(BUILD)/%.o,$(APP_SOURCES))
 $(APP_OBJECTS): CFLAGS += -isystem $(PS3DEV)/portlibs/ppu/include -isystem $(PS3DEV)/portlibs/ppu/include/SDL2
-APP_LIBS := -lSDL2_ttf -lfreetype -lz -lSDL2 -ltiny3d -lgcm_sys -lrsx -lio -laudio $(LIBS)
+APP_LIBS := -lSDL2_ttf -lfreetype -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz -lSDL2 -ltiny3d -lgcm_sys -lrsx -lio \
+	-laudio -lnet $(LIBS)
 
 $(BUILD)/app.elf: $(APP_OBJECTS) $(SPU_ELVES) $(BUILD)/libcore.a
 	$(CC) $(LDFLAGS) $(WRAP_SPU) $^ $(APP_LIBS) -o $@
 
 .PHONY: app pkg smoke clean
-# build/app/: the builder's game folder, with its fonts; APPID is the PS3's id for it
+# build/app/: the builder's game folder, with its fonts and root certificates; APPID is the PS3's id for it
 APPID ?= RACE00001
 app: $(BUILD)/app.elf
 	$(call game_folder,$(BUILD)/app,$<,$(APPID),Editions Builder,data/ICON0.PNG,data/sfo.xml)
 	mkdir -p $(BUILD)/app/USRDIR/fonts
 	cp data/fonts/*.ttf data/fonts/OFL-*.txt $(BUILD)/app/USRDIR/fonts/
+	cp data/cacert.pem $(BUILD)/app/USRDIR/
 
 # build/EditionsBuilder.pkg: the game folder as a package for the PS3's Package Manager, its EBOOT signed as NPDRM
 # (HEN and CFW consoles install it), as PSL1GHT's ppu_rules make one

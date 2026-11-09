@@ -52,6 +52,8 @@ bool platform_open(int argc, char **argv, Places *places)
     snprintf(places->payload, sizeof places->payload, "%s/payload", usrdir);
     snprintf(places->data, sizeof places->data, "%s/data", usrdir);
     snprintf(places->fonts, sizeof places->fonts, "%s/fonts", usrdir);
+    snprintf(places->certificates, sizeof places->certificates, "%s/cacert.pem", usrdir);
+    snprintf(places->packages, sizeof places->packages, "/dev_hdd0/packages");
 
     /* the TTY is not a terminal, so newlib would hold its lines in a buffer */
     setvbuf(stdout, NULL, _IONBF, 0);

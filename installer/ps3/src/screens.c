@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "ui.h"
+#include "update.h"
 #include "words.h"
 
 #define MARGIN 72
@@ -35,13 +36,15 @@ static void gigabytes(uint64_t bytes, char *text, size_t capacity)
     snprintf(text, capacity, "%.1f GB", (double)bytes / 1e9);
 }
 
-/* The bar across the top: the builder's name, the installer's version and the steps, the current one gold. */
+/* The bar across the top: the builder's name, the edition's version and the steps, the current one gold. A
+   release's version is its tag ("v0.2.0"); between releases it is a commit, shortened. */
 static void header(const Session *session, int step)
 {
     ui_text(FONT_LABEL, MARGIN, 34, COLOUR_HOLO, "EDITIONS BUILDER");
     if (session->version[0] != 0) {
         char version[64];
-        snprintf(version, sizeof version, "executive edition %.7s", session->version);
+        bool commit = strlen(session->version) == 40 && strspn(session->version, "0123456789abcdef") == 40;
+        snprintf(version, sizeof version, "executive edition %.*s", commit ? 7 : 40, session->version);
         ui_text(FONT_SMALL, SCREEN_W - MARGIN - ui_text_width(FONT_SMALL, version), 32, COLOUR_INK_FAINT, version);
     }
     int x = MARGIN;
@@ -91,14 +94,25 @@ static void edition_screen(Screens *screens, Session *session, unsigned pressed)
         ui_text(FONT_BODY_BOLD, x, y, COLOUR_INK, FEATURES[i].name);
         ui_wrap(FONT_SMALL, x, y + 27, column_w, COLOUR_INK_DIM, FEATURES[i].text);
     }
-    const int glyphs[] = {back_glyph(), accept_glyph()};
-    const char *const labels[] = {"Quit", "Next: discs"};
-    footer(glyphs, labels, 2);
+    /* a newer builder, once the update check has found one: Triangle downloads it */
+    Update update;
+    update_get(&update);
+    char get[64];
+    snprintf(get, sizeof get, "%s %s",
+             update.state == UPDATE_DOWNLOADING ? "Downloading" : update.state == UPDATE_DOWNLOADED ? "Install" : "Get",
+             update.latest);
+    const int glyphs[] = {GLYPH_TRIANGLE, back_glyph(), accept_glyph()};
+    const char *const labels[] = {get, "Quit", "Next: discs"};
+    bool newer = update.state != UPDATE_NONE;
+    footer(glyphs + (newer ? 0 : 1), labels + (newer ? 0 : 1), newer ? 3 : 2);
 
     if (pressed & PAD_ACCEPT && session->have_edition) {
         screens->screen = SCREEN_DISCS;
     } else if (pressed & PAD_BACK) {
         screens->quit = true;
+    } else if (pressed & PAD_TRIANGLE && newer) {
+        update_download();
+        screens->screen = SCREEN_UPDATE;
     }
 }
 
@@ -419,6 +433,71 @@ static void done_screen(Screens *screens, Session *session, unsigned pressed)
     }
 }
 
+/* ---- A newer builder ---- */
+
+static void update_screen(Screens *screens, Session *session, unsigned pressed)
+{
+    header(session, 0);
+    Update update;
+    update_get(&update);
+    char heading[96];
+    snprintf(heading, sizeof heading, "Editions Builder %s", update.latest);
+    title(heading, update.state == UPDATE_DOWNLOADED ? COLOUR_CLANK : COLOUR_INK);
+    int y = 184;
+    if (update.state == UPDATE_DOWNLOADING) {
+        ui_text(FONT_BODY, MARGIN, y, COLOUR_INK_DIM, "Downloading the new builder's package from GitHub.");
+        ui_bar(MARGIN, y + 52, CONTENT_W, 10, update.fraction, COLOUR_BOLT);
+        char percent[16];
+        snprintf(percent, sizeof percent, "%d%%", (int)(update.fraction * 100.0 + 0.5));
+        ui_text(FONT_SMALL, SCREEN_W - MARGIN - ui_text_width(FONT_SMALL, percent), y + 72, COLOUR_HOLO, percent);
+        const int glyphs[] = {back_glyph()};
+        const char *const labels[] = {"Stop"};
+        footer(glyphs, labels, 1);
+        if (pressed & PAD_BACK) {
+            update_cancel();
+        }
+        return;
+    }
+    if (update.state == UPDATE_DOWNLOADED) {
+        char saved[700];
+        snprintf(saved, sizeof saved, "Saved as %s.", update.saved);
+        ui_text(FONT_BODY, MARGIN, y, COLOUR_INK, saved);
+        ui_panel(MARGIN, 236, CONTENT_W, 150, 14, COLOUR_PLATE, COLOUR_EDGE);
+        ui_text(FONT_LABEL, MARGIN + 28, 254, COLOUR_HOLO, "INSTALL IT");
+        int line = 286;
+        line += ui_wrap(FONT_BODY, MARGIN + 28, line, CONTENT_W - 56, COLOUR_INK,
+                        "Quit the builder, then install the package from Package Manager \xE2\x80\xBA Install "
+                        "Package Files \xE2\x80\xBA Standard.") + 10;
+        ui_wrap(FONT_SMALL, MARGIN + 28, line, CONTENT_W - 56, COLOUR_INK_DIM,
+                "It replaces this version. The images you've built stay where they are.");
+        const int glyphs[] = {back_glyph(), accept_glyph()};
+        const char *const labels[] = {"Back", "Quit"};
+        footer(glyphs, labels, 2);
+        if (pressed & PAD_ACCEPT) {
+            screens->quit = true;
+        } else if (pressed & PAD_BACK) {
+            screens->screen = SCREEN_EDITION;
+        }
+        return;
+    }
+    /* failed, or stopped */
+    if (update.state == UPDATE_FAILED) {
+        char failed[400];
+        snprintf(failed, sizeof failed, "The download failed: %s.", update.failure);
+        ui_wrap(FONT_BODY, MARGIN, y, CONTENT_W, COLOUR_HAZARD, failed);
+    } else {
+        ui_text(FONT_BODY, MARGIN, y, COLOUR_INK_DIM, "The download was stopped.");
+    }
+    const int glyphs[] = {back_glyph(), accept_glyph()};
+    const char *const labels[] = {"Back", update.state == UPDATE_FAILED ? "Try again" : "Download"};
+    footer(glyphs, labels, 2);
+    if (pressed & PAD_ACCEPT) {
+        update_download();
+    } else if (pressed & PAD_BACK) {
+        screens->screen = SCREEN_EDITION;
+    }
+}
+
 static void problem_screen(Screens *screens, Session *session, unsigned pressed)
 {
     header(session, 0);
@@ -456,6 +535,9 @@ void screens_frame(Screens *screens, Session *session, unsigned pressed)
     case SCREEN_DONE:
         done_screen(screens, session, pressed);
         break;
+    case SCREEN_UPDATE:
+        update_screen(screens, session, pressed);
+        break;
     }
 }
 
@@ -478,6 +560,14 @@ const char *screens_state(const Screens *screens, const Session *session)
                                                    : "build:done";
     case SCREEN_DONE:
         return "build:done";
+    case SCREEN_UPDATE: {
+        Update update;
+        update_get(&update);
+        return update.state == UPDATE_DOWNLOADING   ? "update:downloading"
+               : update.state == UPDATE_DOWNLOADED ? "update:downloaded"
+               : update.state == UPDATE_FAILED     ? "update:failed"
+                                                   : "update:stopped";
+    }
     }
     return "";
 }

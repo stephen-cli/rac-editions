@@ -21,6 +21,15 @@ byte for byte, as the desktop builder's and `tools/install.py`'s.
   may switch off, as in the desktop builder, on the review screen.
 - **Controls:** the controller only, no text entry. Cross or Circle confirms
   as the console is set.
+- **Version:** the payload's, which the top bar shows and the XMB reads from
+  `PARAM.SFO`'s `APP_VER`: a release's tag (`v0.3.0`), or between releases
+  the commit. The XMB's form is two digits and two digits, so it shows the
+  major and minor numbers (`00.03`) and leaves out the patch number; a
+  build between releases shows `00.00`.
+- **Updates:** a release build asks GitHub for the latest rac-editions
+  release at start and offers a newer one on the first screen (Triangle).
+  Its `EditionsBuilder.pkg` is downloaded to `/dev_hdd0/packages`, for
+  Package Manager to install over this one.
 
 | Path | What it is |
 |---|---|
@@ -29,10 +38,11 @@ byte for byte, as the desktop builder's and `tools/install.py`'s.
 | `src/platform_pc.c` | the preview: the same app in a window on a computer, for working on the screens |
 | `src/script.c` | test scripts: the app driven without a player, with screenshots |
 | `src/lv2_printf.c` | C99's `%zu` for the toolchain's printf, and the log (`USRDIR/log.txt`) |
+| `src/update.c`, `src/net.h`, `src/net_ps3.c`, `src/net_pc.c` | the update check and download; HTTPS through libcurl and mbedTLS on the PS3, none in the preview |
 | `src/spu.c`, `src/wad_spu.c`, `src/sha_spu.c`, `spu/` | the core's level compression and SHA-256 on the SPUs |
 | `src/draw.h`, `src/draw_rsx.c`, `src/draw_sdl.c` | drawing: the RSX on the PS3, SDL's renderer in the preview |
 | `tests/smoke.c` | the core on the PS3, headless: identify, plan and build through the in-process server, to the TTY |
-| `data/` | the fonts (Chakra Petch, Barlow; SIL OFL) and the XMB icon (`tools/icon.c` draws it) |
+| `data/` | the fonts (Chakra Petch, Barlow; SIL OFL), the XMB icon (`tools/icon.c` draws it), and `cacert.pem`, Mozilla's root certificates as curl publishes them (MPL 2.0) |
 | `tools/embed.py` | an SPU program's ELF as a C array, linked into the app |
 | `Containerfile`, `Makefile` | the toolchain and the PS3 build |
 | `CMakeLists.txt` | the preview and the icon tool, on a computer with SDL2 |
@@ -49,7 +59,8 @@ podman run --rm -v "$PWD:/src" -v "<payload>:/payload:ro" -w /src/installer/ps3 
 ```
 
 `build/app/` is then the game folder (`PARAM.SFO`, `ICON0.PNG`,
-`USRDIR/EBOOT.BIN`, `USRDIR/payload`, `USRDIR/fonts`); copied to
+`USRDIR/EBOOT.BIN`, `USRDIR/payload`, `USRDIR/fonts`,
+`USRDIR/cacert.pem`); copied to
 `dev_hdd0/game/RACE00001`, the PS3 or RPCS3 runs it. `make smoke` makes the
 headless test the same way, as `RACT00001`.
 
@@ -107,6 +118,30 @@ milliseconds since the start: the commands and the core's events, and
 every 5 seconds how long frames take. It can be read over FTP, even after
 a hang.
 
+## The update check
+
+Once the payload has said its version, `src/update.c` asks GitHub's API
+for the latest rac-editions release, on a thread of its own, and compares
+the two tags. A newer release with an `EditionsBuilder.pkg` shows as
+"Get v0.3.0" on the first screen; Triangle downloads the package to
+`/dev_hdd0/packages/EditionsBuilder.pkg` (through a `.part` file, its size
+checked against the release's), and the screen says how to install it. A
+running app cannot replace itself, so Package Manager installs it.
+
+A build between releases (its version a commit) does not ask. A check that
+fails, with no network or GitHub out of reach, says nothing on screen,
+only in the log: the builder works offline as before. A failed download
+says why and can be tried again.
+
+HTTPS is the toolchain's libcurl (7.64) over mbedTLS (2.28), which has no
+certificate store of its own: `data/cacert.pem` is copied beside the app
+and given to libcurl. It is curl's extract of Mozilla's roots
+(<https://curl.se/docs/caextract.html>); its date is in its first lines,
+and a newer one is dropped in as it is. In RPCS3 the app needs the network
+on ("Internet enabled: Connected" in its configuration), and RPCS3 refuses
+to make `/dev_hdd0/packages`, so that folder is made by hand there; on a
+console it is the folder Package Manager reads.
+
 ## Drawing
 
 The screens are laid out on a 1280x720 screen and drawn by the graphics
@@ -156,3 +191,5 @@ script's screenshots need "Write Color Buffers" on for the app
    disc), and builds the image (`b932f7d2…`) in about 7 minutes, the time
    it takes the drive to write 4.2 GB while reading the disc. The screen
    stays at 60 frames a second throughout.
+7. **Version and updates.** The release's tag on screen and in the XMB, and
+   the update check above.
