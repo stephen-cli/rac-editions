@@ -25,12 +25,6 @@
 extern Hero g_hero;
 extern volatile PadState g_controller_state;
 
-/* A moby the game hands a hook by address, as OpenRAC's Moby (structs/moby.h). Volatile like the data below:
- * every use reads or writes the record. Two fields are read through a cast: the state as (s8), so that a dead
- * moby's 0xFE and 0xFF are negative, and the class id as (u16), which loads it in one instruction where the
- * compiler sign-extends the volatile s16 with two more. */
-#define MOBY(address) ((volatile Moby *)(address))
-
 /* A class's sequence table (MobyClass.seqs, a pointer per sequence a moby of the class can play; seq_count of
  * them are in use, and an empty slot holds 0). The header's first word, which MobyClass has no name for yet,
  * is the address of the class's next block of data once the class is loaded (Ratchet's class: right after

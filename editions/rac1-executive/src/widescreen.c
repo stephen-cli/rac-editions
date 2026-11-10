@@ -844,7 +844,7 @@ static s32 renderer_of_call(u32 ra, u32 site, u32 fe_site)
 #define PANEL_FRAME_QWC  8            /* the class's frames hold at most 6 quadwords of payload */
 #define PANEL_SLOTS      32           /* copies by (moby >> 8) & 31: the 14 panels are mobys 0x100 apart */
 
-typedef void (*DrawMobyFn)(u32, s32);
+typedef void (*DrawMobyFn)(Moby *, s32);
 /* The walker does not evaluate the pose at once: it queues the two frames'
  * payload pointers (its record + 0x20 and + 0x30) and evaluates the batch
  * later, so every panel needs copies of its own that stay put until then
@@ -911,33 +911,32 @@ static u32 panel_frame(u32 src, u32 *out)
     return (u32)out;
 }
 
-void ee_ws_panel_draw_c(u32 moby, s32 count, u32 ra)
+void ee_ws_panel_draw_c(Moby *moby, s32 count, u32 ra)
 {
     s32 L = renderer_of_call(ra, PANEL_DRAW_SITE, FE_PANEL_DRAW_SITE);
     DrawMobyFn draw = LVL(L, DrawMobyList, DrawMobyFn);
-    volatile u32 *frames = (volatile u32 *)&MOBY(moby)->cur_frame_data;   /* and prev_frame_data after it */
-    u32 a, b;
+    u32 current, previous;
 
     u32 (*copies)[4 * (1 + PANEL_FRAME_QWC)];
 
     refresh_view(L);
-    if (moby != 0 && (u16)MOBY(moby)->oclass == PANEL_CLASS) {
+    if (moby != 0 && (u16)moby->oclass == PANEL_CLASS) {
         ee_controls_panel(moby);   /* in 4:3 too: the Controls page's list panel */
     }
-    if (!ws_on() || count != 1 || moby == 0 || (u16)MOBY(moby)->oclass != PANEL_CLASS) {
+    if (!ws_on() || count != 1 || moby == 0 || (u16)moby->oclass != PANEL_CLASS) {
         draw(moby, count);
         return;
     }
-    panel_scale = MOBY(moby)->scale / 1024.0f;
-    panel_centre = MOBY(moby)->pos.y;
-    copies = panel_frames[(moby >> 8) & (PANEL_SLOTS - 1)];
-    a = frames[0];
-    b = frames[1];
-    frames[0] = panel_frame(a, copies[0]);
-    frames[1] = panel_frame(b, copies[1]);
+    panel_scale = moby->scale / 1024.0f;
+    panel_centre = moby->pos.y;
+    copies = panel_frames[((u32)moby >> 8) & (PANEL_SLOTS - 1)];
+    current = (u32)moby->cur_frame_data;
+    previous = (u32)moby->prev_frame_data;
+    moby->cur_frame_data = (void *)panel_frame(current, copies[0]);
+    moby->prev_frame_data = (void *)panel_frame(previous, copies[1]);
     draw(moby, count);
-    frames[0] = a;
-    frames[1] = b;
+    moby->cur_frame_data = (void *)current;
+    moby->prev_frame_data = (void *)previous;
 }
 
 /* The renderer projects each panel's first and opposite corners (from the
@@ -1263,12 +1262,12 @@ static u32 trespasser_draw(s32 L)
  * DoGifPaging hook (ee_ws_pillars_c), in the HUD's 2D state, and squeezed in
  * place in 16:9 (CHAIN_PLAIN), frame and digits together. In 4:3 too: it
  * fixes the original's look, not just its shape. */
-static u32 timer_arg;                  /* the moby the countdown's callback was registered with */
+static Moby *timer_moby;               /* the moby the countdown's callback was registered with */
 static s32 timer_level = -1;           /* its level, or -1: nothing to draw this frame */
 
-void ee_ws_timer_defer_c(u32 moby, s32 L)
+void ee_ws_timer_defer_c(Moby *moby, s32 L)
 {
-    timer_arg = moby;
+    timer_moby = moby;
     timer_level = L;
 }
 
@@ -1478,7 +1477,7 @@ void ee_ws_letterbox_c(u32 ra)
  * under the fades that follow. */
 DECLARE_LVL(DoGifPaging);
 
-typedef void (*TimerFn)(u32);
+typedef void (*TimerFn)(Moby *);
 
 void ee_ws_pillars_c(u32 ra)
 {
@@ -1495,7 +1494,7 @@ void ee_ws_pillars_c(u32 ra)
     }
     if (timer_level == L && timer_draw(L) != 0) {   /* the countdown, after the HUD (above) */
         volatile u32 *start = *cursor_of(L);
-        ((TimerFn)timer_draw(L))(timer_arg);
+        ((TimerFn)timer_draw(L))(timer_moby);
         if (ws_on()) {
             chain_squeeze(start, *cursor_of(L));
         }

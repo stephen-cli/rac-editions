@@ -1,9 +1,9 @@
 /* rz3: what the world shows for a check, and how it is taken (src/randomizer_play.h for the other files).
  *
  * The hosts. Three kinds of moby hold a check in the world: a Gold Bolt spot (gold_bolt_update,
- * class 1134; its flag at pvars + 0), a world pickup (PICKUPS: the Trespasser, the Suck Cannon, the Hydrodisplacer,
+ * class 1134; its flag GoldBoltVars.id), a world pickup (PICKUPS: the Trespasser, the Suck Cannon, the Hydrodisplacer,
  * the Pilot's Helmet, the Magneboots, the Raritanium, the Morph-o-Ray, the Bolt Grabber, the Codebot) and a world
- * infobot (infobot_update, class 750; the planet it unlocks at pvars + 4), whose check is one of
+ * infobot (infobot_update, class 750; the planet it unlocks is InfobotVars.planet), whose check is one of
  * the planet's own (the Kerwan train's infobot, Orxon's two, ...). A host whose check holds its own retail item
  * plays as retail. Any other item is shown by a stand-in, a moby of the item's model made by CreateMoby
  * (CreateMoby) and carried by the host's update: its position every frame, so it follows a host that moves (the
@@ -11,7 +11,7 @@
  * as InfobotUpdate keeps one at rest (its home yaw, no tilt); anything else turns about its upright axis at a
  * quarter turn a second, the rate of the game's own pickups (suck_cannon_update, Moby1290Update: rot.z +=
  * g_frame_time * pi/2). The host itself draws at scale 0. Its touch takes the check at once, as no item has a
- * cutscene that plays anywhere: a spot quietly (pvars + 0xC, the touch retail's quiet spots have, without Ratchet's
+ * cutscene that plays anywhere: a spot quietly (GoldBoltVars.quiet, as retail's quiet spots have, without Ratchet's
  * hold-up and the camera's cut), a pickup before its update can start its cutscene, an infobot as it turns to its
  * message (state 8), each with the Randomizer's banner and an autosave. Two kinds of item are the exception: a Gold
  * Bolt at a pickup or an infobot is a live bolt (carry_bolt), whose touch has the hold-up of every Gold Bolt, and a
@@ -27,8 +27,8 @@
  * is not in memory (those items on a level without the room, a weapon with no room left), the stand-in is the
  * Morph-o-Ray's chicken (class 270, in every level), as on the vendor's mystery entries.
  *
- * Bookkeeping. A stand-in names its host as its spawner (Moby.parent) and carries STAND_IN_MARK at pvars +
- * STAND_IN_MARK_AT, a word no update of its class writes, as its own update never runs. A stand-in can be gone
+ * Bookkeeping. A stand-in names its host as its spawner (Moby.parent) and carries STAND_IN_MARK in StandInVars.mark,
+ * a word no update of its class writes, as its own update never runs. A stand-in can be gone
  * without this code deleting it (on Aridia one 190 units from the hero had its slot cleared, and the slot then went
  * to another class), so it is checked before every use: one that no longer holds a live marked moby of that host is
  * forgotten, never written, and a new one is made at the host's next update. The host can move too: on Eudora,
@@ -65,10 +65,8 @@ typedef void (*LoadFn)(s32, s32);
 
 #define LEVELS          19
 #define GOLD_CLASS      1134            /* gold_bolt_update */
-#define GOLD_QUIET      0xC             /* its pvars: nonzero, the touch takes the bolt without the sequence */
 #define GOLD_SPOTS      4               /* Gold Bolt spots per level */
 #define INFOBOT_CLASS   750             /* infobot_update */
-#define INFOBOT_PLANET  0x4             /* its pvars: the planet it unlocks */
 #define INFOBOT_TOUCHED 8               /* its state once Ratchet reaches it: its message follows */
 #define INFOBOT_DORMANT 1               /* its state while hidden, until the level wakes it (leave) */
 #define CHICKEN_CLASS   270             /* the Morph-o-Ray's chicken (MorphorayChickenUpdate), in every level */
@@ -81,15 +79,43 @@ typedef void (*LoadFn)(s32, s32);
 #define MODE_CINEMATIC  2               /* an in-level cutscene */
 #define MODE_SPACE      6               /* the galactic map and the flight to a planet */
 
-#define STAND_IN_MARK   0x525A5349      /* the edition's word, at pvars + STAND_IN_MARK_AT (CreateMoby clears the */
-#define STAND_IN_MARK_AT 0x7C           /* pvars); past every field GoldBoltUpdate and InfobotUpdate use */
+#define STAND_IN_MARK   0x525A5349      /* the edition's word in a stand-in part's variables (StandInVars.mark) */
 #define BOLT_MARK       0x525A4742      /* the same place: a live Gold Bolt standing in, which runs GoldBoltUpdate */
 #define BODY_MARK       0x525A4344      /*   and Clank, carrying a pack stand-in */
 #define CLANK_CLASS     601             /* Clank, as the Gadgets page shows him with a pack (its pose moby 0x259) */
-#define GOLD_ID         0x0             /* GoldBoltUpdate's pvars: its flag, D_0014BFC0[level * 4 + id] */
-#define GOLD_HOME       0x10            /*   its rest position and yaw, set at its first update */
 #define BORROWED_SPOT   3               /* the flag a live stand-in bolt uses, its value kept around its update */
 #define STAND_INS       8
+
+/* The classes' own variables (Moby.pvars), as far as the edition reads them; where OpenRAC has the record, the
+ * names are its. */
+typedef struct {                        /* GoldBoltUpdate's (OpenRAC: Vars_00309078 and GoldBoltVars) */
+    s32 id;                             /* 0x00: its flag, D_0014BFC0[level * 4 + id] */
+    s32 camera_from;                    /* 0x04: the hold-up camera's two cuboids, -1 none */
+    s32 camera_to;                      /* 0x08 */
+    s16 quiet;                          /* 0x0C: nonzero, the touch takes the bolt without the sequence */
+    u8 pad0E[2];
+    Vec4f home;                         /* 0x10: its rest position and yaw (w), set at its first update */
+} GoldBoltVars;
+
+typedef struct {                        /* infobot_update's (OpenRAC: Infobot) */
+    s32 arrived;                        /* 0x00 */
+    s32 planet;                         /* 0x04: the planet it unlocks */
+} InfobotVars;
+
+typedef struct {                        /* ShuttleUpdate's */
+    u8 pad000[0x10C];
+    s32 infobot;                        /* 0x10C: the infobot's index in the moby table */
+} ShuttleVars;
+
+typedef struct {                        /* a stand-in part's, whatever its class */
+    u8 class_vars[0x7C];                /* its class's own: GoldBoltUpdate and InfobotUpdate use less */
+    u32 mark;                           /* 0x7C: the edition's word; 0 otherwise, as CreateMoby clears the block */
+} StandInVars;
+
+#define GOLD_VARS(moby)     ((GoldBoltVars *)(moby)->pvars)
+#define INFOBOT_VARS(moby)  ((InfobotVars *)(moby)->pvars)
+#define SHUTTLE_VARS(moby)  ((ShuttleVars *)(moby)->pvars)
+#define STAND_IN_VARS(moby) ((StandInVars *)(moby)->pvars)
 
 /* --- the models ---------------------------------------------------------------------------------------------- */
 
@@ -348,8 +374,8 @@ void rz_world_forget(void)
 
 static u32 mark_of(Moby *moby)
 {
-    u32 pvars = (u32)moby->pvars;
-    return (s8)moby->state >= 0 && pvars != 0 ? *(volatile u32 *)(pvars + STAND_IN_MARK_AT) : 0;
+    const StandInVars *vars = STAND_IN_VARS(moby);
+    return (s8)moby->state >= 0 && vars != 0 ? vars->mark : 0;
 }
 
 /* A stand-in that never runs its class's update: a model or a Clank. */
@@ -449,7 +475,7 @@ static Moby *make_part(s32 class_id, u32 mark, Moby *host, s32 L)
 {
     Moby *m = LVL(L, CreateMoby, CreateFn)(class_id);
     if (m != 0) {
-        *(volatile u32 *)(m->pvars + STAND_IN_MARK_AT) = mark;
+        STAND_IN_VARS(m)->mark = mark;
         m->parent = host;
         m->update_dist = host->update_dist;
         m->draw_dist = host->draw_dist;
@@ -536,8 +562,6 @@ static void move(Moby *m, s32 motion, Moby *host)
  * Ratchet when the bolt's two camera cuboids are -1, as at most of the level's spots; a few spots pan between two of
  * the level's cuboids instead. CreateMoby clears pvars, and with both at 0 the camera sat on the level's cuboid 0 (on
  * Gaspar, 176 units from the Pilot's Helmet), so the stand-in sets them to -1. */
-#define GOLD_CAMERA_FROM 0x4            /* GoldBoltUpdate's pvars: the hold-up camera's cuboids, -1 none */
-#define GOLD_CAMERA_TO  0x8
 #define GOLD_RESTING    1
 #define GOLD_HOLDING    2               /* Ratchet holds it up */
 #define UPDATE_ALWAYS   0xFF            /* an update distance the visibility list takes as no limit, as spawners set:
@@ -553,9 +577,9 @@ static void carry_bolt(struct StandIn *e, Moby *host, s32 L)
         if (m == 0) {
             return;
         }
-        *(volatile s32 *)(m->pvars + GOLD_ID) = BORROWED_SPOT;
-        *(volatile s32 *)(m->pvars + GOLD_CAMERA_FROM) = -1;
-        *(volatile s32 *)(m->pvars + GOLD_CAMERA_TO) = -1;
+        GOLD_VARS(m)->id = BORROWED_SPOT;
+        GOLD_VARS(m)->camera_from = -1;
+        GOLD_VARS(m)->camera_to = -1;
         m->pos.x = host->pos.x;
         m->pos.y = host->pos.y;
         m->pos.z = host->pos.z + e->lift;
@@ -563,13 +587,13 @@ static void carry_bolt(struct StandIn *e, Moby *host, s32 L)
         e->class_id = GOLD_CLASS;
     }
     if ((s8)m->state == GOLD_RESTING) {
-        volatile f32 *home = (volatile f32 *)(m->pvars + GOLD_HOME);
-        home[0] = host->pos.x;
-        home[1] = host->pos.y;
-        home[2] = host->pos.z + e->lift;
-        home[3] = LVL(L, fast_atan2, AtanFn)(g_hero.motion.pos.f[0] - home[0], g_hero.motion.pos.f[1] - home[1]);
-        m->pos.x = home[0];
-        m->pos.y = home[1];
+        Vec4f *home = &GOLD_VARS(m)->home;
+        home->x = host->pos.x;
+        home->y = host->pos.y;
+        home->z = host->pos.z + e->lift;
+        home->w = LVL(L, fast_atan2, AtanFn)(g_hero.motion.pos.f[0] - home->x, g_hero.motion.pos.f[1] - home->y);
+        m->pos.x = home->x;
+        m->pos.y = home->y;
     }
 }
 
@@ -1105,7 +1129,7 @@ static void take(Moby *host, u16 key, s32 check, s32 L)
 /* A world infobot's check: one of level L's own, unlocking the planet at its pvars; -1 for any other infobot. */
 static s32 infobot_check(Moby *moby, s32 L)
 {
-    s32 planet = *(volatile s32 *)(moby->pvars + INFOBOT_PLANET);
+    s32 planet = INFOBOT_VARS(moby)->planet;
     s32 check = planet >= 1 && planet <= 18 ? rz_check_for_vanilla(RZ_INFOBOT_NOVALIS + planet - 1) : -1;
     const struct RzCheck *row = rz_check(check);
     return row != 0 && row->planet == L ? check : -1;
@@ -1147,13 +1171,13 @@ void rz_world_before_save(s32 L)
 static u16 host_key(Moby *host)
 {
     if ((u16)host->oclass == INFOBOT_CLASS) {
-        return KEY_INFOBOT(*(volatile s32 *)(host->pvars + INFOBOT_PLANET));
+        return KEY_INFOBOT(INFOBOT_VARS(host)->planet);
     }
     return KEY_PICKUP;
 }
 
 /* Blarg Station's shuttle (class 1109, ShuttleUpdate) ends its ride at the dormant Rilgar infobot
- * it wakes (its pvars + 0x10C, the infobot's index), and in its state 6, once Ratchet is within 3.5 units of it
+ * it wakes (ShuttleVars.infobot, the infobot's index), and in its state 6, once Ratchet is within 3.5 units of it
  * (across, not in height, before the infobot's own 1-unit touch), plays the arrival cutscene (StartCutscene 12),
  * deletes the infobot, unlocks Rilgar, sets level trigger 0 and goes on to the Rilgar infobot's video (movie 5)
  * and, with the Hoverboard owned, a second cutscene. With the check holding another item, or already collected,
@@ -1165,7 +1189,6 @@ static u16 host_key(Moby *host)
 #define SHUTTLE_CLASS       1109
 #define SHUTTLE_AT_INFOBOT  6
 #define SHUTTLE_IDLE        1
-#define SHUTTLE_INFOBOT     0x10C       /* its pvars: the infobot's index in the moby table */
 #define SHUTTLE_REACH       4.0f        /* the shuttle's 3.5, a little wider */
 #define SHUTTLE_TRIGGER     0           /* the level trigger the shuttle sets */
 #define RILGAR_INFOBOT      (RZ_INFOBOT_NOVALIS + 5 - 1)
@@ -1180,7 +1203,7 @@ static s32 shuttle_takes_infobot(Moby *shuttle, s32 L)
         || (ee_rz_layout_item(check) == RILGAR_INFOBOT && !ee_rz_check_collected(check))) {
         return 0;
     }
-    infobot = MOBY_TABLE(L) + *(volatile s32 *)(shuttle->pvars + SHUTTLE_INFOBOT);
+    infobot = MOBY_TABLE(L) + SHUTTLE_VARS(shuttle)->infobot;
     dx = g_hero.motion.pos.f[0] - infobot->pos.x;
     dy = g_hero.motion.pos.f[1] - infobot->pos.y;
     if (dx * dx + dy * dy >= SHUTTLE_REACH * SHUTTLE_REACH) {
@@ -1298,13 +1321,13 @@ s32 rz_world_before(Moby *moby, void (*update)(Moby *), s32 L)
         return 1;
     }
     if ((u16)moby->oclass == GOLD_CLASS) {
-        s32 spot = *(volatile s32 *)moby->pvars;
+        s32 spot = GOLD_VARS(moby)->id;
         check = spot >= 0 && spot < GOLD_SPOTS ? rz_check_for_bolt(L, spot) : -1;
         if (!shuffled(check, RZ_GOLD_BOLT)) {
             update(moby);
             return 1;
         }
-        *(volatile s32 *)(moby->pvars + GOLD_QUIET) = 1;
+        GOLD_VARS(moby)->quiet = 1;
         host_place(moby, find);                 /* before its update, which may delete it */
         update(moby);
         if (ee_rz_check_collected(check)) {     /* taken by this update: its autosave collected the check */
@@ -1330,7 +1353,7 @@ s32 rz_world_before(Moby *moby, void (*update)(Moby *), s32 L)
     return 0;
 }
 
-/* A dormant infobot. Its first update (state 0) hides it (+0x34 bits 0x41) in state 1 unless its pvars + 0 is set,
+/* A dormant infobot. Its first update (state 0) hides it (+0x34 bits 0x41) in state 1 unless InfobotVars.arrived is set,
  * and the level wakes it later: Blarg Station has two Rilgar infobots, one locked in the warship's room and one at
  * the warship's shuttle, which wakes once Ratchet is back from the self-destruct. Both are their planet's check, kept
  * under the same key: a dormant one shows nothing, and leaves the stand-in to the other unless it carried it. */
@@ -1354,7 +1377,7 @@ void rz_world_after(Moby *moby, s32 L)
         return;
     }
     if ((u16)moby->oclass == INFOBOT_CLASS) {
-        s32 planet = *(volatile s32 *)(moby->pvars + INFOBOT_PLANET);
+        s32 planet = INFOBOT_VARS(moby)->planet;
         check = infobot_check(moby, L);
         if (!shuffled(check, RZ_INFOBOT_NOVALIS + planet - 1)) {
             return;

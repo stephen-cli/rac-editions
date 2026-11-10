@@ -129,7 +129,7 @@ extern void sce_gs_sync_v(s32);                                           /* the
 #define TITLE_LIST_STRIDE 0x50
 #define TITLE_PLACEHOLDER 0x001CE678 /* the start menu's screens 0 and 1: an empty list, no update or draw */
 #define PANELS_ADDRESS  0x001D6120                       /* the 14 panel mobys */
-#define PANELS          ((volatile u32 *)PANELS_ADDRESS)
+#define PANELS          ((Moby *volatile *)PANELS_ADDRESS)
 #define PANEL_ROW       0           /* the Goodies row's screen and panel */
 #define PANEL_ROW_PARKED 0          /* the start menu's sequence for panel 0: parked */
 #define ROW_FIRST_PANEL 2           /* New Game, Load Game, Options: panels 2-4 */
@@ -1082,12 +1082,12 @@ static s32 sequence_from(s32 id, u32 base, const s16 *rest, s32 records, s32 tap
 static s32 install_sequences(void)
 {
     struct MenuPage *page = (struct MenuPage *)TITLE_PAGE;
-    u32 panel = PANELS[PANEL_ROW];
+    const Moby *panel = PANELS[PANEL_ROW];
     const MobyClass *pclass;
     u32 middle;
     s16 rest[3 * FRAME_RECORDS_MAX], *rec;
     s32 top, bottom, spacing, raise, records, k, j;
-    if (panel == 0 || (pclass = MOBY(panel)->pclass) == 0 || pclass->seq_count <= SEQ_ROW) {
+    if (panel == 0 || (pclass = panel->pclass) == 0 || pclass->seq_count <= SEQ_ROW) {
         return 0;
     }
     class_sequences = (u32 *)pclass->seqs;
@@ -1995,10 +1995,10 @@ static s32 pause_program = -1;
  * again if they are wanted. */
 static void pause_name_fit(s32 L)
 {
-    u32 panel = *(volatile u32 *)exe_data(L, PANELS_ADDRESS + 4 * PANEL_ROW);
+    const Moby *panel = *(Moby *volatile *)exe_data(L, PANELS_ADDRESS + 4 * PANEL_ROW);
     const MobyClass *pclass;
     s32 stretched;
-    if (panel == 0 || (pclass = MOBY(panel)->pclass) == 0 || pclass->seq_count <= SEQ_CONFIRM_NAME) {
+    if (panel == 0 || (pclass = panel->pclass) == 0 || pclass->seq_count <= SEQ_CONFIRM_NAME) {
         return;
     }
     if (class_sequences != (u32 *)pclass->seqs) {
@@ -2081,9 +2081,9 @@ static void patch_widgets(void)
  * prompt box; not stretched, the name box came back a line short. */
 static void install_name_stretch(void)
 {
-    u32 panel = PANELS[PANEL_ROW];
+    const Moby *panel = PANELS[PANEL_ROW];
     const MobyClass *pclass;
-    if (panel == 0 || (pclass = MOBY(panel)->pclass) == 0 || pclass->seq_count <= SEQ_ROW) {
+    if (panel == 0 || (pclass = panel->pclass) == 0 || pclass->seq_count <= SEQ_ROW) {
         return;
     }
     class_sequences = (u32 *)pclass->seqs;

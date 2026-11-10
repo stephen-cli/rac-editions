@@ -168,9 +168,9 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
 #define PANEL_HALF_OLD   971
 #define PANEL_HALF_NEW   1600
 
-void ee_controls_panel(u32 moby)
+void ee_controls_panel(Moby *moby)
 {
-    MobyClass *pclass = MOBY(moby)->pclass;
+    MobyClass *pclass = moby->pclass;
     const AnimSeq *seq;
     u32 frame;
     u16 at, n;

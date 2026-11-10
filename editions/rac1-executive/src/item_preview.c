@@ -12,16 +12,20 @@
  * from an empty Head or Foot Items cell (Charge Boots locked, a helmet not
  * found yet) to an owned one (2026-10-18). tools/overlay_patch.py's
  * item_preview feature makes the draw also ask this whether the moby's own
- * item (its pvars + 0xC, set by the binding) is owned; the retail cursor
+ * item (PreviewVars.item, set by the binding) is owned; the retail cursor
  * test stays, so leaving an owned item for an unowned one is hidden as
  * before. Returns the moby to draw, or 0 for nothing. */
 #include "modseg.h"
 
+typedef struct {                /* a preview moby's variables (Moby.pvars) */
+    u8 pad0[0xC];
+    s32 item;                   /* 0xC: the item it shows */
+} PreviewVars;
 
 Moby *ee_preview_shown(Moby *moby)
 {
     if (moby == 0) {
         return 0;
     }
-    return item_available[*(s32 *)(moby->pvars + 0xC)] ? moby : 0;
+    return item_available[((PreviewVars *)moby->pvars)->item] ? moby : 0;
 }

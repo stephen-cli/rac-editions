@@ -76,10 +76,18 @@ typedef void (*DeleteFn)(Moby *);
 /* Helga on Kerwan and her lift (ee_rz_moby_update_c). */
 #define KERWAN          3
 #define HELGA_CLASS     890             /* QuestGiverUpdate, helga_update: Helga, who sells the Swingshot */
-#define HELGA_LIFT      0xD4            /* her pvars: the moby index of the rail lift she is linked to */
 #define LIFT_CLASS      0x3F4           /* RailLiftUpdate, update_rail_lift: the lift back to the ship */
-#define LIFT_AUTOSTART  0x8C            /* its pvars: start without waiting for the trigger volume */
 #define SWINGSHOT_ID    12
+
+typedef struct {                        /* helga_update's variables (Moby.pvars) */
+    u8 pad00[0xD4];
+    s32 lift;                           /* 0xD4: the moby index of the rail lift she is linked to */
+} HelgaVars;
+
+typedef struct {                        /* update_rail_lift's (OpenRAC: RailLiftVars) */
+    u8 pad00[0x8C];
+    s32 autostart;                      /* 0x8C: start without waiting for the trigger volume */
+} RailLiftVars;
 
 /* The early-O2 fixes (o2_early_fixes). */
 #define ORXON           10
@@ -601,9 +609,9 @@ static void o2_early_fixes(s32 L)
  * level loaded them (mission_state), the lift showing and the door shutting for good once trigger 2 is done. So the
  * lift's record is placed at every load (ee_rz_place_mobys_c: flag 0x1, placed while the trigger is open too), the
  * lift hiding itself until its copy of trigger 2 is done; with the boss beaten, that copy is set at once, so it
- * appears and carries Ratchet up. The door's force-open word (pvars + 0x3C) makes it open after the boss, then and
+ * appears and carries Ratchet up. The door's force-open word (UmbrisDoorVars) makes it open after the boss, then and
  * on every later visit, so the infobot stays reachable; the bridge to the hangar (class 1129) extends without
- * waiting for the boss's state (its target, pvars + 0xB0, -1), as on a later visit the boss is gone. Retail's end
+ * waiting for the boss's state (UmbrisBridgeVars.target -1), as on a later visit the boss is gone. Retail's end
  * plays only for Batalia's own infobot. The two teleporter pads (class 1135), one at the top of the lift and one by
  * the ship, stay off until Ratchet stands in their cuboid 14 on the lift's landing (the arena's intro volume too).
  * With the boss beaten, a pad whose save bit is clear is switched on as that cuboid would: its save bit, so the pads
@@ -619,13 +627,21 @@ typedef void (*PadFn)(void *);
 #define UMBRIS_SCENES_END   8           /* waiting for the boss dead and Ratchet at the hangar */
 #define UMBRIS_LIFT_CLASS   1474
 #define UMBRIS_DOOR_CLASS   1128
-#define UMBRIS_DOOR_FORCE   0x3C        /* its pvars: nonzero, opens once trigger 2 is done instead of shutting */
 #define UMBRIS_BRIDGE_CLASS 1129
-#define UMBRIS_BRIDGE_TARGET 0xB0       /* its pvars: the moby whose state extends it, -1 none */
 #define UMBRIS_PAD_CLASS    1135
 #define PAD_ON              1           /* its states: waiting for Ratchet */
 #define PAD_OFF             5           /* hidden until Ratchet stands in its cuboid */
 #define SNAGGLEBEAST_TRIGGER 2
+
+typedef struct {                        /* the hangar door's variables (Moby.pvars) */
+    u8 pad00[0x3C];
+    s32 force_open;                     /* 0x3C: nonzero, opens once trigger 2 is done instead of shutting */
+} UmbrisDoorVars;
+
+typedef struct {                        /* the hangar bridge's */
+    u8 pad00[0xB0];
+    s32 target;                         /* 0xB0: the moby whose state extends it, -1 none */
+} UmbrisBridgeVars;
 #define UMBRIS_LIFT_UID     458
 DECLARE_LVL_DATA(level_core);   /* the level's core data: the gameplay data at +4 */
 DECLARE_LVL(FastMemSet);        /* fill_transfer_words(words, value, count) */
@@ -690,11 +706,11 @@ static s32 umbris_end(Moby *moby, s32 L)
         }
         return 0;
     case UMBRIS_DOOR_CLASS:
-        *(volatile s32 *)(moby->pvars + UMBRIS_DOOR_FORCE) = 1;
+        ((UmbrisDoorVars *)moby->pvars)->force_open = 1;
         return 0;
     case UMBRIS_BRIDGE_CLASS:
         if (boss_beaten) {
-            *(volatile s32 *)(moby->pvars + UMBRIS_BRIDGE_TARGET) = -1;
+            ((UmbrisBridgeVars *)moby->pvars)->target = -1;
         }
         return 0;
     case UMBRIS_PAD_CLASS:
@@ -824,7 +840,7 @@ static void start_helga_lift(s32 lift_index, s32 L)
 {
     Moby *lift = MOBY_TABLE(L) + lift_index;
     if ((u16)lift->oclass == LIFT_CLASS) {
-        *(volatile s32 *)(lift->pvars + LIFT_AUTOSTART) = 1;
+        ((RailLiftVars *)lift->pvars)->autostart = 1;
     }
 }
 
@@ -858,7 +874,7 @@ void ee_rz_moby_update_c(Moby *moby, UpdateFn update, s32 L)
         return;
     }
     if (L == KERWAN && (u16)moby->oclass == HELGA_CLASS) {
-        helga_lift = *(volatile s32 *)(moby->pvars + HELGA_LIFT);    /* read first: her update deletes her */
+        helga_lift = ((HelgaVars *)moby->pvars)->lift;     /* read first: her update deletes her */
     }
     ee_debug_rz_play[1]++;
     granted = -1;
