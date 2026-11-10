@@ -50,6 +50,7 @@ holds only the edition's code, tools and notes, never game data.
   default.
 - **Moving out of the Comet-Strike.** Once the wrench has left Ratchet's
   hand, push the stick to run or press X to jump, as in Going Commando.
+  Until he has caught it again he cannot swing, Hyper-Strike or throw.
 - **A richer Metal Detector in Challenge Mode.** Buried bolt stashes pay out
   far more in Challenge Mode and in Randomizer saves, so hunting them down
   is a real way to save up for the RYNO and the Gold Weapons, rather than

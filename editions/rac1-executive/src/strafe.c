@@ -267,7 +267,8 @@ static s32 is_run_state(void)
 
 /* After the game's pad parse (pad.c: process_pad_input(pad, report, length)):
  * the Future control layout's buttons and prompts (src/control_layout.c,
- * src/control_prompts.c), then remember the strafe buttons and hide them
+ * src/control_prompts.c), the wrench's Square while it is away
+ * (src/comet_strike.c), then remember the strafe buttons and hide them
  * from the game, except while hovering. Classic strafes on L2 or R2, Future
  * on L2 alone (R2 is its crouch). */
 void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
@@ -305,6 +306,7 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
         return;
     }
     ee_layout_pad(L, (volatile u8 *)pad, pad_lock);
+    ee_comet_pad(L, (volatile PadState *)pad);
     ee_layout_prompts(L);
     ee_helpdesk_voices(L);
     ee_strafe_help_frame(L);

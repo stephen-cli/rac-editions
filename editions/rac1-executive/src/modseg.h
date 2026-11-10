@@ -119,6 +119,9 @@ s32 ee_layout_in_play(s32 level);
  * was before the parse) and the prompts of the layout in force
  * (src/control_prompts.c). */
 void ee_layout_pad(s32 level, volatile u8 *pad, s32 pad_lock);
+/* Called by the pad hook after the layout: no Square for the game while the wrench is in flight
+ * (src/comet_strike.c). */
+void ee_comet_pad(s32 level, volatile PadState *pad);
 void ee_layout_prompts(s32 level);
 
 /* The game's language (0 English, 2 French, 3 German, 4 Spanish, 5 Italian;

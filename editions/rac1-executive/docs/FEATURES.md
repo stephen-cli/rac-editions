@@ -586,6 +586,29 @@ finds the call (of the 0x83-entry state tables, the one whose entries
 lui/addiu after `addiu $a0, 0x2C`), and checks record 3 is 83/87/91.
 Record 3's f14 has no other reader: the block is its only use.
 
+**No wrench attack while the wrench is away.** Retail has no rule for it,
+because Ratchet stands in state 0x15 until the catch: nothing tests for a
+wrench in flight before a swing (state 0x13), a Hyper-Strike (0x14) or
+another throw. Once he can move out of the throw, all three were open, and
+a second throw relaunched the wrench from where it was flying
+(`launch_hero_wrench` launches the wrench moby wherever it is): throw after
+throw carried it across the level. The game keeps the flight's state:
+`launch_hero_wrench` sets `g_hero.items[0].thrown` and the wrench moby's
+state to 10 (flying out), and `wrench_update` turns it to 11 (coming back)
+and clears both at the catch. All three attacks start from Square, so while
+the wrench is in flight `ee_comet_pad` (`src/comet_strike.c`, called by the
+pad hook in `src/strafe.c`) takes Square out of pad 0's held and pressed
+words and out of the newest word of the press history. It applies in play
+only (game mode 0, not on the hoverboard). R&C2's own rule has not been
+read from its code.
+
+Tested in PCSX2 on a Challenge Mode save (Aridia), the same scripted input
+before and after. Before: a throw repeated during the flight relaunched the
+wrench, which got 39.9 units from Ratchet (8.5 for one throw), and a
+Hyper-Strike began with the wrench away. After: no swing, Hyper-Strike or
+throw begins until the catch, each of them works the frame after it, and a
+throw made standing still is unchanged.
+
 ## x5: Strafing on L2 and R2 — first increment (movement) implemented (2026-10-17), awaiting owner test
 
 **What R&C2 does.** Read from SCUS_972.68's Oozla program. Its hero input

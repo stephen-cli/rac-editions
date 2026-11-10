@@ -47,8 +47,24 @@
  * window (8 frames at 60 Hz, scaled like the game's other jump windows);
  * states 0x13 and 0x14 keep the game's. Everything after the press test
  * (lock-on, the R1 crouch jumps, hero_set_state(JUMP)) is the game's own
- * code. Site from tools/gen_hero.py. */
+ * code. Site from tools/gen_hero.py.
+ *
+ * No wrench attack while the wrench is away. Retail never needs the rule:
+ * Ratchet stands in state 0x15 until he has caught the wrench, so no code of
+ * its tests for a wrench in flight before a swing (state 0x13), a
+ * Hyper-Strike (0x14) or another throw. Moving out of the throw opens all
+ * three, and a second throw relaunches the wrench from where it is
+ * (launch_hero_wrench aims and launches the wrench moby wherever it flies), so
+ * throw after throw walks it across the level. The game does keep the
+ * flight's state: launch_hero_wrench sets g_hero.items[0].thrown and the
+ * wrench moby's state to 10 (flying out); wrench_update turns it to 11 (coming
+ * back) and, at the catch, clears both. All three attacks start from Square
+ * (the wrench's button mask, 0x80), so while the wrench is in flight the pad
+ * hook (src/strafe.c) takes Square out of what the game sees: held, pressed
+ * and the newest word of the press history that pad_pressed_within searches.
+ * The frame it is caught, Square is the game's again. */
 #include "modseg.h"
+#include "structs/moby.h"
 
 extern const u32 ee_comet_site[19];       /* the jal speed_step in the state 0x15 movement block */
 extern const u32 ee_speed_step[19];
@@ -60,6 +76,9 @@ DECLARE_LVL(scale_ticks);          /* scale_game_frames(n): the level's copy */
 /* R&C2's rule reads this word as the lock-on target; OpenRAC's Hero has it among the animation fields. */
 #define hero_lock_target     g_hero.anim_changing
 
+#define WRENCH_SLOT          0          /* the hero's item slot the wrench is in */
+#define WRENCH_FLYING_OUT    10         /* the wrench moby's states: thrown, and on its way back */
+#define WRENCH_COMING_BACK   11
 #define STATE_RUN            2
 #define STATE_COMET_STRIKE   0x15
 #define RELEASE_FRAME        34.0f      /* the wrench leaves the hand at 33 (both games) */
@@ -81,6 +100,30 @@ void ee_comet_speed_step_c(f32 accel, f32 decel, u32 ra)
         && g_hero.anim_frame > RELEASE_FRAME && g_hero.stick_magnitude > RUN_STICK) {
         ((SetState)ee_hero_set_state[L])(STATE_RUN, 1);
     }
+}
+
+static s32 wrench_in_flight(void)
+{
+    struct Moby *wrench = g_hero.items[WRENCH_SLOT].moby;
+
+    if (!g_hero.items[WRENCH_SLOT].thrown || wrench == 0) {
+        return 0;
+    }
+    return wrench->state == WRENCH_FLYING_OUT || wrench->state == WRENCH_COMING_BACK;
+}
+
+void ee_comet_pad(s32 level, volatile PadState *pad)
+{
+    s32 newest;
+
+    if (!ee_in_play(level) || !wrench_in_flight()) {
+        return;
+    }
+    /* The parse has already stored this frame's pressed word in the history. */
+    newest = (pad->hist_idx + ARRAY_COUNT(pad->hist_btn) - 1) % ARRAY_COUNT(pad->hist_btn);
+    pad->held &= ~PAD_SQUARE;
+    pad->pressed &= ~PAD_SQUARE;
+    pad->hist_btn[newest] &= ~PAD_SQUARE;
 }
 
 s32 ee_comet_jump_window_c(u32 button, s32 window, s32 *out, u32 ra)
