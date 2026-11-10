@@ -49,20 +49,36 @@
  * (lock-on, the R1 crouch jumps, hero_set_state(JUMP)) is the game's own
  * code. Site from tools/gen_hero.py.
  *
- * No wrench attack while the wrench is away. Retail never needs the rule:
- * Ratchet stands in state 0x15 until he has caught the wrench, so no code of
- * its tests for a wrench in flight before a swing (state 0x13), a
- * Hyper-Strike (0x14) or another throw. Moving out of the throw opens all
- * three, and a second throw relaunches the wrench from where it is
- * (launch_hero_wrench aims and launches the wrench moby wherever it flies), so
- * throw after throw walks it across the level. The game does keep the
- * flight's state: launch_hero_wrench sets g_hero.items[0].thrown and the
- * wrench moby's state to 10 (flying out); wrench_update turns it to 11 (coming
- * back) and, at the catch, clears both. All three attacks start from Square
- * (the wrench's button mask, 0x80), so while the wrench is in flight the pad
- * hook (src/strafe.c) takes Square out of what the game sees: held, pressed
- * and the newest word of the press history that pad_pressed_within searches.
- * The frame it is caught, Square is the game's again. */
+ * No wrench attack while the wrench is away. Retail has half the rule:
+ * process_hero_equipped_item_input starts a ground swing or throw only with
+ * the wrench moby in state 0, in the hand. It needs no more, since Ratchet
+ * stands in state 0x15 until the catch. Moving out of the throw opened the
+ * rest: a Hyper-Strike from a jump, and a second throw from the crouch state,
+ * whose test is only Square pressed within 15 frames with the wrench equipped.
+ * A second throw relaunched the wrench from where it was flying
+ * (launch_hero_wrench launches the wrench moby wherever it is), so throw
+ * after throw walked it across the level.
+ *
+ * The game keeps the flight's state: launch_hero_wrench sets
+ * g_hero.items[0].thrown and the wrench moby's state to 10 (flying out);
+ * wrench_update turns it to 11 (coming back) and, at the catch, clears both.
+ * R&C2 keeps the same flag (hero + 0x123A) and tests it in three places
+ * (Oozla's program, OpenRAC's games/rac2): its equipped-item input
+ * (func_L01_002C1A70) returns at once while it is set, which stops the swing,
+ * the Hyper-Strike and the combos; its crouch state's throw adds
+ * "thrown == 0" to R&C1's test (func_L01_002C37C8, case 4); and its launch
+ * (func_L00_002BA508) does nothing while it is set. Its presses stay in the
+ * pad's history meanwhile, so Square pressed just before the catch, within
+ * the window each test gives a press, starts the attack at the catch.
+ *
+ * R&C2's three tests are in the level programs' code. The edition gets the
+ * same result from the pad hook (src/strafe.c): while the wrench is in
+ * flight it takes Square, the wrench's button, out of what the game sees
+ * (held, pressed and the whole press history that pad_pressed_within
+ * searches), and when the flight ends it puts the presses it took back into
+ * the history, so they count as they do in R&C2. Square means something else on the water's
+ * surface (the dive) and to Clank and Giant Clank, which R&C2's tests do not
+ * touch: there the pad is left alone. */
 #include "modseg.h"
 #include "structs/moby.h"
 
@@ -102,6 +118,8 @@ void ee_comet_speed_step_c(f32 accel, f32 decel, u32 ra)
     }
 }
 
+/* A wrench that is thrown and has not been caught. R&C2 tests the flag alone; the moby's state is asked too,
+ * so that a flag left set with the wrench in the hand could not take Square away for good. */
 static s32 wrench_in_flight(void)
 {
     struct Moby *wrench = g_hero.items[WRENCH_SLOT].moby;
@@ -112,18 +130,81 @@ static s32 wrench_in_flight(void)
     return wrench->state == WRENCH_FLYING_OUT || wrench->state == WRENCH_COMING_BACK;
 }
 
+/* Square is the wrench's: not on the water's surface or under it, and not as Clank or Giant Clank. */
+static s32 square_is_wrench(void)
+{
+    s32 mode = g_hero.state.control_mode;
+
+    return g_hero.vehicle_mode == 0 && mode != HERO_MODE_SWIM && mode != HERO_MODE_WATER_SURFACE;
+}
+
+#define HISTORY_LENGTH   (sizeof(((PadState *)0)->hist_btn) / sizeof(((PadState *)0)->hist_btn[0]))
+/* The history's slots whose Square press is taken out for the flight, and how many. */
+static u8 square_taken[HISTORY_LENGTH];
+static s32 squares_taken;
+static s32 hiding_square;               /* the last frame hid Square: the history is already clear of it */
+
+static void forget_taken_presses(void)
+{
+    u32 i;
+
+    for (i = 0; i < HISTORY_LENGTH; i++) {
+        square_taken[i] = 0;
+    }
+    squares_taken = 0;
+}
+
+static void take_square(volatile PadState *pad, u32 slot)
+{
+    if (pad->hist_btn[slot] & PAD_SQUARE) {
+        pad->hist_btn[slot] &= ~PAD_SQUARE;
+        square_taken[slot] = 1;
+        squares_taken++;
+    }
+}
+
 void ee_comet_pad(s32 level, volatile PadState *pad)
 {
-    s32 newest;
+    /* The parse has already stored this frame's pressed word in the history's newest slot. */
+    u32 newest = (pad->hist_idx + HISTORY_LENGTH - 1) % HISTORY_LENGTH;
+    u32 i;
 
-    if (!ee_in_play(level) || !wrench_in_flight()) {
+    if (!ee_in_play(level)) {
+        if (squares_taken != 0) {
+            forget_taken_presses();
+        }
+        hiding_square = 0;
         return;
     }
-    /* The parse has already stored this frame's pressed word in the history. */
-    newest = (pad->hist_idx + ARRAY_COUNT(pad->hist_btn) - 1) % ARRAY_COUNT(pad->hist_btn);
-    pad->held &= ~PAD_SQUARE;
-    pad->pressed &= ~PAD_SQUARE;
-    pad->hist_btn[newest] &= ~PAD_SQUARE;
+    /* The slot the parse has just reused holds this frame's press, not the one taken from it 30 polls ago. */
+    if (square_taken[newest]) {
+        square_taken[newest] = 0;
+        squares_taken--;
+    }
+    if (wrench_in_flight() && square_is_wrench()) {
+        /* The whole history, not only this frame's press: the crouch state looks 15 polls back, and a Square
+         * pressed during the throw's wind-up would otherwise start the next throw from mid-flight. */
+        if (hiding_square) {
+            take_square(pad, newest);
+        } else {
+            for (i = 0; i < HISTORY_LENGTH; i++) {
+                take_square(pad, i);
+            }
+            hiding_square = 1;
+        }
+        pad->held &= ~PAD_SQUARE;
+        pad->pressed &= ~PAD_SQUARE;
+        return;
+    }
+    hiding_square = 0;
+    if (squares_taken != 0) {
+        for (i = 0; i < HISTORY_LENGTH; i++) {
+            if (square_taken[i]) {
+                pad->hist_btn[i] |= PAD_SQUARE;
+            }
+        }
+        forget_taken_presses();
+    }
 }
 
 s32 ee_comet_jump_window_c(u32 button, s32 window, s32 *out, u32 ra)

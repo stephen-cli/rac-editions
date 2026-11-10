@@ -586,28 +586,57 @@ finds the call (of the 0x83-entry state tables, the one whose entries
 lui/addiu after `addiu $a0, 0x2C`), and checks record 3 is 83/87/91.
 Record 3's f14 has no other reader: the block is its only use.
 
-**No wrench attack while the wrench is away.** Retail has no rule for it,
-because Ratchet stands in state 0x15 until the catch: nothing tests for a
-wrench in flight before a swing (state 0x13), a Hyper-Strike (0x14) or
-another throw. Once he can move out of the throw, all three were open, and
-a second throw relaunched the wrench from where it was flying
-(`launch_hero_wrench` launches the wrench moby wherever it is): throw after
-throw carried it across the level. The game keeps the flight's state:
-`launch_hero_wrench` sets `g_hero.items[0].thrown` and the wrench moby's
-state to 10 (flying out), and `wrench_update` turns it to 11 (coming back)
-and clears both at the catch. All three attacks start from Square, so while
-the wrench is in flight `ee_comet_pad` (`src/comet_strike.c`, called by the
-pad hook in `src/strafe.c`) takes Square out of pad 0's held and pressed
-words and out of the newest word of the press history. It applies in play
-only (game mode 0, not on the hoverboard). R&C2's own rule has not been
-read from its code.
+**No wrench attack while the wrench is away.** Retail has half the rule:
+`process_hero_equipped_item_input` starts a ground swing or throw only with
+the wrench moby in state 0, in the hand. It needs no more, because Ratchet
+stands in state 0x15 until the catch. Moving out of the throw opened the
+rest: a Hyper-Strike (state 0x14) from a jump, and a second throw from the
+crouch state, whose test is only Square pressed within 15 frames with the
+wrench equipped. A second throw relaunched the wrench from where it was
+flying (`launch_hero_wrench` launches the wrench moby wherever it is), so
+throw after throw carried it across the level.
+
+The game keeps the flight's state: `launch_hero_wrench` sets
+`g_hero.items[0].thrown` and the wrench moby's state to 10 (flying out), and
+`wrench_update` turns it to 11 (coming back) and clears both at the catch.
+
+**What R&C2 does.** It keeps the same flag (hero + 0x123A) and tests it in
+three places (Oozla's program, in OpenRAC's `games/rac2`): its equipped-item
+input (`func_L01_002C1A70`) returns at once while the flag is set, which
+stops the swing, the Hyper-Strike and the combos; its crouch state's throw
+(`func_L01_002C37C8`, case 4) adds `thrown == 0` to R&C1's test; and its
+launch (`func_L00_002BA508`) does nothing while the flag is set. The
+presses stay in the pad's history meanwhile, so Square pressed just before
+the catch, within the window each test gives a press, starts the attack at
+the catch. Measured on Oozla with scripted input: a throw, a swing and a
+Hyper-Strike asked for during the flight each begin on the frame the flag
+clears, never before; one Square press 0.55 s or more after the throw's
+input swings at the catch (the flight ends at about 0.8 s), and one at
+0.45 s does not.
+
+**The port.** R&C2's three tests are in the level programs' code. The
+edition gets the same result from the pad hook: `ee_comet_pad`
+(`src/comet_strike.c`, called by `ee_pad_parse_c` in `src/strafe.c`) takes
+Square, the wrench's button, out of what the game sees while the wrench is
+in flight: pad 0's held and pressed words and the whole press history that
+`pad_pressed_within` searches. The whole history matters: the crouch state
+looks 15 polls back, and Square pressed during the throw's wind-up would
+otherwise start the next throw from mid-flight. When the flight ends, the
+presses taken out go back into the history, so a press just before the
+catch counts as in R&C2. Square means something else on the water's surface
+(the dive) and to Clank and Giant Clank, which R&C2's tests do not touch:
+there the pad is left alone. It applies in play only (game mode 0, not on
+the hoverboard).
 
 Tested in PCSX2 on a Challenge Mode save (Aridia), the same scripted input
 before and after. Before: a throw repeated during the flight relaunched the
-wrench, which got 39.9 units from Ratchet (8.5 for one throw), and a
+wrench, which got 39.9 units from Ratchet (8.6 for one throw), and a
 Hyper-Strike began with the wrench away. After: no swing, Hyper-Strike or
-throw begins until the catch, each of them works the frame after it, and a
-throw made standing still is unchanged.
+throw begins until the catch; repeated throws each leave from the hand and
+the wrench stays within 8.6 units; a Square press 0.06 s before the catch
+swings 0.02 s after it, and presses 0.16 s and 0.44 s before it do
+nothing (R&C1's swing window is 7 frames); a throw made standing still is
+unchanged. Not tested: the water's surface and Clank during a flight.
 
 ## x5: Strafing on L2 and R2 — first increment (movement) implemented (2026-10-17), awaiting owner test
 
