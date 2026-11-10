@@ -80,7 +80,6 @@
  * surface (the dive) and to Clank and Giant Clank, which R&C2's tests do not
  * touch: there the pad is left alone. */
 #include "modseg.h"
-#include "structs/moby.h"
 
 extern const u32 ee_comet_site[19];       /* the jal speed_step in the state 0x15 movement block */
 extern const u32 ee_speed_step[19];

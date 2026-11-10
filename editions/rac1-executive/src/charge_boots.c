@@ -98,9 +98,9 @@ static void panel_sequence(s32 L)
         install_panel_sequence((u8 *)resources[slot]);
     }
     for (i = 0; i < 14; i++) {
-        u8 *m = (u8 *)panels[i];
-        if (m != 0 && *(u16 *)(m + 0xA6) == PANEL_CLASS) {
-            install_panel_sequence(*(u8 **)(m + 0x24));
+        const Moby *panel = (const Moby *)panels[i];
+        if (panel != 0 && (u16)panel->oclass == PANEL_CLASS) {
+            install_panel_sequence((u8 *)panel->pclass);
             break;
         }
     }

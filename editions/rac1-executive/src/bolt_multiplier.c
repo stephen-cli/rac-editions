@@ -83,10 +83,6 @@
 #define STATE_EXTERNAL    0x32          /* the hero driven by something else: the ship, a turret, a script */
 #define VEHICLE_CLANK     1
 
-#define MOBY_CLASS      0x24            /* the moby's class header */
-#define MOBY_MISSION    0xB0            /* its mission, 0xFF for none */
-#define MOBY_UID        0xB2            /* s16: its placement's uid, < 0 for none */
-#define CLASS_TYPE      0x46            /* s16: 5 a creature */
 #define TYPE_CREATURE   5
 #define MISSION_NONE    0xFF
 #define MISSION_DONE    0xFF            /* D_L00_0015FD48[mission]: the level's mission states */
@@ -158,16 +154,16 @@ static s32 excluded_section(void)
     return g_hero.state.current == STATE_EXTERNAL || g_hero.vehicle_mode > VEHICLE_CLANK;
 }
 
-static s32 is_creature(const u8 *moby)
+static s32 is_creature(const Moby *moby)
 {
-    const u8 *klass = *(u8 *const *)(moby + MOBY_CLASS);
-    return klass != 0 && *(const s16 *)(klass + CLASS_TYPE) == TYPE_CREATURE;
+    const MobyClass *pclass = moby->pclass;
+    return pclass != 0 && pclass->type == TYPE_CREATURE;
 }
 
 /* The kills the limiter judges: a moby of a mission already completed, which the level respawns. */
-static s32 is_respawn(s32 L, const u8 *moby)
+static s32 is_respawn(s32 L, const Moby *moby)
 {
-    s32 mission = moby[MOBY_MISSION];
+    s32 mission = moby->mission;
     if (mission == MISSION_NONE) {
         return 0;
     }
@@ -177,9 +173,9 @@ static s32 is_respawn(s32 L, const u8 *moby)
 /* --- the death counts ------------------------------------------------------------------------------------------ */
 
 /* The moby's slot among all levels' counted enemies, or -1 if it is not one. */
-static s32 death_slot(s32 L, const u8 *moby)
+static s32 death_slot(s32 L, const Moby *moby)
 {
-    s32 uid = *(const s16 *)(moby + MOBY_UID);
+    s32 uid = (s16)moby->save_id;      /* its placement's id, negative for a moby the level did not place */
     s32 low, high;
     if (uid < 0 || L < 0 || L >= FE_BOOT) {
         return -1;

@@ -303,11 +303,6 @@ void ee_rz_vendor_model_c(void *moby, s32 class_id, s32 L)
     LVL(L, InitMobyInstance, InitMobyFn)(moby, class_id);
 }
 
-static volatile f32 *moby_float(u8 *moby, s32 offset)
-{
-    return (volatile f32 *)(moby + offset);
-}
-
 /* Retail puts the panel's model at the panel's base point plus the item's own offset (vendor_pose), which centres
  * that weapon's model (its origin is at the grip), lifted for the price line once, twice when the Persuader's
  * prices show too. The chicken's origin is at its feet, so it goes back to the base point: the item's offset,
@@ -323,9 +318,9 @@ static void undo_item_offset(u8 *panel, s32 item, const u8 *camera, s32 L)
     back[2] = -(offset[2] + price_lift);
     back[3] = 0.0f;
     LVL(L, matrix_mul_vec3, VectorFn)(world, back, camera + CAMERA_MATRIX);
-    *moby_float(panel, MOBY_POS) += world[0];
-    *moby_float(panel, MOBY_POS + 4) += world[1];
-    *moby_float(panel, MOBY_POS + 8) += world[2];
+    MOBY(panel)->pos.x += world[0];
+    MOBY(panel)->pos.y += world[1];
+    MOBY(panel)->pos.z += world[2];
 }
 
 /* The display's placement of a model in Vendor_InitItemDisplay, once its pose is set from the item's tables (which
@@ -341,13 +336,13 @@ void ee_rz_vendor_place_c(void *moby, s32 L)
         if (model == display + DISPLAY_PANEL) {
             s32 item = entries(vendor)[*(s32 *)(vendor + VENDOR_CURSOR)].item;
             undo_item_offset(model, item, camera, L);
-            *moby_float(model, MOBY_ROT) = 0.0f;
-            *moby_float(model, MOBY_ROT + 4) = 0.0f;
-            *moby_float(model, MOBY_ROT + 8) = *(volatile f32 *)(camera + CAMERA_YAW);
-            *moby_float(model, MOBY_SCALE) *= CHICKEN_SCALE;
-            *moby_float(model, MOBY_POS_Z) -= CHICKEN_LOWER;
+            MOBY(model)->rot.x = 0.0f;
+            MOBY(model)->rot.y = 0.0f;
+            MOBY(model)->rot.z = *(volatile f32 *)(camera + CAMERA_YAW);
+            MOBY(model)->scale *= CHICKEN_SCALE;
+            MOBY(model)->pos.z -= CHICKEN_LOWER;
         } else if (model == display + DISPLAY_STAND) {
-            *moby_float(model, MOBY_SCALE) *= WEAPON_SPECK;
+            MOBY(model)->scale *= WEAPON_SPECK;
         }
     }
     LVL(L, func_L00_00251E30, PlaceFn)(moby);
@@ -359,8 +354,8 @@ void ee_rz_vendor_place_c(void *moby, s32 L)
 void ee_rz_vendor_holo_c(void *moby, s32 L)
 {
     if (rz_vendor_purchase_selected(L)) {
-        *moby_float((u8 *)moby, MOBY_ROT) = 0.0f;
-        *moby_float((u8 *)moby, MOBY_ROT + 4) = 0.0f;
+        MOBY(moby)->rot.x = 0.0f;
+        MOBY(moby)->rot.y = 0.0f;
     }
     LVL(L, func_L00_00251E30, PlaceFn)(moby);
 }

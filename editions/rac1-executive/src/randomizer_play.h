@@ -36,17 +36,7 @@
 #define FLAG_PREMIUM    4
 #define FLAG_ULTRA      5
 
-/* --- a moby (include/moby.h) --------------------------------------------------------------------------------- */
-
-#define MOBY_POS        0x10            /* x, y, z */
-#define MOBY_POS_Z      0x18
-#define MOBY_SCALE      0x2C
-#define MOBY_ROT        0x40            /* x, y, z */
-#define MOBY_STATE(m)   (*(volatile s8 *)((u8 *)(m) + 0x20))    /* negative: dead */
-#define MOBY_PVARS(m)   (*(volatile u32 *)((u8 *)(m) + 0x78))
-#define MOBY_CLASS(m)   (*(volatile u16 *)((u8 *)(m) + 0xA6))   /* oclass */
-#define MOBY_UID(m)     (*(volatile u16 *)((u8 *)(m) + 0xB2))   /* the level instance's uid, its save id */
-#define MOBY_SIZE       0x100
+/* --- a level's mobys: MOBY(address) in src/game.h; save_id is the level instance's uid --------------------- */
 
 /* The level's moby array, MOBY_SIZE apart: a record each level program has at its own address (tools/modseg.py),
  * the table first, then the end of the mobys the level placed (spawned ones follow), and at + 0x10 the end of the

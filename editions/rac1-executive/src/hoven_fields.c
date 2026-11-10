@@ -42,11 +42,10 @@
  * function is in only some levels, so it has no LVL table). */
 typedef s32 (*IsVisibleFn)(u32 moby, f32 scale);
 #define HOVEN_IS_VISIBLE    ((IsVisibleFn)0x0027A230)
-#define MOBY_SCALE          0x2C
-#define MOBY_MODE           0x34       /* u16 mode bits */
-#define MODE_HIDDEN         0x01       /* MobyProc does not draw the moby */
-#define MOBY_COLLISION      0x94       /* the class's collision blob, cleared once the pads are done */
-#define MOBY_LOCAL_SPHERE   0xF0       /* x, y, z, radius in vertex units */
+#define MODE_HIDDEN         0x01       /* a bit of Moby.flags: MobyProc does not draw the moby */
+/* Moby.collision is the class's collision blob, cleared once the pads are done. The record's last 16 bytes,
+ * which OpenRAC's Moby has not named, are its local sphere: x, y, z and radius in vertex units. */
+#define MOBY_LOCAL_SPHERE(moby) ((volatile f32 *)MOBY(moby)->padF0)
 
 #define FIELD_SCALE         0.25f
 #define UNITS               4096.0f    /* vertex units a world unit at FIELD_SCALE (1024 / 0.25) */
@@ -85,16 +84,16 @@ static void install_box(u32 blob)
 
 s32 ee_hoven_field_visible(u32 moby, f32 scale)
 {
-    volatile f32 *moby_scale = (volatile f32 *)(moby + MOBY_SCALE);
-    u32 blob = *(volatile u32 *)(moby + MOBY_COLLISION);
+    volatile f32 *moby_scale = &MOBY(moby)->scale;
+    u32 blob = MOBY(moby)->collision;
 
     if (blob != 0 && *moby_scale != FIELD_SCALE
         && *(volatile s32 *)(blob + BLOB_VERTEX_BYTES) == BOX_VERTEX_BYTES
         && *(volatile s32 *)(blob + BLOB_FACE_BYTES) == BOX_FACE_BYTES) {
-        volatile f32 *sphere = (volatile f32 *)(moby + MOBY_LOCAL_SPHERE);
+        volatile f32 *sphere = MOBY_LOCAL_SPHERE(moby);
         f32 half_height = (TOP - BOTTOM) / 2.0f;
         install_box(blob);
-        *(volatile u16 *)(moby + MOBY_MODE) |= MODE_HIDDEN;
+        MOBY(moby)->flags |= MODE_HIDDEN;
         *moby_scale = FIELD_SCALE;
         sphere[0] = 0.0f;
         sphere[1] = 0.0f;

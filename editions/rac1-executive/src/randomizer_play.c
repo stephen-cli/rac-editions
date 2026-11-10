@@ -547,8 +547,8 @@ s32 ee_rz_gold_count_c(s32 L)
 static void delete_mobys_with_uid(s32 uid, s32 L)
 {
     u32 moby;
-    for (moby = MOBY_TABLE(L); moby < MOBYS_PLACED_END(L); moby += MOBY_SIZE) {
-        if (MOBY_STATE(moby) >= 0 && MOBY_UID(moby) == uid) {
+    for (moby = MOBY_TABLE(L); moby < MOBYS_PLACED_END(L); moby += sizeof(Moby)) {
+        if ((s8)MOBY(moby)->state >= 0 && MOBY(moby)->save_id == uid) {
             LVL(L, DeleteMoby, DeleteFn)((void *)moby);
         }
     }
@@ -563,8 +563,8 @@ static s32 o2_early(void)
 /* Before a moby's update in level L: a shut lab door of Orxon's Clank section opens. */
 static void open_lab_door(void *moby, s32 L)
 {
-    if (L == ORXON && MOBY_CLASS(moby) == LAB_DOOR_CLASS && MOBY_STATE(moby) == DOOR_SHUT && o2_early()) {
-        MOBY_STATE(moby) = DOOR_RISING;
+    if (L == ORXON && (u16)MOBY(moby)->oclass == LAB_DOOR_CLASS && (s8)MOBY(moby)->state == DOOR_SHUT && o2_early()) {
+        MOBY(moby)->state = DOOR_RISING;
     }
 }
 
@@ -669,7 +669,7 @@ void ee_rz_place_mobys_c(void *table, u32 value, s32 count, s32 L)
 /* Whether a moby's save bit in level L is set. */
 static s32 moby_saved(void *moby, s32 L)
 {
-    u32 uid = MOBY_UID(moby);
+    u32 uid = MOBY(moby)->save_id;
     return (level_moby_killed[L * 256 + (uid >> 3)] >> (uid & 7)) & 1;
 }
 
@@ -681,28 +681,28 @@ static s32 umbris_end(void *moby, s32 L)
         return 0;
     }
     boss_beaten = saved_mission_state[UMBRIS * 16 + SNAGGLEBEAST_TRIGGER] == 0xFF;
-    switch (MOBY_CLASS(moby)) {
+    switch ((u16)MOBY(moby)->oclass) {
     case UMBRIS_SCENES_CLASS:
-        return MOBY_STATE(moby) == UMBRIS_SCENES_END;
+        return (s8)MOBY(moby)->state == UMBRIS_SCENES_END;
     case UMBRIS_LIFT_CLASS:
         if (boss_beaten) {
             LVL_DATA(L, mission_state, volatile u8 *)[SNAGGLEBEAST_TRIGGER] = 0xFF;
         }
         return 0;
     case UMBRIS_DOOR_CLASS:
-        *(volatile s32 *)(MOBY_PVARS(moby) + UMBRIS_DOOR_FORCE) = 1;
+        *(volatile s32 *)(MOBY(moby)->pvars + UMBRIS_DOOR_FORCE) = 1;
         return 0;
     case UMBRIS_BRIDGE_CLASS:
         if (boss_beaten) {
-            *(volatile s32 *)(MOBY_PVARS(moby) + UMBRIS_BRIDGE_TARGET) = -1;
+            *(volatile s32 *)(MOBY(moby)->pvars + UMBRIS_BRIDGE_TARGET) = -1;
         }
         return 0;
     case UMBRIS_PAD_CLASS:
-        if (boss_beaten && MOBY_STATE(moby) != 0 && !moby_saved(moby, L)) {
+        if (boss_beaten && (s8)MOBY(moby)->state != 0 && !moby_saved(moby, L)) {
             LVL(L, activate_teleporter_and_record_state, PadFn)(moby);
             LVL(L, show_teleporter_and_children, PadFn)(moby);
-            if (MOBY_STATE(moby) == PAD_OFF) {
-                MOBY_STATE(moby) = PAD_ON;
+            if ((s8)MOBY(moby)->state == PAD_OFF) {
+                MOBY(moby)->state = PAD_ON;
             }
         }
         return 0;
@@ -822,9 +822,9 @@ static s32 class_listed(s32 L, s32 class_id)
  * giving something else, the lift is started outright at the purchase too. */
 static void start_helga_lift(s32 lift_index, s32 L)
 {
-    u8 *lift = (u8 *)MOBY_TABLE(L) + MOBY_SIZE * lift_index;
-    if (MOBY_CLASS(lift) == LIFT_CLASS) {
-        *(volatile s32 *)(MOBY_PVARS(lift) + LIFT_AUTOSTART) = 1;
+    u8 *lift = (u8 *)MOBY_TABLE(L) + sizeof(Moby) * lift_index;
+    if ((u16)MOBY(lift)->oclass == LIFT_CLASS) {
+        *(volatile s32 *)(MOBY(lift)->pvars + LIFT_AUTOSTART) = 1;
     }
 }
 
@@ -850,15 +850,15 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
             return;
         }
     }
-    if (!active || !class_listed(L, MOBY_CLASS(moby))) {
+    if (!active || !class_listed(L, (u16)MOBY(moby)->oclass)) {
         update(moby);
         if (active) {
             rz_world_after(moby, L);
         }
         return;
     }
-    if (L == KERWAN && MOBY_CLASS(moby) == HELGA_CLASS) {
-        helga_lift = *(volatile s32 *)(MOBY_PVARS(moby) + HELGA_LIFT);    /* read first: her update deletes her */
+    if (L == KERWAN && (u16)MOBY(moby)->oclass == HELGA_CLASS) {
+        helga_lift = *(volatile s32 *)(MOBY(moby)->pvars + HELGA_LIFT);    /* read first: her update deletes her */
     }
     ee_debug_rz_play[1]++;
     granted = -1;

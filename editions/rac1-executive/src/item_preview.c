@@ -18,10 +18,10 @@
 #include "modseg.h"
 
 
-u8 *ee_preview_shown(u8 *moby)
+Moby *ee_preview_shown(Moby *moby)
 {
     if (moby == 0) {
         return 0;
     }
-    return item_available[*(s32 *)(*(u8 **)(moby + 0x78) + 0xC)] ? moby : 0;
+    return item_available[*(s32 *)(moby->pvars + 0xC)] ? moby : 0;
 }

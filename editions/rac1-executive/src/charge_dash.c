@@ -220,7 +220,7 @@ static f32 length_sq(const Vec4 *v)
  * (each level loads its own). 0 when there is no room. */
 static s32 install_sequence(void)
 {
-    u8 *cls = *(u8 **)((u8 *)g_hero.moby + 0x24);
+    u8 *cls = (u8 *)g_hero.moby->pclass;
     volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
     if (seqs[CHARGE_SLOT] == (u32)ee_charge_seq) {
         return 1;
@@ -318,11 +318,11 @@ static u32 lerp_rgb(u32 from, u32 to, s32 n, s32 d)
 
 /* R&C2's two jet sprites at an ankle (its spawner, 0x331FC8): born where
  * the ankle is, kept as an offset in Ratchet's frame. */
-static void jets(s32 L, u8 *moby, s32 joint_list)
+static void jets(s32 L, Moby *moby, s32 joint_list)
 {
     u8 *frames = *(u8 **)(ee_charge_part_frames[L] + 4 * PART_CLOUD);
-    f32 *row = (f32 *)(moby + 0xC0);
-    f32 *at = (f32 *)(moby + 0x10);
+    f32 *row = &moby->rot_row0.x;
+    f32 *at = &moby->pos.x;
     f32 d[3];
     s32 i, r;
     LVL(L, func_0020DAF8, BoneTransform)(moby, joint_list, bone);
@@ -365,9 +365,9 @@ static void jets(s32 L, u8 *moby, s32 joint_list)
  * record's own step is his last one and type 27's update adds it. */
 static void jets_age(void)
 {
-    u8 *moby = (u8 *)g_hero.moby;
-    f32 *row = (f32 *)(moby + 0xC0);
-    f32 *at = (f32 *)(moby + 0x10);
+    Moby *moby = g_hero.moby;
+    f32 *row = &moby->rot_row0.x;
+    f32 *at = &moby->pos.x;
     f32 keep = 1.0f - ee_charge_jet_damp * g_frame_time * 60.0f;
     s32 k, i, turn;
     if (jet_live == 0) {
@@ -423,16 +423,16 @@ static void jets_age(void)
 #define MOBY_HITTABLE   0x4000
 #define CONTACTS        64
 
-static s32 class_type(u8 *moby)
+static s32 class_type(const Moby *moby)
 {
-    u8 *cls = *(u8 **)(moby + 0x24);
-    return cls != 0 ? *(s16 *)(cls + 0x46) : -1;
+    const MobyClass *pclass = moby->pclass;
+    return pclass != 0 ? pclass->type : -1;
 }
 
 static s32 charge_contact(s32 L, void *moby)
 {
-    u8 *found[CONTACTS];
-    u8 **list = (u8 **)ee_charge_collect_list[L];
+    Moby *found[CONTACTS];
+    Moby **list = (Moby **)ee_charge_collect_list[L];
     s32 n, i, crates = 0, hidden = 0;
     n = LVL(L, coll_sphere_mobys, CollectInSphere)(0.57f, probe, 0x10, moby, 0);
     if (n > CONTACTS) {
@@ -450,7 +450,7 @@ static s32 charge_contact(s32 L, void *moby)
         return 0;
     }
     for (i = 0; i < n; i++) {
-        u16 *flags = (u16 *)(found[i] + 0x34);
+        u16 *flags = &found[i]->flags;
         if (class_type(found[i]) != CLASS_CRATE && (*flags & MOBY_HITTABLE)) {
             *flags &= ~MOBY_HITTABLE;
             found[hidden++] = found[i];
@@ -462,7 +462,7 @@ static s32 charge_contact(s32 L, void *moby)
     LVL(L, InitDirectionalHitQuery, HitDescriptor)(hit, moby, 0x10000, 1.0f, push);
     LVL(L, coll_sphere_mobys, CollectInSphere)(0.57f, probe, 0x10, moby, hit);
     for (i = 0; i < hidden; i++) {
-        *(u16 *)(found[i] + 0x34) |= MOBY_HITTABLE;
+        found[i]->flags |= MOBY_HITTABLE;
     }
     return 0;
 }
@@ -475,7 +475,7 @@ static void charge_move(s32 L)
     f32 rate = 0.17f * fs;
     f32 target = -g_hero.stick_x;
     f32 turn, lean;
-    void *moby = (void *)g_hero.moby;
+    Moby *moby = g_hero.moby;
     volatile f32 *ease = (volatile f32 *)LVL_DATA(L, ease_table, u32);
     s32 i;
 
@@ -556,9 +556,9 @@ s32 ee_charge_camera_c(f32 radius, void *pos, s32 mask, void *self, void *hit, u
     s32 L = ee_level_of_call(ra, ee_charge_camera_site, 0);
     s32 found = ((CollectInSphere)ee_charge_collect[L])(radius, pos, mask, self, hit);
     if (g_hero.state.current == STATE_CHARGE) {
-        u8 *moby = (u8 *)g_hero.moby;
+        Moby *moby = g_hero.moby;
         LVL(L, follow_camera_set_lateral_spring, CamSpring)(0.04f, 0.2f);
-        LVL(L, set_follow_camera_angle_blend_from_direction, CamTurn)(moby + 0xC0, PI / 4.0f, 0.0f);
+        LVL(L, set_follow_camera_angle_blend_from_direction, CamTurn)(&moby->rot_row0, PI / 4.0f, 0.0f);
         LVL(L, Cam_SetDistanceGoal, CamDistance)(0, 3.0f, 0.003f);
         LVL(L, set_follow_camera_flag_226, Void)();
     }
@@ -585,11 +585,11 @@ extern const u32 ee_backpedal_seq[];   /* src/strafe.c's sequence */
 #define BACKPEDAL_SLOT       140
 #define EE_SITE_FRAME_START  0x6D4
 
-static void keep_sequence(u8 *moby, s32 slot, const u32 *seq)
+static void keep_sequence(const Moby *moby, s32 slot, const u32 *seq)
 {
-    u8 *cls = *(u8 **)(moby + 0x24);
+    u8 *cls = (u8 *)moby->pclass;
     volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
-    if ((moby[0x52] == slot || moby[0x53] == slot) && 0x48 + 4 * slot < *(u32 *)cls && seqs[slot] == 0) {
+    if ((moby->seq == slot || moby->prev_seq == slot) && 0x48 + 4 * slot < *(u32 *)cls && seqs[slot] == 0) {
         seqs[slot] = (u32)seq;
     }
 }
@@ -597,7 +597,7 @@ static void keep_sequence(u8 *moby, s32 slot, const u32 *seq)
 void ee_frame_start_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, LVL_TABLE(func_L00_00299250), EE_SITE_FRAME_START);
-    u8 *moby = (u8 *)g_hero.moby;
+    const Moby *moby = g_hero.moby;
     if (moby != 0 && EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
         keep_sequence(moby, CHARGE_SLOT, ee_charge_seq);
     }

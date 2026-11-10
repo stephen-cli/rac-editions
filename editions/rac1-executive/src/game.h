@@ -18,10 +18,17 @@
 
 #include "structs/hero.h"
 #include "structs/pad.h"
+#include "structs/moby.h"
 
 /* Ratchet (or Clank, or Giant Clank: g_hero.vehicle_mode) and the first controller. */
 extern Hero g_hero;
 extern volatile PadState g_controller_state;
+
+/* A moby the game hands a hook by address, as OpenRAC's Moby (structs/moby.h). Volatile like the data below:
+ * every use reads or writes the record. Two fields are read through a cast: the state as (s8), so that a dead
+ * moby's 0xFE and 0xFF are negative, and the class id as (u16), which loads it in one instruction where the
+ * compiler sign-extends the volatile s16 with two more. */
+#define MOBY(address) ((volatile Moby *)(address))
 
 /* The frame's timing: a frame's seconds and their square. pal_mode is nonzero at 50 Hz. */
 extern volatile f32 g_frame_time;

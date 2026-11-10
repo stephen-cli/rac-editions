@@ -915,21 +915,21 @@ void ee_ws_panel_draw_c(u32 moby, s32 count, u32 ra)
 {
     s32 L = renderer_of_call(ra, PANEL_DRAW_SITE, FE_PANEL_DRAW_SITE);
     DrawMobyFn draw = LVL(L, DrawMobyList, DrawMobyFn);
-    volatile u32 *frames = (volatile u32 *)(moby + 0x68);
+    volatile u32 *frames = (volatile u32 *)&MOBY(moby)->cur_frame_data;   /* and prev_frame_data after it */
     u32 a, b;
 
     u32 (*copies)[4 * (1 + PANEL_FRAME_QWC)];
 
     refresh_view(L);
-    if (moby != 0 && *(volatile u16 *)(moby + 0xA6) == PANEL_CLASS) {
+    if (moby != 0 && (u16)MOBY(moby)->oclass == PANEL_CLASS) {
         ee_controls_panel(moby);   /* in 4:3 too: the Controls page's list panel */
     }
-    if (!ws_on() || count != 1 || moby == 0 || *(volatile u16 *)(moby + 0xA6) != PANEL_CLASS) {
+    if (!ws_on() || count != 1 || moby == 0 || (u16)MOBY(moby)->oclass != PANEL_CLASS) {
         draw(moby, count);
         return;
     }
-    panel_scale = *(volatile f32 *)(moby + 0x2C) / 1024.0f;
-    panel_centre = *(volatile f32 *)(moby + 0x14);
+    panel_scale = MOBY(moby)->scale / 1024.0f;
+    panel_centre = MOBY(moby)->pos.y;
     copies = panel_frames[(moby >> 8) & (PANEL_SLOTS - 1)];
     a = frames[0];
     b = frames[1];
