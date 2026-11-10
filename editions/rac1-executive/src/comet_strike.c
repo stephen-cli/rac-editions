@@ -1,7 +1,7 @@
 /* x3b: keep moving after a Comet-Strike, as in Going Commando.
  *
  * R&C1's Comet-Strike (crouch + Square) is hero state 0x15. Its movement
- * block (in func_L00_002180F8, the per-state movement switch; NTSC decomp
+ * block (in hero_update_movement, the per-state movement switch; NTSC decomp
  * 00233de0.c case 0x15) sets the target speed to 0 every frame and eases
  * the ground speed down with speed_step(37, 28), and its state update
  * (00242930.c case 21) leaves the state only when the animation passes the
@@ -54,8 +54,8 @@ extern const u32 ee_comet_site[19];       /* the jal speed_step in the state 0x1
 extern const u32 ee_speed_step[19];
 extern const u32 ee_hero_set_state[19];
 extern const u32 ee_comet_jump_site[19];  /* the jal pad_pressed_within in the state update's attack block */
-DECLARE_LVL(func_L00_00267BA8);           /* pad_pressed_within(button, window, out) */
-DECLARE_LVL(func_001F9850);               /* scale_game_frames(n): the level's copy */
+DECLARE_LVL(pad_pressed_within);   /* pad_pressed_within(button, window, out) */
+DECLARE_LVL(scale_ticks);          /* scale_game_frames(n): the level's copy */
 
 #define HERO                 0x0013F450
 #define hero_state           (*(volatile s32 *)(HERO + 0x2084))
@@ -91,7 +91,7 @@ s32 ee_comet_jump_window_c(u32 button, s32 window, s32 *out, u32 ra)
     s32 L = ee_level_of_call(ra, ee_comet_jump_site, 0);
 
     if (hero_state == STATE_COMET_STRIKE) {
-        window = LVL(L, func_001F9850, ScaleFrames)(JUMP_WINDOW);
+        window = LVL(L, scale_ticks, ScaleFrames)(JUMP_WINDOW);
     }
-    return LVL(L, func_L00_00267BA8, PadPressedWithin)(button, window, out);
+    return LVL(L, pad_pressed_within, PadPressedWithin)(button, window, out);
 }

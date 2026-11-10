@@ -34,7 +34,7 @@
  * shoulder buttons) the pad parse hook reads them for the strafe and clears
  * them from every field gameplay reads (held, pressed, released, raw and
  * their copies) and from the 30-entry ring of pressed edges at + 0x1E0
- * that pad_pressed_within (func_L00_00267BA8) scans: the pack jumps test
+ * that pad_pressed_within scans: the pack jumps test
  * crouch through that
  * history (pad_pressed_within(0xA, 2)), which is how R2 still gave long
  * jumps in the first build. This frees the triggers without touching the
@@ -49,7 +49,7 @@
  * strafing with a trigger held) is: no auto-turn (camera state + 0x10 = 0),
  * start a slide (+ 0x136 = 1), lateral spring 0.04 / 0.2, and the three
  * stiffness timers cleared. R&C1's per-frame follow camera overrides
- * (func_L00_002E74B0; NTSC follow_camera_apply_overrides) carry the very
+ * (follow_camera_apply_overrides) carry the very
  * same block, byte for byte in intent (FUN_L00_002e8568(0),
  * follow_camera_start_slide(), FUN_L00_002e8590(0.04f, 0.2f), h12/h14/h16
  * = 0, return), gated on `hero state == 0x81 && held & 3`: the hover's
@@ -57,18 +57,18 @@
  * state test and makes the button test read ee_strafe_held, so the block
  * runs whenever a trigger is held: in the hover as before, and now while
  * strafing on foot. With the auto-turn off the camera holds its yaw and
- * only the right stick turns it; the approach pass (func_L00_002E72E8)
+ * only the right stick turns it; the approach pass (follow_camera_approach)
  * sets the auto-turn back on at the end of every frame, so releasing the
  * trigger restores the follow camera at once.
  *
  * Jumps and flips. R&C2's jump-press handler (0x2C2420; R&C1's is
- * func_L00_00229348, the same function: X pressed within a window, high
+ * try_start_hero_jump, the same function: X pressed within a window, high
  * jump with crouch held, else a plain jump unless the caller only wants
  * the crouch jumps) adds one rule: strafing with the stick past 0.9, when
  * the stick's direction class is not "forward", it enters the HIGH_JUMP
  * state (0xB) instead of a plain jump. R&C1's state 0xB is already the
  * flip family: its entry classifies the stick against the facing
- * (func_L00_00222580: 2 forward, 3 back, 0/1 the sides; R&C2's 0x2BEA58)
+ * (stick_direction_vs_facing: 2 forward, 3 back, 0/1 the sides; R&C2's 0x2BEA58)
  * and plays animation 0x1C + class (0x1C/0x1D the side flips, 0x1F the
  * back flip; both games), and the flip travels along the move heading at
  * the take-off speed. So the flips are R&C1's own crouch flips, reached
@@ -118,7 +118,7 @@
  * facing into the hero's per-joint ease table (hips + angle at + 0x68,
  * torso - angle at + 0x118, spring rates 0.037/0.27 and 0.025/0.27 at
  * + 0xA4/+ 0xA8 and + 0x154/+ 0x158) instead of the run lean. R&C1's lean
- * helper (func_L00_00215A90) writes the same table (NTSC D_L00_0017A680,
+ * helper (adjust_hero_pose_targets_from_motion) writes the same table (NTSC D_L00_0017A680,
  * records of 0xB0 bytes: lean at + 0x60 and + 0x118, rates at record +
  * 0x44/+ 0x48) from the turn rate, so the twist is the same table written
  * the R&C2 way; the helper's six calls in the movement switch are hooked.
@@ -147,14 +147,14 @@
  * call sites and the helpers come from tools/gen_hero.py. */
 #include "modseg.h"
 
-DECLARE_LVL(func_00217F68);            /* pad begin-frame; its parse call is hooked */
-DECLARE_LVL(func_002181F0);            /* pad parse(pad, report, length): derives held/pressed/released */
-DECLARE_LVL(func_L00_00267BA8);        /* pad_pressed_within(button, window, out): a pure query of the press history */
-DECLARE_LVL(func_L00_00222580);        /* stick_direction_vs_facing(): 2 forward, 3 back, 0 and 1 the sides */
-DECLARE_LVL(func_L00_00232C10);        /* set_hero_animation(id, start_frame, blend_frames) */
-DECLARE_LVL(func_001FA790);            /* fast_subtract_rotations(a, b): the level's copy */
-DECLARE_LVL(func_001F9850);            /* scale_game_frames(n): the level's copy */
-DECLARE_LVL_DATA(ease_table);          /* the hero's per-joint ease table, per level */
+DECLARE_LVL(poll_pad_device_state);       /* pad begin-frame; its parse call is hooked */
+DECLARE_LVL(process_pad_input);           /* pad parse(pad, report, length): derives held/pressed/released */
+DECLARE_LVL(pad_pressed_within);          /* pad_pressed_within(button, window, out): a pure query of press history */
+DECLARE_LVL(stick_direction_vs_facing);   /* stick_direction_vs_facing(): 2 forward, 3 back, 0 and 1 the sides */
+DECLARE_LVL(set_hero_animation);          /* set_hero_animation(id, start_frame, blend_frames) */
+DECLARE_LVL(FastSubRots);                 /* fast_subtract_rotations(a, b): the level's copy */
+DECLARE_LVL(scale_ticks);                 /* scale_game_frames(n): the level's copy */
+DECLARE_LVL_DATA(ease_table);             /* the hero's per-joint ease table, per level */
 extern const u32 ee_twist_0[19], ee_twist_1[19], ee_twist_2[19], ee_twist_3[19], ee_twist_4[19], ee_twist_5[19], ee_twist_fn[19];
 extern const u32 ee_runanim_site[19], ee_run_anim_fn[19], ee_flip_appr_0[19], ee_flip_appr_1[19], ee_approach_fn[19];
 extern const u32 ee_stop_site[19], ee_stop_site_low[19];
@@ -169,7 +169,7 @@ extern const u32 ee_run_turn_a[19], ee_run_turn_b[19], ee_run_pivot[19], ee_run_
 extern const u32 ee_turn_to[19], ee_pivot_turn[19], ee_set_planar_vel[19], ee_hero_set_state[19];
 extern const u32 ee_jump_turn_site[19], ee_jump_planar_site[19], ee_air_turn_site[19], ee_jump_press_fn[19];
 extern const u32 ee_jump_press_0[19], ee_jump_press_1[19], ee_jump_press_2[19], ee_jump_press_3[19];
-DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
+DECLARE_LVL_DATA(camera_yaw);   /* camera record + 0x158, per level */
 
 #define PAD0            0x0013CA40
 #define HERO            0x0013F450
@@ -218,7 +218,7 @@ DECLARE_LVL_DATA(camera_yaw);          /* camera record + 0x158, per level */
 #define PAD_STRAFE_FUTURE 0x1u        /* L2: the Future control layout's strafe button */
 #define PAD_LOCK        0x1CC         /* the input lock the parse applies and resets (src/control_layout.c) */
 #define STRAFE_SETTING  (*(volatile u8 *)EE_SETTING_STRAFE)   /* the Controls page's Strafing row */
-#define EE_SITE_PAD_PARSE 0x1C4       /* func_00217F68 + 0x1C4: jal func_002181F0 */
+#define EE_SITE_PAD_PARSE 0x1C4       /* poll_pad_device_state + 0x1C4: jal process_pad_input */
 
 typedef void (*PadParse)(void *pad, u8 *report, s32 length);
 typedef void (*TurnTo)(s32 mode, f32 accel, f32 max_speed, f32 rate);
@@ -238,8 +238,9 @@ typedef f32 (*Approach)(f32 target, f32 step, f32 *var);
  * at its own address (the catalogue's places). A build that called
  * them at the boot executable's addresses jumped into level data and died
  * ("jump to unmapped recLUT page") the first time a strafe ran. */
-#define sub_rot(L, a, b)      (LVL(L, func_001FA790, Rot2)(a, b))        /* fast_subtract_rotations */
-#define scale_frames(L, n)    (LVL(L, func_001F9850, ScaleFrames)(n))    /* frames at 60 Hz -> this build's frames (NTSC FUN_001f96f8) */
+#define sub_rot(L, a, b)      (LVL(L, FastSubRots, Rot2)(a, b))        /* fast_subtract_rotations */
+/* Frames at 60 Hz -> this build's frames (NTSC FUN_001f96f8). */
+#define scale_frames(L, n)    (LVL(L, scale_ticks, ScaleFrames)(n))
 
 u32 ee_strafe_held;           /* L2 or R2 held this frame (pad 0); the camera patch reads it */
 /* Debugging from outside (PCSX2's PINE): a fake pad 0 report while [0] is
@@ -286,14 +287,14 @@ static s32 is_run_state(void)
     return hero_state == STATE_RUN || hero_state == STATE_WADE;
 }
 
-/* After the game's pad parse (pad.c: func_002181F0(pad, report, length)):
+/* After the game's pad parse (pad.c: process_pad_input(pad, report, length)):
  * the Future control layout's buttons and prompts (src/control_layout.c,
  * src/control_prompts.c), then remember the strafe buttons and hide them
  * from the game, except while hovering. Classic strafes on L2 or R2, Future
  * on L2 alone (R2 is its crouch). */
 void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_00217F68, EE_SITE_PAD_PARSE);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(poll_pad_device_state), EE_SITE_PAD_PARSE);
     volatile u32 *p = (volatile u32 *)pad;
     static const u16 fields[] = { 0x1A0, 0x1A4, 0x1A8, 0x1B0, 0x1B4, 0x1B8, 0x1C0, 0x1C4, 0x1C8, 0x348 };
     s32 pad_lock = p[PAD_LOCK / 4];   /* read before the parse, which applies it and sets it back to 0 */
@@ -319,7 +320,7 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     if (ra == 0x00218134) {
         ((PadParse)0x002181F0)(pad, report, length);
     } else {
-        LVL(L, func_002181F0, PadParse)(pad, report, length);
+        LVL(L, process_pad_input, PadParse)(pad, report, length);
     }
     if ((u32)pad != PAD0) {
         TRACE_END();
@@ -350,9 +351,9 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     /* The strafe takes the triggers only in play (src/control_layout.c,
      * ee_in_play: game mode 0, not on the hoverboard). Elsewhere the game
      * reads them as in retail: the cutscene skip (CutsceneModeUpdate,
-     * func_L00_0029A300, game mode 2) and the credits' fast-forward (mode 7)
+     * update_cutscene_playback, game mode 2) and the credits' fast-forward (mode 7)
      * hold all four shoulder buttons, the pause menu's item-code entry
-     * (PauseCheatEntry, func_L00_00284410) holds L1 and R2, its text pages
+     * (PauseCheatEntry, process_unlock_code_input) holds L1 and R2, its text pages
      * scroll fast with L2, and the hoverboard's four tricks are L1, L2, R1
      * and R2. Future also leaves Giant Clank retail's buttons (L2 looks). */
     if (!ee_in_play(L) || (future && !ee_layout_in_play(L))) {
@@ -567,7 +568,7 @@ static s32 enter_strafe_flip(s32 L, s32 cls)
     if (OPT_MIRROR_ANIM && (id == 0x1C || id == 0x1D)) {
         id ^= 1;
     }
-    LVL(L, func_L00_00232C10, SetAnim)(id, 0, (f32)scale_frames(L, 5));
+    LVL(L, set_hero_animation, SetAnim)(id, 0, (f32)scale_frames(L, 5));
     strafe_flip = 1;
     hero_flip_speed = FRAME_TIME * 5.0f;
     hero_flip_speed0 = 0.0f;
@@ -597,7 +598,7 @@ s32 ee_jump_press_c(s32 window, s32 crouch_jumps_only, u32 ra)
         TRACE_END();
         return 1;
     }
-    if (!LVL(L, func_L00_00267BA8, PadPressedWithin)(PAD_CROSS, window, 0)) {
+    if (!LVL(L, pad_pressed_within, PadPressedWithin)(PAD_CROSS, window, 0)) {
         TRACE_END();
         return 0;
     }
@@ -704,7 +705,7 @@ static s32 play_backpedal(s32 L)
         return 0;
     }
     if (moby[0x53] != BACKPEDAL_SLOT) {
-        LVL(L, func_L00_00232C10, SetAnim)(BACKPEDAL_SLOT, 0, 11.0f);
+        LVL(L, set_hero_animation, SetAnim)(BACKPEDAL_SLOT, 0, 11.0f);
     }
     speed = hero_ground_speed * 25.0f;
     if (speed < 0.7f) {
@@ -728,7 +729,7 @@ void ee_run_anim_c(u32 ra)
         return;
     }
     if (hero_moby[0x53] == BACKPEDAL_SLOT) {
-        LVL(L, func_L00_00232C10, SetAnim)(hero_state_step + 3, 0, 7.0f);
+        LVL(L, set_hero_animation, SetAnim)(hero_state_step + 3, 0, 7.0f);
     }
     ((Void)ee_run_anim_fn[L])();
     TRACE_END();
@@ -751,7 +752,7 @@ static void wade_anim(s32 L)
         return;
     }
     if (hero_moby[0x53] == BACKPEDAL_SLOT) {
-        LVL(L, func_L00_00232C10, SetAnim)(ANIM_WADE, 0, 7.0f);
+        LVL(L, set_hero_animation, SetAnim)(ANIM_WADE, 0, 7.0f);
     }
 }
 
@@ -798,7 +799,7 @@ s32 ee_stop_c(s32 state, s32 with_animation, u32 ra)
             hero_slide_x = 0.0f;
             hero_slide_y = 0.0f;
             hero_slide_z = 0.0f;
-            LVL(L, func_L00_00232C10, SetAnim)(ANIM_STOP_SHORT, 7, (f32)scale_frames(L, 9));
+            LVL(L, set_hero_animation, SetAnim)(ANIM_STOP_SHORT, 7, (f32)scale_frames(L, 9));
         }
         TRACE_END();
         return r;

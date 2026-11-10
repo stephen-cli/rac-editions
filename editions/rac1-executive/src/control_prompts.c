@@ -10,10 +10,10 @@
  * level's table comes with the level (LoadLevelGameplay); while the pause
  * menu is open, MenuTextBank_Load has the global table loaded in its own
  * buffer and points D_0015F780 at it, and MenuTextBank_Restore points it back
- * at the level's. msg_string (func_001FE540) looks strings up there, and so
- * do the help popups (Help_Open, Help_Update and Help_Draw, func_001FE588,
- * func_001FE6C0 and func_001FF1B0), which read the entries directly. The
- * font (FontPrint, func_001F6668) draws each byte below 0x20 that has a
+ * at the level's. msg_string looks strings up there, and so
+ * do the help popups (Help_Open, Help_Update and Help_Draw, link_localized_display_text,
+ * Help_Update and draw_help), which read the entries directly. The
+ * font (FontPrint) draws each byte below 0x20 that has a
  * glyph as a button: 0x10 Cross, 0x11 Circle, 0x12 Triangle, 0x13 Square,
  * 0x14 L1, 0x15 R1, 0x16 L2, 0x17 R2, 0x18 and 0x19 the sticks; bytes 8 to
  * 15 set a colour and no code takes an argument. German writes "R1-Taste"

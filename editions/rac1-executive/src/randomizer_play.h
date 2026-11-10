@@ -74,9 +74,9 @@ DECLARE_LVL_DATA(mobys_end);
 
 /* --- the game's functions, as the hooks call them (each program has its own copy: LVL) ------------------------ */
 
-DECLARE_LVL(func_00200198);             /* GetIconFrame(icon, frame) */
-DECLARE_LVL(func_001FE540);             /* msg_string(id) */
-DECLARE_LVL(func_L00_00264DB8);         /* ShowBanner(text, ticks) */
+DECLARE_LVL(GetIconFrame);   /* GetIconFrame(icon, frame) */
+DECLARE_LVL(msg_string);     /* msg_string(id) */
+DECLARE_LVL(ShowBanner);     /* ShowBanner(text, ticks) */
 typedef s32 (*IconFn)(s32, s32);
 typedef const char *(*MsgFn)(s32);
 typedef void (*BannerFn)(s32, s32);
@@ -86,8 +86,8 @@ const char *ee_msg_string_edition(s32 id);          /* src/text.c */
 
 /* --- the Missions page and the map (tools/gen_randomizer.py's tables) ------------------------------------------ */
 
-/* What a mission condition names, as Mission_CheckCondition (func_0020C940) tests it: a planet unlocked, an item
- * owned (its "had" byte, type 3, names the same item), a special item's flag byte. */
+/* What a mission condition names, as Mission_CheckCondition (check_mission_condition) tests it: a planet unlocked, an
+ * item owned (its "had" byte, type 3, names the same item), a special item's flag byte. */
 #define RZ_SOURCE_PLANET    1
 #define RZ_SOURCE_ITEM      2
 #define RZ_SOURCE_FLAG      6

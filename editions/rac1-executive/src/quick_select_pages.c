@@ -2,14 +2,14 @@
  *
  * The ring. R&C1's quick select is HUD slot 3, shown by the hero's input
  * handler with HudShow(3, 0, QuickSelectInit, QuickSelectUpdate,
- * QuickSelectDraw, 0, 0). Init (func_L00_00238478) fills the level's eight
+ * QuickSelectDraw, 0, 0). Init (initialize_eight_slot_hud_selector) fills the level's eight
  * slot records (0x1C each: +0 icon id, +8..+0x14 the d-pad neighbours, +0x18
  * item id) from the eight saved item words at D_00141FA0 and the item
- * table (0x4C per record, icon id at +0x38). Update (func_L00_00238530)
+ * table (0x4C per record, icon id at +0x38). Update (update_hud_item_selector_selection_and_visibility)
  * picks a slot from the stick or the d-pad and, when Triangle is released,
- * makes the slot's item pending for the hero; Draw (func_L00_00238C30) draws
+ * makes the slot's item pending for the hero; Draw (draw_hud_item_selector_panel) draws
  * the 210x200 box: a darkening disc, the icons on a circle of radius 74 x
- * 1.05 around the box's centre (origin from func_L00_00236400 + (105, 100)),
+ * 1.05 around the box's centre (origin from hud_screen_position + (105, 100)),
  * the selected item's name and ammo. The edition's build points the HudShow
  * call's update and draw arguments at ee_qs_update and ee_qs_draw
  * (tools/gen_qs.py finds the site in each level; tools/overlay_patch.py).
@@ -43,8 +43,8 @@
  * and right of the box, fading with the ring.
  *
  * The pause page. The pause menu's Quick Select page has a ring widget
- * {update func_0021D7A0, draw func_00221B58 (draw_pause_ring), enter
- * func_0021D9C8, leave func_0021DA60}: enter copies the eight words into the
+ * {update update_menu_item_slots, draw draw_pause_ring, enter
+ * load_selection_list, leave pause_stage_sprite_lists}: enter copies the eight words into the
  * widget state (+0x30), leave copies them back; update steps the highlighted
  * slot with L1/R1 and assigns the item grid's item with Cross. Each level's
  * widget record points at that level's stubs (src/qs_hooks.s): the update
@@ -54,22 +54,22 @@
  * {"[X] Equip", "[square] Next ring", "[triangle] Exit"}. */
 #include "modseg.h"
 
-DECLARE_LVL(func_L00_00238530);   /* QuickSelectUpdate(slot) */
-DECLARE_LVL(func_L00_00238C30);   /* QuickSelectDraw(slot) */
-DECLARE_LVL(func_L00_00236400);   /* the box origin from the slot's anchor flags: (slot, &x, &y) */
-DECLARE_LVL(func_001F68E8);       /* font_print_large(x, y, colour, text, limit) */
-DECLARE_LVL(func_001F6EA8);       /* font_print_center(x, y, colour, text, limit) */
-DECLARE_LVL(func_001F4630);       /* setup_gif_paging(0) */
-DECLARE_LVL(func_001F4748);       /* do_gif_paging() */
-DECLARE_LVL(func_001FE540);       /* msg_string(id): the edition's hook answers its own ids */
-DECLARE_LVL(func_0021D7A0);       /* the pause ring widget's update */
-DECLARE_LVL(func_00221B58);       /* its draw, draw_pause_ring */
-DECLARE_LVL(func_0022ED80);       /* menu sound(kind, id, moby) */
-DECLARE_LVL(func_00209DC0);       /* the save-state reset */
-DECLARE_LVL(func_00227DB0);       /* the challenge-mode carry-over: the hooked call site is in it */
-DECLARE_LVL_DATA(hud_slots);      /* HUD slot table, 13 records of 0x90 */
-DECLARE_LVL_DATA(qs_slots);       /* the ring's 8 slot records of 0x1C */
-DECLARE_LVL_DATA(item_table);     /* 37 item records of 0x4C */
+DECLARE_LVL(update_hud_item_selector_selection_and_visibility);   /* QuickSelectUpdate(slot) */
+DECLARE_LVL(draw_hud_item_selector_panel);   /* QuickSelectDraw(slot) */
+DECLARE_LVL(hud_screen_position);            /* the box origin from the slot's anchor flags: (slot, &x, &y) */
+DECLARE_LVL(FontPrintLarge);                 /* FontPrintLarge(x, y, colour, text, limit) */
+DECLARE_LVL(FontPrintCenter);                /* FontPrintCenter(x, y, colour, text, limit) */
+DECLARE_LVL(SetupGifPaging);                 /* SetupGifPaging(0) */
+DECLARE_LVL(DoGifPaging);
+DECLARE_LVL(msg_string);                     /* msg_string(id): the edition's hook answers its own ids */
+DECLARE_LVL(update_menu_item_slots);         /* the pause ring widget's update */
+DECLARE_LVL(draw_pause_ring);                /* its draw, draw_pause_ring */
+DECLARE_LVL(Moby_PlaySound);                 /* menu sound(kind, id, moby) */
+DECLARE_LVL(func_00209DC0);                  /* the save-state reset */
+DECLARE_LVL(func_00227DB0);                  /* the challenge-mode carry-over: the hooked call site is in it */
+DECLARE_LVL_DATA(hud_slots);                 /* HUD slot table, 13 records of 0x90 */
+DECLARE_LVL_DATA(qs_slots);                  /* the ring's 8 slot records of 0x1C */
+DECLARE_LVL_DATA(item_table);                /* 37 item records of 0x4C */
 
 #define QS_ITEMS        ((volatile u32 *)0x00141FA0)
 #define QS_NEXT         ((volatile u8 *)EE_QS_PAGE_NEXT)
@@ -127,15 +127,17 @@ static const char glyph_r1[2] = { 0x15, 0 };
  * 2026-10-18: the ring never drew and the game froze). */
 void ee_qs_update(void *slot);
 void ee_qs_draw(void *slot);
-DECLARE_LVL(func_L00_0023B610);   /* HudUpdate: calls the slot's update at + EE_SITE_HUD_SLOT_UPDATE */
-DECLARE_LVL(func_001FFFB8);       /* HudDraw: calls the slot's draw at + EE_SITE_HUD_SLOT_DRAW */
+DECLARE_LVL(update_hud_elements);   /* HudUpdate: calls the slot's update at + EE_SITE_HUD_SLOT_UPDATE */
+DECLARE_LVL(update_hud);            /* HudDraw: calls the slot's draw at + EE_SITE_HUD_SLOT_DRAW */
 #define EE_SITE_HUD_SLOT_UPDATE 0xFC   /* jalr $2 in all 19 levels' HudUpdate */
 #define EE_SITE_HUD_SLOT_DRAW   0x5C   /* jalr $2 in all 19 levels' HudDraw */
 
 s32 ee_qs_ring_open(s32 L)
 {
     u32 update = *(volatile u32 *)(LVL_DATA(L, hud_slots, u32) + 3 * 0x90 + 0x14);
-    return update == (u32)ee_qs_update || update == LVL(L, func_L00_00238530, u32);   /* the pages, or retail's ring */
+    /* The pages' update, or retail's ring. */
+    return update == (u32)ee_qs_update
+           || update == LVL(L, update_hud_item_selector_selection_and_visibility, u32);
 }
 
 /* Items no longer owned (or out of range) leave the stored pages; the page number stays 0-2. */
@@ -211,7 +213,7 @@ static void refill(s32 L)
 
 void ee_qs_update_c(void *slot, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_0023B610, EE_SITE_HUD_SLOT_UPDATE);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(update_hud_elements), EE_SITE_HUD_SLOT_UPDATE);
     u32 pressed = PAD_PRESSED_RAW;
     validate();
     if (PAD_HELD_RAW & BTN_TRIANGLE) {          /* not on the release frame, which equips */
@@ -223,7 +225,7 @@ void ee_qs_update_c(void *slot, u32 ra)
             refill(L);
         }
     }
-    LVL(L, func_L00_00238530, SlotFn)(slot);
+    LVL(L, update_hud_item_selector_selection_and_visibility, SlotFn)(slot);
 }
 
 /* The ghost rings (owner's stretch goal: faint, shrunken copies of the
@@ -232,11 +234,11 @@ void ee_qs_update_c(void *slot, u32 ra)
  * 0ff040b). The ring stays at its retail place. */
 void ee_qs_draw_c(void *slot, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_001FFFB8, EE_SITE_HUD_SLOT_DRAW);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(update_hud), EE_SITE_HUD_SLOT_DRAW);
     volatile u8 *s = (volatile u8 *)slot;
     s32 x, y, fade, min_x;
     u32 colour;
-    LVL(L, func_L00_00238C30, SlotFn)(slot);
+    LVL(L, draw_hud_item_selector_panel, SlotFn)(slot);
     fade = s[0x70];
     if (fade > FADE_FRAMES) {
         fade = FADE_FRAMES;
@@ -247,14 +249,14 @@ void ee_qs_draw_c(void *slot, u32 ra)
     colour = ((u32)(fade * 0x80 / FADE_FRAMES) << 24) | PROMPT_COLOUR;
     x = *(volatile s32 *)(s + 0x50);
     y = *(volatile s32 *)(s + 0x54);
-    LVL(L, func_L00_00236400, OriginFn)(slot, &x, &y);
+    LVL(L, hud_screen_position, OriginFn)(slot, &x, &y);
     /* The ring sits at the screen's left edge (box x ~18): the L1 glyph is
      * kept on screen, which still clears the left icon (box x + 11). In 16:9
      * the ring's slot is moved out while it draws (src/widescreen.c), and the
      * clamp with it, so that L1 keeps its place beside the ring. */
     min_x = GLYPH_MIN_X + ee_ws_ring_shift();
-    LVL(L, func_001F68E8, FontFn)(x - 26 < min_x ? min_x : x - 26, y + BOX_CY - 8, colour, glyph_l1, -1);
-    LVL(L, func_001F68E8, FontFn)(x + R1_GLYPH_X, y + BOX_CY - 8, colour, glyph_r1, -1);
+    LVL(L, FontPrintLarge, FontFn)(x - 26 < min_x ? min_x : x - 26, y + BOX_CY - 8, colour, glyph_l1, -1);
+    LVL(L, FontPrintLarge, FontFn)(x + R1_GLYPH_X, y + BOX_CY - 8, colour, glyph_r1, -1);
 }
 
 /* The pause page's ring widget, update: Square flips the page. S is the
@@ -273,21 +275,21 @@ s32 ee_qs_pause_update_c(u8 *s, s32 L)
         for (i = 0; i < SLOTS; i++) {
             slots[i] = QS_ITEMS[i];
         }
-        LVL(L, func_0022ED80, SoundFn)(1, 0x11, *(u32 *)(s + 0x14));   /* the slot-step blip */
+        LVL(L, Moby_PlaySound, SoundFn)(1, 0x11, *(u32 *)(s + 0x14));   /* the slot-step blip */
     }
-    return LVL(L, func_0021D7A0, PauseFn)(s);
+    return LVL(L, update_menu_item_slots, PauseFn)(s);
 }
 
 /* Its draw: "Page N" in the ring's centre (+0x20/+0x24 are the widget's size). */
 s32 ee_qs_pause_draw_c(u8 *s, s32 L)
 {
-    s32 r = LVL(L, func_00221B58, PauseFn)(s);
-    const char *text = LVL(L, func_001FE540, MsgFn)(EE_TEXT_QS_PAGE + (QS_PAGE < PAGES ? QS_PAGE : 0));
+    s32 r = LVL(L, draw_pause_ring, PauseFn)(s);
+    const char *text = LVL(L, msg_string, MsgFn)(EE_TEXT_QS_PAGE + (QS_PAGE < PAGES ? QS_PAGE : 0));
     if (text) {
-        LVL(L, func_001F4630, GifFn)(0);
-        LVL(L, func_001F6EA8, FontFn)(*(s32 *)(s + 0x20) / 2, *(s32 *)(s + 0x24) / 2 - 8, 0x80000000u | PROMPT_COLOUR,
+        LVL(L, SetupGifPaging, GifFn)(0);
+        LVL(L, FontPrintCenter, FontFn)(*(s32 *)(s + 0x20) / 2, *(s32 *)(s + 0x24) / 2 - 8, 0x80000000u | PROMPT_COLOUR,
                                       text, -1);
-        ((VoidFn)lvl_func_001F4748[L])();
+        ((VoidFn)LVL_TABLE(DoGifPaging)[L])();
     }
     return r;
 }
@@ -333,7 +335,7 @@ void ee_qs_autoslot_c(s32 index, u32 item)
 
 void ee_qs_carry_hook_c(u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_00227DB0, EE_SITE_QS_CARRY);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_00227DB0), EE_SITE_QS_CARRY);
     u8 keep[24];
     s32 camera[CAMERA_OPTION_WORDS];
     u8 subtitles = SUBTITLES;

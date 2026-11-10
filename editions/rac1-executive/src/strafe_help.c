@@ -12,13 +12,13 @@
  * from the pause menu with Strafing on, whose help was never shown, counts
  * as turning it on.
  *
- * How the game shows a help. Help_Request (func_L00_00203F20 in level 0) takes
+ * How the game shows a help. Help_Request takes
  * a string id and a slot of the saved help records (D_00141A68, 148 records
  * {u16 count, u16 best time, u32 level bits}, save block 0x10). When the
  * HelpDesk is idle (help state D_001997D0: + 0x00 state 0, + 0x24 no pending
  * id) and the dialogue player is free, it stores the id at + 0x24 and the
- * slot at + 0x28. Help_Update (func_001FE6C0) then finds the id's entry in
- * the loaded text table (Help_FindIndex, func_001FE4D0, a scan of D_0015F780's
+ * slot at + 0x28. Help_Update then finds the id's entry in
+ * the loaded text table (Help_FindIndex, a scan of D_0015F780's
  * + 0x2C entries), opens the popup with the entry's text, queues its voice,
  * and on closing counts the showing in the slot's record. Help_Update holds
  * nothing back until the player has first moved (+ 0x30, set 120 frames after
@@ -32,8 +32,8 @@
  * (ee_helpdesk_strafe, English only; tools/gen_helpdesk.py builds both lines
  * from the game's own): D_0015F780 and the count point at the copy and are
  * pointed back when the popup is over. The pause menu keeps them across a
- * pause (MenuTextBank_Load, func_0021E340, saves both and
- * MenuTextBank_Restore, func_0021E2D0, puts them back), and loading a level
+ * pause (MenuTextBank_Load, update_menu_help_text_load, saves both and
+ * MenuTextBank_Restore, restore_menu_help_text, puts them back), and loading a level
  * replaces them, so a copy that is no longer in place is let go.
  *
  * The record. No retail code requests or reads slot 104 (no English line
@@ -43,9 +43,9 @@
  * the help (+ 0x30 back to 0), and then the record is left as loaded. */
 #include "modseg.h"
 
-DECLARE_LVL(func_L00_00203F20);   /* Help_Request */
-DECLARE_LVL_DATA(text_table);     /* D_0015F780: the loaded table's entries */
-DECLARE_LVL_DATA(help_state);     /* D_001997D0 */
+DECLARE_LVL(Help_Request);
+DECLARE_LVL_DATA(text_table);   /* D_0015F780: the loaded table's entries */
+DECLARE_LVL_DATA(help_state);   /* D_001997D0 */
 DECLARE_LVL_DATA(game_mode);
 
 typedef s32 (*HelpRequestFn)(s32 string_id, s32 record);
@@ -134,7 +134,7 @@ static s32 request(s32 level)
     record_before[0] = record[0];
     record_before[1] = record[1];
     point_table(level, copy, count + 1);
-    if (!LVL(level, func_L00_00203F20, HelpRequestFn)(EE_TEXT_STRAFE_HELP, HELP_RECORD)) {
+    if (!LVL(level, Help_Request, HelpRequestFn)(EE_TEXT_STRAFE_HELP, HELP_RECORD)) {
         point_table(level, table, count);
         return 0;
     }

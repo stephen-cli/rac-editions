@@ -1,13 +1,13 @@
 /* Hoven's force fields block Ratchet.
  *
- * Three force fields on Hoven (class 1345, update func_L12_00309590,
+ * Three force fields on Hoven (class 1345, update update_moby_draw_and_monitor_linked_state,
  * OpenRAC's update_moby_draw_and_monitor_linked_state) each watch a set of
  * timed activation pads (class 886, the tri-pads; the pad's moby index is
  * the field's pvars word 0). While the pad is not done (state != 7) the
  * field stays in state 1: each frame it registers its draw callback
- * (draw_hoven_jittered_quad_layers, func_L12_00309730: five electric bars at
+ * (draw_hoven_jittered_quad_layers: five electric bars at
  * heights 1 to 5 of its own frame, each from y -3 to 3 in the plane x = 0)
- * when IsBSphereVisibleScaled(m, 48.0) (func_L01_00276680) says it is in
+ * when IsBSphereVisibleScaled(m, 48.0) (check_scaled_vector_bsphere) says it is in
  * view. Once the pad reaches state 7 it clears its collision (moby + 0x94)
  * and goes to state 2. So the field is meant to block until the pads are
  * done, but in retail it never did: the class's collision data is a box
@@ -24,7 +24,7 @@
  * ring, 4-7 the bottom one), and the field's scale becomes 0.25, which puts
  * 4096 vertex units in a world unit: x +-0.25, y +-3, z -0.5 to 5.5. Its
  * local bounding sphere (+ 0xF0, in the same units) is set to cover the box:
- * refresh_moby_spatial_bounds (func_0020ED48) builds the world sphere and the
+ * refresh_moby_spatial_bounds builds the world sphere and the
  * moby grid cells the collision queries look in from it. The bars are drawn
  * by the callback from the field's position and rows alone, so the scale
  * does not change them. The class's own mesh, which MobyProc draws at the
@@ -38,7 +38,7 @@
  * the hook installs the wall again. */
 #include "modseg.h"
 
-/* IsBSphereVisibleScaled(moby, scale): func_L01_00276680, Hoven's copy (the
+/* IsBSphereVisibleScaled(moby, scale): check_scaled_vector_bsphere, Hoven's copy (the
  * function is in only some levels, so it has no LVL table). */
 typedef s32 (*IsVisibleFn)(u32 moby, f32 scale);
 #define HOVEN_IS_VISIBLE    ((IsVisibleFn)0x0027A230)

@@ -14,7 +14,7 @@
  * so the state is checked once per frame right after the HUD has processed
  * the ring. The ring is HUD slot 3; a slot is in use while its update
  * callback (slot record + 0x14, the one HudUpdate calls) is set, and the
- * ring's is QuickSelectUpdate (func_L00_00238530). The slot table is
+ * ring's is QuickSelectUpdate (update_hud_item_selector_selection_and_visibility). The slot table is
  * level-local data, like the gate struct.
  *
  * Tap, hold and release, with Going Commando's numbers. R&C2 (SCUS_972.68,
@@ -34,7 +34,7 @@
  * The hero's update is frozen by the pause, and it reads Triangle's
  * release as the latched edge at pad + 0x1B8, which the pad update rebuilds
  * every frame (~held & the previous frame's raw buttons at + 0x1BC, copied
- * from + 0x1B0 at the start of each frame; src/game/pad.c and func_00217F68
+ * from + 0x1B0 at the start of each frame; src/game/pad.c and poll_pad_device_state
  * in OpenRAC). A hero frozen on the release frame therefore never sees a
  * release that ended a hold longer than the grace, and the double tap
  * would die for taps of 5-20 frames. So on that frame this hook puts
@@ -59,11 +59,11 @@
  * 20196 "Quick Select" until the text table can take new strings. */
 #include "modseg.h"
 
-DECLARE_LVL(func_L00_00299250);        /* the mode-0 frame: the hooked call site is in it */
-DECLARE_LVL(func_L00_0023B610);        /* HudUpdate(int) */
-DECLARE_LVL(func_L00_00238530);        /* QuickSelectUpdate: the ring's slot callback */
-DECLARE_LVL_DATA(update_flags);        /* the gate struct; bits at +8 */
-DECLARE_LVL_DATA(hud_slots);           /* HUD slot table, 13 records of 0x90 (level-local) */
+DECLARE_LVL(func_L00_00299250);     /* the mode-0 frame: the hooked call site is in it */
+DECLARE_LVL(update_hud_elements);   /* HudUpdate(int) */
+DECLARE_LVL(update_hud_item_selector_selection_and_visibility);   /* QuickSelectUpdate: the ring's slot callback */
+DECLARE_LVL_DATA(update_flags);     /* the gate struct; bits at +8 */
+DECLARE_LVL_DATA(hud_slots);        /* HUD slot table, 13 records of 0x90 (level-local) */
 
 #define QS_PAUSE_SETTING   (*(volatile u8 *)EE_SETTING_QS_PAUSE)
 #define PAD_HELD           (*(volatile u32 *)0x0013CC00)   /* D_0013CA40 + 0x1C0: buttons held, game layout */
@@ -112,11 +112,11 @@ static void refresh_option_images(void)
 
 void ee_hud_update_hook_c(s32 arg, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_00299250, EE_SITE_HUD_UPDATE);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_L00_00299250), EE_SITE_HUD_UPDATE);
     volatile u32 *gate;
     s32 open, held, want;
 
-    LVL(L, func_L00_0023B610, HudUpdateFn)(arg);
+    LVL(L, update_hud_elements, HudUpdateFn)(arg);
     if (EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
         ee_charge_boots_frame(L);      /* x2: the Charge Boots are owned; their box sequence (src/charge_boots.c) */
     }

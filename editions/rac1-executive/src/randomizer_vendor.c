@@ -2,7 +2,7 @@
  * and how a purchase that is a check looks (src/randomizer_play.h for the
  * other files).
  *
- * The list. Retail's vendor (VendorBuildItemList, func_L00_0029B770) lists
+ * The list. Retail's vendor (VendorBuildItemList, build_vendor_menu_rows) lists
  * its stock (the level's weapon unbought, every weapon bought before:
  * D_0015EED0, bit 0x40 bought) as purchases, and ammo for every weapon
  * owned; a purchase is the weapon itself, so owning it and buying it are one
@@ -20,16 +20,16 @@
  * owned, look as in retail. */
 #include "randomizer_play.h"
 
-DECLARE_LVL(func_L00_0029B770);         /* VendorBuildItemList(gold) */
-DECLARE_LVL(func_00205270);             /* LoadMobyClassResources(class, buffer) */
-DECLARE_LVL(func_0020D440);             /* InitMobyInstance(moby, class) */
-DECLARE_LVL(func_L00_00251E30);         /* the item display's placement of a model, once its pose is set */
-DECLARE_LVL(func_001F9EC0);             /* matrix_mul_vec3(out, vector, matrix) */
-DECLARE_LVL(func_001F9BD8);             /* FastVecAdd(out, a, b) */
-DECLARE_LVL_DATA(vendor_state);         /* the vendor's record (D_L00_001CA7C0 in level 0) */
-DECLARE_LVL_DATA(vendor_items);         /* the level's item info table */
-DECLARE_LVL_DATA(vendor_sounds);        /* the level's item sound table */
-DECLARE_LVL_DATA(vendor_pose);          /* the item panel's per-item model offsets (D_001C8C20 in level 0) */
+DECLARE_LVL(build_vendor_menu_rows);   /* VendorBuildItemList(gold) */
+DECLARE_LVL(func_00205270);            /* LoadMobyClassResources(class, buffer) */
+DECLARE_LVL(InitMobyInstance);         /* InitMobyInstance(moby, class) */
+DECLARE_LVL(func_L00_00251E30);        /* the item display's placement of a model, once its pose is set */
+DECLARE_LVL(matrix_mul_vec3);          /* matrix_mul_vec3(out, vector, matrix) */
+DECLARE_LVL(FastVecAdd);               /* FastVecAdd(out, a, b) */
+DECLARE_LVL_DATA(vendor_state);        /* the vendor's record (D_L00_001CA7C0 in level 0) */
+DECLARE_LVL_DATA(vendor_items);        /* the level's item info table */
+DECLARE_LVL_DATA(vendor_sounds);       /* the level's item sound table */
+DECLARE_LVL_DATA(vendor_pose);         /* the item panel's per-item model offsets (D_001C8C20 in level 0) */
 typedef void (*ListFn)(s32);
 typedef void (*ClassFn)(s32, s32);
 typedef void (*InitMobyFn)(void *, s32);
@@ -164,7 +164,7 @@ void ee_rz_vendor_list_c(s32 gold, s32 L)
     s32 *count;
     s32 *cursor;
     s32 retail_count, i, kept, item;
-    LVL(L, func_L00_0029B770, ListFn)(gold);
+    LVL(L, build_vendor_menu_rows, ListFn)(gold);
     if (!rz_play_active()) {
         return;
     }
@@ -238,27 +238,27 @@ s32 rz_vendor_purchase_selected(s32 L)
     return cursor >= 0 && cursor < *(s32 *)(vendor + VENDOR_COUNT) && !entries(vendor)[cursor].ammo;
 }
 
-/* GetIconFrame in VendorDrawIconStrip (func_00239A00): frame 0 of an item's icon is a purchase entry's (an ammo
- * entry's is frame 2), which becomes the mystery tile. */
+/* GetIconFrame in VendorDrawIconStrip (render_vendor_item_icon_strip_pass): frame 0 of an item's icon is a purchase
+ * entry's (an ammo entry's is frame 2), which becomes the mystery tile. */
 s32 ee_rz_vendor_icon_c(s32 icon, s32 frame, s32 L)
 {
     s32 item_icon = icon >= ITEM_ICON_BASE && icon < ITEM_ICON_BASE + ITEMS;
     if (rz_play_active() && frame == 0 && item_icon) {
-        return LVL(L, func_00200198, IconFn)(EE_ICON_MYSTERY, 0);
+        return LVL(L, GetIconFrame, IconFn)(EE_ICON_MYSTERY, 0);
     }
-    return LVL(L, func_00200198, IconFn)(icon, frame);
+    return LVL(L, GetIconFrame, IconFn)(icon, frame);
 }
 
-/* msg_string in VendorDrawItemPanel (func_00239CF8): the selected purchase's name is "???". */
+/* msg_string in VendorDrawItemPanel (render_vendor_item_details_pass): the selected purchase's name is "???". */
 const char *ee_rz_vendor_text_c(s32 id, s32 L)
 {
     if (id != TEXT_AMMO_PROMPT && rz_vendor_purchase_selected(L)) {
         return ee_msg_string_edition(EE_TEXT_MYSTERY);
     }
-    return LVL(L, func_001FE540, MsgFn)(id);
+    return LVL(L, msg_string, MsgFn)(id);
 }
 
-/* msg_string in VendorMenuUpdate (func_L00_0029D988): the selected item's slogan for the scrolling line
+/* msg_string in VendorMenuUpdate (update_vendor_menu): the selected item's slogan for the scrolling line
  * ("BLASTER! POINT IT MORE OR LESS AT THE BAD GUYS..."), which names the weapon; a purchase entry has none, and
  * the scroller moves on to the vendor's own adverts. */
 const char *ee_rz_vendor_slogan_c(s32 id, s32 L)
@@ -266,7 +266,7 @@ const char *ee_rz_vendor_slogan_c(s32 id, s32 L)
     if (rz_vendor_purchase_selected(L)) {
         return "";
     }
-    return LVL(L, func_001FE540, MsgFn)(id);
+    return LVL(L, msg_string, MsgFn)(id);
 }
 
 /* InitMobyInstance in Vendor_InitItemDisplay, for the panel's model, its stand and the hologram in turn.
@@ -300,7 +300,7 @@ void ee_rz_vendor_model_c(void *moby, s32 class_id, s32 L)
             class_id = CHICKEN_CLASS;
         }
     }
-    LVL(L, func_0020D440, InitMobyFn)(moby, class_id);
+    LVL(L, InitMobyInstance, InitMobyFn)(moby, class_id);
 }
 
 static volatile f32 *moby_float(u8 *moby, s32 offset)
@@ -322,7 +322,7 @@ static void undo_item_offset(u8 *panel, s32 item, const u8 *camera, s32 L)
     back[1] = -offset[1];
     back[2] = -(offset[2] + price_lift);
     back[3] = 0.0f;
-    LVL(L, func_001F9EC0, VectorFn)(world, back, camera + CAMERA_MATRIX);
+    LVL(L, matrix_mul_vec3, VectorFn)(world, back, camera + CAMERA_MATRIX);
     *moby_float(panel, MOBY_POS) += world[0];
     *moby_float(panel, MOBY_POS + 4) += world[1];
     *moby_float(panel, MOBY_POS + 8) += world[2];
@@ -377,5 +377,5 @@ void ee_rz_vendor_holo_add_c(f32 *out, const f32 *base, const f32 *item_offset, 
         out[3] = base[3];
         return;
     }
-    LVL(L, func_001F9BD8, VectorFn)(out, base, item_offset);
+    LVL(L, FastVecAdd, VectorFn)(out, base, item_offset);
 }

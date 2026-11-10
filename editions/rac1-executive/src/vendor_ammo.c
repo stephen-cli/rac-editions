@@ -2,12 +2,12 @@
  * buy, rather than at 1.
  *
  * Choosing an ammo entry opens the buy dialog (VendorBuyDialogUpdate,
- * func_L00_0029CDE0; NTSC decomp FUN_L00_0029ba78). Its opening state sets
+ * update_vendor_purchase; NTSC decomp FUN_L00_0029ba78). Its opening state sets
  * the quantity to 1 (D_L00_00161F30 in level 0, level-local) and, when the
  * player can afford one unit and the weapon is not full, lets left and
  * right change it: down to 1, and up to the smaller of the units the bolts
  * pay for and the units the weapon has room for. The dialog's draw
- * (func_L00_0029FD68) shows the quantity and its total price, and the
+ * (draw_vendor_purchase_text) shows the quantity and its total price, and the
  * purchase (state 4) buys that many.
  *
  * The opening state calls func_L00_00251E30 (the display's placement of the
@@ -19,11 +19,11 @@
  * does. Left still lowers the quantity to buy less. */
 #include "modseg.h"
 
-DECLARE_LVL(func_L00_0029CDE0);         /* VendorBuyDialogUpdate */
-DECLARE_LVL(func_L00_00251E30);         /* the display's placement of a moby */
-DECLARE_LVL_DATA(vendor_state);         /* the vendor's record (D_L00_001CA7C0 in level 0) */
-DECLARE_LVL_DATA(vendor_items);         /* the level's item info table (D_L00_001C43B0 in level 0) */
-DECLARE_LVL_DATA(vendor_quantity);      /* the buy dialog's quantity (D_L00_00161F30 in level 0) */
+DECLARE_LVL(update_vendor_purchase);   /* VendorBuyDialogUpdate */
+DECLARE_LVL(func_L00_00251E30);        /* the display's placement of a moby */
+DECLARE_LVL_DATA(vendor_state);        /* the vendor's record (D_L00_001CA7C0 in level 0) */
+DECLARE_LVL_DATA(vendor_items);        /* the level's item info table (D_L00_001C43B0 in level 0) */
+DECLARE_LVL_DATA(vendor_quantity);     /* the buy dialog's quantity (D_L00_00161F30 in level 0) */
 typedef void (*PlaceFn)(void *);
 
 /* The vendor's record. */
@@ -43,7 +43,7 @@ typedef void (*PlaceFn)(void *);
 
 void ee_vendor_ammo_open_c(void *moby, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_0029CDE0, EE_SITE_VENDOR_AMMO);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(update_vendor_purchase), EE_SITE_VENDOR_AMMO);
     u8 *vendor = LVL_DATA(L, vendor_state, u8 *);
     u8 *entry;
     const u8 *info;

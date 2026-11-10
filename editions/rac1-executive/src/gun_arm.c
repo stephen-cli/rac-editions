@@ -2,12 +2,12 @@
  *
  * Both games put a layer over Ratchet's arms while a trigger weapon is
  * held (weapon type 1, the right arm; type 2, both): R&C1's per-frame
- * manager (NTSC FUN_L00_0020dd20, level 0 func_L00_0020E3B8; R&C2 Oozla
+ * manager (NTSC FUN_L00_0020dd20, level 0 update_hero_item_slot_animation_blends; R&C2 Oozla
  * 0x2AF820) keeps one per arm (hero + 0xD00 / + 0xD04; R&C2 hero +
  * 0xE90) on the arm's joint set, gives it the arm's own animation class
  * (moby classes 1 and 2, 20 joints) and every frame plays in it the
  * sequence Ratchet's body plays, frame for frame, through a mapper that is
- * the identity (func_L00_0020DC50; R&C2 0x2AEA88). The arm classes hold
+ * the identity (resolve_moby_animation_id; R&C2 0x2AEA88). The arm classes hold
  * the arm half of the body's first 23 sequences, the gun held forward, so
  * the manager enables the layer only for an arm sequence below 0x17;
  * above it the arm follows the body. Gloves (type 0) get no layer.
@@ -101,7 +101,7 @@ static s32 arm_sequence(s32 seq)
     return seq;
 }
 
-/* The manager's mapper (func_L00_0020DC50: 0xFF means moby + 0xA5). */
+/* The manager's mapper (resolve_moby_animation_id: 0xFF means moby + 0xA5). */
 s32 ee_arm_map(u8 *moby, s32 seq)
 {
     if (seq == 0xFF) {

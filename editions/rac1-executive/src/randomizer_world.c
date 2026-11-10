@@ -1,15 +1,15 @@
 /* rz3: what the world shows for a check, and how it is taken (src/randomizer_play.h for the other files).
  *
- * The hosts. Three kinds of moby hold a check in the world: a Gold Bolt spot (GoldBoltUpdate, func_L01_00309078,
+ * The hosts. Three kinds of moby hold a check in the world: a Gold Bolt spot (gold_bolt_update,
  * class 1134; its flag at pvars + 0), a world pickup (PICKUPS: the Trespasser, the Suck Cannon, the Hydrodisplacer,
  * the Pilot's Helmet, the Magneboots, the Raritanium, the Morph-o-Ray, the Bolt Grabber, the Codebot) and a world
- * infobot (InfobotUpdate, func_L00_002D7298, class 750; the planet it unlocks at pvars + 4), whose check is one of
+ * infobot (infobot_update, class 750; the planet it unlocks at pvars + 4), whose check is one of
  * the planet's own (the Kerwan train's infobot, Orxon's two, ...). A host whose check holds its own retail item
  * plays as retail. Any other item is shown by a stand-in, a moby of the item's model made by CreateMoby
- * (func_0020D348) and carried by the host's update: its position every frame, so it follows a host that moves (the
+ * (CreateMoby) and carried by the host's update: its position every frame, so it follows a host that moves (the
  * Kerwan infobot rides the train and then flies its paths), and the item's motion (MODELS): an infobot holds still,
  * as InfobotUpdate keeps one at rest (its home yaw, no tilt); anything else turns about its upright axis at a
- * quarter turn a second, the rate of the game's own pickups (func_L04_002E2DF0, Moby1290Update: rot.z +=
+ * quarter turn a second, the rate of the game's own pickups (suck_cannon_update, Moby1290Update: rot.z +=
  * g_frame_time * pi/2). The host itself draws at scale 0. Its touch takes the check at once, as no item has a
  * cutscene that plays anywhere: a spot quietly (pvars + 0xC, the touch retail's quiet spots have, without Ratchet's
  * hold-up and the camera's cut), a pickup before its update can start its cutscene, an infobot as it turns to its
@@ -39,22 +39,22 @@
  * hidden meanwhile. */
 #include "randomizer_play.h"
 
-DECLARE_LVL(func_0020D678);             /* DeleteMoby(moby) */
-DECLARE_LVL(func_0020D348);             /* CreateMoby(class_id) */
-DECLARE_LVL(func_L00_002512D8);         /* SetLevelTriggerDone(mission) */
-DECLARE_LVL(func_L00_001FF860);         /* fast_atan2(dx, dy): the yaw of a direction */
-DECLARE_LVL(func_L00_00251E30);         /* refresh_moby_spatial_bounds (func_0020ED48 in the executable): its
-                                         * matrix and bounding sphere from its place, turn and scale */
-DECLARE_LVL(func_00213DE0);             /* MobyBlendAnimation(moby, sequence, frame, blend frames) */
-DECLARE_LVL(func_L01_00309848);         /* initialize_gold_bolt_data(moby): its glow's state, pvars +0x20..+0x5C */
-DECLARE_LVL(func_L01_00309928);         /* update_gold_bolt_glow_rings(moby): the glow, each frame */
-DECLARE_LVL_DATA(class_slot_by_id);     /* u8 per class id, 0xFF none */
-DECLARE_LVL_DATA(class_resources);      /* per slot: the class's data, 0 not loaded */
-DECLARE_LVL_DATA(game_mode);            /* D_0015F6E8: 0 play, 2 cinematic, 3 pause */
-DECLARE_LVL_DATA(class_unpacked);       /* LoadMobyClassResources's last directory entry, */
-DECLARE_LVL_DATA(class_decode_buffer);  /*   its decode buffer, */
-DECLARE_LVL_DATA(level_buffers);        /*   and the level's buffer table (tools/modseg.py) */
-DECLARE_LVL(func_00205270);             /* LoadMobyClassResources(class, decode buffer) */
+DECLARE_LVL(DeleteMoby);                    /* DeleteMoby(moby) */
+DECLARE_LVL(CreateMoby);                    /* CreateMoby(class_id) */
+DECLARE_LVL(func_L00_002512D8);             /* SetLevelTriggerDone(mission) */
+DECLARE_LVL(fast_atan2);                    /* fast_atan2(dx, dy): the yaw of a direction */
+DECLARE_LVL(func_L00_00251E30);             /* the level's copy of refresh_moby_spatial_bounds: a moby's
+                                             * matrix and bounding sphere from its place, turn and scale */
+DECLARE_LVL(MobyBlendAnimation);            /* MobyBlendAnimation(moby, sequence, frame, blend frames) */
+DECLARE_LVL(initialize_gold_bolt_data);     /* initialize_gold_bolt_data(moby): its glow's state, pvars +0x20..+0x5C */
+DECLARE_LVL(update_gold_bolt_glow_rings);   /* update_gold_bolt_glow_rings(moby): the glow, each frame */
+DECLARE_LVL_DATA(class_slot_by_id);         /* u8 per class id, 0xFF none */
+DECLARE_LVL_DATA(class_resources);          /* per slot: the class's data, 0 not loaded */
+DECLARE_LVL_DATA(game_mode);                /* D_0015F6E8: 0 play, 2 cinematic, 3 pause */
+DECLARE_LVL_DATA(class_unpacked);           /* LoadMobyClassResources's last directory entry, */
+DECLARE_LVL_DATA(class_decode_buffer);      /*   its decode buffer, */
+DECLARE_LVL_DATA(level_buffers);            /*   and the level's buffer table (tools/modseg.py) */
+DECLARE_LVL(func_00205270);                 /* LoadMobyClassResources(class, decode buffer) */
 typedef void (*DeleteFn)(void *);
 typedef void *(*CreateFn)(s32);
 typedef void (*MissionFn)(s32);
@@ -64,10 +64,10 @@ typedef void (*BlendFn)(void *, s32, s32, s32);
 typedef void (*LoadFn)(s32, s32);
 
 #define LEVELS          19
-#define GOLD_CLASS      1134            /* GoldBoltUpdate, func_L01_00309078 */
+#define GOLD_CLASS      1134            /* gold_bolt_update */
 #define GOLD_QUIET      0xC             /* its pvars: nonzero, the touch takes the bolt without the sequence */
 #define GOLD_SPOTS      4               /* Gold Bolt spots per level */
-#define INFOBOT_CLASS   750             /* InfobotUpdate, func_L00_002D7298 */
+#define INFOBOT_CLASS   750             /* infobot_update */
 #define INFOBOT_PLANET  0x4             /* its pvars: the planet it unlocks */
 #define INFOBOT_TOUCHED 8               /* its state once Ratchet reaches it: its message follows */
 #define INFOBOT_DORMANT 1               /* its state while hidden, until the level wakes it (leave) */
@@ -445,10 +445,10 @@ static void drop(u16 key, void *host, s32 L)
         return;
     }
     if (live(e, host, L) != 0) {
-        LVL(L, func_0020D678, DeleteFn)(e->model);
+        LVL(L, DeleteMoby, DeleteFn)(e->model);
     }
     if (e->body != 0) {
-        LVL(L, func_0020D678, DeleteFn)(e->body);
+        LVL(L, DeleteMoby, DeleteFn)(e->body);
     }
     e->key = 0;
 }
@@ -459,7 +459,7 @@ static void drop(u16 key, void *host, s32 L)
  * (bit 0x40); the Gadgets page sets its own models' flags outright, and a stand-in clears both. */
 static u8 *make_part(s32 class_id, u32 mark, void *host, s32 L)
 {
-    u8 *m = LVL(L, func_0020D348, CreateFn)(class_id);
+    u8 *m = LVL(L, CreateMoby, CreateFn)(class_id);
     if (m != 0) {
         *(volatile u32 *)(MOBY_PVARS(m) + STAND_IN_MARK_AT) = mark;
         MOBY_PARENT(m) = host;
@@ -473,7 +473,7 @@ static u8 *make_part(s32 class_id, u32 mark, void *host, s32 L)
 
 /* The vendor's hologram of an item: its offset, then its turn about x and y (rot.x, rot.y), which stand a weapon's
  * model upright (most lie along x, and turn a quarter about y); rot.z spins. 0x30 an item id (D_L00_001C9C30 in level
- * 0; func_L00_0029D988's VendorMenuUpdate poses the hologram from it). */
+ * 0; update_vendor_menu's VendorMenuUpdate poses the hologram from it). */
 DECLARE_LVL_DATA(vendor_holo_pose);
 #define HOLO_POSE_SIZE  0x30
 #define HOLO_POSE_ROT   0x10
@@ -501,7 +501,7 @@ static void animate(u8 *m, s32 seq, s32 L)
 {
     u8 *pclass = (u8 *)MOBY_PCLASS(m);
     if (pclass != 0 && pclass[CLASS_SEQ_COUNT] > seq && MOBY_PREV_SEQ(m) != seq) {
-        LVL(L, func_00213DE0, BlendFn)(m, seq, 0, 0);
+        LVL(L, MobyBlendAnimation, BlendFn)(m, seq, 0, 0);
     }
 }
 
@@ -536,18 +536,18 @@ static void move(u8 *m, s32 motion, void *host)
 
 /* A Gold Bolt at a pickup or a world infobot is a live bolt: a moby of the bolt's class running GoldBoltUpdate,
  * so that it turns and bobs as a spot does and its touch has Ratchet's hold-up and the camera's cut. The moby
- * update loop (MobyUpdateLoop, func_00213C78) runs the mobys of the visibility list, which it builds from their
- * bounding spheres; a moby refreshes its own after its update moves it (refresh_moby_spatial_bounds), so a new one
- * gets its sphere here, or it would never be listed and never run. Its flag is
+ * update loop (MobyUpdateLoop, update_visible_resident_objects) runs the mobys of the visibility list, which it builds
+ * from their bounding spheres; a moby refreshes its own after its update moves it (refresh_moby_spatial_bounds), so a
+ * new one gets its sphere here, or it would never be listed and never run. Its flag is
  * BORROWED_SPOT's, whose byte is cleared for its update and given its value back after (borrow); the touch sets it
  * and saves, and the save credits the host's check instead (rz_world_before_save). At rest it is kept at its host,
  * which may move (the Kerwan infobot); GoldBoltUpdate moves it to Ratchet for the hold-up, from its state 2. The
  * hold-up puts Ratchet 2.5 units from the bolt along its rest yaw (home.w), which a level's own spots face to open
  * ground; the stand-in's faces Ratchet, so he lands on the side he came from (facing anywhere, Gaspar's platform
- * edge put him over the lava). The hold-up's camera (func_L01_00309BB8, every frame of state 2) circles Ratchet when
- * the bolt's two camera cuboids are -1, as at most of the level's spots; a few spots pan between two of the level's
- * cuboids instead. CreateMoby clears pvars, and with both at 0 the camera sat on the level's cuboid 0 (on Gaspar,
- * 176 units from the Pilot's Helmet), so the stand-in sets them to -1. */
+ * edge put him over the lava). The hold-up's camera (update_gold_bolt_pickup_camera, every frame of state 2) circles
+ * Ratchet when the bolt's two camera cuboids are -1, as at most of the level's spots; a few spots pan between two of
+ * the level's cuboids instead. CreateMoby clears pvars, and with both at 0 the camera sat on the level's cuboid 0 (on
+ * Gaspar, 176 units from the Pilot's Helmet), so the stand-in sets them to -1. */
 #define GOLD_CAMERA_FROM 0x4            /* GoldBoltUpdate's pvars: the hold-up camera's cuboids, -1 none */
 #define GOLD_CAMERA_TO  0x8
 #define GOLD_RESTING    1
@@ -579,7 +579,7 @@ static void carry_bolt(struct StandIn *e, void *host, s32 L)
         home[0] = *(volatile f32 *)((u8 *)host + MOBY_POS);
         home[1] = *(volatile f32 *)((u8 *)host + MOBY_POS + 4);
         home[2] = *(volatile f32 *)((u8 *)host + MOBY_POS_Z) + e->lift;
-        home[3] = LVL(L, func_L00_001FF860, AtanFn)(HERO_POS[0] - home[0], HERO_POS[1] - home[1]);
+        home[3] = LVL(L, fast_atan2, AtanFn)(HERO_POS[0] - home[0], HERO_POS[1] - home[1]);
         *(volatile f32 *)(m + MOBY_POS) = home[0];
         *(volatile f32 *)(m + MOBY_POS + 4) = home[1];
     }
@@ -664,10 +664,10 @@ static void carry(u16 key, void *host, s32 item, s32 L)
     class_id = ee_debug_rz_model > 0 && class_in_memory(ee_debug_rz_model, L) ? ee_debug_rz_model : model->class_id;
     m = live(e, host, L);
     if (m != 0 && e->class_id != class_id) {    /* the debug class changed */
-        LVL(L, func_0020D678, DeleteFn)(m);
+        LVL(L, DeleteMoby, DeleteFn)(m);
         m = e->model = 0;
         if (e->body != 0) {
-            LVL(L, func_0020D678, DeleteFn)(e->body);
+            LVL(L, DeleteMoby, DeleteFn)(e->body);
             e->body = 0;
         }
     }
@@ -682,7 +682,7 @@ static void carry(u16 key, void *host, s32 item, s32 L)
             pose(m, item, model, L);
         }
         if (class_id == CHICKEN_CLASS) {
-            LVL(L, func_L01_00309848, BoundsFn)(m);
+            LVL(L, initialize_gold_bolt_data, BoundsFn)(m);
         }
         e->class_id = (u16)class_id;
         e->motion = model->motion;
@@ -705,7 +705,7 @@ static void carry(u16 key, void *host, s32 item, s32 L)
     move(m, e->motion, host);
     if (e->class_id == CHICKEN_CLASS) {     /* a Gold Bolt's glow: the hosts' own (pickups, infobots) shine round
                                              * the others, and the chicken's own update never runs */
-        LVL(L, func_L01_00309928, BoundsFn)(m);
+        LVL(L, update_gold_bolt_glow_rings, BoundsFn)(m);
     }
     if (e->flags & ANIMATE) {
         animate(m, e->model_ref->seq ? e->model_ref->seq : 1, L);
@@ -739,7 +739,7 @@ struct PickupSite {
 };
 static const struct PickupSite PICKUPS[] = {
     { 2, RZ_TRESPASSER, 1005, 1.0f, 0 },    /* Moby1005Update */
-    { 4, RZ_SUCK_CANNON, 1120, 3.0f, 0 },   /* func_L04_002E2DF0 */
+    { 4, RZ_SUCK_CANNON, 1120, 3.0f, 0 },   /* suck_cannon_update */
     { 6, RZ_HYDRODISPLACER, 1016, 1.0f, 0 }, /* Moby1005Update */
     { 9, RZ_PILOTS_HELMET, 1290, 3.0f, 0 }, /* Moby1290Update */
     { 10, RZ_MAGNEBOOTS, 18, 5.0f, 0 },     /* SpinningPickupUpdate */
@@ -787,7 +787,7 @@ static s32 pickup_touched(void *moby, const struct PickupSite *site)
  *
  * A weapon found in the world plays the demo the vendor plays for a weapon bought: on leaving, the vendor's menu
  * (VendorMenuUpdate) runs its exit (state 2, 40 frames), then, for an item with a demo scene
- * (vendor_item_cutscene_index, -1 none: the weapons the vendor sells), start_vendor_exit_cutscene (func_L00_0029C070)
+ * (vendor_item_cutscene_index, -1 none: the weapons the vendor sells), start_vendor_exit_cutscene
  * places the scene in front of the vendor moby, puts the weapon in Ratchet's hand and streams the scene, which
  * state 3 plays; at its end close_vendor_menu puts Ratchet back in front of the vendor and returns to play. The demo
  * is the vendor's: it plays from the vendor's mode only, for a vendor the menu was opened on (its mode word +0x40
@@ -810,15 +810,15 @@ static s32 pickup_touched(void *moby, const struct PickupSite *site)
  * level. Staged facing Ratchet from the find's middle, as before, the scene and its camera ran into whatever stood
  * there (the cliff at Eudora's Gold Bolt). Once play resumes, Ratchet goes back where he found the weapon if he
  * stood on ground there (a line STAGE_GROUND down from his feet hits), else onto the stage, facing as he did
- * (Hero_ResetToPosition, func_L00_00217718, with the camera reset, as Kerwan's taxis put him at a stop): put back
+ * (Hero_ResetToPosition, with the camera reset, as Kerwan's taxis put him at a stop): put back
  * in the air over that drop, he fell into the pit. The vendor moby is then deleted. */
-DECLARE_LVL(func_L00_0029BA20);         /* open_vendor_menu(vendor moby) */
-DECLARE_LVL(func_L00_0029C070);         /* start_vendor_exit_cutscene */
-DECLARE_LVL(func_L00_00217718);         /* Hero_ResetToPosition(position, rotation, state, reset camera) */
-DECLARE_LVL(func_L00_001EFFF0);         /* coll_line(from, to, flags, moby to ignore, hit out): nonzero on a hit */
-DECLARE_LVL_DATA(camera_yaw);           /* player_camera + 0x158; its position is at + 0x140 */
-DECLARE_LVL_DATA(vendor_state);         /* the vendor's record (D_L00_001CA7C0 in level 0) */
-DECLARE_LVL_DATA(vendor_demos);         /* per item id, its demo scene, -1 none */
+DECLARE_LVL(open_vendor_menu);       /* open_vendor_menu(vendor moby) */
+DECLARE_LVL(start_vendor_exit_cutscene);
+DECLARE_LVL(Hero_ResetToPosition);   /* Hero_ResetToPosition(position, rotation, state, reset camera) */
+DECLARE_LVL(coll_line);              /* coll_line(from, to, flags, moby to ignore, hit out): nonzero on a hit */
+DECLARE_LVL_DATA(camera_yaw);        /* player_camera + 0x158; its position is at + 0x140 */
+DECLARE_LVL_DATA(vendor_state);      /* the vendor's record (D_L00_001CA7C0 in level 0) */
+DECLARE_LVL_DATA(vendor_demos);      /* per item id, its demo scene, -1 none */
 typedef void (*OpenFn)(void *);
 typedef void (*ResetFn)(volatile void *, volatile void *, s32, s32);
 typedef s32 (*CollLineFn)(const f32 *, const f32 *, s32, void *, void *);
@@ -865,7 +865,7 @@ static f32 demo_return[2][4] __attribute__((aligned(16)));
 static const f32 *stage_offset(s32 L)
 {
     register u32 gp __asm__("$28");
-    u32 instruction = *(volatile u32 *)(LVL(L, func_L00_0029C070, u32) + STAGE_OFFSET_AT);
+    u32 instruction = *(volatile u32 *)(LVL(L, start_vendor_exit_cutscene, u32) + STAGE_OFFSET_AT);
     if ((instruction & 0xFFFF0000u) != ADDIU_A1_GP) {
         return 0;
     }
@@ -889,7 +889,7 @@ static s32 stage_blocked(const f32 *stage, f32 dx, f32 dy, s32 L)
         to[1] = stage[1] + point[0] * dy + point[1] * dx;
         to[2] = stage[2] + point[2];
         to[3] = 0.0f;
-        if (LVL(L, func_L00_001EFFF0, CollLineFn)(from, to, 0, HERO_MOBY, 0)) {
+        if (LVL(L, coll_line, CollLineFn)(from, to, 0, HERO_MOBY, 0)) {
             blocked++;
         }
     }
@@ -906,7 +906,7 @@ static s32 hero_on_ground(s32 L)
     from[2] = HERO_POS[2] + 0.2f;
     to[2] = HERO_POS[2] - STAGE_GROUND;
     from[3] = to[3] = 0.0f;
-    return LVL(L, func_L00_001EFFF0, CollLineFn)(from, to, 0, HERO_MOBY, 0) != 0;
+    return LVL(L, coll_line, CollLineFn)(from, to, 0, HERO_MOBY, 0) != 0;
 }
 
 static f32 square_root(f32 x)
@@ -984,7 +984,7 @@ static void place_demo_vendor(u8 *m, const f32 *stage, const f32 *facing, s32 L)
     *(volatile f32 *)(m + MOBY_POS) = stage[0] - (ox * fx - oy * fy);
     *(volatile f32 *)(m + MOBY_POS + 4) = stage[1] - (ox * fy + oy * fx);
     *(volatile f32 *)(m + MOBY_POS_Z) = stage[2] - oz;
-    MOBY_ROT_F(m, 2) = LVL(L, func_L00_001FF860, AtanFn)(fx, fy);
+    MOBY_ROT_F(m, 2) = LVL(L, fast_atan2, AtanFn)(fx, fy);
 }
 
 /* The demo of ITEM, found at FIND in level L: 1 if it starts, 0 for an item without one (the RYNO has none). It is
@@ -1000,7 +1000,7 @@ static s32 start_weapon_demo(s32 item, const f32 *find, s32 L)
         || !class_in_memory(VENDOR_CLASS, L)) {
         return 0;
     }
-    m = LVL(L, func_0020D348, CreateFn)(VENDOR_CLASS);
+    m = LVL(L, CreateMoby, CreateFn)(VENDOR_CLASS);
     if (m == 0) {
         return 0;
     }
@@ -1016,7 +1016,7 @@ static s32 start_weapon_demo(s32 item, const f32 *find, s32 L)
     place_demo_vendor(m, stage, facing, L);
     MOBY_SCALE_F(m) = 0.0f;
     LVL(L, func_L00_00251E30, BoundsFn)(m);
-    LVL(L, func_L00_0029BA20, OpenFn)(m);
+    LVL(L, open_vendor_menu, OpenFn)(m);
     *(volatile s32 *)(vendor_record + VENDOR_MENU_STATE) = VENDOR_EXIT;
     *(volatile s32 *)(vendor_record + VENDOR_MENU_FRAMES) = 0;
     *(volatile s32 *)(vendor_record + VENDOR_NOTED) = id;
@@ -1028,9 +1028,9 @@ static s32 start_weapon_demo(s32 item, const f32 *find, s32 L)
 void rz_world_frame(s32 L)
 {
     if (demo_vendor != 0) {
-        LVL(L, func_L00_00217718, ResetFn)(demo_return[0], demo_return[1], HERO_STATE_IDLE, 1);
+        LVL(L, Hero_ResetToPosition, ResetFn)(demo_return[0], demo_return[1], HERO_STATE_IDLE, 1);
         if (MOBY_CLASS(demo_vendor) == VENDOR_CLASS && MOBY_STATE(demo_vendor) >= 0) {
-            LVL(L, func_0020D678, DeleteFn)(demo_vendor);
+            LVL(L, DeleteMoby, DeleteFn)(demo_vendor);
         }
         demo_vendor = 0;
     }
@@ -1112,7 +1112,7 @@ static void take(void *host, u16 key, s32 check, s32 L)
     rz_play_collect(check, L);
     ee_rz_save_c(0, -1, L);
     drop(key, host, L);
-    LVL(L, func_0020D678, DeleteFn)(host);
+    LVL(L, DeleteMoby, DeleteFn)(host);
     found(ee_rz_layout_item(check), find, L);
 }
 
@@ -1166,7 +1166,7 @@ static u16 host_key(void *host)
     return KEY_PICKUP;
 }
 
-/* Blarg Station's shuttle (class 1109, ShuttleUpdate func_L06_003039B8) ends its ride at the dormant Rilgar infobot
+/* Blarg Station's shuttle (class 1109, ShuttleUpdate) ends its ride at the dormant Rilgar infobot
  * it wakes (its pvars + 0x10C, the infobot's index), and in its state 6, once Ratchet is within 3.5 units of it
  * (across, not in height, before the infobot's own 1-unit touch), plays the arrival cutscene (StartCutscene 12),
  * deletes the infobot, unlocks Rilgar, sets level trigger 0 and goes on to the Rilgar infobot's video (movie 5)
@@ -1204,7 +1204,7 @@ static s32 shuttle_takes_infobot(void *shuttle, s32 L)
     } else {
         if (MOBY_STATE(infobot) >= 0 && MOBY_CLASS(infobot) == INFOBOT_CLASS) {
             drop(host_key(infobot), infobot, L);
-            LVL(L, func_0020D678, DeleteFn)(infobot);
+            LVL(L, DeleteMoby, DeleteFn)(infobot);
         }
         LVL(L, func_L00_002512D8, MissionFn)(SHUTTLE_TRIGGER);
     }
@@ -1241,7 +1241,7 @@ static void bolt_update(void *bolt, void (*update)(void *), s32 L)
     check = host_check(host, L);
     ee_debug_rz_bolt[2] = check;
     if (check < 0 || ee_rz_check_collected(check)) {
-        LVL(L, func_0020D678, DeleteFn)(bolt);
+        LVL(L, DeleteMoby, DeleteFn)(bolt);
         return;
     }
     if (clank_touches(bolt)) {
@@ -1268,7 +1268,7 @@ static void bolt_update(void *bolt, void (*update)(void *), s32 L)
         if (MOBY_MISSION(host) != 0xFF) {
             LVL(L, func_L00_002512D8, MissionFn)(MOBY_MISSION(host));
         }
-        LVL(L, func_0020D678, DeleteFn)(host);
+        LVL(L, DeleteMoby, DeleteFn)(host);
     }
 }
 
@@ -1298,7 +1298,7 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
          * included): on the galactic map and through the flight it would go on running over the level the next
          * planet's load is writing over. It goes instead; its host makes a new one once play resumes. */
         if (mark_of(moby) == BOLT_MARK) {
-            LVL(L, func_0020D678, DeleteFn)(moby);
+            LVL(L, DeleteMoby, DeleteFn)(moby);
             return 1;
         }
         return 0;

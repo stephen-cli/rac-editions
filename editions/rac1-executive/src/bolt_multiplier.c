@@ -10,9 +10,9 @@
  * after 4 kills, x3 after 14, x4 after 34 and x5 after 68, as Going Commando's
  * steps grow towards its x20.
  *
- * How R&C1 pays a kill. SetDeathBits (func_L00_002584A8) spreads the
+ * How R&C1 pays a kill. SetDeathBits spreads the
  * moby's placed bolt value +-25 % and calls the bolt drop,
- * func_L00_00261B00(moby, low, high, flags, path), which picks the amount in
+ * spawn_randomized_bolt_drop(moby, low, high, flags, path), which picks the amount in
  * [low, high], doubles it in Challenge Mode (retail), runs the anti-farm
  * limiter and throws the bolts as 50/20/5/1-bolt pieces through SpawnBolt.
  * R&C1's base already falls for a repeat: the level loader halves a placed
@@ -73,7 +73,7 @@
  * The HUD. While the multiplier is above x1 the bolt counter shows it in the
  * corner below its bolt icon, as Going Commando does, in orange and fading in
  * and out with the counter; a step up shows the counter. The counter's slot
- * draws HudBoltsDraw (func_L00_0023A788); each frame the HUD update swaps that
+ * draws HudBoltsDraw (draw_bolt_counter_hud_panel); each frame the HUD update swaps that
  * slot's draw for ee_bolts_draw, which draws retail's counter and then the
  * multiplier. */
 #include "modseg.h"
@@ -103,16 +103,16 @@
 /* Going Commando's share of a kill's bolts by the enemy's earlier deaths (Oozla 0x1A89C8), in percent. */
 static const u8 falloff[DEATHS_MAX + 1] = { 100, 50, 40, 30, 25, 20, 15, 10 };
 
-DECLARE_LVL(func_L00_002584A8);         /* SetDeathBits: the hooked call site is in it */
-DECLARE_LVL(func_L00_00261B00);         /* the bolt drop(moby, low, high, flags, path) */
-DECLARE_LVL(func_002140B0);             /* random_integer_below(n) */
-DECLARE_LVL(func_001F9850);             /* scale_ticks(ticks at 60 a second): the frames a second at 60 */
-DECLARE_LVL(func_001FFB38);             /* queue_animation_update: a HUD slot's element, as CollectBolt queues it */
-DECLARE_LVL(func_L00_0023A658);         /* HudBoltsInit */
-DECLARE_LVL(func_L00_0023A690);         /* HudBoltsUpdate */
-DECLARE_LVL(func_L00_0023A788);         /* HudBoltsDraw(slot) */
-DECLARE_LVL(func_001F6D88);             /* font_print_right_small(x, y, colour, text, limit) */
-DECLARE_LVL_DATA(mission_state);        /* D_L00_0015FD48: a byte per mission, 0xFF once done */
+DECLARE_LVL(SetDeathBits);                  /* SetDeathBits: the hooked call site is in it */
+DECLARE_LVL(spawn_randomized_bolt_drop);    /* the bolt drop(moby, low, high, flags, path) */
+DECLARE_LVL(random_integer_below);          /* random_integer_below(n) */
+DECLARE_LVL(scale_ticks);                   /* scale_ticks(ticks at 60 a second): the frames a second at 60 */
+DECLARE_LVL(queue_animation_update);        /* queue_animation_update: a HUD slot's element, as CollectBolt queues it */
+DECLARE_LVL(initialize_bolt_counter_hud);   /* HudBoltsInit */
+DECLARE_LVL(update_bolt_counter_hud_animation_and_visibility);   /* HudBoltsUpdate */
+DECLARE_LVL(draw_bolt_counter_hud_panel);   /* HudBoltsDraw(slot) */
+DECLARE_LVL(font_print_right_small);        /* font_print_right_small(x, y, colour, text, limit) */
+DECLARE_LVL_DATA(mission_state);            /* D_L00_0015FD48: a byte per mission, 0xFF once done */
 DECLARE_LVL_DATA(hud_slots);
 typedef void (*DropFn)(void *moby, s32 low, s32 high, s32 flags, s32 path);
 typedef s32 (*RandomFn)(s32 n);
@@ -234,7 +234,7 @@ static s32 limiter_penalty(s32 L, s32 amount)
     if (amount >= LIMITER_MAX || FARM_FRAMES == 0) {
         return 1000;
     }
-    rate = LVL(L, func_001F9850, TicksFn)(60) * 60 * FARM_BOLTS / FARM_FRAMES;
+    rate = LVL(L, scale_ticks, TicksFn)(60) * 60 * FARM_BOLTS / FARM_FRAMES;
     if (rate <= 300) {
         return 1000;
     }
@@ -266,8 +266,8 @@ static void count_kill(s32 L)
 /* SetDeathBits's call of the bolt drop (src/hooks.s passes its return address). */
 void ee_bolt_drop_c(void *moby, s32 low, s32 high, s32 flags, s32 path, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_002584A8, EE_SITE_DEATH_DROP);
-    DropFn drop = LVL(L, func_L00_00261B00, DropFn);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(SetDeathBits), EE_SITE_DEATH_DROP);
+    DropFn drop = LVL(L, spawn_randomized_bolt_drop, DropFn);
     s32 amount, bonus, slot, deaths, respawn;
 
     if (!in_challenge_mode() || flags == 0 || (low <= 0 && high <= 0) || !is_creature(moby)) {
@@ -287,7 +287,7 @@ void ee_bolt_drop_c(void *moby, s32 low, s32 high, s32 flags, s32 path, u32 ra)
     if (low <= 0) {
         low = 1;
     }
-    amount = low + LVL(L, func_002140B0, RandomFn)(high - low + 1);
+    amount = low + LVL(L, random_integer_below, RandomFn)(high - low + 1);
     drop(moby, amount, amount, flags, path);
     bonus = amount * (current_multiplier() - 1) * falloff[deaths] / 100;
     respawn = is_respawn(L, moby);
@@ -318,8 +318,9 @@ static s32 bolts_draw(void *slot);
 /* The bolt counter up, as CollectBolt shows it after a pickup. */
 static void show_bolt_counter(s32 L)
 {
-    LVL(L, func_001FFB38, QueueFn)(BOLTS_SLOT, BOLTS_ICON, LVL(L, func_L00_0023A658, u32),
-                                   LVL(L, func_L00_0023A690, u32), LVL(L, func_L00_0023A788, u32), G_BOLTS, BOLTS_MOST);
+    LVL(L, queue_animation_update, QueueFn)(BOLTS_SLOT, BOLTS_ICON, LVL(L, initialize_bolt_counter_hud, u32),
+                                            LVL(L, update_bolt_counter_hud_animation_and_visibility, u32),
+                                            LVL(L, draw_bolt_counter_hud_panel, u32), G_BOLTS, BOLTS_MOST);
 }
 
 /* COUNT bolts added, up to the counter's most, with the counter shown as a pickup shows it. */
@@ -332,7 +333,7 @@ void ee_add_bolts(s32 count, s32 L)
 static void swap_bolt_counter_draw(s32 L)
 {
     u32 base = LVL_DATA(L, hud_slots, u32);
-    u32 retail = LVL(L, func_L00_0023A788, u32);
+    u32 retail = LVL(L, draw_bolt_counter_hud_panel, u32);
     s32 i;
     hud_level = L;
     for (i = 0; i < HUD_SLOTS; i++) {
@@ -384,7 +385,7 @@ static s32 bolts_draw(void *slot)
 {
     s32 L = hud_level;
     u8 *s = (u8 *)slot;
-    s32 width = LVL(L, func_L00_0023A788, SlotDrawFn)(slot);
+    s32 width = LVL(L, draw_bolt_counter_hud_panel, SlotDrawFn)(slot);
     s32 multiplier = current_multiplier();
     s32 text_frames, alpha, x, y;
     char text[4];
@@ -406,7 +407,7 @@ static s32 bolts_draw(void *slot)
     text[0] = 'x';
     text[1] = (char)('0' + multiplier);
     text[2] = 0;
-    LVL(L, func_001F6D88, PrintFn)(x + 1, y + 1, (u32)alpha << 24, text, -1);
-    LVL(L, func_001F6D88, PrintFn)(x, y, ((u32)alpha << 24) | MULT_COLOUR, text, -1);
+    LVL(L, font_print_right_small, PrintFn)(x + 1, y + 1, (u32)alpha << 24, text, -1);
+    LVL(L, font_print_right_small, PrintFn)(x, y, ((u32)alpha << 24) | MULT_COLOUR, text, -1);
     return width;
 }

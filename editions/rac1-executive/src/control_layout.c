@@ -20,20 +20,20 @@
  * so does any value that is neither 0 nor 1: all read as Classic.
  *
  * The buttons. Every button test of Ratchet's goes through pad 0 (D_0013CA40,
- * OpenRAC include/pad.h) after the game's pad parse (func_002181F0), which
+ * OpenRAC include/pad.h) after the game's pad parse (process_pad_input), which
  * src/strafe.c's hook follows: held (+ 0x1A0), pressed (+ 0x1A4), released
  * (+ 0x1A8) and the ring of the last 30 pressed words (+ 0x1E0) that
- * PadPressedWithin (func_L00_00267BA8) searches. In the game's bit layout L2
+ * pad_pressed_within searches. In the game's bit layout L2
  * is 0x1, R2 0x2, R1 0x8 and Circle 0x20, and:
  *   - crouch, the crouch jumps, Comet-Strike, the ledge drop and the
  *     Hydro-Pack's jets all test R1 or R2 (0xA): retail already crouches on
  *     R2 too;
  *   - the Thruster-Pack's hover (entered and left by a double tap at the end
- *     of Hero_TryLaunchGadget, func_L00_00228770, and in the hero update's
+ *     of Hero_TryLaunchGadget, process_hero_equipped_item_input, and in the hero update's
  *     state 0x81 case) and the edition's Charge Boots dash test R1 (0x8)
  *     alone;
  *   - every weapon and gadget tests the hero's item button mask (hero +
- *     0x10A0, set to 0x20 by func_L00_0020F118; 0x80 for the wrench), and a
+ *     0x10A0, set to 0x20 by spawn_hero_item_mobies; 0x80 for the wrench), and a
  *     few test 0x20 directly (the throwing gloves, the Visibomb's detonation,
  *     the Metal Detector, the swap back from the wrench).
  * So Future gives the game Circle for physical Circle or R1, and the game's R1
@@ -53,7 +53,7 @@
  *
  * Where Future applies: gameplay (game mode 0) as Ratchet or Clank. Giant
  * Clank keeps retail's buttons, as does the hoverboard (control mode 0x16:
- * its tricks are L1, L2, R1 and R2, held & 0xF in func_L05_00254030), and
+ * its tricks are L1, L2, R1 and R2, held & 0xF in update_hero_hoverboard_trick_animations), and
  * so do the pause menu, cutscenes (whose skip holds all four shoulder
  * buttons), vendors and every other game mode. The remap also waits while
  * the quick-select ring is open, or while the game has locked the pad for a

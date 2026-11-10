@@ -6,7 +6,7 @@
  * (each frame pixel will be shown 4/3 wide), and everything 2D must be
  * drawn 3/4 as wide about the centre, or it looks stretched.
  *
- * The view (Hor+). UpdateViewContext (func_001F3140) builds every
+ * The view (Hor+). UpdateViewContext builds every
  * projection and frustum constant from the view record's horizontal field
  * of view (+0xB0, the game's "projection scale": 0.63 in gameplay) and a
  * vertical one derived from it (+0xB4 = +0xB0 * 0.756 on PAL, 0.775 at
@@ -54,13 +54,13 @@
  * too (owner, 2026-10-21; it had stayed 4:3 by the owner's earlier choice). */
 #include "modseg.h"
 
-DECLARE_LVL(func_001F3140);        /* UpdateViewContext */
-DECLARE_LVL(func_001F3D78);        /* DrawWorld: the hooked calls are in it */
-DECLARE_LVL(func_001FFFB8);        /* HudDraw */
-DECLARE_LVL(func_001FF1B0);        /* draw_help */
-DECLARE_LVL(func_001F5148);        /* the letterbox bars */
-DECLARE_LVL(func_001F4F90);        /* the subtitles */
-DECLARE_LVL(func_L00_002A1540);    /* the vendor screen's render */
+DECLARE_LVL(UpdateViewContext);
+DECLARE_LVL(func_001F3D78);         /* DrawWorld: the hooked calls are in it */
+DECLARE_LVL(update_hud);            /* HudDraw */
+DECLARE_LVL(draw_help);
+DECLARE_LVL(draw_letterbox_bars);   /* the letterbox bars */
+DECLARE_LVL(draw_subtitles);        /* the subtitles */
+DECLARE_LVL(draw_vendor_screen);    /* the vendor screen's render */
 DECLARE_LVL_DATA(view);
 DECLARE_LVL_DATA(chain_cursor);
 DECLARE_LVL_DATA(letterbox_lines);
@@ -157,7 +157,7 @@ static s32 view_applied;        /* the setting the full-screen view was last bui
  * frame for its side planes, so a value put back after the projection was
  * built culled at the old 4:3 edges (objects popped in at the sides, owner
  * 2026-10-19). So game code can read the widened value and write it back:
- * a level's path camera (Oltanis's camera 20, func_L14_00316388, the shared
+ * a level's path camera (Oltanis's camera 20, Camera20Activate, the shared
  * initialize_path_camera of Orxon and others) saves +0xB0 as it starts,
  * writes FOV stops on the way, and puts the saved value back at its end,
  * recomputed through the fast sine and cosine. Taken as the game's own, that
@@ -265,7 +265,7 @@ u32 ee_view_pre_c(s32 L)
     } else {
         view_last_frames = 0;
     }
-    return LVL(L, func_001F3140, u32) + 8;
+    return LVL(L, UpdateViewContext, u32) + 8;
 }
 
 void ee_view_post_c(void)
@@ -277,13 +277,13 @@ void ee_view_post_c(void)
  * so the panels and the world behind them kept the old projection until the
  * game was unpaused (owner, 2026-10-19). Rebuilt here, with the frame's
  * camera transform. */
-DECLARE_LVL(func_001F2608);             /* the frame's camera-and-view transform */
+DECLARE_LVL(BuildViewMatrices);   /* the frame's camera-and-view transform */
 
 static void refresh_view(s32 L)
 {
     if ((WS_SETTING != 0) != view_applied && SCREEN[0] == RES_W && SCREEN[1] == RES_H) {
-        LVL(L, func_001F3140, VoidFn)();
-        LVL(L, func_001F2608, VoidFn)();
+        LVL(L, UpdateViewContext, VoidFn)();
+        LVL(L, BuildViewMatrices, VoidFn)();
     }
 }
 
@@ -629,7 +629,7 @@ static volatile u32 **cursor_of(s32 L)
  * HudDraw calls each slot's draw callback (+0x18) through a wrapper that
  * notes the stretch of the chain the slot wrote, and those vertices get
  * EDGE_OFFSET with the squeeze. Moving the slot's x before the draw instead
- * (the first build) broke the ammo display: its draw (func_L00_0023B140)
+ * (the first build) broke the ammo display: its draw (draw_weapon_ammo_hud_panel)
  * passes x + width as its backing's width, a slip in the original that is
  * harmless at x = 20, so the backing lost what x lost.
  *
@@ -679,9 +679,9 @@ static s32 hud_offset_at(volatile u32 *p)
     return 0;
 }
 
-/* The hoverboard races' bottom bar (Rilgar, Kalebo III): func_L05_00266D10
+/* The hoverboard races' bottom bar (Rilgar, Kalebo III): draw_hud_progress_and_rank
  * (slot 5: the bar, Lap, Place, at fixed places across the screen) is
- * stretched to the edges. The time (func_L05_002670A0, slot 7) stays
+ * stretched to the edges. The time (draw_hud_timer, slot 7) stays
  * centred: it is squeezed in place, although its slot is anchored right,
  * since its pieces would otherwise go to the halves they sit in. */
 #define RACE_BAR  1
@@ -758,17 +758,17 @@ s32 ee_ws_ring_shift(void)
 
 void ee_ws_hud_c(u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_001F3D78, EE_SITE_WS_HUD);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_001F3D78), EE_SITE_WS_HUD);
     volatile u32 *start;
 
     refresh_view(L);
     if (!ws_on()) {
-        LVL(L, func_001FFFB8, VoidFn)();
+        LVL(L, update_hud, VoidFn)();
         return;
     }
     start = *cursor_of(L);
     hud_begin(L);
-    LVL(L, func_001FFFB8, VoidFn)();
+    LVL(L, update_hud, VoidFn)();
     hud_end(start);
 }
 
@@ -783,14 +783,14 @@ static void bracketed(s32 L, u32 fn)
 
 void ee_ws_help_c(u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_001F3D78, EE_SITE_WS_HELP);
-    bracketed(L, LVL(L, func_001FF1B0, u32));
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_001F3D78), EE_SITE_WS_HELP);
+    bracketed(L, LVL(L, draw_help, u32));
 }
 
 void ee_ws_subtitles_c(u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_001F3D78, EE_SITE_WS_SUBTITLES);
-    bracketed(L, LVL(L, func_001F4F90, u32));
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_001F3D78), EE_SITE_WS_SUBTITLES);
+    bracketed(L, LVL(L, draw_subtitles, u32));
 }
 
 /* --- the pause menu's panels ------------------------------------------------ */
@@ -812,10 +812,10 @@ void ee_ws_subtitles_c(u32 ra)
  *
  * The draw walker evaluates a moby's pose from its two key frames (moby
  * +0x68, +0x6C) when it draws it, so the pause renderer's panel draw
- * (func_L00_002781D8 + 0xFC, jal func_0020E180(moby, 1)) is hooked: the two
+ * (draw_pause_menu_pages + 0xFC, jal DrawMobyList(moby, 1)) is hooked: the two
  * frames are copied with the remap applied, the moby points at the copies
  * for the call, and back. The class data itself is never changed.
- * func_0020E180 writes the data cache back (func_00118D80(0)) before the
+ * DrawMobyList writes the data cache back (flush_cache(0)) before the
  * walker's DMA reads the frames.
  *
  * The title screen's menus are drawn the same way by its own renderer,
@@ -823,19 +823,19 @@ void ee_ws_subtitles_c(u32 ra)
  * in the same order at other offsets (FE_*_SITE), hooked the same way
  * (tools/gen_frontend.py RENDERER_SITES). renderer_of_call names the program
  * from either. */
-DECLARE_LVL(func_L00_002781D8);         /* the pause menu's renderer */
-DECLARE_LVL(func_0021A610);             /* the title screen's (no level has it) */
-DECLARE_LVL(func_001F7A50);             /* set up a 2^n render target */
-DECLARE_LVL(func_0020E180);             /* draw a moby */
-#define PANEL_DRAW_SITE    0xFC         /* func_L00_002781D8 + 0xFC: jal func_0020E180(panel, 1) */
-#define PANEL_PROJECT_SITE 0x1EC        /* func_L00_002781D8 + 0x1EC: jal func_00238D90(corners, rectangle) */
+DECLARE_LVL(draw_pause_menu_pages);   /* the pause menu's renderer */
+DECLARE_LVL(func_0021A610);           /* the title screen's (no level has it) */
+DECLARE_LVL(configure_graphics_render_target_and_projection);   /* set up a 2^n render target */
+DECLARE_LVL(DrawMobyList);            /* draw a moby */
+#define PANEL_DRAW_SITE    0xFC         /* draw_pause_menu_pages + 0xFC: jal DrawMobyList(panel, 1) */
+#define PANEL_PROJECT_SITE 0x1EC        /* draw_pause_menu_pages + 0x1EC: jal project_graphics_bounds */
 #define FE_PANEL_DRAW_SITE    0xBC      /* the same calls in func_0021A610 */
 #define FE_PANEL_PROJECT_SITE 0x1A4
 
 static s32 renderer_of_call(u32 ra, u32 site, u32 fe_site)
 {
-    s32 P = ee_program_of_call(ra, lvl_func_0021A610, fe_site);
-    return P >= 0 ? P : ee_level_of_call(ra, lvl_func_L00_002781D8, site);
+    s32 P = ee_program_of_call(ra, LVL_TABLE(func_0021A610), fe_site);
+    return P >= 0 ? P : ee_level_of_call(ra, LVL_TABLE(draw_pause_menu_pages), site);
 }
 
 #define PANEL_CLASS      0x472
@@ -915,7 +915,7 @@ static u32 panel_frame(u32 src, u32 *out)
 void ee_ws_panel_draw_c(u32 moby, s32 count, u32 ra)
 {
     s32 L = renderer_of_call(ra, PANEL_DRAW_SITE, FE_PANEL_DRAW_SITE);
-    DrawMobyFn draw = LVL(L, func_0020E180, DrawMobyFn);
+    DrawMobyFn draw = LVL(L, DrawMobyList, DrawMobyFn);
     volatile u32 *frames = (volatile u32 *)(moby + 0x68);
     u32 a, b;
 
@@ -943,8 +943,8 @@ void ee_ws_panel_draw_c(u32 moby, s32 count, u32 ra)
 
 /* The renderer projects each panel's first and opposite corners (from the
  * panel's own update, which knows nothing of the remap) to the rectangle it
- * fills dark and draws the panel's content into (func_00238D90, at
- * func_L00_002781D8 + 0x1EC, on copies of the corners on its stack): the
+ * fills dark and draws the panel's content into (project_graphics_bounds, at
+ * draw_pause_menu_pages + 0x1EC, on copies of the corners on its stack): the
  * corners move with the panel, by the remap of their centre.
  *
  * The rectangle is then given back as the 4:3 picture would have it (x and
@@ -956,16 +956,16 @@ void ee_ws_panel_draw_c(u32 moby, s32 count, u32 ra)
  * laid out as in retail, and the rectangle's fill, the content's quad and
  * the panels that draw on the screen directly are squeezed afterwards like
  * any 2D (the bracketed calls below). The vendor's monitors go through the
- * same projection (func_L00_002A0F60 + 0x188) and get the same treatment,
+ * same projection (draw_vendor_purchase_panel + 0x188) and get the same treatment,
  * without the remap (they never park). */
-DECLARE_LVL(func_00238D90);             /* project two corners to a screen rectangle */
-DECLARE_LVL(func_L00_002A0F60);         /* the vendor's monitors */
+DECLARE_LVL(project_graphics_bounds);      /* project two corners to a screen rectangle */
+DECLARE_LVL(draw_vendor_purchase_panel);   /* the vendor's monitors */
 typedef void (*ProjectFn)(f32 *, f32 *, s32 *, s32 *, s32 *, s32 *);
 #define VENDOR_PROJECT_SITE 0x188
 
 void ee_ws_panel_project_c(f32 *first, f32 *opposite, s32 *w, s32 *h, s32 *x, s32 *y, u32 ra, s32 vendor)
 {
-    s32 L = vendor ? ee_level_of_call(ra, lvl_func_L00_002A0F60, VENDOR_PROJECT_SITE)
+    s32 L = vendor ? ee_level_of_call(ra, LVL_TABLE(draw_vendor_purchase_panel), VENDOR_PROJECT_SITE)
                    : renderer_of_call(ra, PANEL_PROJECT_SITE, FE_PANEL_PROJECT_SITE);
     s32 on = ws_on();
     if (on && !vendor && panel_scale > 0.0f) {
@@ -974,7 +974,7 @@ void ee_ws_panel_project_c(f32 *first, f32 *opposite, s32 *w, s32 *h, s32 *x, s3
         first[1] += shift;
         opposite[1] += shift;
     }
-    LVL(L, func_00238D90, ProjectFn)(first, opposite, w, h, x, y);
+    LVL(L, project_graphics_bounds, ProjectFn)(first, opposite, w, h, x, y);
     if (on) {
         s32 hw = SCREEN[2];
         *x = hw + ((*x - hw) * 4) / 3;
@@ -982,16 +982,16 @@ void ee_ws_panel_project_c(f32 *first, f32 *opposite, s32 *w, s32 *h, s32 *x, s3
     }
 }
 
-/* The vendor's six monitor screens (VendorDrawScreens, func_0023AA38) are
- * laid out the same way with another projection, func_00238F98(a, b,
+/* The vendor's six monitor screens (VendorDrawScreens, render_vendor_capture_pass_sequence) are
+ * laid out the same way with another projection, project_graphics_bounds_float(a, b,
  * &width, &height, &x, &y) in floats: the first call (+0x20C) gives the
  * whole screen's size, the extent of the texture drawn back; the second
  * (+0x374) the size the screen's content is laid out at (several of the
  * content routines place text at fixed offsets made for 4:3, which ran off
  * the narrower 16:9 rectangle: "7,50" of "7,500") and where the quad goes.
  * Both get the 4:3 rectangle; the quads (+0x50C, +0x568) are bracketed. */
-DECLARE_LVL(func_00238F98);             /* project two corners to a screen rectangle, in floats */
-DECLARE_LVL(func_0023AA38);             /* VendorDrawScreens */
+DECLARE_LVL(project_graphics_bounds_float);   /* project two corners to a screen rectangle, in floats */
+DECLARE_LVL(render_vendor_capture_pass_sequence);   /* VendorDrawScreens */
 typedef void (*ProjectFFn)(void *, void *, f32 *, f32 *, f32 *, f32 *);
 #define SCREENS_PROJECT_A 0x20C
 #define SCREENS_PROJECT_B 0x374
@@ -1000,15 +1000,16 @@ void ee_ws_screens_project_c(void *a, void *b, f32 *w, f32 *h, f32 *x, f32 *y, u
 {
     s32 L;
     for (L = 0; L < 19; L++) {
-        u32 f = lvl_func_0023AA38[L];
+        u32 f = LVL_TABLE(render_vendor_capture_pass_sequence)[L];
         if (ra == f + SCREENS_PROJECT_A + 8 || ra == f + SCREENS_PROJECT_B + 8) {
             break;
         }
     }
     if (L == 19) {
-        L = ee_level_of_call(ra, lvl_func_0023AA38, SCREENS_PROJECT_A);   /* never expected */
+        L = ee_level_of_call(ra, LVL_TABLE(render_vendor_capture_pass_sequence),
+                             SCREENS_PROJECT_A);   /* never expected */
     }
-    LVL(L, func_00238F98, ProjectFFn)(a, b, w, h, x, y);
+    LVL(L, project_graphics_bounds_float, ProjectFFn)(a, b, w, h, x, y);
     if (ws_on() && !view_suspended) {
         f32 hw = (f32)SCREEN[2];
         *x = hw + (*x - hw) * (4.0f / 3.0f);
@@ -1017,11 +1018,11 @@ void ee_ws_screens_project_c(void *a, void *b, f32 *w, f32 *h, f32 *x, f32 *y, u
 }
 
 /* The item monitor shows the item's moby drawn straight into the monitor's
- * texture (VendorDrawItemPanel, func_00239CF8: DrawMobyList) with the
- * transform func_001F2608 built for the frame from the camera and the main
+ * texture (VendorDrawItemPanel, render_vendor_item_details_pass: DrawMobyList) with the
+ * transform BuildViewMatrices built for the frame from the camera and the main
  * view, placed so that it lands in the screen's top-left corner, which the
  * monitor shows. With the widened view it landed a third of the monitor's
- * width to the right. So VendorDrawScreens (called at func_L00_002A1540 +
+ * width to the right. So VendorDrawScreens (called at draw_vendor_screen +
  * 0x3C4) runs with the view and the transform rebuilt as in 4:3, and both
  * are rebuilt widened after it; its projections then come back as 4:3
  * already (no conversion), and its quads are still squeezed. */
@@ -1030,29 +1031,29 @@ typedef void (*ScreensFn)(u32);
 
 void ee_ws_vendor_screens_c(u32 m, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_002A1540, VENDOR_SCREENS_SITE);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(draw_vendor_screen), VENDOR_SCREENS_SITE);
     if (!ws_on()) {
-        LVL(L, func_0023AA38, ScreensFn)(m);
+        LVL(L, render_vendor_capture_pass_sequence, ScreensFn)(m);
         return;
     }
     view_suspended = 1;
-    LVL(L, func_001F3140, VoidFn)();
-    LVL(L, func_001F2608, VoidFn)();
-    LVL(L, func_0023AA38, ScreensFn)(m);
+    LVL(L, UpdateViewContext, VoidFn)();
+    LVL(L, BuildViewMatrices, VoidFn)();
+    LVL(L, render_vendor_capture_pass_sequence, ScreensFn)(m);
     view_suspended = 0;
-    LVL(L, func_001F3140, VoidFn)();
-    LVL(L, func_001F2608, VoidFn)();
+    LVL(L, UpdateViewContext, VoidFn)();
+    LVL(L, BuildViewMatrices, VoidFn)();
 }
 
 /* The pause menu draws each panel's content into a texture: its renderer
- * (func_L00_002781D8) sets up a 2^n render target (func_001F7A50, + 0x458,
+ * (draw_pause_menu_pages) sets up a 2^n render target (configure_graphics_render_target_and_projection, + 0x458,
  * which builds a view of the target's size, field 1.0), calls the panel
- * (+ 0x49C), puts the frame's view back (func_001F7B40) and draws the
+ * (+ 0x49C), puts the frame's view back (begin_draw_frame) and draws the
  * middle of the target over the panel's rectangle with the quad bracketed
  * at + 0x600, which is squeezed. The Weapons, Gadgets and Quick Select
  * pages' item previews (FUN_0021e110 in the NTSC decomp) draw their mobys
  * there, and mobys are projected through the camera block
- * (func_001F2608: the camera times the view's projection, D_00187040, and
+ * (BuildViewMatrices: the camera times the view's projection, D_00187040, and
  * its copy at view + 0x280), which the frame built from the main view, not
  * the target's. With the widened main view the previews were narrowed
  * twice, by the view and by the squeeze, and showed three quarters as wide
@@ -1102,8 +1103,8 @@ void ee_ws_panel_target_c(s32 a, s32 b, s32 flag, u32 ra, f32 f)
             main_screen[k] = SCREEN[k];
         }
         view_suspended = 1;
-        LVL(L, func_001F3140, VoidFn)();
-        LVL(L, func_001F2608, VoidFn)();
+        LVL(L, UpdateViewContext, VoidFn)();
+        LVL(L, BuildViewMatrices, VoidFn)();
         view_suspended = 0;
         for (k = 0; k < VIEW_SAVED_WORDS; k++) {
             rec[k] = main_view[k];
@@ -1112,7 +1113,7 @@ void ee_ws_panel_target_c(s32 a, s32 b, s32 flag, u32 ra, f32 f)
             SCREEN[k] = main_screen[k];
         }
     }
-    LVL(L, func_001F7A50, TargetFn)(a, b, flag, f);
+    LVL(L, configure_graphics_render_target_and_projection, TargetFn)(a, b, flag, f);
 }
 
 s32 ee_ws_panel_texture_c(u32 item, u32 fn, u32 ra)
@@ -1121,7 +1122,7 @@ s32 ee_ws_panel_texture_c(u32 item, u32 fn, u32 ra)
     s32 r = ((PanelFn)fn)(item);
     if (main_saved) {
         swap_view(L, main_view, main_screen);      /* the main view, widened */
-        LVL(L, func_001F2608, VoidFn)();
+        LVL(L, BuildViewMatrices, VoidFn)();
         swap_view(L, main_view, main_screen);      /* the target's again */
         main_saved = 0;
     }
@@ -1136,41 +1137,44 @@ u32 ee_ws_saved_args[26] __attribute__((aligned(16)));
 
 /* The pause sites are at these offsets in the levels' renderer; the title
  * screen's has them at + 0x250, + 0x358, + 0x5E0 and + 0x670. */
-#define WS_SITE_PAUSE_FILL    1     /* func_L00_002781D8 + 0x298: a panel's dark fill (func_00201640) */
+#define WS_SITE_PAUSE_FILL    1     /* draw_pause_menu_pages + 0x298: a panel's dark fill (draw_hud_rect_blended) */
 #define WS_SITE_PAUSE_DIRECT  2     /* + 0x388: jalr $a2, a panel that draws on the screen itself */
-#define WS_SITE_PAUSE_QUAD    3     /* + 0x600: a panel's content drawn over its rectangle (func_001F5800) */
-#define WS_SITE_PAUSE_LAST    4     /* + 0x698: the panels' last pass (func_002250B8) */
-#define WS_SITE_VENDOR_QUAD   5     /* func_L00_002A0F60 + 0x258: a monitor's content over its rectangle */
-#define WS_SITE_VENDOR_HUD    6     /* func_L00_002A1540 + 0x400: the vendor screen's HudDraw (bolts) */
-#define WS_SITE_SCREENS_QUAD_A 7    /* func_0023AA38 + 0x50C: a monitor screen's quad (func_001F5988) */
-#define WS_SITE_SCREENS_QUAD_B 8    /* func_0023AA38 + 0x568: the same at 60 Hz */
-#define WS_SITE_QUIT_PROMPT   9     /* func_L00_001F9248 + 0x60: game mode 4's prompt ("Quit Race?", func_001FBE80) */
-#define WS_SITE_CREDITS_NAME  10    /* func_L00_001F92E8 + 0xC8: a credits name tag (func_L00_001FCC50) */
-#define WS_SITE_PLANET_NAME   11    /* func_002305A0 + 0x140: the flight screen's planet name (func_0022FD20) */
-#define WS_SITE_STORY_CARD    12    /* func_00232EF0: a title card's strip or text (STORY_CARD_SITES) */
-#define WS_SITE_TITLE         13    /* func_001EB7C0 + 0x19C / + 0x210: the title screen's logo, PRESS START */
-#define WS_SITE_RETICLE       14    /* func_001EE6E0 + 0x118: one weapon reticle (func_001EE3B0) */
+#define WS_SITE_PAUSE_QUAD    3     /* + 0x600: a panel's content drawn over its rectangle (DrawTexturedQuad) */
+#define WS_SITE_PAUSE_LAST    4     /* + 0x698: the panels' last pass (draw_menu_flashing_panel) */
+#define WS_SITE_VENDOR_QUAD   5     /* draw_vendor_purchase_panel + 0x258: a monitor's content over its rectangle */
+#define WS_SITE_VENDOR_HUD    6     /* draw_vendor_screen + 0x400: the vendor screen's HudDraw (bolts) */
+#define WS_SITE_SCREENS_QUAD_A 7    /* render_vendor_capture_pass_sequence + 0x50C: a monitor screen's quad
+                                     * (append_subpixel_textured_screen_quad) */
+#define WS_SITE_SCREENS_QUAD_B 8    /* render_vendor_capture_pass_sequence + 0x568: the same at 60 Hz */
+#define WS_SITE_QUIT_PROMPT   9     /* draw_dialog_background_and_text + 0x60: game mode 4's prompt ("Quit Race?",
+                                     * draw_freeze_message_box) */
+#define WS_SITE_CREDITS_NAME  10    /* draw_framebuffer_with_timed_text + 0xC8: a credits name tag (draw_timed_text) */
+#define WS_SITE_PLANET_NAME   11    /* render_level_frame + 0x140: the flight screen's planet name
+                                     * (draw_resident_textured_banner) */
+#define WS_SITE_STORY_CARD    12    /* play_level_loading_slides: a title card's strip or text (STORY_CARD_SITES) */
+#define WS_SITE_TITLE         13    /* Transition_DefaultDraw + 0x19C / + 0x210: the title screen's logo, PRESS START */
+#define WS_SITE_RETICLE       14    /* render_queued_rotated_sprites + 0x118: one weapon reticle (func_001EE3B0) */
 #define WS_SITE_CALLBACK_HUD  32    /* + level: a HUD drawn by a draw callback (callback_hud) */
 #define WS_SITE_TRESPASSER    64    /* + level: the Trespasser puzzle's rings, a draw callback (trespasser_draw) */
-DECLARE_LVL(func_001F5988);
-DECLARE_LVL(func_L00_001F9248);         /* the frame of game mode 4 (the freeze prompt) */
-DECLARE_LVL(func_001FBE80);             /* its prompt */
-DECLARE_LVL(func_L00_001F92E8);         /* game mode 7's frame (the credits) */
-DECLARE_LVL(func_L00_001FCC50);         /* a credits name tag */
+DECLARE_LVL(append_subpixel_textured_screen_quad);
+DECLARE_LVL(draw_dialog_background_and_text);   /* the frame of game mode 4 (the freeze prompt) */
+DECLARE_LVL(draw_freeze_message_box);   /* its prompt */
+DECLARE_LVL(draw_framebuffer_with_timed_text);   /* game mode 7's frame (the credits) */
+DECLARE_LVL(draw_timed_text);           /* a credits name tag */
 /* The flight to a planet (the level transition, space.c in the decomp) is
- * drawn by the leaving level's program (func_002305A0); its 3D planet and
+ * drawn by the leaving level's program (render_level_frame); its 3D planet and
  * stars get the 16:9 view like any frame. The planet's name is a 256 x 32
- * picture drawn 32 pixels from the left (func_0022FD20): squeezed and moved
+ * picture drawn 32 pixels from the left (draw_resident_textured_banner): squeezed and moved
  * out to the left edge as the HUD's left elements are (owner, 2026-10-19). */
-DECLARE_LVL(func_002305A0);
-DECLARE_LVL(func_0022FD20);
+DECLARE_LVL(render_level_frame);
+DECLARE_LVL(draw_resident_textured_banner);
 
 /* The title cards ("Kyzil Plateau, Planet Veldin", "Chairman Drek's
  * flagship"...) before the story's movies: the level transition (and, for
  * the intro after New Game, the title screen's program) runs
- * PlayStoryTransition (func_00232EF0) with a frame loop of its own, which
+ * PlayStoryTransition (play_level_loading_slides) with a frame loop of its own, which
  * draws each line as two 512-wide strips straight into the chain: a
- * scrolling backdrop (func_00232A00) and the line's picture (func_001F5800),
+ * scrolling backdrop (append_scrolling_textured_quad) and the line's picture (DrawTexturedQuad),
  * up to two lines. They spanned the 16:9 screen, stretched (owner,
  * 2026-10-21). Each of the six calls is bracketed and squeezed about the
  * centre, so a card keeps its 4:3 shape with black at the sides, like the
@@ -1180,16 +1184,16 @@ DECLARE_LVL(func_0022FD20);
  * makes it take them (a first build missed that, and the cards stayed
  * stretched; owner's screenshots, 2026-10-21).
  *
- * The title screen's frame (Transition_DefaultDraw, func_001EB7C0, only in
+ * The title screen's frame (Transition_DefaultDraw, only in
  * the title screen's programs) draws the logo (DrawTexturedQuad at + 0x19C:
  * 256 x 128 at x 236) and PRESS START (+ 0x210: the language's picture)
  * itself, not through DrawWorld; both calls are bracketed and squeezed
  * about the centre, so on a 16:9 screen they keep retail's size and place
  * (WS_SITE_TITLE). */
-DECLARE_LVL(func_00232EF0);             /* PlayStoryTransition */
-DECLARE_LVL(func_00232A00);             /* its backdrop strip */
+DECLARE_LVL(play_level_loading_slides);        /* PlayStoryTransition */
+DECLARE_LVL(append_scrolling_textured_quad);   /* its backdrop strip */
 static const u16 story_card_sites[] = { 0x1E0, 0x228, 0x280, 0x2C0, 0x30C, 0x33C };   /* strip, picture, ... */
-DECLARE_LVL(func_001EB7C0);             /* Transition_DefaultDraw, the title screen's frame */
+DECLARE_LVL(Transition_DefaultDraw);   /* Transition_DefaultDraw, the title screen's frame */
 #define TITLE_LOGO_SITE   0x19C
 #define TITLE_START_SITE  0x210
 
@@ -1199,11 +1203,11 @@ DECLARE_LVL(func_001EB7C0);             /* Transition_DefaultDraw, the title scr
  *     registers it through the registrar 0x1B8): Pokitaru, Gemlik, Drek's
  *     fleet;
  *   - the mountable turrets' HUD, while Ratchet mans one: on Batalia,
- *     DrawCannonHud (func_L08_002E0258, registered by the cannon's update
- *     func_L08_002E16A0) draws the radar of targets bottom right, the
+ *     DrawCannonHud (draw_batalia_cannon_hud, registered by the cannon's update
+ *     update_batalia_cannon) draws the radar of targets bottom right, the
  *     32-segment radial health dial bottom left and two needles turning
- *     with the barrel at the centre; on Hoven, DrawGauge (func_L12_003055F8,
- *     registered by hoven_turret_update func_L12_00304920) draws the same
+ *     with the barrel at the centre; on Hoven, DrawGauge (draw_hoven_turret_hud,
+ *     registered by hoven_turret_update) draws the same
  *     dial and needles.
  * Their quads are 2D, so in 16:9 the dial came out a third wider than
  * tall. The registration's address is pointed at ee_ws_br_hud_NN, and the
@@ -1214,18 +1218,18 @@ DECLARE_LVL(func_001EB7C0);             /* Transition_DefaultDraw, the title scr
 static u32 callback_hud(s32 L)
 {
     switch (L) {
-    case 8:  return 0x002E0258;         /* func_L08_002E0258 */
-    case 11: return 0x00313218;         /* func_L11_00313218 */
-    case 12: return 0x003055F8;         /* func_L12_003055F8 */
-    case 13: return 0x002BAA68;         /* func_L13_002BAA68 */
-    case 17: return 0x002ED498;         /* func_L17_002ED498 */
+    case 8:  return 0x002E0258;         /* draw_batalia_cannon_hud */
+    case 11: return 0x00313218;         /* draw_ship_hud */
+    case 12: return 0x003055F8;         /* draw_hoven_turret_hud */
+    case 13: return 0x002BAA68;         /* DrawGemlikTurretHud */
+    case 17: return 0x002ED498;         /* DrawFleetHud */
     }
     return 0;
 }
 
-/* The Trespasser's puzzle (TrespasserPuzzleUpdate, func_L02_002D9F08) draws
+/* The Trespasser's puzzle (TrespasserPuzzleUpdate, tresspasser_pad_update) draws
  * its three rings, beams and markers as 2D quads about the screen's centre
- * from a draw callback (RingMarkersDraw, func_L02_002DA820) it registers each
+ * from a draw callback (RingMarkersDraw, draw_tresspasser_puzzle) it registers each
  * frame of the puzzle view (+ 0x3B0, AddDrawCallback), so in 16:9 the circles
  * came out a third wider than tall. The registration's address is pointed at
  * ee_ws_br_tres_NN and the drawing squeezed about the centre (CHAIN_PLAIN).
@@ -1233,7 +1237,7 @@ static u32 callback_hud(s32 L)
 static u32 trespasser_draw(s32 L)
 {
     switch (L) {
-    case 2:  return 0x002DA820;         /* func_L02_002DA820 */
+    case 2:  return 0x002DA820;         /* draw_tresspasser_puzzle */
     case 4:  return 0x002D67D8;
     case 6:  return 0x002E3688;
     case 8:  return 0x002F3E08;
@@ -1245,8 +1249,8 @@ static u32 trespasser_draw(s32 L)
 }
 
 /* The countdowns: the Nebula G34 warship's self-destruct (Blarg Station,
- * TimerMobyL06_Draw func_L06_00303630) and the timer moby of Quartu and
- * Drek's Fleet (TimerMoby_Draw, func_L15_002D8BB0) draw a UI frame and
+ * TimerMobyL06_Draw draw_pulsing_timer_display) and the timer moby of Quartu and
+ * Drek's Fleet (TimerMoby_Draw, draw_electric_water_countdown) draw a UI frame and
  * large centred digits from a draw callback their moby registers each frame
  * (AddDrawCallback, a lui/addiu pair of $a0 around the jal), not from a HUD
  * slot, so in 16:9 they came out a third too wide (owner, 2026-10-20).
@@ -1272,34 +1276,34 @@ void ee_ws_timer_defer_c(u32 moby, s32 L)
 static u32 timer_draw(s32 L)
 {
     switch (L) {
-    case 6:  return 0x00303630;         /* func_L06_00303630 */
-    case 15: return 0x002D8BB0;         /* func_L15_002D8BB0 */
+    case 6:  return 0x00303630;         /* draw_pulsing_timer_display */
+    case 15: return 0x002D8BB0;         /* draw_electric_water_countdown */
     case 17: return 0x002D7310;
     }
     return 0;
 }
 /* The weapon reticles: the Blaster's red aim and green target marks, the
  * RYNO's and the others. A weapon's update queues a reticle each frame
- * (func_L00_001EE2E0; NTSC
+ * (EffectQueue_Add; NTSC
  * FUN_L00_001edf60: a world point or none, colour, scale, the effect
  * texture, a rotation mode; three at most) and DrawWorld draws the queue
- * after the particles (func_001EE6E0, which OpenRAC's names call
+ * after the particles (render_queued_rotated_sprites, which OpenRAC's names call
  * DrawQueuedGlows): each reticle's world point is projected to the screen
  * (none: the screen's centre) and func_001EE3B0 (named DrawFlareSprites
  * there) draws it there as square sprites, 40 x scale pixels of the frame
- * (func_001F5E60): one turning sprite, or four pieces around the point.
+ * (append_rotated_sprite_quad): one turning sprite, or four pieces around the point.
  * The point comes from the 16:9 view and is right, but a square of frame
  * pixels shows a third wider than tall on the stretched screen. The per-reticle call is
  * bracketed and its sprites squeezed about the reticle's own centre
  * ($f12/$f13: pixels from the screen's left and top edges). */
-DECLARE_LVL(func_001EE6E0);             /* the reticle queue's draw */
-DECLARE_LVL(func_001EE3B0);             /* one reticle's draw(entry, x, y) */
+DECLARE_LVL(render_queued_rotated_sprites);   /* the reticle queue's draw */
+DECLARE_LVL(func_001EE3B0);                   /* one reticle's draw(entry, x, y) */
 #define RETICLE_SITE 0x118
 static s32 reticle_centre;              /* the reticle being drawn's x, 12.4 */
 
-DECLARE_LVL(func_00201640);
-DECLARE_LVL(func_001F5800);
-DECLARE_LVL(func_002250B8);
+DECLARE_LVL(draw_hud_rect_blended);
+DECLARE_LVL(DrawTexturedQuad);
+DECLARE_LVL(draw_menu_flashing_panel);
 
 static s32 bracket_level;
 static s32 bracket_site;
@@ -1313,7 +1317,7 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
     switch (site) {
     case WS_SITE_PAUSE_FILL:
         L = renderer_of_call(ra, 0x298, 0x250);
-        target = LVL(L, func_00201640, u32);
+        target = LVL(L, draw_hud_rect_blended, u32);
         break;
     case WS_SITE_PAUSE_DIRECT:
         L = renderer_of_call(ra, 0x388, 0x358);
@@ -1321,65 +1325,65 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
         break;
     case WS_SITE_PAUSE_QUAD:
         L = renderer_of_call(ra, 0x600, 0x5E0);
-        target = LVL(L, func_001F5800, u32);
+        target = LVL(L, DrawTexturedQuad, u32);
         break;
     case WS_SITE_PAUSE_LAST:
         L = renderer_of_call(ra, 0x698, 0x670);
-        target = LVL(L, func_002250B8, u32);
+        target = LVL(L, draw_menu_flashing_panel, u32);
         break;
     case WS_SITE_VENDOR_QUAD:
-        L = ee_level_of_call(ra, lvl_func_L00_002A0F60, 0x258);
-        target = LVL(L, func_001F5800, u32);
+        L = ee_level_of_call(ra, LVL_TABLE(draw_vendor_purchase_panel), 0x258);
+        target = LVL(L, DrawTexturedQuad, u32);
         break;
     case WS_SITE_SCREENS_QUAD_A:
-        L = ee_level_of_call(ra, lvl_func_0023AA38, 0x50C);
-        target = LVL(L, func_001F5988, u32);
+        L = ee_level_of_call(ra, LVL_TABLE(render_vendor_capture_pass_sequence), 0x50C);
+        target = LVL(L, append_subpixel_textured_screen_quad, u32);
         break;
     case WS_SITE_SCREENS_QUAD_B:
-        L = ee_level_of_call(ra, lvl_func_0023AA38, 0x568);
-        target = LVL(L, func_001F5988, u32);
+        L = ee_level_of_call(ra, LVL_TABLE(render_vendor_capture_pass_sequence), 0x568);
+        target = LVL(L, append_subpixel_textured_screen_quad, u32);
         break;
     case WS_SITE_QUIT_PROMPT:
-        L = ee_level_of_call(ra, lvl_func_L00_001F9248, 0x60);
-        target = LVL(L, func_001FBE80, u32);
+        L = ee_level_of_call(ra, LVL_TABLE(draw_dialog_background_and_text), 0x60);
+        target = LVL(L, draw_freeze_message_box, u32);
         break;
     case WS_SITE_CREDITS_NAME:
-        L = ee_level_of_call(ra, lvl_func_L00_001F92E8, 0xC8);
-        target = LVL(L, func_L00_001FCC50, u32);
+        L = ee_level_of_call(ra, LVL_TABLE(draw_framebuffer_with_timed_text), 0xC8);
+        target = LVL(L, draw_timed_text, u32);
         break;
     case WS_SITE_PLANET_NAME:
-        L = ee_level_of_call(ra, lvl_func_002305A0, 0x140);
-        target = LVL(L, func_0022FD20, u32);
+        L = ee_level_of_call(ra, LVL_TABLE(render_level_frame), 0x140);
+        target = LVL(L, draw_resident_textured_banner, u32);
         break;
     case WS_SITE_STORY_CARD: {
         s32 k;
         L = -1;
         for (k = 0; k < 6 && L < 0; k++) {
-            L = ee_program_of_call(ra, lvl_func_00232EF0, story_card_sites[k]);
+            L = ee_program_of_call(ra, LVL_TABLE(play_level_loading_slides), story_card_sites[k]);
         }
         k--;
         if (L < 0) {                                    /* never expected */
-            L = ee_level_of_call(ra, lvl_func_00232EF0, story_card_sites[0]);
+            L = ee_level_of_call(ra, LVL_TABLE(play_level_loading_slides), story_card_sites[0]);
             k = 0;
         }
-        target = (k & 1) ? LVL(L, func_001F5800, u32) : LVL(L, func_00232A00, u32);
+        target = (k & 1) ? LVL(L, DrawTexturedQuad, u32) : LVL(L, append_scrolling_textured_quad, u32);
         break;
     }
     case WS_SITE_TITLE:
-        L = ee_program_of_call(ra, lvl_func_001EB7C0, TITLE_LOGO_SITE);
+        L = ee_program_of_call(ra, LVL_TABLE(Transition_DefaultDraw), TITLE_LOGO_SITE);
         if (L < 0) {
-            L = ee_level_of_call(ra, lvl_func_001EB7C0, TITLE_START_SITE);
+            L = ee_level_of_call(ra, LVL_TABLE(Transition_DefaultDraw), TITLE_START_SITE);
         }
-        target = LVL(L, func_001F5800, u32);
+        target = LVL(L, DrawTexturedQuad, u32);
         break;
     case WS_SITE_RETICLE:
-        L = ee_level_of_call(ra, lvl_func_001EE6E0, RETICLE_SITE);
+        L = ee_level_of_call(ra, LVL_TABLE(render_queued_rotated_sprites), RETICLE_SITE);
         target = LVL(L, func_001EE3B0, u32);
         reticle_centre = SCREEN[4] + (s32)(((f32 *)ee_ws_saved_args)[16] * 16.0f);   /* the saved $f12 */
         break;
     case WS_SITE_VENDOR_HUD:
-        L = ee_level_of_call(ra, lvl_func_L00_002A1540, 0x400);
-        target = LVL(L, func_001FFFB8, u32);
+        L = ee_level_of_call(ra, LVL_TABLE(draw_vendor_screen), 0x400);
+        target = LVL(L, update_hud, u32);
         break;
     default:
         if (site >= WS_SITE_TRESPASSER) {        /* WS_SITE_TRESPASSER + level */
@@ -1460,11 +1464,11 @@ static void draw_pillars(s32 L, s32 pixels)
 
 void ee_ws_letterbox_c(u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_001F3D78, EE_SITE_WS_LETTERBOX);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_001F3D78), EE_SITE_WS_LETTERBOX);
     volatile u32 **cursor = cursor_of(L);
     volatile u32 *start = *cursor;
 
-    LVL(L, func_001F5148, VoidFn)();      /* advances the bars' line count, and draws them */
+    LVL(L, draw_letterbox_bars, VoidFn)();      /* advances the bars' line count, and draws them */
     if (ws_on()) {
         *cursor = start;                  /* in 16:9 the zoom replaces the bars */
     }
@@ -1473,13 +1477,13 @@ void ee_ws_letterbox_c(u32 ra)
 /* DrawWorld's DoGifPaging after the HUD block (every frame it draws, HUD or
  * not): the pillars of the original framing go in first, over the world and
  * under the fades that follow. */
-DECLARE_LVL(func_001F4748);            /* DoGifPaging */
+DECLARE_LVL(DoGifPaging);
 
 typedef void (*TimerFn)(u32);
 
 void ee_ws_pillars_c(u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_001F3D78, EE_SITE_WS_PILLARS);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_001F3D78), EE_SITE_WS_PILLARS);
     f32 content;
     s32 pillar;
 
@@ -1498,7 +1502,7 @@ void ee_ws_pillars_c(u32 ra)
         }
     }
     timer_level = -1;
-    LVL(L, func_001F4748, VoidFn)();
+    LVL(L, DoGifPaging, VoidFn)();
 }
 
 /* --- prerendered movies ---------------------------------------------------- */
@@ -1507,7 +1511,7 @@ void ee_ws_pillars_c(u32 ra)
  * and draws it with a fixed packet in the core, D_00151EF0 (0x25 quadwords:
  * the TEST, TEX1 and TEX0 setup, then 16 sprite strips 32 pixels wide that
  * cover the screen), REF'd from the end of the tag list setImageTag
- * (func_0023C5E0) builds for the frame. In 16:9 the movie keeps its 4:3
+ * (setImageTag) builds for the frame. In 16:9 the movie keeps its 4:3
  * picture with black bars at the sides (owner's choice): the level's call
  * of setImageTag (func_0023E298 + 0xF8) is hooked, and its last REF is sent
  * to a copy of the packet, rebuilt from the original each time, whose
@@ -1515,8 +1519,8 @@ void ee_ws_pillars_c(u32 ra)
  * sprites over the sides. The title screen's programs have their own copy
  * of the code, hooked the same way: the intro movies after New Game play
  * from there. */
-DECLARE_LVL(func_0023C5E0);           /* setImageTag(tags, frame, width, height) */
-DECLARE_LVL(func_0023E298);           /* the decoder's frame setup that calls it */
+DECLARE_LVL(setImageTag);     /* setImageTag(tags, frame, width, height) */
+DECLARE_LVL(func_0023E298);   /* the decoder's frame setup that calls it */
 
 #define MOVIE_PACKET     0x00151EF0
 #define MOVIE_QWC        0x25
@@ -1529,12 +1533,12 @@ static u32 movie_packet[4 * (MOVIE_QWC + MOVIE_BARS_QWC)] __attribute__((aligned
 
 void ee_ws_movie_tag_c(u32 tags, u32 frame, s32 width, s32 height, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_0023E298, EE_SITE_WS_MOVIE);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_0023E298), EE_SITE_WS_MOVIE);
     volatile u32 *tail, *dst, *p;
     const volatile u32 *src = (const volatile u32 *)MOVIE_PACKET;
     s32 k, x0, x1, y0, y1, xs[4];
 
-    LVL(L, func_0023C5E0, TagFn)(tags, frame, width, height);
+    LVL(L, setImageTag, TagFn)(tags, frame, width, height);
     if (WS_SETTING == 0) {
         return;
     }
@@ -1579,10 +1583,10 @@ void ee_ws_movie_tag_c(u32 tags, u32 frame, s32 width, s32 height, u32 ra)
 /* --- the credits ------------------------------------------------------------- */
 
 /* Game mode 7 (Goodies > Credits, and the ending) draws no 3D world: its
- * frame (func_L00_001F92E8) copies a full-screen picture straight into the
- * draw buffer with an IMAGE transfer (func_001F7680(source), at + 0x24;
+ * frame (draw_framebuffer_with_timed_text) copies a full-screen picture straight into the
+ * draw buffer with an IMAGE transfer (queue_framebuffer_upload(source), at + 0x24;
  * the buffer's byte address is D_0015EF84), fades it, and draws the name
- * tags (func_L00_001FCC50, at + 0xC8, inside a paging pair). A copy into
+ * tags (draw_timed_text, at + 0xC8, inside a paging pair). A copy into
  * the frame cannot be drawn narrower, so in 16:9 the picture goes into the
  * Z buffer's memory instead (nothing in this mode draws in 3D), is drawn
  * from there as a texture into the middle 3/4 of the frame with Z writes
@@ -1590,7 +1594,7 @@ void ee_ws_movie_tag_c(u32 tags, u32 frame, s32 width, s32 height, u32 ra)
  * with an IMAGE transfer of zeros, so the name tags' depth test finds what
  * a cleared buffer holds. The name tags are squeezed like any 2D. The
  * frame's ResetGsRegisters (+ 0x94) puts TEST back before the name tags. */
-DECLARE_LVL(func_001F7680);             /* the credits' picture: IMAGE copy into the draw buffer */
+DECLARE_LVL(queue_framebuffer_upload);   /* the credits' picture: IMAGE copy into the draw buffer */
 typedef void (*PictureFn)(u32);
 #define CREDITS_PICTURE_SITE 0x24
 #define DRAW_BUFFER         (*(volatile u32 *)0x0015EF84)
@@ -1613,14 +1617,14 @@ static volatile u32 *ad(volatile u32 *p, u32 addr, u32 lo, u32 hi)
 
 void ee_ws_credits_picture_c(u32 source, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_001F92E8, CREDITS_PICTURE_SITE);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(draw_framebuffer_with_timed_text), CREDITS_PICTURE_SITE);
     volatile u32 **cursor;
     volatile u32 *p, *tag;
     u32 saved, zbp, zbuf, zblock;
     s32 left, right, top, bottom, h, qw, done, k, n;
 
     if (!ws_on()) {
-        LVL(L, func_001F7680, PictureFn)(source);
+        LVL(L, queue_framebuffer_upload, PictureFn)(source);
         return;
     }
     zbp = FRAME_ZBP;
@@ -1628,7 +1632,7 @@ void ee_ws_credits_picture_c(u32 source, u32 ra)
     zblock = zbp * 32;                          /* 8 KB pages, 256-byte blocks */
     saved = DRAW_BUFFER;
     DRAW_BUFFER = zbp * 8192;
-    LVL(L, func_001F7680, PictureFn)(source);   /* the picture into the Z memory */
+    LVL(L, queue_framebuffer_upload, PictureFn)(source);   /* the picture into the Z memory */
     DRAW_BUFFER = saved;
 
     cursor = cursor_of(L);
@@ -1726,7 +1730,7 @@ void ee_ws_credits_picture_c(u32 source, u32 ra)
  * reset in them goes to their stub (src/ws_hooks.s), which passes the
  * program. A Randomizer new game writes its record after the same reset
  * (src/randomizer_save.c). */
-DECLARE_LVL(func_00209DC0);             /* the game-state reset */
+DECLARE_LVL(func_00209DC0);   /* the game-state reset */
 
 void ee_fe_reset_c(s32 L)
 {

@@ -41,7 +41,7 @@
 #define MODE_PAUSE      3
 #define LEVELS          19
 
-DECLARE_LVL_DATA(game_mode);            /* D_0015F6E8: 0 play, 2 cinematic, 3 pause */
+DECLARE_LVL_DATA(game_mode);   /* D_0015F6E8: 0 play, 2 cinematic, 3 pause */
 
 /* The game's words (tools/gen_randomizer.py, build/modseg/gen_rz.c), by language: offsets into ee_rz_words,
  * which holds them NUL-ended and comes from the player's disc, NO_WORD where a language lacks one. */
@@ -173,7 +173,7 @@ void rz_show_item_banner(s32 check, s32 item, s32 L)
     s32 template = how == RZ_HOW_WON ? EE_TEXT_RZ_WON : how == RZ_HOW_GOT ? EE_TEXT_RZ_GOT : EE_TEXT_RZ_FOUND;
     if (item >= RZ_INFOBOT_NOVALIS && item <= RZ_INFOBOT_VELDIN) {
         append(banner_text, BANNER_MAX, 0, word(ee_rz_infobot_banners[item - RZ_INFOBOT_NOVALIS]));
-        LVL(L, func_L00_00264DB8, BannerFn)(EE_TEXT_RZ_BANNER, BANNER_TICKS);
+        LVL(L, ShowBanner, BannerFn)(EE_TEXT_RZ_BANNER, BANNER_TICKS);
         return;
     }
     name[0] = 0;
@@ -188,7 +188,7 @@ void rz_show_item_banner(s32 check, s32 item, s32 L)
         append(name, NAME_MAX, 0, display_name(item));
     }
     fill_template(ee_msg_string_edition(template), name);
-    LVL(L, func_L00_00264DB8, BannerFn)(EE_TEXT_RZ_BANNER, BANNER_TICKS);
+    LVL(L, ShowBanner, BannerFn)(EE_TEXT_RZ_BANNER, BANNER_TICKS);
 }
 
 /* --- the prompts --------------------------------------------------------------------------------------------- */

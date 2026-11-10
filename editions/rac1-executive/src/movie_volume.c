@@ -9,7 +9,7 @@
  * nothing else uses that group: bank sounds play in groups 0 and 4, music in
  * 1, dialogue streams in 2 (OpenRAC docs/engine/systems/AUDIO.md). Retail
  * sets group 5 to the sound effects volume. Only three calls ever set a
- * group's level (snd_SetMasterVolume, func_0012E348): Sound_InitState, the
+ * group's level (snd_SetMasterVolume): Sound_InitState, the
  * per-frame sound_update and the end of the movie loop, each once for group
  * 5; those go to ee_movie_group_volume, which sends the movie volume.
  *
@@ -45,8 +45,8 @@
  * update does every frame, on the title screen too.
  *
  * The page. Its widget (level data in every level, the boot executable's
- * and frontbin's own data on the title screen) calls input func_0021DB30
- * (Pause_SoundOptionsInput) and draw func_0021DE08 (DrawSoundMenu);
+ * and frontbin's own data on the title screen) calls input sound_options_menu
+ * (Pause_SoundOptionsInput) and draw DrawSoundMenu;
  * tools/gen_menu.py and tools/gen_frontend.py find it and point both at the
  * program's stubs in src/movie_hooks.s, which pass the program's number
  * (0-18 a level, FE_BOOT/FE_BIN the title screen). These are retail's two
@@ -56,21 +56,21 @@
  * orange bar is icon EE_ICON_MOVIE_BAR (src/hud_icons.c). */
 #include "modseg.h"
 
-extern void func_0012E348(s32 group, s32 volume);   /* snd_SetMasterVolume (core) */
-extern void func_0012E380(s32 mono);                /* snd_SetPlaybackMode (core) */
+extern void snd_SetMasterVolume(s32 group, s32 volume);   /* snd_SetMasterVolume (core) */
+extern void snd_SetPlaybackMode(s32 mono);                /* snd_SetPlaybackMode (core) */
 const char *ee_msg_string_edition(s32 id);          /* src/text.c */
 extern const int ee_text_first;
 
-DECLARE_LVL(func_0022ED80);       /* menu sound(kind, id, moby) */
-DECLARE_LVL(func_001F4630);       /* setup_gif_paging(0) */
-DECLARE_LVL(func_001F4748);       /* do_gif_paging() */
-DECLARE_LVL(func_001FE540);       /* msg_string(id) */
-DECLARE_LVL(func_001F6CF8);       /* font_print_right(x, y, colour, text, limit) */
-DECLARE_LVL(func_001F68E8);       /* font_print_large(x, y, colour, text, limit) */
-DECLARE_LVL(func_00200198);       /* GetIconFrame(icon, sub) */
-DECLARE_LVL(func_00201190);       /* a textured HUD quad, coordinates in 1/16 pixel */
-DECLARE_LVL(func_00201640);       /* a filled rectangle */
-DECLARE_LVL_DATA(menu_state);     /* D_001D5F70: +4 the current page, +8 the next, +0x124 the close lock */
+DECLARE_LVL(Moby_PlaySound);          /* menu sound(kind, id, moby) */
+DECLARE_LVL(SetupGifPaging);          /* SetupGifPaging(0) */
+DECLARE_LVL(DoGifPaging);
+DECLARE_LVL(msg_string);              /* msg_string(id) */
+DECLARE_LVL(font_print_right);        /* font_print_right(x, y, colour, text, limit) */
+DECLARE_LVL(FontPrintLarge);          /* FontPrintLarge(x, y, colour, text, limit) */
+DECLARE_LVL(GetIconFrame);            /* GetIconFrame(icon, sub) */
+DECLARE_LVL(draw_hud_sprite_rect);    /* a textured HUD quad, coordinates in 1/16 pixel */
+DECLARE_LVL(draw_hud_rect_blended);   /* a filled rectangle */
+DECLARE_LVL_DATA(menu_state);         /* D_001D5F70: +4 the current page, +8 the next, +0x124 the close lock */
 
 
 typedef void (*SoundFn)(s32, s32, u32);
@@ -145,21 +145,21 @@ void ee_movie_group_volume(s32 group, s32 volume)
     } else if (cutscene && group == 4) {
         volume = movie_volume() * 7 / 10;
     }
-    func_0012E348(group, volume);
+    snd_SetMasterVolume(group, volume);
 }
 
 /* The cutscene branch's groups 0 and 3, which retail halves there. */
 void ee_volume_cutscene(s32 group, s32 volume)
 {
     cutscene = 1;
-    func_0012E348(group, (movie_volume() * (group == 0 ? 8 : 7) / 10) >> 1);
+    snd_SetMasterVolume(group, (movie_volume() * (group == 0 ? 8 : 7) / 10) >> 1);
 }
 
 /* The other branch's group 0, as retail sends it. */
 void ee_volume_play(s32 group, s32 volume)
 {
     cutscene = 0;
-    func_0012E348(group, volume);
+    snd_SetMasterVolume(group, volume);
 }
 
 static s32 step(s32 v, s32 d)
@@ -170,7 +170,7 @@ static s32 step(s32 v, s32 d)
 
 static const char *text(s32 L, s32 id)
 {
-    return id >= ee_text_first ? ee_msg_string_edition(id) : LVL(L, func_001FE540, MsgFn)(id);
+    return id >= ee_text_first ? ee_msg_string_edition(id) : LVL(L, msg_string, MsgFn)(id);
 }
 
 /* Pause_SoundOptionsInput with the Movie volume row. 1 closes the menu,
@@ -205,7 +205,7 @@ s32 ee_sound_input_c(u8 *w, s32 L)
         *row = (*row + 1) % ROWS;
     }
     if (*row != previous || *(s32 *)(page + 0x80) != 0) {
-        LVL(L, func_0022ED80, SoundFn)(1, 0x11, W_OWNER(w));
+        LVL(L, Moby_PlaySound, SoundFn)(1, 0x11, W_OWNER(w));
     }
 
     sfx = SFX_VOLUME;
@@ -239,8 +239,8 @@ s32 ee_sound_input_c(u8 *w, s32 L)
         if (*row == ROW_STEREO) {
             STEREO = !STEREO;
         }
-        func_0012E380(!STEREO);
-        LVL(L, func_0022ED80, SoundFn)(0, 0x11, W_OWNER(w));
+        snd_SetPlaybackMode(!STEREO);
+        LVL(L, Moby_PlaySound, SoundFn)(0, 0x11, W_OWNER(w));
     }
     return 0;
 }
@@ -255,27 +255,28 @@ s32 ee_sound_draw_c(u8 *w, s32 L)
     s32 cx = width >> 1;
     s32 r;
 
-    LVL(L, func_001F4630, GifFn)(0);
+    LVL(L, SetupGifPaging, GifFn)(0);
     for (r = 0; r < ROWS; r++) {
         static const u16 labels[ROWS] = { TEXT_SFX, TEXT_MUSIC, EE_TEXT_MOVIE_VOLUME, TEXT_STEREO };
         s32 y = height * (r + 1) / (ROWS + 1);
         u64 colour = W_ROW(w) == r ? COLOUR_SELECTED : COLOUR_ROW;
-        LVL(L, func_001F6CF8, FontFn)(cx - 8, y - 8, colour, text(L, labels[r]), -1);
+        LVL(L, font_print_right, FontFn)(cx - 8, y - 8, colour, text(L, labels[r]), -1);
         if (r == ROW_STEREO) {
-            LVL(L, func_001F68E8, FontFn)(cx + 8, y - 8, COLOUR_ROW, text(L, STEREO != 0 ? TEXT_STEREO_ON : TEXT_MONO), -1);
+            LVL(L, FontPrintLarge, FontFn)(cx + 8, y - 8, COLOUR_ROW,
+                                           text(L, STEREO != 0 ? TEXT_STEREO_ON : TEXT_MONO), -1);
         } else {
             s32 volume = r == ROW_SFX ? SFX_VOLUME : r == ROW_MUSIC ? MUSIC_VOLUME : movie_volume();
-            s32 frame = r == ROW_MOVIE ? LVL(L, func_00200198, FrameFn)(EE_ICON_MOVIE_BAR, 0) : 0;
+            s32 frame = r == ROW_MOVIE ? LVL(L, GetIconFrame, FrameFn)(EE_ICON_MOVIE_BAR, 0) : 0;
             s32 length = (width - (cx + 0x4A)) * volume / 1024;
             if (frame == 0) {          /* the movie bar's icon missing: green, as retail drew this volume */
-                frame = LVL(L, func_00200198, FrameFn)(ICON_SLIDER, r == ROW_MUSIC ? 9 : 8);
+                frame = LVL(L, GetIconFrame, FrameFn)(ICON_SLIDER, r == ROW_MUSIC ? 9 : 8);
             }
-            LVL(L, func_00201640, RectFn)(cx + 7, y - 8, width - 0x3F, y + 8, 0x80696969u, 0);
-            LVL(L, func_00201640, RectFn)(cx + 9, y - 6, width - 0x41, y + 6, 0x80383838u, 0);
-            LVL(L, func_00201190, QuadFn)(frame, (cx + 9) << 4, (y - 6) << 4, (cx + 8 + length) << 4, (y + 5) << 4,
-                                  0, 0xA0, 0x1F0, 0x150, 0x80);
+            LVL(L, draw_hud_rect_blended, RectFn)(cx + 7, y - 8, width - 0x3F, y + 8, 0x80696969u, 0);
+            LVL(L, draw_hud_rect_blended, RectFn)(cx + 9, y - 6, width - 0x41, y + 6, 0x80383838u, 0);
+            LVL(L, draw_hud_sprite_rect, QuadFn)(frame, (cx + 9) << 4, (y - 6) << 4, (cx + 8 + length) << 4,
+                                                 (y + 5) << 4, 0, 0xA0, 0x1F0, 0x150, 0x80);
         }
     }
-    LVL(L, func_001F4748, VoidFn)();
+    LVL(L, DoGifPaging, VoidFn)();
     return 2;
 }

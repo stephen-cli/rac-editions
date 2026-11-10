@@ -6,10 +6,10 @@
  *
  * How the game plays a line. A HelpDesk line belongs to a string of the loaded
  * text table (D_0015F780, entries {text, id, voice, 0}): when a help popup
- * opens, Help_Update (func_001FE6C0) takes the entry's voice and queues
+ * opens, Help_Update takes the entry's voice and queues
  * voice + 30000 on the dialogue player (D_001517D0 + 0x1C), and
- * music_start_track_by_id (func_002167C0) passes ids from 30000 to
- * Music_PlayId30000 (func_00216528), which streams the VAG whose first sector
+ * music_start_track_by_id passes ids from 30000 to
+ * Music_PlayId30000 (music_start_track_30000), which streams the VAG whose first sector
  * is the word at 0x11C278 + id * 4 + language * 600: the disc's help-audio
  * table (table of contents + 0x1AB8, copied to 0x137C80 at boot), 150 slots
  * per language, in language order. While the line plays, Help_Update keeps

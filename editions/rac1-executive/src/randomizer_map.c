@@ -3,8 +3,8 @@
  * tools/gen_randomizer.py lists them, ee_rz_map_icons) shows the map's own
  * quest marker, the "?" of the planet's other missions, while that reward is
  * an uncollected check of the planet the map shows. DrawMapView
- * (func_00205E70), which draws the pause map and nothing else, asks
- * GetIconFrame (func_00200198) for each marker's frame, once for its bounds
+ * (draw_map_overlay), which draws the pause map and nothing else, asks
+ * GetIconFrame for each marker's frame, once for its bounds
  * and once for its sprite; the map's own frames and the hero's arrow go
  * through the same calls and pass. A marker showing another planet's
  * reward (Pokitaru's Raritanium, the Persuader's trade) is a prerequisite
@@ -28,7 +28,7 @@
 #define ICON_LIST_END       0x4
 #define ICON_BACKDROP       0x40
 
-DECLARE_LVL_DATA(map_state);            /* D_001A01F0 in the executable: + 0x20 the shown map's icons */
+DECLARE_LVL_DATA(map_state);   /* D_001A01F0 in the executable: + 0x20 the shown map's icons */
 
 /* For the PINE test scripts: frames swapped for the quest marker; the last icon swapped. */
 volatile u32 ee_debug_rz_map[2];
@@ -67,10 +67,10 @@ s32 ee_rz_map_icon_c(s32 icon, s32 frame, s32 L)
             if (hidden) {
                 ee_debug_rz_map[0]++;
                 ee_debug_rz_map[1] = (u32)icon;
-                return LVL(L, func_00200198, IconFn)(MAP_MARKERS, QUEST_MARKER);
+                return LVL(L, GetIconFrame, IconFn)(MAP_MARKERS, QUEST_MARKER);
             }
             break;
         }
     }
-    return LVL(L, func_00200198, IconFn)(icon, frame);
+    return LVL(L, GetIconFrame, IconFn)(icon, frame);
 }

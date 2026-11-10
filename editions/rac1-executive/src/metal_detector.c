@@ -1,8 +1,8 @@
 /* x4: the Metal Detector pays 10x in challenge mode, and 20x in a Randomizer save.
  *
- * The detector's update function (class 585, func_L00_002D4398) drains a
+ * The detector's update function (class 585, metal_detector_update) drains a
  * hidden spot's bolt count in steps of 5, spawning one bolt per step with
- * func_L00_002A86D8(spot, pos, dir, 0x13, value, 0). The spawner knows the
+ * spawn_bolt_by_value(spot, pos, dir, 0x13, value, 0). The spawner knows the
  * denominations 1-5, 20 and 50 (each its own bolt model), so in a
  * challenge-mode run each 5-bolt hexnut becomes a 50-bolt circlenut: exactly
  * 10x, 174,600 bolts over the 358 spots of the 19 levels. The stashes pay
@@ -21,8 +21,8 @@
  * running level). */
 #include "modseg.h"
 
-DECLARE_LVL(func_L00_002D4398);        /* the detector's update: the hooked call site is in it */
-DECLARE_LVL(func_L00_002A86D8);        /* the bolt spawner */
+DECLARE_LVL(metal_detector_update);   /* the detector's update: the hooked call site is in it */
+DECLARE_LVL(spawn_bolt_by_value);     /* the bolt spawner */
 typedef void (*SpawnBolt)(void *spot, void *pos, void *dir, s32 kind, s32 value, s32 flag);
 
 #define STEP_BOLTS      5               /* retail: a hexnut per step */
@@ -30,8 +30,8 @@ typedef void (*SpawnBolt)(void *spot, void *pos, void *dir, s32 kind, s32 value,
 
 void ee_metal_detector_spawn_c(void *spot, void *pos, void *dir, s32 kind, s32 value, s32 flag, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_002D4398, EE_SITE_DETECTOR_SPAWN);
-    SpawnBolt spawn = LVL(L, func_L00_002A86D8, SpawnBolt);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(metal_detector_update), EE_SITE_DETECTOR_SPAWN);
+    SpawnBolt spawn = LVL(L, spawn_bolt_by_value, SpawnBolt);
     if (value == STEP_BOLTS && ee_rz_active()) {
         spawn(spot, pos, dir, kind, CIRCLENUT, flag);
         value = CIRCLENUT;

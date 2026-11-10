@@ -4,7 +4,7 @@
  * first frame}, frame references {palette page, image page} and two page
  * tables {source address, GS block, log2 width, log2 height}. Each level's
  * data archive carries its own copy of the header (and of the banks); the
- * level loader (func_002032D0, load_hud_banks) allocates ALIGN64(size)
+ * level loader (LoadHudBanks) allocates ALIGN64(size)
  * bytes, copies the archive's header there and points the HUD arena
  * (D_0019A4E8 + 0x1C..0x28) at the four tables through the header's own
  * offsets (+0x04..+0x10). The copies differ between levels (some levels
@@ -20,7 +20,7 @@
  * The icon's two image pages are inserted at the end of bank 1's page
  * range (header +0x38; bank 1 holds the menu icons), the later banks'
  * pages, their frame references and the range ends shifting by two.
- * Being inside a counted range matters: SetupGifPaging(0) (func_001F4630)
+ * Being inside a counted range matters: SetupGifPaging(0)
  * clears the GS block of every image page below the last range end
  * before each menu draw, since GetFrameTex's allocations are transient,
  * and a page past the ranges kept a stale block and showed whatever
@@ -82,8 +82,8 @@ struct HudArena {
  * has a different address in every level: the link hook learns its level
  * from its call site and reads the arena's address from the level table
  * (tools/modseg.py LEVEL_DATA hud_arena, from the loader's own lui/addiu). */
-DECLARE_LVL(func_002032D0);             /* load_hud_banks: the hooked call sites are in it */
-DECLARE_LVL_DATA(hud_arena);            /* the arena: header pointer at +0x18, tables at +0x1C.. */
+DECLARE_LVL(LoadHudBanks);     /* LoadHudBanks: the hooked call sites are in it */
+DECLARE_LVL_DATA(hud_arena);   /* the arena: header pointer at +0x18, tables at +0x1C.. */
 /* The title screen's two programs load their HUD with their own copies of the
  * loader, hooked the same way (tools/gen_frontend.py), so the Sound page's
  * movie bar is there too. */
@@ -255,12 +255,12 @@ void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size)
     ee_bar_palette = pal_at;
 }
 
-/* LinkHudBank(bank, address), as retail's func_001FF7F0: records the
+/* LinkHudBank(bank, address), as retail's own: records the
  * bank's address and adds it to the source offsets of the bank's palette
  * and image pages, once. Then the edition's pages get their real source. */
 void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_002032D0, EE_SITE_HUD_LINK_BANK);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(LoadHudBanks), EE_SITE_HUD_LINK_BANK);
     u8 *header = ARENA_OF(L).header;
     u32 *slot = HEADER_BANKS(header) + bank;
     s32 *pal_ends = HEADER_PAL_ENDS(header);

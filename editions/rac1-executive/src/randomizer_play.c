@@ -3,13 +3,13 @@
  * item (src/randomizer_play.h for the other files).
  *
  * What a check is in the game. Every gadget and weapon the game gives goes
- * through GiveItem (func_L00_002618D8: marks the item owned and "had",
+ * through GiveItem (grant_inventory_item: marks the item owned and "had",
  * raises its ammo, shows its "You got the ..." banner, puts it on the quick
  * select and in the hand), from characters, pickups and the Gadgetron vendor
- * alike; every infobot ends in UnlockPlanet (func_L00_00261848: the planet's
+ * alike; every infobot ends in unlock_planet (the planet's
  * byte in PLANETS, the galaxy list, the "Infobot for Planet ... acquired"
  * banner); a Gold Bolt sets its spot's byte in GOLD_FLAGS and saves
- * (GoldBoltUpdate, func_L01_00309078); the Zoomerator, the Raritanium, the
+ * (gold_bolt_update); the Zoomerator, the Raritanium, the
  * Codebot and the two Nanotech upgrades set a byte of FLAGS. The item a check
  * gives in retail names the check (src/randomizer.c: every item is given
  * once), a Gold Bolt spot its level and flag, an infobot the planet it
@@ -41,7 +41,7 @@
  * locks, the galactic map, the HelpDesk) updates outside those mobys and sees
  * the truth. The special items' givers write their flag under the view: a
  * byte that turned 1 is the check collected (the Rilgar race's host,
- * func_L05_00317F80, sets the Zoomerator's at the win and shows "You won a
+ * update_hoverboard_girl, sets the Zoomerator's at the win and shows "You won a
  * Platinum Zoomerator!" right after, which becomes the Randomizer's banner).
  *
  * Receiving. A gadget or weapon: GiveItem, with the Randomizer's banner in
@@ -54,13 +54,13 @@
  * collected and received, so a check gives its item once. */
 #include "randomizer_play.h"
 
-DECLARE_LVL(func_L00_002618D8);         /* GiveItem(item_id, flag) */
-DECLARE_LVL(func_L00_00261848);         /* UnlockPlanet(planet) */
-DECLARE_LVL(func_L00_00263DB0);         /* ShowPlanetBanner(planet) */
-DECLARE_LVL(func_0020BFC8);             /* memcard_Save(slot, flags) */
-DECLARE_LVL(func_002160E0);             /* count_nonzero_entries_up_to_40: the Gold Bolts collected */
-DECLARE_LVL(func_0020D678);             /* DeleteMoby(moby) */
-DECLARE_LVL(func_L00_0023D9C0);         /* InitLevelResidentState: a level's load, a reload of the same level too */
+DECLARE_LVL(grant_inventory_item);             /* GiveItem(item_id, flag) */
+DECLARE_LVL(unlock_planet);                    /* unlock_planet(planet) */
+DECLARE_LVL(queue_planet_unlock_message);      /* ShowPlanetBanner(planet) */
+DECLARE_LVL(memcard_Save);                     /* memcard_Save(slot, flags) */
+DECLARE_LVL(count_nonzero_entries_up_to_40);   /* count_nonzero_entries_up_to_40: the Gold Bolts collected */
+DECLARE_LVL(DeleteMoby);                       /* DeleteMoby(moby) */
+DECLARE_LVL(init_level_runtime_state);         /* a level's load, a reload of the same level too */
 typedef void (*GiveFn)(s32, s32);
 typedef void (*PlanetFn)(s32);
 typedef s32 (*SaveFn)(s32, s32);
@@ -75,9 +75,9 @@ typedef void (*DeleteFn)(void *);
 
 /* Helga on Kerwan and her lift (ee_rz_moby_update_c). */
 #define KERWAN          3
-#define HELGA_CLASS     890             /* QuestGiverUpdate, func_L03_002DBC38: Helga, who sells the Swingshot */
+#define HELGA_CLASS     890             /* QuestGiverUpdate, helga_update: Helga, who sells the Swingshot */
 #define HELGA_LIFT      0xD4            /* her pvars: the moby index of the rail lift she is linked to */
-#define LIFT_CLASS      0x3F4           /* RailLiftUpdate, func_L03_002DE088: the lift back to the ship */
+#define LIFT_CLASS      0x3F4           /* RailLiftUpdate, update_rail_lift: the lift back to the ship */
 #define LIFT_AUTOSTART  0x8C            /* its pvars: start without waiting for the trigger volume */
 #define SWINGSHOT_ID    12
 
@@ -97,8 +97,8 @@ static s32 active;                      /* the game in memory is a Randomizer sa
 static s32 active_level = -1;           /* the level `active` was read for */
 
 /* Start skips cutscenes and movies (rz: Challenge Mode's skip). The in-level
- * cutscene update (CutsceneModeUpdate, func_L00_0029A300) and the movie
- * player (read_mpeg, func_0023B740) let Start alone end a cutscene when the
+ * cutscene update (CutsceneModeUpdate, update_cutscene_playback) and the movie
+ * player (read_mpeg) let Start alone end a cutscene when the
  * Challenge Mode flag D_0015EFA0 is set, the game has been completed
  * (D_0015EF20 > 0), a level is loading or no level is loaded; otherwise all
  * four shoulder buttons must be held with it. tools/overlay_patch.py
@@ -127,9 +127,9 @@ static s32 last_check;                  /* that check, */
 static s32 last_item;                   /* and its item */
 static s32 granted = -1;                /* the check collected during the moby update under way, -1 none */
 
-/* The Nanotech vendor (NanotechVendorUpdate, func_L10_002E9718) sets the upgrade's flag at the purchase, and on a
- * later update autosaves and shows "Premium Nanotech acquired" (or the Ultra's) through ShowBanner, which would
- * replace the banner of the item its check gave. That ShowBanner call is hooked too (tools/gen_randomizer.py,
+/* The Nanotech vendor (NanotechVendorUpdate, nanotech_upgrade_vendor_update) sets the upgrade's flag at the purchase,
+ * and on a later update autosaves and shows "Premium Nanotech acquired" (or the Ultra's) through ShowBanner, which
+ * would replace the banner of the item its check gave. That ShowBanner call is hooked too (tools/gen_randomizer.py,
  * FLAG_BANNER_FUNCTIONS) and shows the Randomizer's banner for the check instead. */
 #define TEXT_PREMIUM_BOUGHT 0x271C
 #define TEXT_ULTRA_BOUGHT   0x271D
@@ -312,7 +312,7 @@ static void view_restore(s32 L)
 /* --- receiving ------------------------------------------------------------------------------------------------- */
 
 /* What Ratchet wears on his head: GiveItem(item, 1) puts a helmet there (the O2 Mask, the Pilot's Helmet). The
- * Pilot's Helmet pickup on Gaspar (Moby1290Update, func_L00_002E1850) also writes the Pilot's Helmet there itself
+ * Pilot's Helmet pickup on Gaspar (Moby1290Update, pilots_helmet_update) also writes the Pilot's Helmet there itself
  * after its GiveItem, whatever that gave, so after a giver's update the slot goes back to what the grant left
  * unless the helmet is really owned. */
 #define HEAD_GEAR       (*(volatile s32 *)0x00141510)
@@ -334,7 +334,7 @@ static void receive(s32 check, s32 item, s32 L)
         s32 planet = item - RZ_INFOBOT_NOVALIS + 1;
         s32 silent = PLANETS[planet] || planet == CURRENT_LEVEL;    /* UnlockPlanet shows no banner for these */
         pending_item = item;
-        LVL(L, func_L00_00261848, PlanetFn)(planet);
+        LVL(L, unlock_planet, PlanetFn)(planet);
         pending_item = RZ_ITEM_NONE;
         if (silent) {
             rz_show_item_banner(check, item, L);
@@ -362,7 +362,7 @@ static void receive(s32 check, s32 item, s32 L)
     } else if (rz_item_game_id(item) >= 0) {
         pending_item = item;
         pending_banner_shown = 0;
-        LVL(L, func_L00_002618D8, GiveFn)(rz_item_game_id(item), 1);
+        LVL(L, grant_inventory_item, GiveFn)(rz_item_game_id(item), 1);
         pending_item = RZ_ITEM_NONE;
         if (!pending_banner_shown) {
             rz_show_item_banner(check, item, L);    /* GiveItem shows none for an item its level has no banner for */
@@ -398,7 +398,7 @@ void ee_rz_give_item_c(s32 item_id, s32 flag, s32 L)
     s32 check = active ? check_of_item_id(item_id) : -1;
     const struct RzCheck *row;
     if (check < 0) {
-        LVL(L, func_L00_002618D8, GiveFn)(item_id, flag);
+        LVL(L, grant_inventory_item, GiveFn)(item_id, flag);
         return;
     }
     row = rz_check(check);
@@ -416,7 +416,7 @@ void ee_rz_unlock_planet_c(s32 planet, s32 L)
     s32 is_check = active && planet != CURRENT_LEVEL && planet >= 2 && planet <= 18;
     s32 check = is_check ? check_of_planet(planet) : -1;
     if (check < 0) {
-        LVL(L, func_L00_00261848, PlanetFn)(planet);
+        LVL(L, unlock_planet, PlanetFn)(planet);
         return;
     }
     suppress_planet_banner = planet;
@@ -457,7 +457,7 @@ void ee_rz_item_banner_c(s32 text, s32 ticks, s32 L)
             return;
         }
     }
-    LVL(L, func_L00_00264DB8, BannerFn)(text, ticks);
+    LVL(L, ShowBanner, BannerFn)(text, ticks);
 }
 
 /* ShowPlanetBanner(planet): none for a planet whose unlock was a check just redirected; the Randomizer's own banner
@@ -472,7 +472,7 @@ void ee_rz_planet_banner_c(s32 planet, s32 L)
         rz_show_item_banner(pending_check, pending_item, L);
         return;
     }
-    LVL(L, func_L00_00263DB0, PlanetFn)(planet);
+    LVL(L, queue_planet_unlock_message, PlanetFn)(planet);
 }
 
 /* Every memcard_Save(slot, flags) call in a level's code: the givers' autosaves (a pickup's, Helga's, the Nanotech
@@ -502,7 +502,7 @@ s32 ee_rz_save_c(s32 slot, s32 flags, s32 L)
     if (was_on) {
         view_restore(L);
     }
-    result = LVL(L, func_0020BFC8, SaveFn)(slot, flags);
+    result = LVL(L, memcard_Save, SaveFn)(slot, flags);
     if (was_on) {
         view_apply(L);
     }
@@ -516,7 +516,7 @@ s32 ee_rz_gold_count_c(s32 L)
     if (active) {
         return ee_rz_gold_received();
     }
-    return LVL(L, func_002160E0, CountFn)();
+    return LVL(L, count_nonzero_entries_up_to_40, CountFn)();
 }
 
 /* --- the O2 Mask early ----------------------------------------------------------------------------------------- */
@@ -536,8 +536,8 @@ s32 ee_rz_gold_count_c(s32 L)
  * from MOBY_TABLE to MOBYS_PLACED_END), not the update list: a moby joins that list at its first update, and the
  * gadgebot door and Clank, too far from the landing site, had not had one yet.
  *
- * The Clank section's lab doors (class 1015, HeightGlideUpdate, func_L10_002DA468) open when a gadgebot lock
- * (class 1302, func_L06_00309170) or a pressure button (class 1031, func_L10_002DA678) moves them from state 2
+ * The Clank section's lab doors (class 1015, HeightGlideUpdate, lab_door_update) open when a gadgebot lock
+ * (class 1302, bot_door_lock_update) or a pressure button (class 1031, button_1031_update) moves them from state 2
  * (shut) to 3 (rising; 4 open). Both count as done once their level trigger is: a button every frame, a lock once,
  * at its second update, for the doors that are in state 2 by then. A door starts in state 0, reaching 2 at its
  * own first update, and the door behind lock 66 (uid 1) had not had it when its lock fired: it stayed shut for
@@ -552,7 +552,7 @@ static void delete_mobys_with_uid(s32 uid, s32 L)
     u32 moby;
     for (moby = MOBY_TABLE(L); moby < MOBYS_PLACED_END(L); moby += MOBY_SIZE) {
         if (MOBY_STATE(moby) >= 0 && MOBY_UID(moby) == uid) {
-            LVL(L, func_0020D678, DeleteFn)((void *)moby);
+            LVL(L, DeleteMoby, DeleteFn)((void *)moby);
         }
     }
 }
@@ -593,13 +593,13 @@ static void o2_early_fixes(s32 L)
     }
 }
 
-/* Umbris's end. Its scene controller (class 436, func_L07_002F6F20) waits in state 8 for the Snagglebeast dead and
- * Ratchet in the hangar's volume (cuboid 29, which reaches some 13 units before the infobot), then hides the
+/* Umbris's end. Its scene controller (class 436, update_umbris_scene_progression) waits in state 8 for the Snagglebeast
+ * dead and Ratchet in the hangar's volume (cuboid 29, which reaches some 13 units before the infobot), then hides the
  * infobot, plays two scenes and a movie, unlocks Batalia itself (UnlockPlanet(8), the check's giver), saves and
- * flies Ratchet to Batalia (func_0022F4A0). With the check holding another item, the item was given before Ratchet
- * reached it and the flight went to Batalia regardless. So the controller is held in state 8, and the hangar's
- * infobot is taken as a world infobot (src/randomizer_world.c). Retail lets Ratchet out of the pit and into the
- * hangar only on a later visit: the exit lift (class 1474) is placed only by a load with the boss's trigger 2 done
+ * flies Ratchet to Batalia (initialize_global_state_entry). With the check holding another item, the item was given
+ * before Ratchet reached it and the flight went to Batalia regardless. So the controller is held in state 8, and the
+ * hangar's infobot is taken as a world infobot (src/randomizer_world.c). Retail lets Ratchet out of the pit and into
+ * the hangar only on a later visit: the exit lift (class 1474) is placed only by a load with the boss's trigger 2 done
  * (its record's flags: 0x2 and not 0x1), and it and the hangar door (class 1128) read the level's triggers as the
  * level loaded them (mission_state), the lift showing and the door shutting for good once trigger 2 is done. So the
  * lift's record is placed at every load (ee_rz_place_mobys_c: flag 0x1, placed while the trigger is open too), the
@@ -612,9 +612,9 @@ static void o2_early_fixes(s32 L)
  * With the boss beaten, a pad whose save bit is clear is switched on as that cuboid would: its save bit, so the pads
  * are on at every later visit, then the pad and its glow shown. (A pad's switching on also wakes its partner, state
  * 1 but hidden and unsaved, so the test is the bit's.) */
-DECLARE_LVL_DATA(mission_state);        /* the level's triggers as the level loaded them */
-DECLARE_LVL(func_L01_00309F00);         /* the teleporter pad's switching on: its save bit */
-DECLARE_LVL(func_L01_0030AC10);         /* the teleporter pad and its glow shown */
+DECLARE_LVL_DATA(mission_state);             /* the level's triggers as the level loaded them */
+DECLARE_LVL(activate_teleporter_and_record_state);   /* the teleporter pad's switching on: its save bit */
+DECLARE_LVL(show_teleporter_and_children);   /* the teleporter pad and its glow shown */
 typedef void (*PadFn)(void *);
 #define UMBRIS              7
 #define BATALIA_INFOBOT     (RZ_INFOBOT_NOVALIS + 8 - 1)
@@ -630,8 +630,8 @@ typedef void (*PadFn)(void *);
 #define PAD_OFF             5           /* hidden until Ratchet stands in its cuboid */
 #define SNAGGLEBEAST_TRIGGER 2
 #define UMBRIS_LIFT_UID     458
-DECLARE_LVL_DATA(level_core);           /* the level's core data: the gameplay data at +4 */
-DECLARE_LVL(func_001F99B0);             /* fill_transfer_words(words, value, count) */
+DECLARE_LVL_DATA(level_core);   /* the level's core data: the gameplay data at +4 */
+DECLARE_LVL(FastMemSet);        /* fill_transfer_words(words, value, count) */
 typedef void (*FillFn)(void *, u32, s32);
 #define GAMEPLAY_MOBYS      0x44        /* the gameplay data's offset of its moby records */
 #define MOBYS_HEAD          0x10        /* their count at +0, the first record after */
@@ -666,7 +666,7 @@ void ee_rz_place_mobys_c(void *table, u32 value, s32 count, s32 L)
             record = (u32 *)((u8 *)record + (record[0] & ~3u));
         }
     }
-    LVL(L, func_001F99B0, FillFn)(table, value, count);
+    LVL(L, FastMemSet, FillFn)(table, value, count);
 }
 
 /* Whether a moby's save bit in level L is set. */
@@ -702,8 +702,8 @@ static s32 umbris_end(void *moby, s32 L)
         return 0;
     case UMBRIS_PAD_CLASS:
         if (boss_beaten && MOBY_STATE(moby) != 0 && !moby_saved(moby, L)) {
-            LVL(L, func_L01_00309F00, PadFn)(moby);
-            LVL(L, func_L01_0030AC10, PadFn)(moby);
+            LVL(L, activate_teleporter_and_record_state, PadFn)(moby);
+            LVL(L, show_teleporter_and_children, PadFn)(moby);
             if (MOBY_STATE(moby) == PAD_OFF) {
                 MOBY_STATE(moby) = PAD_ON;
             }
@@ -716,8 +716,8 @@ static s32 umbris_end(void *moby, s32 L)
 /* --- the Missions page and the map ------------------------------------------------------------------------------ */
 
 /* The pause menu's Missions page and map show a planet's missions (tools/gen_randomizer.py describes the tables).
- * Mission_UpdateObjectives (func_0020C7A0) marks each one hidden, open or done from its two conditions, which test
- * the planets unlocked, the items owned and the special items' flags, and a marker shows on the map while its
+ * Mission_UpdateObjectives (update_mission_list) marks each one hidden, open or done from its two conditions, which
+ * test the planets unlocked, the items owned and the special items' flags, and a marker shows on the map while its
  * mission is open. With the rewards shuffled those are the wrong questions, as they are for the givers: "Buy
  * Heli-Pack from Al" would tick when a Heli-Pack came from elsewhere, and stay open after Al's check gave
  * something else. So the update runs under the collected view of the planet shown, as a giver's update does: a
@@ -725,8 +725,8 @@ static s32 umbris_end(void *moby, s32 L)
  * naming another planet's (Aridia's "Use your Swingshot", a prerequisite) keeps the truth. The predicates of the
  * type-7 conditions read the same bytes. EnterMenuMode, DrawMapScreen, MissionMenu_Init, LevelSelectMenu_Update and
  * initialize_pause_menu call the update; the statuses are worked out afresh each time and never saved. */
-DECLARE_LVL(func_0020C7A0);             /* Mission_UpdateObjectives() */
-DECLARE_LVL_DATA(map_state);            /* D_001A01F0 in the executable */
+DECLARE_LVL(update_mission_list);   /* Mission_UpdateObjectives() */
+DECLARE_LVL_DATA(map_state);        /* D_001A01F0 in the executable */
 #define MAP_PLANET(L)   (LVL_DATA(L, map_state, volatile s32 *)[0x224 / 4])
 
 /* For the PINE test scripts: updates; updates under the view; the planet of the last; the view already on. */
@@ -769,11 +769,11 @@ s32 ee_rz_mission_update_c(s32 L)
         if (view_on) {
             ee_debug_rz_mission[3]++;
         }
-        return LVL(L, func_0020C7A0, CountFn)();
+        return LVL(L, update_mission_list, CountFn)();
     }
     ee_debug_rz_mission[1]++;
     view_apply(planet);
-    result = LVL(L, func_0020C7A0, CountFn)();
+    result = LVL(L, update_mission_list, CountFn)();
     view_restore(L);
     return result;
 }
@@ -804,7 +804,7 @@ void ee_rz_level_init_c(s32 L)
     if (active && L == ee_rz_bonus_planet()) {
         ee_rz_set_bonus_seen();
     }
-    LVL(L, func_L00_0023D9C0, VoidFn)();
+    LVL(L, init_level_runtime_state, VoidFn)();
 }
 
 static s32 class_listed(s32 L, s32 class_id)

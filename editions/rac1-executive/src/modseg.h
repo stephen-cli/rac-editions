@@ -23,14 +23,13 @@
 #ifndef MODSEG_H
 #define MODSEG_H
 
-typedef signed char s8;
-typedef unsigned char u8;
-typedef short s16;
-typedef unsigned short u16;
-typedef int s32;
-typedef unsigned int u32;
-typedef unsigned long u64;      /* 64-bit with the game's compiler, as in OpenRAC's common.h */
-typedef float f32;
+/* OpenRAC's decompilation (games/rac1/include): the fixed-width types (u64 is 64-bit with the game's
+ * compiler) and the game's readable names. A name is a macro for the symbol the linker sees
+ * (`#define msg_string func_001FE540`), so the edition's code names the game's functions as the
+ * decompilation does, and the build still reads each address from the symbol. A symbol OpenRAC has
+ * not named, or names as something the edition has measured it not to be, keeps its address name. */
+#include "types.h"
+#include "names.h"
 
 /* Save globals the executable keeps resident (ReRAC game_state.md, US + 0x100 for PAL).
  * The current level, 0x15EE84, is deliberately absent: see above. */
@@ -45,8 +44,12 @@ typedef float f32;
 #define PROGRAMS        21
 
 /* Per-program tables, indexed by the running program (from ee_level_of_call). */
-#define LVL(level, name, type) ((type)(lvl_##name[level]))
-#define DECLARE_LVL(name) extern const u32 lvl_##name[PROGRAMS]
+/* LVL_TABLE(name) is the table itself. NAME is a readable name or an address name: the second macro
+ * pastes only after the first has expanded the readable name to its symbol. */
+#define LVL_TABLE_SYMBOL(symbol) lvl_##symbol
+#define LVL_TABLE(name) LVL_TABLE_SYMBOL(name)
+#define LVL(level, name, type) ((type)(LVL_TABLE(name)[level]))
+#define DECLARE_LVL(name) extern const u32 LVL_TABLE(name)[PROGRAMS]
 /* Program-local data (tools/modseg.py LEVEL_DATA): its address in that program. */
 #define LVL_DATA(level, name, type) ((type)(lvl_data_##name[level]))
 #define DECLARE_LVL_DATA(name) extern const u32 lvl_data_##name[PROGRAMS]
@@ -54,8 +57,8 @@ typedef float f32;
 /* Hooked call sites, as offsets from the hooked function's start. The same
  * numbers drive tools/overlay_patch.py, which reads them from this header. */
 #define EE_SITE_HUD_UPDATE      0x838   /* func_L00_00299250 + 0x838: jal HudUpdate */
-#define EE_SITE_DETECTOR_SPAWN  0x638   /* func_L00_002D4398 + 0x638: jal the bolt spawner */
-#define EE_SITE_DEATH_DROP      0x32C   /* func_L00_002584A8 (SetDeathBits) + 0x32C: jal the bolt drop */
+#define EE_SITE_DETECTOR_SPAWN  0x638   /* metal_detector_update + 0x638: jal the bolt spawner */
+#define EE_SITE_DEATH_DROP      0x32C   /* SetDeathBits + 0x32C: jal the bolt drop */
 
 /* Where the quick select pause setting lives (q3): gCheats[11], the last
  * byte of the cheat flags D_0015EEB0 (12 bytes, saved whole as the save's
@@ -68,7 +71,7 @@ typedef float f32;
 #define EE_SETTING_QS_PAUSE     0x0015EEBB
 
 /* x2: the Charge Boots cheat's toggle, gCheats[8], saved in the same block.
- * The game's move-combo cheat detector (func_L00_00207418, NTSC decomp
+ * The game's move-combo cheat detector (scan_hero_input_sequences, NTSC decomp
  * FUN_L00_00206e00) matches 12 entries of a per-level sequence table,
  * toggles gCheats[i] and marks the cheat seen at 0x15EEC0 + i (saved too),
  * which lists it on the Goodies Cheats page; retail fills entries 0-4, 6
@@ -194,7 +197,7 @@ s32 ee_qs_turn_to_page(s32 page);
  * challenge-mode carry-over with the pages. */
 #define EE_SETTING_MOVIE_VOLUME 0x00141A62
 #define EE_SITE_QS_CARRY     0x140        /* func_00227DB0 + 0x140: jal func_00209DC0 (the save-state reset) */
-#define EE_SITE_QS_AUTOSLOT  0x1EC        /* func_L00_002618D8 + 0x1EC: the empty-slot test and store, 6 words */
+#define EE_SITE_QS_AUTOSLOT  0x1EC        /* grant_inventory_item + 0x1EC: the empty-slot test and store, 6 words */
 #define EE_TEXT_QS_SWITCH    0x5409       /* "[square] Next ring" (the retail box is too narrow for "Switch rings") */
 #define EE_TEXT_QS_PAGE      0x540A       /* "Page 1"; + 1 "Page 2"; + 2 "Page 3" */
 /* The ring is open in LEVEL (HUD slot 3's update callback is the edition's). */
@@ -246,13 +249,13 @@ void ee_race_item_frame(s32 level);
 
 /* Movie volume (src/movie_volume.c): a fourth row on the Sound page, in the
  * pause menu and the title screen's. Its calls of snd_SetMasterVolume
- * (func_0012E348), as offsets in their functions, go to the hooks named:
+ * (snd_SetMasterVolume), as offsets in their functions, go to the hooks named:
  * the movie group (5) at all three of its calls, and the per-frame sound
  * update's other groups that follow the sound effects volume, whose
  * cutscene branch (game mode 2) marks the frame as a cutscene's. */
-#define EE_SITE_MOVIE_INIT      0x164   /* func_0022DBE8 (Sound_InitState): group 5 -> ee_movie_group_volume */
-#define EE_SITE_MOVIE_END       0x3B0   /* func_0023B740 (the movie loop), as a movie ends: group 5 -> the same */
-#define EE_SITE_VOL_CUT_SFX     0x2A0   /* func_0022DD68 (sound_update), cutscene branch: group 0, halved -> ee_volume_cutscene */
+#define EE_SITE_MOVIE_INIT      0x164   /* initialize_gameplay_sound_system: group 5 -> ee_movie_group_volume */
+#define EE_SITE_MOVIE_END       0x3B0   /* read_mpeg (the movie loop), as a movie ends: group 5 -> the same */
+#define EE_SITE_VOL_CUT_SFX     0x2A0   /* sound_update, cutscene branch: group 0, halved -> ee_volume_cutscene */
 #define EE_SITE_VOL_CUT_SFX3    0x2B8   /* the same branch: group 3, halved -> ee_volume_cutscene */
 #define EE_SITE_VOL_PLAY        0x304   /* the other branch: group 0 -> ee_volume_play */
 #define EE_SITE_VOL_DIALOGUE    0x334   /* both: group 2, the dialogue streams -> ee_movie_group_volume */
@@ -266,13 +269,13 @@ void ee_volume_play(s32 group, s32 volume);
 
 /* x2: the level loader's HUD header copy, with the edition's icon appended (src/hud_icons.c). */
 void ee_hud_header_copy(u8 *dst, const u8 *src, s32 size);
-#define EE_SITE_HUD_HEADER_COPY 0xB8    /* func_002032D0 + 0xB8: jal FastMemCopy(header, archive, size) */
+#define EE_SITE_HUD_HEADER_COPY 0xB8    /* LoadHudBanks + 0xB8: jal FastMemCopy(header, archive, size) */
 void ee_hud_link_bank_c(s32 bank, u32 addr, u32 ra);   /* entered through the trampoline ee_hud_link_bank */
-#define EE_SITE_HUD_LINK_BANK   0x190   /* func_002032D0 + 0x190: jal LinkHudBank(1, bank) */
+#define EE_SITE_HUD_LINK_BANK   0x190   /* LoadHudBanks + 0x190: jal LinkHudBank(1, bank) */
 
 /* The vendor's ammo dialog opens at the most ammo the player can buy (src/vendor_ammo.c). */
 void ee_vendor_ammo_open_c(void *moby, u32 ra);         /* entered through the trampoline ee_vendor_ammo_open */
-#define EE_SITE_VENDOR_AMMO     0xF4    /* func_L00_0029CDE0 (VendorBuyDialogUpdate) + 0xF4: jal func_L00_00251E30 */
+#define EE_SITE_VENDOR_AMMO     0xF4    /* update_vendor_purchase + 0xF4: jal func_L00_00251E30 */
 
 /* rz2: the title screen's Goodies pages (src/goodies.c) and their strings
  * (text/strings.tsv); the seed box's text is built as buttons are pressed. */
@@ -319,7 +322,7 @@ struct RzSlot {
     u32 seed;
     u8 start_mode;                      /* RzStart: the seed code carries whether it is Random */
 };
-u32 ee_save_checksum(const u8 *data, s32 length);          /* memcard_Checksum, func_0020BB10 */
+u32 ee_save_checksum(const u8 *data, s32 length);          /* memcard_Checksum */
 s32 ee_rz_record_offset(s32 program);                       /* the record's offset in a slot's file; -1 if the tables changed */
 s32 ee_rz_record_parse(const u8 *bytes, struct RzSlot *out);   /* EE_RZ_RECORD_SIZE bytes from there */
 s32 ee_rz_active(void);                                     /* the game in memory is a Randomizer save */

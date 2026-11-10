@@ -19,7 +19,7 @@
  * game's move-combo cheat detector matches the edition's sequence, which
  * like the retail cheats only registers once the game has been beaten
  * (Challenge Mode), and then unlocked for good in that save. The detector
- * (func_L00_00207418; NTSC decomp FUN_L00_00206e00) records a move id 15
+ * (scan_hero_input_sequences; NTSC decomp FUN_L00_00206e00) records a move id 15
  * ticks into a move (60 for a held crouch or glide) in a 16-entry ring at
  * hero + 0x21C4, compares the ring's tail with the 12 entries of a per-level
  * table (16 bytes each, zero-terminated; retail fills 0-4, 6 and 7) and on a
@@ -69,9 +69,9 @@
  * while the menu is open. Installed once per level: a new level loads a
  * new class. */
 extern const u32 ee_panel_seq[];
-DECLARE_LVL_DATA(menu_state);          /* the pause menu state; the 14 panel mobys at +0x1B0 */
-DECLARE_LVL_DATA(class_slot_by_id);    /* u8 per class id */
-DECLARE_LVL_DATA(class_resources);     /* class data pointer per slot */
+DECLARE_LVL_DATA(menu_state);         /* the pause menu state; the 14 panel mobys at +0x1B0 */
+DECLARE_LVL_DATA(class_slot_by_id);   /* u8 per class id */
+DECLARE_LVL_DATA(class_resources);    /* class data pointer per slot */
 #define PANEL_CLASS  0x472
 #define PANEL_SLOT   219
 #define PANEL_SEQS   219               /* the retail class's sequence count */
@@ -178,7 +178,7 @@ void ee_charge_cheat_frame(s32 L)
  * and adds to its ammo, and the hero then loads the record's class as the
  * gun (func_00205270). With the boots' class there, the loader found no
  * such gun among the level's, unpacked from address 0 and the game stopped
- * in the retail halt routine (func_L00_0024EC20, a trap) at the first
+ * in the retail halt routine (debug_trap, a trap) at the first
  * pickup (owner's report, 2026-10-19). No record is free (0 is "nothing",
  * 1 is Clank on the back), so while Ratchet is on the hoverboard (control
  * mode 0x16), or item 36 is in his hand, the record holds retail's words;
@@ -204,7 +204,7 @@ extern const u32 ee_item36_words[19][2][19];
  * retail's, so the boots slot loaded a second Devastator into the hand
  * gadget's buffer; a second Ratchet appeared on the track and threw the
  * real one across the level (owner, 2026-10-19). Retail takes item 36 out
- * of the hand when the game is paused (func_00219C70).
+ * of the hand when the game is paused (PauseAllSounds).
  *
  * The pause menu shows the boots from the record (their preview, their
  * equip), and a pause can open before any gameplay frame has run since the
@@ -253,8 +253,8 @@ void ee_race_item_frame(s32 L)
     }
 }
 
-DECLARE_LVL(func_L00_00299250);        /* the mode-0 frame */
-DECLARE_LVL(func_00219C70);            /* the pause entry */
+DECLARE_LVL(func_L00_00299250);   /* the mode-0 frame */
+DECLARE_LVL(PauseAllSounds);      /* the pause entry */
 #define PAUSE_SITE_A 0x36C
 #define PAUSE_SITE_B 0x434
 typedef void (*PauseFn)(s32);
@@ -265,13 +265,13 @@ void ee_pause_entry_c(s32 arg, u32 ra)
     volatile u32 *rec;
     s32 i;
     for (L = 0; L < 19; L++) {
-        u32 f = lvl_func_L00_00299250[L];
+        u32 f = LVL_TABLE(func_L00_00299250)[L];
         if (ra == f + PAUSE_SITE_A + 8 || ra == f + PAUSE_SITE_B + 8) {
             break;
         }
     }
     if (L == 19) {
-        L = ee_level_of_call(ra, lvl_func_L00_00299250, PAUSE_SITE_A);   /* never expected */
+        L = ee_level_of_call(ra, LVL_TABLE(func_L00_00299250), PAUSE_SITE_A);   /* never expected */
     }
     rec = (volatile u32 *)ee_item36_at[L];
     if (EE_HAS(EE_FEATURE_CHARGE_BOOTS) && HERO_ITEM(SLOT_HAND) != ITEM_CHARGE_BOOTS
@@ -281,7 +281,7 @@ void ee_pause_entry_c(s32 arg, u32 ra)
             rec[i] = ee_item36_words[L][1][i];
         }
     }
-    LVL(L, func_00219C70, PauseFn)(arg);
+    LVL(L, PauseAllSounds, PauseFn)(arg);
     ee_rz_pause_open(L);                /* the Randomizer's Save and Load pages (src/goodies.c), once the entry built the panels */
 }
 
@@ -291,7 +291,7 @@ void ee_pause_entry_c(s32 arg, u32 ra)
  * class 157, which no level keeps resident), and stopped at once with an
  * edition save that wore the Charge Boots (PCSX2: "FQC = 0 on VIF FIFO
  * READ"; owner, 2026-10-20). So every save call (memcard_MakeWholeSave,
- * func_0020BA00: the pause menu's two, the challenge-mode carry-over's and
+ * memcard_MakeWholeSave: the pause menu's two, the challenge-mode carry-over's and
  * Veldin 2's ending, src/charge_hooks.s) writes the boots slot empty and
  * item 36 not owned, with EE_SAVE_BOOTS_WORN set in the saved statistics
  * block, and puts them back after. Ownership follows gCheats[8] every frame
@@ -300,9 +300,9 @@ void ee_pause_entry_c(s32 arg, u32 ra)
  * quick select is turned to page 1 for the save the same way
  * (src/quick_select_pages.c), as a retail game keeps the saved ring's
  * page for good. */
-DECLARE_LVL(func_0020BA00);            /* memcard_MakeWholeSave(out) */
-DECLARE_LVL(func_00227C78);            /* its callers: + 0x64 */
-DECLARE_LVL(func_00227D20);            /* + 0x3C */
+DECLARE_LVL(memcard_MakeWholeSave);    /* memcard_MakeWholeSave(out) */
+DECLARE_LVL(prepare_save_game);        /* its callers: + 0x64 */
+DECLARE_LVL(start_memory_card_save);   /* + 0x3C */
 DECLARE_LVL(func_00227DB0);            /* the challenge-mode carry-over: + 0x304 */
 #define SAVE_WORN          (*(volatile u8 *)EE_SAVE_BOOTS_WORN)
 #define SAVE_SITE_A        0x64
@@ -317,13 +317,14 @@ void ee_save_c(u8 *out, u32 ra, s32 L)
     s32 qs_page;
     if (L < 0) {
         for (L = 0; L < 19; L++) {
-            if (ra == lvl_func_00227C78[L] + SAVE_SITE_A + 8 || ra == lvl_func_00227D20[L] + SAVE_SITE_B + 8
-                || ra == lvl_func_00227DB0[L] + SAVE_SITE_CARRY + 8) {
+            if (ra == LVL_TABLE(prepare_save_game)[L] + SAVE_SITE_A + 8
+                || ra == LVL_TABLE(start_memory_card_save)[L] + SAVE_SITE_B + 8
+                || ra == LVL_TABLE(func_00227DB0)[L] + SAVE_SITE_CARRY + 8) {
                 break;
             }
         }
         if (L == 19) {
-            L = ee_level_of_call(ra, lvl_func_00227C78, SAVE_SITE_A);   /* never expected */
+            L = ee_level_of_call(ra, LVL_TABLE(prepare_save_game), SAVE_SITE_A);   /* never expected */
         }
     }
     qs_page = ee_qs_turn_to_page(0);
@@ -332,7 +333,7 @@ void ee_save_c(u8 *out, u32 ra, s32 L)
     }
     ITEM_OWNED(ITEM_CHARGE_BOOTS) = 0;
     SAVE_WORN = worn;
-    LVL(L, func_0020BA00, MakeSaveFn)(out);
+    LVL(L, memcard_MakeWholeSave, MakeSaveFn)(out);
     SAVE_WORN = 0;
     ITEM_OWNED(ITEM_CHARGE_BOOTS) = owned;
     if (worn) {
@@ -361,10 +362,10 @@ static void rewear_saved_boots(void)
 
 /* The worn boots' pose. A worn item moby is placed at a joint of Ratchet's
  * every frame, but only some items are posed from Ratchet's skeleton: the
- * item updater (func_L00_0020FC18) asks three predicates of each slot's
- * item, and the boots one (func_L00_0020DBD8: item - 0x1C < 2, i.e. the
+ * item updater (update_hero_item_mobys) asks three predicates of each slot's
+ * item, and the boots one (is_hero_slot_item_id_28_or_29: item - 0x1C < 2, i.e. the
  * Magneboots or the Grindboots) sends each boot moby through the pose
- * builder (func_L00_00209940), which writes Ratchet's leg (joint lists 2
+ * builder (pack_pose), which writes Ratchet's leg (joint lists 2
  * and 3: knee, ankle, heel, ball, toe) into a per-boot frame buffer that
  * the moby then plays. Any other item keeps its class's own static frame,
  * so the Charge Boots (36) were drawn rigid on the knee whatever their
@@ -373,21 +374,21 @@ static void rewear_saved_boots(void)
  * into its class, the Magneboots' at the buffers 0x17D100/0x17D200 in
  * level 8). The predicate's slot_item call comes here (src/charge_hooks.s)
  * and the Charge Boots answer as the Magneboots, for that test only. */
-DECLARE_LVL(func_L00_0020DBD8);        /* the boots predicate; its slot_item call is at + 8 */
-DECLARE_LVL(func_L00_0020DB30);        /* slot_item(slot): the item in a hero slot */
+DECLARE_LVL(is_hero_slot_item_id_28_or_29);   /* the boots predicate; its slot_item call is at + 8 */
+DECLARE_LVL(hero_slot_item_id);               /* slot_item(slot): the item in a hero slot */
 #define ITEM_MAGNEBOOTS    0x1C
 #define EE_SITE_BOOTS_POSE 0x8
 typedef s32 (*SlotItem)(s32 slot);
 
 s32 ee_boots_pose_item_c(s32 slot, u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_0020DBD8, EE_SITE_BOOTS_POSE);
-    s32 item = LVL(L, func_L00_0020DB30, SlotItem)(slot);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(is_hero_slot_item_id_28_or_29), EE_SITE_BOOTS_POSE);
+    s32 item = LVL(L, hero_slot_item_id, SlotItem)(slot);
     return item == ITEM_CHARGE_BOOTS ? ITEM_MAGNEBOOTS : item;
 }
 
 /* The Goodies Cheats page: its list widget's "enter" callback is the row
- * builder (func_0021B138; NTSC decomp rebuild_configured_text_label_list),
+ * builder (rebuild_configured_text_label_list),
  * which writes a row {name, &gCheats[id], "On", "Off", 0} for each seen
  * cheat of its id list {1, 3, 0, 7, 4, 6, 2} into the widget's list (13
  * rows of 0x14 bytes, gen_charge's cheats_list) and ends it with a zero
@@ -430,7 +431,7 @@ s32 ee_cheats_enter_c(s32 a0, s32 a1, s32 a2, s32 a3, s32 L)
     return result;
 }
 
-/* The page's "update" callback (the option list's, func_00221E60, which
+/* The page's "update" callback (the option list's, update_menu_option_list, which
  * flips a row's flag on Cross), through the per-level stubs ee_cheats_update_NN
  * (src/charge_hooks.s): the boots follow a toggle at once, so the Gadgets
  * page shows them, or no longer does, without leaving the pause menu. */

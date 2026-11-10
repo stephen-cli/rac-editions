@@ -1,10 +1,10 @@
 /* The Weapons and Gadgets pages' item preview: no flash of an unowned item.
  *
- * Retail's preview draw (func_0021F610; NTSC decomp
+ * Retail's preview draw (draw_available_item_preview_mobys; NTSC decomp
  * draw_available_item_preview_mobys) decides whether to draw from the item
  * of the grid cell under the cursor, then draws whatever preview moby the
  * page holds. The moby is replaced by the preview binding
- * (func_0021F238; NTSC update_item_preview_binding), which runs before the
+ * (update_item_preview_binding), which runs before the
  * cursor moves in a frame, so on the frame the cursor leaves an unowned
  * cell for an owned one the old moby is still there and gets drawn: the
  * binding builds a moby for unowned cells too and only the draw hides it.

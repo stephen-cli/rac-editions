@@ -1,7 +1,7 @@
 /* The edition's strings.
  *
- * msg_string(id) (func_001FE540) returns the text for a string id: it asks
- * func_001FE4D0 for the id's index in the loaded text block (a linear scan
+ * msg_string(id) returns the text for a string id: it asks
+ * Help_FindIndex for the id's index in the loaded text block (a linear scan
  * over the block's entries, 16 bytes each, pointer first) and returns that
  * entry's pointer, or the "Paradox: This message does not exist" string.
  * A level does not keep the global text table loaded, and its block cannot

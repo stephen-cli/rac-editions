@@ -10,7 +10,7 @@
  * Where the flag lives. The save directory BESCES-50916RATCHET holds
  * save0.bin-save4.bin (one per slot) and a 15360-byte file named like the
  * directory. Retail writes that file once, when it creates the directory
- * (MemCard_UpdateState, func_00209E68, state 10: a RAM dump from
+ * (memcard_update_state, state 10: a RAM dump from
  * 0x15EE84), and never reads it back: the directory check only wants it
  * listed. So it is the card's one global record the 2002 game ignores. The
  * edition keeps its own 16 bytes in its tail (EDITION_OFFSET): a magic
@@ -42,7 +42,7 @@
  * pause page, Drek), it waits for the machine's command with a blocking
  * sync into the machine's own result words and clears the flag, which is
  * what the machine would have seen, then runs its commands to the end one
- * by one, as MemCard_CheckFreeSpace (func_00209BB8) does. It leaves the
+ * by one, as MemCard_CheckFreeSpace (check_memory_card) does. It leaves the
  * card alone while the machine runs a longer sequence of its own (a
  * directory scan, a save). A card swapped while a save page is open is read
  * again from the slot list's draw, once the machine has read its slots
@@ -58,7 +58,7 @@
  * the three were, with sequences the edition builds from the rows' own
  * (install_sequences). Pause_Open (func_00219E90) creates the panels and
  * starts them on the page's sequences, and the page switch that follows in
- * the same Pause_Update (func_0021A1A0) plays them in: its call of
+ * the same Pause_Update (update_menu_system) plays them in: its call of
  * Pause_Open in the title screen's programs goes to
  * ee_title_menu_open_19/20, which decides, lets Pause_Open run with the
  * retail page, then installs the sequences and adds the row before the
@@ -86,13 +86,13 @@
 typedef void (*VoidFn)(void);
 
 /* libmc's calls, through retail's wrappers (core). */
-extern s32 func_001238B0(s32 port, s32 slot, const char *name, s32 mode);   /* sceMcOpen */
-extern s32 func_00123A10(s32 fd);                                            /* sceMcClose */
-extern s32 func_00123AC8(s32 fd, s32 offset, s32 origin);                    /* sceMcSeek */
-extern s32 func_00123C30(s32 fd, void *buffer, s32 size);                    /* sceMcRead */
-extern s32 func_00123D48(s32 fd, const void *buffer, s32 size);              /* sceMcWrite */
-extern s32 func_00123F30(s32 mode, s32 *command, s32 *result);               /* sceMcSync */
-extern void func_00122598(s32);                                              /* waits a moment, as the game does between syncs */
+extern s32 sce_mc_open(s32 port, s32 slot, const char *name, s32 mode);   /* sceMcOpen */
+extern s32 sce_mc_close(s32 fd);                                          /* sceMcClose */
+extern s32 sce_mc_seek(s32 fd, s32 offset, s32 origin);                   /* sceMcSeek */
+extern s32 sce_mc_read(s32 fd, void *buffer, s32 size);                   /* sceMcRead */
+extern s32 sce_mc_write_buffer(s32 fd, const void *buffer, s32 size);     /* sceMcWrite */
+extern s32 sce_mc_sync(s32 mode, s32 *command, s32 *result);              /* sceMcSync */
+extern void sce_gs_sync_v(s32);                                           /* the game's wait between syncs */
 
 #define MC_OPEN_READ    1
 #define MC_OPEN_WRITE   2
@@ -193,16 +193,19 @@ static const u8 new_game_ids[3] = { 183, 184, 174 };
 /* The save pages' drawing (exe-kind functions: each title program has its
  * own copy). A widget's draw gets the widget, whose width and height
  * (+0x20, +0x24) are the box's in pixels. */
-DECLARE_LVL(func_00200198);             /* GetIconFrame(icon, frame) */
-DECLARE_LVL(func_00200468);             /* HudSprite(frame, x, y, w, h, alpha) */
-DECLARE_LVL(func_001F4630);             /* SetupGifPaging(0): before a widget's own drawing */
-DECLARE_LVL(func_001F4748);             /* DoGifPaging: after it */
-DECLARE_LVL_DATA(menu_state);           /* the menu system's record (D_001D5F70 in the title programs): + 0x154 the card's idle ticks */
-DECLARE_LVL(func_001F6EA8);             /* FontPrintCenter(x, y, colour, text, count): the normal font, centred on x */
-DECLARE_LVL(func_001F69F0);             /* Font_DrawString(colour, text, count, texture, font, x, y, scale): the normal font, scaled */
-DECLARE_LVL(func_001F4868);             /* GetEffectTex(n): the texture of effect n (1: the normal font's sheet) */
-DECLARE_LVL(func_001FE540);             /* msg_string(id) */
-DECLARE_LVL(func_001FBC80);             /* Freeze_Enter(mode, page, arg): the game-mode freeze a list's action 4 opens a page through */
+DECLARE_LVL(GetIconFrame);       /* GetIconFrame(icon, frame) */
+DECLARE_LVL(HudSprite);          /* HudSprite(frame, x, y, w, h, alpha) */
+DECLARE_LVL(SetupGifPaging);     /* SetupGifPaging(0): before a widget's own drawing */
+DECLARE_LVL(DoGifPaging);        /* DoGifPaging: after it */
+/* The menu system's record (D_001D5F70 in the title programs): + 0x154 the card's idle ticks. */
+DECLARE_LVL_DATA(menu_state);
+DECLARE_LVL(FontPrintCenter);    /* FontPrintCenter(x, y, colour, text, count): the normal font, centred on x */
+/* Font_DrawString(colour, text, count, texture, font, x, y, scale): the normal font, scaled. */
+DECLARE_LVL(func_001F69F0);
+DECLARE_LVL(GetEffectTex);       /* GetEffectTex(n): the texture of effect n (1: the normal font's sheet) */
+DECLARE_LVL(msg_string);         /* msg_string(id) */
+/* mode_freeze_init(mode, page, arg): the game-mode freeze a list's action 4 opens a page through. */
+DECLARE_LVL(mode_freeze_init);
 typedef void (*FreezeFn)(s32, void *, s32);
 typedef s32 (*WidgetFn)(void *);
 typedef s32 (*IconFn)(s32, s32);
@@ -305,8 +308,8 @@ static s32 card_finish(s32 issued)
     if (issued != 0) {
         return -1;
     }
-    while (func_00123F30(1, &command, &result) == 0) {
-        func_00122598(0);
+    while (sce_mc_sync(1, &command, &result) == 0) {
+        sce_gs_sync_v(0);
     }
     return result;
 }
@@ -322,7 +325,7 @@ static s32 card_take(void)
         return 0;
     }
     if (MC_BUSY) {
-        func_00123F30(0, MC_COMMAND, MC_RESULT);
+        sce_mc_sync(0, MC_COMMAND, MC_RESULT);
         MC_BUSY = 0;
     }
     return MC_MAIN_FILE[0] == '/';
@@ -337,27 +340,27 @@ static s32 card_ready(void)
 /* SIZE bytes at OFFSET of the file NAME into card_buffer; 0 if any step fails. */
 static s32 card_read(const char *name, s32 offset, s32 size)
 {
-    s32 fd = card_finish(func_001238B0(MC_PORT, MC_SLOT, name, MC_OPEN_READ));
+    s32 fd = card_finish(sce_mc_open(MC_PORT, MC_SLOT, name, MC_OPEN_READ));
     s32 ok;
     if (fd < 0) {
         return 0;
     }
-    ok = card_finish(func_00123AC8(fd, offset, 0)) == offset
-         && card_finish(func_00123C30(fd, card_buffer, size)) == size;
-    card_finish(func_00123A10(fd));
+    ok = card_finish(sce_mc_seek(fd, offset, 0)) == offset
+         && card_finish(sce_mc_read(fd, card_buffer, size)) == size;
+    card_finish(sce_mc_close(fd));
     return ok;
 }
 
 static s32 card_write(const char *name, s32 offset, s32 size)
 {
-    s32 fd = card_finish(func_001238B0(MC_PORT, MC_SLOT, name, MC_OPEN_WRITE));
+    s32 fd = card_finish(sce_mc_open(MC_PORT, MC_SLOT, name, MC_OPEN_WRITE));
     s32 ok;
     if (fd < 0) {
         return 0;
     }
-    ok = card_finish(func_00123AC8(fd, offset, 0)) == offset
-         && card_finish(func_00123D48(fd, card_buffer, size)) == size;
-    card_finish(func_00123A10(fd));
+    ok = card_finish(sce_mc_seek(fd, offset, 0)) == offset
+         && card_finish(sce_mc_write_buffer(fd, card_buffer, size)) == size;
+    card_finish(sce_mc_close(fd));
     return ok;
 }
 
@@ -464,21 +467,21 @@ static s32 scan_issue(void)
     switch (scan.step) {
     case STEP_OPEN:
         if (scan.file == SCAN_MAIN) {
-            return func_001238B0(MC_PORT, MC_SLOT, MC_MAIN_FILE, MC_OPEN_READ);
+            return sce_mc_open(MC_PORT, MC_SLOT, MC_MAIN_FILE, MC_OPEN_READ);
         }
-        return func_001238B0(MC_PORT, MC_SLOT, save_name(scan.file), MC_OPEN_READ);
+        return sce_mc_open(MC_PORT, MC_SLOT, save_name(scan.file), MC_OPEN_READ);
     case STEP_SEEK_EDITION:
-        return func_00123AC8(scan.fd, EDITION_OFFSET, 0);
+        return sce_mc_seek(scan.fd, EDITION_OFFSET, 0);
     case STEP_READ_EDITION:
-        return func_00123C30(scan.fd, card_buffer, 16);
+        return sce_mc_read(scan.fd, card_buffer, 16);
     case STEP_READ_HEAD:
-        return func_00123C30(scan.fd, card_buffer, SAVE_HEAD);
+        return sce_mc_read(scan.fd, card_buffer, SAVE_HEAD);
     case STEP_SEEK_RZ:
-        return func_00123AC8(scan.fd, scan.record_offset, 0);
+        return sce_mc_seek(scan.fd, scan.record_offset, 0);
     case STEP_READ_RZ:
-        return func_00123C30(scan.fd, card_buffer, EE_RZ_RECORD_SIZE);
+        return sce_mc_read(scan.fd, card_buffer, EE_RZ_RECORD_SIZE);
     }
-    return func_00123A10(scan.fd);
+    return sce_mc_close(scan.fd);
 }
 
 static void scan_next_file(void)
@@ -582,11 +585,11 @@ static s32 scan_poll(s32 wait)
 {
     s32 status;
     for (;;) {
-        status = func_00123F30(1, &scan.command, &scan.result);
+        status = sce_mc_sync(1, &scan.command, &scan.result);
         if (status != 0 || !wait) {
             break;
         }
-        func_00122598(0);
+        sce_gs_sync_v(0);
     }
     if (status == 0) {
         return 0;
@@ -641,13 +644,13 @@ static s32 record_job_issue(void)
 {
     switch (record_job.step) {
     case RECORD_OPEN:
-        return func_001238B0(MC_PORT, MC_SLOT, MC_MAIN_FILE, MC_OPEN_WRITE);
+        return sce_mc_open(MC_PORT, MC_SLOT, MC_MAIN_FILE, MC_OPEN_WRITE);
     case RECORD_SEEK:
-        return func_00123AC8(record_job.fd, EDITION_OFFSET, 0);
+        return sce_mc_seek(record_job.fd, EDITION_OFFSET, 0);
     case RECORD_WRITE:
-        return func_00123D48(record_job.fd, record_job_buffer, 16);
+        return sce_mc_write_buffer(record_job.fd, record_job_buffer, 16);
     }
-    return func_00123A10(record_job.fd);
+    return sce_mc_close(record_job.fd);
 }
 
 /* The current step's RESULT (-1 when it went to another sceMcSync caller), and the step after it. A record
@@ -682,11 +685,11 @@ static s32 record_job_poll(s32 wait)
 {
     s32 status;
     for (;;) {
-        status = func_00123F30(1, &record_job.command, &record_job.result);
+        status = sce_mc_sync(1, &record_job.command, &record_job.result);
         if (status != 0 || !wait) {
             break;
         }
-        func_00122598(0);
+        sce_gs_sync_v(0);
     }
     if (status == 0) {
         return 0;
@@ -711,7 +714,7 @@ static void scan_start(s32 program)
 {
     s32 slot;
     if (scan.file != SCAN_DONE && scan.step != STEP_OPEN) {
-        card_finish(func_00123A10(scan.fd));    /* the file an unfinished scan left open */
+        card_finish(sce_mc_close(scan.fd));    /* the file an unfinished scan left open */
     }
     scan.file = SCAN_MAIN;
     scan.step = STEP_OPEN;
@@ -753,7 +756,7 @@ static void scan_run(void)
         if (!scan.in_flight) {
             if (scan_issue() != 0) {
                 if (scan.step != STEP_OPEN) {
-                    card_finish(func_00123A10(scan.fd));
+                    card_finish(sce_mc_close(scan.fd));
                 }
                 scan_abort();               /* libmc refused it; the card is read again later */
                 return;
@@ -787,15 +790,15 @@ static s32 card_changed(void)
 }
 
 /* Drek is beaten. Once the ending's movie has played, Drek's update
- * (FinalBossUpdate, func_L18_002F4050, state 0x1B's last phase) opens the
+ * (FinalBossUpdate, drek_final_boss_robot_update, state 0x1B's last phase) opens the
  * choice between going back in time and Challenge Mode by calling the pause
- * entry (func_00219C70) with 0x21: once per win, whichever is chosen, and
+ * entry (PauseAllSounds) with 0x21: once per win, whichever is chosen, and
  * before either restores (the time warp loads the snapshot taken before the
  * fight) or resets (Challenge Mode) the game state, so no saved byte would
  * keep a flag set here. The call goes here instead (tools/overlay_patch.py
  * goodies, level 18 only): the flag goes on the card's record now if it
  * can, else at the next start menu, then the menu opens as in retail. */
-DECLARE_LVL(func_00219C70);             /* the pause entry */
+DECLARE_LVL(PauseAllSounds);   /* the pause entry */
 #define VELDIN_2        18
 typedef void (*PauseFn)(s32);
 
@@ -806,7 +809,7 @@ void ee_drek_beaten(s32 menu)
         card_flags |= EDITION_DREK;
         drek_pending = 0;
     }
-    LVL(VELDIN_2, func_00219C70, PauseFn)(menu);
+    LVL(VELDIN_2, PauseAllSounds, PauseFn)(menu);
 }
 
 /* The unlock: Drek beaten (on the card or this session), or a Challenge
@@ -1542,7 +1545,7 @@ static s32 seed_error;              /* the last code was refused: the box shows 
 
 /* The seed box's glyphs. The menu fonts (effect textures 1-3: normal, small,
  * large) are 256 x 128 8-bit sheets in the title screen's data, which every
- * draw pass uploads afresh from EE memory (GetEffectTex func_001F4868 queues
+ * draw pass uploads afresh from EE memory (GetEffectTex queues
  * them after SetupGifPaging resets the texture cursor). The effect bank
  * pointer and the table of {TEX0, image offset >> 4, palette offset >> 4,
  * log2 w, log2 h} entries sit at the executable's addresses in both title
@@ -1557,7 +1560,7 @@ static s32 seed_error;              /* the last code was refused: the box shows 
 #define EE_GLYPHS 7
 extern const u8 ee_glyph_cells[3][EE_GLYPHS][16][24];
 extern const u8 ee_glyph_places[EE_GLYPHS][4];
-extern void func_00118D80(s32);         /* FlushCache (core) */
+extern void flush_cache(s32);   /* FlushCache (core) */
 #define EFFECT_BANK     (*(volatile u32 *)0x0015F560)
 #define EFFECT_TABLE    0x0018D540
 static const u32 font_metrics[3] = { 0x001DF3D0, 0x001DF770, 0x001DFB10 };   /* normal, small, large */
@@ -1616,10 +1619,10 @@ static void install_glyphs(void)
         }
     }
     install_glyph_metrics(title_program);
-    func_00118D80(0);
+    flush_cache(0);
 }
 
-DECLARE_LVL(func_0022ED80);             /* the menus' sound (1: the cursor's tick) */
+DECLARE_LVL(Moby_PlaySound);   /* the menus' sound (1: the cursor's tick) */
 typedef void (*MenuSoundFn)(s32, s32, u32);
 
 /* The text the box shows: the buttons entered, left to right (src/text.c). */
@@ -1649,8 +1652,8 @@ static void clear_seed_box(void)
 
 static void menu_sound(s32 kind, u32 moby)
 {
-    if (lvl_func_0022ED80[title_program] != 0) {
-        LVL(title_program, func_0022ED80, MenuSoundFn)(kind, 0x11, moby);
+    if (LVL_TABLE(Moby_PlaySound)[title_program] != 0) {
+        LVL(title_program, Moby_PlaySound, MenuSoundFn)(kind, 0x11, moby);
     }
 }
 
@@ -1688,7 +1691,7 @@ s32 ee_seed_box_update(struct MenuList *box)
             menu_sound(0, box->moby);
             MENU_LOAD_KIND = 0;
             GAME_FLAGS = (GAME_FLAGS | 2) & ~4;
-            LVL(title_program, func_001FBC80, FreezeFn)(3, new_game_page, 0);
+            LVL(title_program, mode_freeze_init, FreezeFn)(3, new_game_page, 0);
         } else {
             clear_seed_box();
             seed_error = 1;
@@ -1720,10 +1723,10 @@ s32 ee_seed_box_draw(struct MenuList *box)
     s32 r = ((WidgetFn)retail_seed_box_draw)(box);
     if (seed_error) {
         s32 y = box->height / 2 - FONT_HEIGHT / 2 - 1;
-        LVL(title_program, func_001F4630, PagingFn)(0);
-        LVL(title_program, func_001F6EA8, PrintFn)(box->width / 2, y, TEXT_RED,
-                                                    LVL(title_program, func_001FE540, MsgFn)(EE_TEXT_BAD_SEED), -1);
-        LVL(title_program, func_001F4748, VoidFn)();
+        LVL(title_program, SetupGifPaging, PagingFn)(0);
+        LVL(title_program, FontPrintCenter, PrintFn)(box->width / 2, y, TEXT_RED,
+                                                    LVL(title_program, msg_string, MsgFn)(EE_TEXT_BAD_SEED), -1);
+        LVL(title_program, DoGifPaging, VoidFn)();
     }
     return r;
 }
@@ -1740,7 +1743,7 @@ s32 ee_rz_menu_update(void *list)
 }
 
 /* The Starting Planet's row: retail's toggle (ToggleList_PadInput,
- * func_00221E60), which flips its byte on Cross and shows the entry's first
+ * update_menu_option_list), which flips its byte on Cross and shows the entry's first
  * text while the byte is nonzero. The byte is kept at 1 and the first text
  * is the setting's name, so a flip is a step to the next setting. Leaving
  * the page puts a changed setting in the edition's record on the card, in
@@ -1792,8 +1795,8 @@ static void draw_badges(s32 program)
     s32 i, y;
     for (i = 0, y = 4; i < MC_SLOTS; i++, y += row) {
         if (slots[i].rz.present && MC_SLOT_LEVEL(i) != -1) {
-            s32 frame = LVL(program, func_00200198, IconFn)(EE_ICON_RANDOMIZER, 0);
-            LVL(program, func_00200468, SpriteFn)(frame, BADGE_X, y, BADGE_SIZE, BADGE_SIZE, 0x80);
+            s32 frame = LVL(program, GetIconFrame, IconFn)(EE_ICON_RANDOMIZER, 0);
+            LVL(program, HudSprite, SpriteFn)(frame, BADGE_X, y, BADGE_SIZE, BADGE_SIZE, 0x80);
         }
     }
 }
@@ -1821,9 +1824,9 @@ s32 ee_rz_slots_draw(void *widget)
     if (!rz_saves || !card_ready()) {
         return r;
     }
-    LVL(title_program, func_001F4630, PagingFn)(0);
+    LVL(title_program, SetupGifPaging, PagingFn)(0);
     draw_badges(title_program);
-    LVL(title_program, func_001F4748, VoidFn)();
+    LVL(title_program, DoGifPaging, VoidFn)();
     return r;
 }
 
@@ -1864,7 +1867,7 @@ void ee_rz_slots_end_c(s32 L)
             draw_badges(L);
         }
     }
-    LVL(L, func_001F4748, VoidFn)();
+    LVL(L, DoGifPaging, VoidFn)();
 }
 
 /* The glyphs of SLOT's seed code into OUT (RZ_CODE_LENGTH + 1 bytes). */
@@ -1904,7 +1907,7 @@ static s32 text_width(const char *text, const volatile u8 *metrics)
 static void draw_seed_line(const u32 *words, const struct RzSlot *rz, s32 L)
 {
     const volatile u8 *metrics = (const volatile u8 *)exe_data(L, font_metrics[0]);
-    const char *label = LVL(L, func_001FE540, MsgFn)(EE_TEXT_SEED);
+    const char *label = LVL(L, msg_string, MsgFn)(EE_TEXT_SEED);
     char line[RZ_CODE_LENGTH + 1];
     s32 width = (s32)words[WIDGET_WIDTH];
     s32 label_w = text_width(label, metrics);
@@ -1918,12 +1921,12 @@ static void draw_seed_line(const u32 *words, const struct RzSlot *rz, s32 L)
     ee_debug_rz[2] = (u32)total;
     ee_debug_rz[3] = (u32)(s32)(scale * 1000.0f);      /* through s32: the compiler has no float-to-unsigned helper here */
     seed_line(rz, line);
-    LVL(L, func_001F4630, PagingFn)(0);
-    tex = LVL(L, func_001F4868, EffectTexFn)(FONT_NORMAL_TEX);
+    LVL(L, SetupGifPaging, PagingFn)(0);
+    tex = LVL(L, GetEffectTex, EffectTexFn)(FONT_NORMAL_TEX);
     LVL(L, func_001F69F0, ScaledPrintFn)(TEXT_NORMAL, label, -1, tex, (const void *)metrics, x, y, scale);
     LVL(L, func_001F69F0, ScaledPrintFn)(TEXT_NORMAL, line, -1, tex, (const void *)metrics,
                                          x + (f32)(label_w + SEED_GAP) * scale, y, scale);
-    LVL(L, func_001F4748, VoidFn)();
+    LVL(L, DoGifPaging, VoidFn)();
 }
 
 /* The slot the focused slot list is on, clamped to the five. */
@@ -1952,7 +1955,7 @@ s32 ee_rz_name_draw(void *widget)
  * widget by ee_rz_pause_open): retail's DrawSaveLevelName, then the Seed line, under the pages' own conditions
  * for showing a slot (the card idle for 11 of the menu record's ticks, a PS2 card). The slots were scanned by
  * the slot list's draw (ee_rz_slots_end_c), which comes before this one in the page. */
-DECLARE_LVL(func_00223E40);             /* DrawSaveLevelName(widget) */
+DECLARE_LVL(func_00223E40);   /* DrawSaveLevelName(widget) */
 
 s32 ee_rz_pause_name_c(void *widget, s32 L)
 {
@@ -1976,7 +1979,7 @@ s32 ee_rz_pause_name_c(void *widget, s32 L)
  * copies belong to its program and are forgotten here; the title installs its own again when it opens. */
 #define PAUSE_NAME_SEQ  0x7F            /* both pause pages' moby_anims[NAME_PANEL] */
 #define PAUSE_FIRST_ROW 0x001CE938      /* the pause menu's front page's (D_001CE808) first row: Weapons */
-extern const u32 ee_rz_name_draw_table[LEVEL_PROGRAMS];       /* the stubs, by level (src/rz_hooks.s) */
+extern const u32 ee_rz_name_draw_table[LEVEL_PROGRAMS];   /* the stubs, by level (src/rz_hooks.s) */
 extern const u32 ee_rz_pause_row_draw_table[LEVEL_PROGRAMS];
 static u32 retail_row_draw[LEVEL_PROGRAMS];                    /* DrawMenuItemList, each level program's */
 static s32 pause_program = -1;
@@ -2141,7 +2144,7 @@ static void title_rows(s32 with_goodies)
  * switch that follows reads them. The save pages' widgets are patched
  * whether or not the row shows: a Randomizer save shows its badge and seed
  * on any card. */
-DECLARE_LVL(func_00219E90);             /* Pause_Open */
+DECLARE_LVL(func_00219E90);   /* Pause_Open */
 
 void ee_title_menu_open_c(s32 L)
 {
@@ -2163,8 +2166,8 @@ void ee_title_menu_open_c(s32 L)
     }
 }
 
-/* The title screen's main loop (func_001EBB48) runs the card machine,
- * MemCard_UpdateState (func_00209E68), once a frame; in program L (19, 20)
+/* The title screen's main loop (transition_do_transition) runs the card machine,
+ * memcard_update_state, once a frame; in program L (19, 20)
  * the call comes here (src/goodies_hooks.s stubs). The scan steps in the
  * machine's idle turns: between its card checks (sceMcGetInfo, state 0-1)
  * it waits ten frames in state 2 with no command running, and libmc runs
@@ -2176,7 +2179,7 @@ void ee_title_menu_open_c(s32 L)
  * scan starts again when the card changes; a scan the PRESS START screen
  * did not finish is finished when the start menu opens (goodies_unlocked).
  * A record write (record_job) steps in the same turns, menu open or not. */
-DECLARE_LVL(func_00209E68);             /* MemCard_UpdateState */
+DECLARE_LVL(memcard_update_state);
 #define MENU_UPDATES    (*(volatile s32 *)0x001D6080)    /* D_001D5F70 + 0x110: Pause_Update's count, held at 0x7D00 */
 static s32 menu_updates_seen;
 
@@ -2219,5 +2222,5 @@ void ee_title_card_c(s32 L)
             return;
         }
     }
-    LVL(L, func_00209E68, VoidFn)();
+    LVL(L, memcard_update_state, VoidFn)();
 }

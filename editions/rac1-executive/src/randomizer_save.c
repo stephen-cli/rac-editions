@@ -3,13 +3,13 @@
  * record (src/randomizer.h for the logic, src/goodies.c for the menus).
  *
  * A save file is {game blob size, level blob size}, the game blob, then
- * twenty level blobs (memcard_MakeWholeSave, func_0020BA00), one per entry
+ * twenty level blobs (memcard_MakeWholeSave), one per entry
  * of the level save table D_001A08C0 and per level page: the per-level
  * records are arrays of twenty, saved and restored as record i of blob i.
  * The game has nineteen levels (0-18), so the twentieth page is never a
  * level's: block 0xBBA, the level's 0x800 bytes of moby state, is read at
  * D_00141FC0 + (level << 11) for the current level only (the save's
- * Menu_ReadSector, the load's func_002083E0), and the twentieth page,
+ * Menu_ReadSector, the load's load_map_chunk), and the twentieth page,
  * 0x14B7C0-0x14BFBF, is 2 KB the 2002 game writes to the card and reads
  * back without ever looking at. The Randomizer's record lives at its
  * start: the 2002 game loads such a save as a plain save (the vanilla
@@ -17,11 +17,11 @@
  * sees no corruption; the game's own save-size check passes because the
  * file is the size it always is. The record has a magic word, a size, a
  * version and the game's own save checksum (memcard_Checksum,
- * func_0020BB10) over itself, so anything else there reads as no record.
+ * memcard_Checksum) over itself, so anything else there reads as no record.
  *
  * Starting one. The Randomizer's New Game page (src/goodies.c) is retail's
  * with the slot list's update wrapped: while it runs, a Randomizer new
- * game is armed here. Creating the save (Menu_BeginSaveSlot, func_00227D20,
+ * game is armed here. Creating the save (Menu_BeginSaveSlot, start_memory_card_save,
  * or the no-card start) begins with the game-state reset from the disc's
  * initial state (func_00209DC0), which the title screen's programs call
  * through ee_fe_reset_19/20 (src/widescreen.c); that calls
@@ -38,7 +38,7 @@
  * (D_0015EE84, which the boot sequence after the title screen,
  * GameBootSequence, hands to the level load as Load Game's saves do; the
  * opening movies play only for a first load of level 0), the planet
- * unlocked as UnlockPlanet (func_L00_00261848) unlocks it, with no banner,
+ * unlocked as unlock_planet unlocks it, with no banner,
  * and RZ_START_BOLTS bolts. The disc's initial state already holds the
  * Bomb Glove (owned, 10 bombs, on the quick select), as a retail new game
  * starts with it. All of it is in the new save memcard_MakeWholeSave
@@ -81,12 +81,12 @@ struct RzRecord {
 
 /* The game and level save tables, at the executable's addresses (the title
  * screen's programs keep their data there; a level relocates it). */
-DECLARE_LVL_DATA(save_game_table);      /* the game's save records {address, size, id, 0}, to a zero address */
-DECLARE_LVL_DATA(save_level_table);     /* a level page's; both move with each program's data (tools/modseg.py) */
-DECLARE_LVL(func_0020BBC8);             /* memcard_PrepData(buffer, page, table): the table's records for the page */
+DECLARE_LVL_DATA(save_game_table);    /* the game's save records {address, size, id, 0}, to a zero address */
+DECLARE_LVL_DATA(save_level_table);   /* a level page's; both move with each program's data (tools/modseg.py) */
+DECLARE_LVL(memcard_PrepData);        /* memcard_PrepData(buffer, page, table): the table's records for the page */
 typedef s32 (*PrepFn)(void *, s32, const void *);
 
-/* The card machine (D_0013D390) as memcard_Save (func_0020BFC8) drives it
+/* The card machine (D_0013D390) as memcard_Save drives it
  * for an autosave: the game's records and one level page, packed into two
  * buffers, go to the card when the request is set; the page's index is the
  * machine's, and the write sequence seeks it. The machine's own save
@@ -123,7 +123,7 @@ volatile u32 ee_debug_rz_card[2];
 #define HELPDESK_VOICE  (*(volatile u8 *)0x0015EF1C)     /* gHelpDeskVoice: 0 off */
 #define HELPDESK_TEXT   (*(volatile u8 *)0x0015EF1D)     /* gHelpDeskText: 0 off */
 
-extern void func_00121A80(void *clock);              /* sceCdReadClock into 8 bytes (core) */
+extern void sce_cd_read_clock(void *clock);   /* sceCdReadClock into 8 bytes (core) */
 #define MENU_TICKS      (*(volatile s32 *)0x001D60C4)   /* D_001D5F70 + 0x154: the menus' ticks since the card idled */
 
 static u8 armed;                        /* a Randomizer new game is being created */
@@ -131,7 +131,7 @@ static u8 seed_given;                   /* with this seed (Reuse Seed) rather th
 static u32 given_seed;
 static s32 given_start;                 /* RzStart: the code's, or the Randomizer Options page's for a fresh seed */
 
-/* memcard_Checksum (func_0020BB10): a 16-bit shift register, seeded with
+/* memcard_Checksum: a 16-bit shift register, seeded with
  * the CRC-32 polynomial, over the bytes. */
 u32 ee_save_checksum(const u8 *data, s32 length)
 {
@@ -150,7 +150,7 @@ u32 ee_save_checksum(const u8 *data, s32 length)
     return crc & 0xFFFF;
 }
 
-/* memcard_GetDataSize (func_0020BAD8) over a save table: {address, size,
+/* memcard_GetDataSize over a save table: {address, size,
  * id, 0} entries to a zero address; a blob is 8 bytes, then 8 + size
  * rounded up to 4 per record, then 8. */
 static s32 blob_size(const s32 *table)
@@ -271,8 +271,8 @@ void ee_page19_autosave(s32 L)
         return;
     }
     MC_PAGE = HIDDEN_PAGE_INDEX;
-    LVL(L, func_0020BBC8, PrepFn)(MC_SAVE_GAME_BUF, 0, LVL_DATA(L, save_game_table, const void *));
-    LVL(L, func_0020BBC8, PrepFn)(MC_SAVE_LEVEL_BUF, HIDDEN_PAGE_INDEX, LVL_DATA(L, save_level_table, const void *));
+    LVL(L, memcard_PrepData, PrepFn)(MC_SAVE_GAME_BUF, 0, LVL_DATA(L, save_game_table, const void *));
+    LVL(L, memcard_PrepData, PrepFn)(MC_SAVE_LEVEL_BUF, HIDDEN_PAGE_INDEX, LVL_DATA(L, save_level_table, const void *));
     GAME_FLAGS |= GAME_FLAG_SAVING;
     MC_REQUEST = MC_REQUEST_SAVE;
     MC_REQUEST_CARD = card;
@@ -367,7 +367,7 @@ static u32 fresh_seed(void)
     for (i = 0; i < 8; i++) {
         clock[i] = 0;
     }
-    func_00121A80(clock);
+    sce_cd_read_clock(clock);
     for (i = 1; i < 8; i++) {
         hash = (hash ^ clock[i]) * 0x01000193u;     /* FNV-1a's prime */
     }

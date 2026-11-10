@@ -55,7 +55,7 @@
  *        faint cloud. R&C1's particle engine is the same one (ReRAC's
  *        particles.md), texture 12 included (the first frame of its cloud
  *        types 4, 11, 13, 18, 23 and 28, pixel for pixel R&C2's). Its type
- *        27 (spawner func_L00_0026EBC0, in every level) is that sprite
+ *        27 (spawner PartType27Spawn, in every level) is that sprite
  *        without the riding, the drift, the growth, the colour change and
  *        the spin: additive, moving by a fixed step a frame, fading
  *        linearly. Here it takes texture 12, and every frame (jets_age)
@@ -80,9 +80,9 @@
  *        and the flag at camera + 0x246 (0x427E10). Measured in R&C2, the
  *        camera is back behind Ratchet 0.6 s after a U-turn mid-dash. R&C1's
  *        follow camera has the same helpers, the same code with the camera
- *        fields 0x20 to 0x30 lower (func_L00_002E9A40, func_L00_002E9DC8,
- *        func_L00_002E9900, func_L00_002E9AD0), and its per-frame overrides
- *        (func_L00_002E74B0) end with the Thruster-Pack block R&C2's sits
+ *        fields 0x20 to 0x30 lower (follow_camera_set_lateral_spring, set_follow_camera_angle_blend_from_direction,
+ *        Cam_SetDistanceGoal, set_follow_camera_flag_226), and its per-frame overrides
+ *        (follow_camera_apply_overrides) end with the Thruster-Pack block R&C2's sits
  *        next to; the dash hooks the call just before it.
  *
  * Sites: tools/gen_charge.py. The sequence: R&C2's 0x8B expanded by
@@ -90,21 +90,21 @@
  * slot of Ratchet's class like the strafe's backpedal (src/strafe.c). */
 #include "modseg.h"
 
-DECLARE_LVL(func_L00_0026EBC0);   /* spawn particle type 27(pos, vel, colour, lifetime, size): an additive sprite that drifts and fades */
-DECLARE_LVL(func_L00_001F2BE8);   /* collect_mobies_in_sphere(radius, pos, mask, self, hit) */
-DECLARE_LVL(func_L00_0025A8C0);   /* make_hit_descriptor(hit, attacker, flags, damage, push) */
-DECLARE_LVL(func_0020DAF8);       /* build_moby_bone_transform(moby, joint list, matrix): the level's copy */
-DECLARE_LVL(func_L00_002175D0);   /* hero_loop_sound(slot, moby, sound): plays once into a free hero sound slot */
-DECLARE_LVL(func_L00_0025C918);   /* spring(&value, &velocity, target, k, damping, snap) */
-DECLARE_LVL(func_L00_00211F80);   /* stick_target(scale, mode) */
-DECLARE_LVL(func_L00_00212740);   /* speed_step(accel, decel): ground speed toward target speed */
-DECLARE_LVL(func_L00_00212790);   /* set_planar_vel(yaw): velocity from ground speed (99999: the facing) */
-DECLARE_LVL(func_L00_00232C10);   /* set_hero_animation(id, start_frame, blend_frames) */
-DECLARE_LVL(func_L00_002E9A40);   /* camera_lateral_spring(k, damping); 0 keeps one */
-DECLARE_LVL(func_L00_002E9DC8);   /* camera_turn_toward(direction, strength, limit) */
-DECLARE_LVL(func_L00_002E9900);   /* camera_set_distance(both, distance, rate) */
-DECLARE_LVL(func_L00_002E9AD0);   /* camera + 0x226 = 1 (R&C2's + 0x246) */
-DECLARE_LVL_DATA(ease_table);     /* the hero's per-joint ease table */
+DECLARE_LVL(PartType27Spawn);              /* (pos, vel, colour, life, size): an additive sprite, drifting and fading */
+DECLARE_LVL(coll_sphere_mobys);            /* collect_mobies_in_sphere(radius, pos, mask, self, hit) */
+DECLARE_LVL(InitDirectionalHitQuery);      /* make_hit_descriptor(hit, attacker, flags, damage, push) */
+DECLARE_LVL(func_0020DAF8);                /* build_moby_bone_transform(moby, joint list, matrix): the level's copy */
+DECLARE_LVL(func_L00_002175D0);            /* hero_loop_sound(slot, moby, sound): once, into a free hero sound slot */
+DECLARE_LVL(Spring);                       /* Spring(&value, &velocity, target, k, damping, snap) */
+DECLARE_LVL(stick_target);                 /* stick_target(scale, mode) */
+DECLARE_LVL(speed_step);                   /* speed_step(accel, decel): ground speed toward target speed */
+DECLARE_LVL(set_planar_vel);               /* set_planar_vel(yaw): velocity from ground speed (99999: the facing) */
+DECLARE_LVL(set_hero_animation);           /* set_hero_animation(id, start_frame, blend_frames) */
+DECLARE_LVL(follow_camera_set_lateral_spring);   /* camera_lateral_spring(k, damping); 0 keeps one */
+DECLARE_LVL(set_follow_camera_angle_blend_from_direction);   /* camera_turn_toward(direction, strength, limit) */
+DECLARE_LVL(Cam_SetDistanceGoal);          /* camera_set_distance(both, distance, rate) */
+DECLARE_LVL(set_follow_camera_flag_226);   /* camera + 0x226 = 1 (R&C2's + 0x246) */
+DECLARE_LVL_DATA(ease_table);              /* the hero's per-joint ease table */
 extern const u32 ee_charge_trigger[19], ee_charge_slot_item[19], ee_charge_scale[19];
 extern const u32 ee_charge_set_state[19], ee_charge_move_site[19], ee_charge_move_fn[19];
 extern const u32 ee_charge_part_frames[19];   /* the particle engine's per-type frame lists */
@@ -276,7 +276,7 @@ static void charge_enter(s32 L)
     tap_window = 0;
     F32(HERO_ANIM_SPEED) = 1.0f;
     if (install_sequence()) {
-        LVL(L, func_L00_00232C10, SetAnim)(CHARGE_SLOT, 0, -2.0f);
+        LVL(L, set_hero_animation, SetAnim)(CHARGE_SLOT, 0, -2.0f);
     }
 }
 
@@ -322,7 +322,7 @@ static s32 charge_ends(s32 L)
     if (S16(HERO_SURFACE) != 0 || (!(PAD_HELD & PAD_R1) && S32(HERO_TIMER) >= scale_frames(L, 61))) {
         S32(HERO_HOLD_OFF) = scale_frames(L, 30);
         if (set_state(L, STATE_STOP, 0)) {
-            LVL(L, func_L00_00232C10, SetAnim)(ANIM_SKID, 4, (f32)scale_frames(L, 11));
+            LVL(L, set_hero_animation, SetAnim)(ANIM_SKID, 4, (f32)scale_frames(L, 11));
         }
         return 1;
     }
@@ -366,7 +366,7 @@ static void jets(s32 L, u8 *moby, s32 joint_list)
     }
     for (i = 0; i < 2; i++) {
         const struct jet *j = &ee_charge_jets[i];
-        u8 *part = LVL(L, func_L00_0026EBC0, SpawnFade)(probe, drift, j->birth, scale_frames(L, j->frames),
+        u8 *part = LVL(L, PartType27Spawn, SpawnFade)(probe, drift, j->birth, scale_frames(L, j->frames),
                                                         j->base * ee_charge_jet_size);
         if (part != 0) {
             s32 k = jet_next;
@@ -462,7 +462,7 @@ static s32 charge_contact(s32 L, void *moby)
     u8 *found[CONTACTS];
     u8 **list = (u8 **)ee_charge_collect_list[L];
     s32 n, i, crates = 0, hidden = 0;
-    n = LVL(L, func_L00_001F2BE8, CollectInSphere)(0.57f, probe, 0x10, moby, 0);
+    n = LVL(L, coll_sphere_mobys, CollectInSphere)(0.57f, probe, 0x10, moby, 0);
     if (n > CONTACTS) {
         n = CONTACTS;
     }
@@ -487,8 +487,8 @@ static s32 charge_contact(s32 L, void *moby)
     for (i = 0; i < 16; i++) {
         hit[i] = 0;
     }
-    LVL(L, func_L00_0025A8C0, HitDescriptor)(hit, moby, 0x10000, 1.0f, push);
-    LVL(L, func_L00_001F2BE8, CollectInSphere)(0.57f, probe, 0x10, moby, hit);
+    LVL(L, InitDirectionalHitQuery, HitDescriptor)(hit, moby, 0x10000, 1.0f, push);
+    LVL(L, coll_sphere_mobys, CollectInSphere)(0.57f, probe, 0x10, moby, hit);
     for (i = 0; i < hidden; i++) {
         *(u16 *)(found[i] + 0x34) |= MOBY_HITTABLE;
     }
@@ -508,7 +508,7 @@ static void charge_move(s32 L)
     s32 i;
 
     LVL(L, func_L00_002175D0, LoopSound)(4, moby, SOUND_JET);
-    LVL(L, func_L00_00211F80, StickTarget)(1.0f, 0);
+    LVL(L, stick_target, StickTarget)(1.0f, 0);
     F32(HERO_TARGET) = ft * 11.5f;
     if (steer < target) {
         steer = steer + rate > target ? target : steer + rate;
@@ -528,9 +528,9 @@ static void charge_move(s32 L)
     if (F32(HERO_STICK) > 0.2f) {
         F32(HERO_YAW) = wrap_angle(F32(HERO_YAW) + turn * fs);
     }
-    LVL(L, func_L00_00212740, SpeedStep)(FRAME_TIME_SQ * 100.0f, FRAME_TIME_SQ * 15.0f);
-    LVL(L, func_L00_00212790, SetPlanarVel)(99999.0f);
-    LVL(L, func_L00_0025C918, Spring)((volatile f32 *)(HERO + HERO_POS + 8), (volatile f32 *)(HERO + HERO_SPRING),
+    LVL(L, speed_step, SpeedStep)(FRAME_TIME_SQ * 100.0f, FRAME_TIME_SQ * 15.0f);
+    LVL(L, set_planar_vel, SetPlanarVel)(99999.0f);
+    LVL(L, Spring, Spring)((volatile f32 *)(HERO + HERO_POS + 8), (volatile f32 *)(HERO + HERO_SPRING),
                                       F32(HERO_GROUND_Z) + 0.17f, FRAME_SCALE_SQ * 0.04f, FRAME_SCALE_SQ * 0.3f, ft * 7.5f);
 
     /* What the boots run into: a 0.57 sphere three (60 Hz) frames ahead. */
@@ -585,10 +585,10 @@ s32 ee_charge_camera_c(f32 radius, void *pos, s32 mask, void *self, void *hit, u
     s32 found = ((CollectInSphere)ee_charge_collect[L])(radius, pos, mask, self, hit);
     if (S32(HERO_STATE) == STATE_CHARGE) {
         u8 *moby = *(u8 **)(HERO + HERO_MOBY);
-        LVL(L, func_L00_002E9A40, CamSpring)(0.04f, 0.2f);
-        LVL(L, func_L00_002E9DC8, CamTurn)(moby + 0xC0, PI / 4.0f, 0.0f);
-        LVL(L, func_L00_002E9900, CamDistance)(0, 3.0f, 0.003f);
-        LVL(L, func_L00_002E9AD0, Void)();
+        LVL(L, follow_camera_set_lateral_spring, CamSpring)(0.04f, 0.2f);
+        LVL(L, set_follow_camera_angle_blend_from_direction, CamTurn)(moby + 0xC0, PI / 4.0f, 0.0f);
+        LVL(L, Cam_SetDistanceGoal, CamDistance)(0, 3.0f, 0.003f);
+        LVL(L, set_follow_camera_flag_226, Void)();
     }
     return found;
 }
@@ -602,7 +602,7 @@ s32 ee_charge_camera_c(f32 radius, void *pos, s32 mask, void *self, void *hit, u
  * (measured: count 134, 162, 134; slots 131-161 zero after). The dash's
  * sequence (141) and the strafe's backpedal (140) live there, so a pause
  * during either left Ratchet playing an empty slot, and the boots' pose
- * (func_L00_00209940 from the item updater) then waited forever in the
+ * (pack_pose from the item updater) then waited forever in the
  * animation evaluator (func_L00_00255B90, spinning on scratchpad
  * 0x700035F0): the owner's freeze on pausing mid-dash. Every level's
  * sequences 0-133 are used by some level, so no lower slot is free; the
@@ -624,7 +624,7 @@ static void keep_sequence(u8 *moby, s32 slot, const u32 *seq)
 
 void ee_frame_start_c(u32 ra)
 {
-    s32 L = ee_level_of_call(ra, lvl_func_L00_00299250, EE_SITE_FRAME_START);
+    s32 L = ee_level_of_call(ra, LVL_TABLE(func_L00_00299250), EE_SITE_FRAME_START);
     u8 *moby = *(u8 **)(HERO + HERO_MOBY);
     if (moby != 0 && EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
         keep_sequence(moby, CHARGE_SLOT, ee_charge_seq);
