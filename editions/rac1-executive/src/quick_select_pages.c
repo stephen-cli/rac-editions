@@ -71,18 +71,13 @@ DECLARE_LVL_DATA(hud_slots);                 /* HUD slot table, 13 records of 0x
 DECLARE_LVL_DATA(qs_slots);                  /* the ring's 8 slot records of 0x1C */
 DECLARE_LVL_DATA(item_table);                /* 37 item records of 0x4C */
 
-#define QS_ITEMS        ((volatile u32 *)0x00141FA0)
 #define QS_NEXT         ((volatile u8 *)EE_QS_PAGE_NEXT)
 #define QS_PREV         ((volatile u8 *)EE_QS_PAGE_PREV)
 #define QS_PAGE         (*(volatile u8 *)EE_QS_PAGE_INDEX)
-#define OWNED           ((volatile u8 *)0x0013D5C8)   /* per item, saved */
 #define ITEM_COUNT      37
 #define SLOTS           8
 #define PAGES           3
 
-#define PAD             0x0013CA40
-#define PAD_HELD_RAW    (*(volatile u32 *)(PAD + 0x1C0))   /* held, unmasked: what the ring itself reads */
-#define PAD_PRESSED_RAW (*(volatile u32 *)(PAD + 0x1C4))   /* pressed this frame, unmasked */
 #define BTN_L1          0x04u
 #define BTN_R1          0x08u
 #define BTN_TRIANGLE    0x10u
@@ -145,10 +140,10 @@ static void validate(void)
 {
     s32 i;
     for (i = 0; i < SLOTS; i++) {
-        if (QS_NEXT[i] >= ITEM_COUNT || !OWNED[QS_NEXT[i]]) {
+        if (QS_NEXT[i] >= ITEM_COUNT || !item_available[QS_NEXT[i]]) {
             QS_NEXT[i] = 0;
         }
-        if (QS_PREV[i] >= ITEM_COUNT || !OWNED[QS_PREV[i]]) {
+        if (QS_PREV[i] >= ITEM_COUNT || !item_available[QS_PREV[i]]) {
             QS_PREV[i] = 0;
         }
     }
@@ -163,18 +158,18 @@ static void rotate(s32 dir)
     u8 active[SLOTS];
     s32 i;
     for (i = 0; i < SLOTS; i++) {
-        active[i] = (u8)QS_ITEMS[i];
+        active[i] = (u8)quick_select_items[i];
     }
     if (dir > 0) {
         for (i = 0; i < SLOTS; i++) {
-            QS_ITEMS[i] = QS_NEXT[i];
+            quick_select_items[i] = QS_NEXT[i];
             QS_NEXT[i] = QS_PREV[i];
             QS_PREV[i] = active[i];
         }
         QS_PAGE = (QS_PAGE + 1) % PAGES;
     } else {
         for (i = 0; i < SLOTS; i++) {
-            QS_ITEMS[i] = QS_PREV[i];
+            quick_select_items[i] = QS_PREV[i];
             QS_PREV[i] = QS_NEXT[i];
             QS_NEXT[i] = active[i];
         }
@@ -205,7 +200,7 @@ static void refill(s32 L)
     const u8 *items = LVL_DATA(L, item_table, const u8 *);
     s32 i;
     for (i = 0; i < SLOTS; i++, slot += 0x1C) {
-        u32 id = QS_ITEMS[i];
+        u32 id = quick_select_items[i];
         *(volatile u32 *)(slot + 0x18) = id;
         *(volatile u32 *)slot = *(const u16 *)(items + id * 0x4C + 0x38);
     }
@@ -214,9 +209,9 @@ static void refill(s32 L)
 void ee_qs_update_c(void *slot, u32 ra)
 {
     s32 L = ee_level_of_call(ra, LVL_TABLE(update_hud_elements), EE_SITE_HUD_SLOT_UPDATE);
-    u32 pressed = PAD_PRESSED_RAW;
+    u32 pressed = g_controller_state.pressed_unmasked;
     validate();
-    if (PAD_HELD_RAW & BTN_TRIANGLE) {          /* not on the release frame, which equips */
+    if (g_controller_state.held_unmasked & BTN_TRIANGLE) {          /* not on the release frame, which equips */
         if (pressed & BTN_R1) {
             rotate(1);
             refill(L);
@@ -267,13 +262,13 @@ s32 ee_qs_pause_update_c(u8 *s, s32 L)
     volatile u32 *slots = (volatile u32 *)(s + 0x30);
     s32 i;
     validate();
-    if (PAD_PRESSED_RAW & BTN_SQUARE) {
+    if (g_controller_state.pressed_unmasked & BTN_SQUARE) {
         for (i = 0; i < SLOTS; i++) {
-            QS_ITEMS[i] = slots[i];
+            quick_select_items[i] = slots[i];
         }
         rotate(1);
         for (i = 0; i < SLOTS; i++) {
-            slots[i] = QS_ITEMS[i];
+            slots[i] = quick_select_items[i];
         }
         LVL(L, Moby_PlaySound, SoundFn)(1, 0x11, *(u32 *)(s + 0x14));   /* the slot-step blip */
     }
@@ -300,7 +295,7 @@ void ee_qs_autoslot_c(s32 index, u32 item)
 {
     s32 i;
     if (index < SLOTS) {
-        QS_ITEMS[index] = item;
+        quick_select_items[index] = item;
         return;
     }
     for (i = 0; i < SLOTS; i++) {
@@ -329,29 +324,28 @@ void ee_qs_autoslot_c(s32 index, u32 item)
  * HelpDesk off. So retail's Challenge Mode starts with the Camera page's
  * three settings and the subtitles back at their defaults; the edition
  * keeps them as the player set them. */
-#define CAMERA_OPTIONS      0x0015EEDC   /* save ids 0x1A, 0x19, 0x1B: invert52, opt_cam_invert, opt_cam_yaw_rate */
+#define CAMERA_OPTIONS      (&invert52)  /* save ids 0x1A, 0x19, 0x1B: invert52, opt_cam_invert, opt_cam_yaw_rate */
 #define CAMERA_OPTION_WORDS 3
-#define SUBTITLES           (*(volatile u8 *)0x0015EF40)   /* subtitles_enabled, save id 0x21 */
 
 void ee_qs_carry_hook_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, LVL_TABLE(func_00227DB0), EE_SITE_QS_CARRY);
     u8 keep[24];
     s32 camera[CAMERA_OPTION_WORDS];
-    u8 subtitles = SUBTITLES;
+    u8 subtitles = subtitles_enabled;
     s32 i;
     for (i = 0; i < 24; i++) {
         keep[i] = ((volatile u8 *)EE_QS_PAGE_NEXT)[i];
     }
     for (i = 0; i < CAMERA_OPTION_WORDS; i++) {
-        camera[i] = ((volatile s32 *)CAMERA_OPTIONS)[i];
+        camera[i] = CAMERA_OPTIONS[i];
     }
     LVL(L, func_00209DC0, VoidFn)();
     for (i = 0; i < 24; i++) {
         ((volatile u8 *)EE_QS_PAGE_NEXT)[i] = keep[i];
     }
     for (i = 0; i < CAMERA_OPTION_WORDS; i++) {
-        ((volatile s32 *)CAMERA_OPTIONS)[i] = camera[i];
+        CAMERA_OPTIONS[i] = camera[i];
     }
-    SUBTITLES = subtitles;
+    subtitles_enabled = subtitles;
 }

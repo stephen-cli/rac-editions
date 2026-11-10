@@ -82,14 +82,8 @@ typedef s32 (*FrameFn)(s32, s32);
 typedef void (*QuadFn)(s32, s32, s32, s32, s32, s32, s32, s32, s32, s32);
 typedef void (*RectFn)(s32, s32, s32, s32, u64, s32);
 
-#define STEREO          (*(volatile s32 *)0x0015EEE8)
-#define MUSIC_VOLUME    (*(volatile s32 *)0x0015EEEC)
-#define SFX_VOLUME      (*(volatile s32 *)0x0015EEF0)
-#define MIXER           ((volatile s32 *)0x0013E698)   /* D_0013E650 + 0x48: the six groups' levels */
+#define MIXER           ((volatile s32 *)(voice_pool + 0x48))   /* the six groups' levels */
 #define MOVIE_SAVED     (*(volatile u16 *)EE_SETTING_MOVIE_VOLUME)
-#define PAD             0x0013CA40
-#define PAD_HELD        (*(volatile u32 *)(PAD + 0x1C0))
-#define PAD_PRESSED     (*(volatile u32 *)(PAD + 0x1C4))
 #define BTN_TRIANGLE    0x10u
 #define BTN_CROSS       0x40u
 #define BTN_CLOSE       0xD00u          /* Start, Select and the third close button, as retail tests them */
@@ -128,7 +122,7 @@ static s32 movie_volume(void)
         ee_movie_volume = saved - 1;
     } else {
         if (ee_movie_volume < 0) {
-            ee_movie_volume = SFX_VOLUME;
+            ee_movie_volume = sound_volume;
         }
         MOVIE_SAVED = (u16)(ee_movie_volume + 1);
     }
@@ -179,8 +173,8 @@ s32 ee_sound_input_c(u8 *w, s32 L)
 {
     u8 *ms = LVL_DATA(L, menu_state, u8 *);
     u8 *page = *(u8 **)(ms + 4);
-    u32 pressed = PAD_PRESSED;
-    u32 held = PAD_HELD;
+    u32 pressed = g_controller_state.pressed_unmasked;
+    u32 held = g_controller_state.held_unmasked;
     s32 *row = &W_ROW(w);
     s32 previous, sfx, music, d;
 
@@ -208,8 +202,8 @@ s32 ee_sound_input_c(u8 *w, s32 L)
         LVL(L, Moby_PlaySound, SoundFn)(1, 0x11, W_OWNER(w));
     }
 
-    sfx = SFX_VOLUME;
-    music = MUSIC_VOLUME;
+    sfx = sound_volume;
+    music = music_volume;
     d = 0;
     if (held & BTN_RIGHT) {
         d += VOLUME_STEP;
@@ -219,27 +213,27 @@ s32 ee_sound_input_c(u8 *w, s32 L)
     }
     if (d != 0) {
         if (*row == ROW_SFX) {
-            SFX_VOLUME = step(sfx, d);
+            sound_volume = step(sfx, d);
         } else if (*row == ROW_MUSIC) {
-            MUSIC_VOLUME = step(music, d);
+            music_volume = step(music, d);
         } else if (*row == ROW_MOVIE) {
             ee_movie_volume = step(movie_volume(), d);    /* the sound update sends it */
             MOVIE_SAVED = (u16)(ee_movie_volume + 1);
         }
     }
-    if (sfx != SFX_VOLUME || music != MUSIC_VOLUME) {   /* retail's mixer levels */
-        s32 v = SFX_VOLUME;
+    if (sfx != sound_volume || music != music_volume) {   /* retail's mixer levels */
+        s32 v = sound_volume;
         MIXER[0] = v * 8 / 10;
-        MIXER[1] = MIXER[2] = MUSIC_VOLUME;
+        MIXER[1] = MIXER[2] = music_volume;
         MIXER[3] = v * 7 / 10;
         MIXER[4] = v * 7 / 10;
         MIXER[5] = v;
     }
     if (pressed & BTN_CROSS) {
         if (*row == ROW_STEREO) {
-            STEREO = !STEREO;
+            playback_mode = !playback_mode;
         }
-        snd_SetPlaybackMode(!STEREO);
+        snd_SetPlaybackMode(!playback_mode);
         LVL(L, Moby_PlaySound, SoundFn)(0, 0x11, W_OWNER(w));
     }
     return 0;
@@ -263,9 +257,9 @@ s32 ee_sound_draw_c(u8 *w, s32 L)
         LVL(L, font_print_right, FontFn)(cx - 8, y - 8, colour, text(L, labels[r]), -1);
         if (r == ROW_STEREO) {
             LVL(L, FontPrintLarge, FontFn)(cx + 8, y - 8, COLOUR_ROW,
-                                           text(L, STEREO != 0 ? TEXT_STEREO_ON : TEXT_MONO), -1);
+                                           text(L, playback_mode != 0 ? TEXT_STEREO_ON : TEXT_MONO), -1);
         } else {
-            s32 volume = r == ROW_SFX ? SFX_VOLUME : r == ROW_MUSIC ? MUSIC_VOLUME : movie_volume();
+            s32 volume = r == ROW_SFX ? sound_volume : r == ROW_MUSIC ? music_volume : movie_volume();
             s32 frame = r == ROW_MOVIE ? LVL(L, GetIconFrame, FrameFn)(EE_ICON_MOVIE_BAR, 0) : 0;
             s32 length = (width - (cx + 0x4A)) * volume / 1024;
             if (frame == 0) {          /* the movie bar's icon missing: green, as retail drew this volume */

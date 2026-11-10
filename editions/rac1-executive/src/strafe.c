@@ -171,8 +171,7 @@ extern const u32 ee_jump_turn_site[19], ee_jump_planar_site[19], ee_air_turn_sit
 extern const u32 ee_jump_press_0[19], ee_jump_press_1[19], ee_jump_press_2[19], ee_jump_press_3[19];
 DECLARE_LVL_DATA(camera_yaw);   /* camera record + 0x158, per level */
 
-#define PAD0            0x0013CA40
-#define HERO            0x0013F450
+#define PAD0            ((u32)&g_controller_state)
 #define hero_state      (*(volatile s32 *)(HERO + 0x2084))
 #define hero_move_yaw   (*(volatile f32 *)(HERO + 0x180))
 #define hero_stick      (*(volatile f32 *)(HERO + 0x229C))   /* left stick magnitude, 0..1 */
@@ -190,15 +189,12 @@ DECLARE_LVL_DATA(camera_yaw);   /* camera record + 0x158, per level */
 #define hero_vehicle    (*(volatile u8 *)(HERO + 0x20A4))    /* who is played: 0 Ratchet, 1 Clank, 2 Giant Clank (NTSC hero.vehicle_mode) */
 #define VEHICLE_CLANK       1
 #define VEHICLE_GIANT_CLANK 2
-#define FRAME_TIME_SQ   (*(volatile f32 *)0x0015EE70)
-#define OPT_MIRROR_ANIM (*(volatile u8 *)0x0015EEB5)
+#define OPT_MIRROR_ANIM gCheats[5]
 #define EASE(L)         ((volatile f32 *)LVL_DATA(L, ease_table, u32))
 #define BACKPEDAL_SLOT  140           /* a free slot: the class keeps 162 (its packet table follows at + 0x2D0), 134 used */
 #define CAMERA_YAW(L)   (*(volatile f32 *)LVL_DATA(L, camera_yaw, u32))
 #define PAD_HISTORY     0x1E0         /* 30 words of pressed edges, a ring */
 #define PAD_HISTORY_LEN 30
-#define FRAME_SCALE_SQ  (*(volatile f32 *)0x0015EE64)
-#define FRAME_TIME      (*(volatile f32 *)0x0015EE6C)
 #define STATE_RUN       2
 #define STATE_WADE      0x73          /* SHALLOW_WATER_RUN: RUN's movement case, the wade cycle, slower */
 #define STATE_SWIM_FIRST 0x33         /* SWIM, SWIM_IDLE, SWIM_WITH_CROUCH_INPUT, WATER_SURFACE_MOVE, */
@@ -213,7 +209,6 @@ DECLARE_LVL_DATA(camera_yaw);   /* camera record + 0x158, per level */
 #define STATE_HIGH_JUMP 0xB           /* the flips: animation 0x1C + stick class */
 #define FLIP_STICK      0.9f          /* R&C2: a strafe jump flips from this stick magnitude (0x2C24B8) */
 #define CLASS_FORWARD   2
-#define PAD_CROSS       0x40u
 #define PAD_STRAFE      0x3u          /* L2 | R2 in the game's button layout */
 #define PAD_STRAFE_FUTURE 0x1u        /* L2: the Future control layout's strafe button */
 #define PAD_LOCK        0x1CC         /* the input lock the parse applies and resets (src/control_layout.c) */
@@ -425,7 +420,7 @@ static void strafe_turn_with(s32 L, s32 mode, f32 accel, f32 max_speed, f32 rate
  * in R&C1's scaled units). */
 static void strafe_turn(s32 L)
 {
-    strafe_turn_with(L, 0, FRAME_SCALE_SQ * 0.037f, FRAME_SCALE_SQ * 0.25f, FRAME_TIME * 12.2f);
+    strafe_turn_with(L, 0, g_frame_scale_sq * 0.037f, g_frame_scale_sq * 0.25f, g_frame_time * 12.2f);
 }
 
 void ee_strafe_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
@@ -570,7 +565,7 @@ static s32 enter_strafe_flip(s32 L, s32 cls)
     }
     LVL(L, set_hero_animation, SetAnim)(id, 0, (f32)scale_frames(L, 5));
     strafe_flip = 1;
-    hero_flip_speed = FRAME_TIME * 5.0f;
+    hero_flip_speed = g_frame_time * 5.0f;
     hero_flip_speed0 = 0.0f;
     return r;
 }
@@ -625,11 +620,11 @@ void ee_flip_approach_c(f32 target, f32 step, f32 *var, u32 ra)
     s32 trace_ = (TRACE(7), 0);
     s32 L = level_of_two(ra, ee_flip_appr_0, ee_flip_appr_1);
     if (strafe_flip && hero_state == STATE_HIGH_JUMP) {
-        f32 t = hero_stick * FRAME_TIME * 5.0f;
-        if (t < FRAME_TIME * 2.0f) {
-            t = FRAME_TIME * 2.0f;
+        f32 t = hero_stick * g_frame_time * 5.0f;
+        if (t < g_frame_time * 2.0f) {
+            t = g_frame_time * 2.0f;
         }
-        ((Approach)ee_approach_fn[L])(t, FRAME_TIME_SQ * 37.0f, var);
+        ((Approach)ee_approach_fn[L])(t, g_frame_time_sq * 37.0f, var);
         hero_ground_speed = hero_speed_164;
     } else {
         ((Approach)ee_approach_fn[L])(target, step, var);

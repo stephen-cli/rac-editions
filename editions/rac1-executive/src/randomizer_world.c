@@ -86,8 +86,7 @@ typedef void (*LoadFn)(s32, s32);
 #define MOBY_PREV_SEQ(m) (*(volatile u8 *)((u8 *)(m) + 0x53))
 #define CLASS_SEQ_COUNT 0xC             /* the class header's number of sequences */
 #define MOBY_FREE_TAIL  0xFF            /* the state of the first slot of the array's free tail */
-#define FRAME_TIME      (*(volatile f32 *)0x0015EE6C)  /* g_frame_time: a frame's seconds */
-#define HERO_POS        ((volatile f32 *)(HERO_BASE + 0x80))
+#define HERO_POS        ((volatile f32 *)(HERO + 0x80))
 #define PI_F            3.1415927f
 #define MODE_PLAY       0
 #define MODE_CINEMATIC  2               /* an in-level cutscene */
@@ -529,7 +528,7 @@ static void move(u8 *m, s32 motion, void *host)
         }
         break;
     case SPIN:
-        MOBY_ROT_F(m, 2) = wrap(MOBY_ROT_F(m, 2) + FRAME_TIME * (PI_F / 2.0f));
+        MOBY_ROT_F(m, 2) = wrap(MOBY_ROT_F(m, 2) + g_frame_time * (PI_F / 2.0f));
         break;
     }
 }
@@ -780,7 +779,7 @@ static s32 pickup_touched(void *moby, const struct PickupSite *site)
     if (!site->stateless && MOBY_STATE(moby) != PICKUP_IDLE) {
         return 0;
     }
-    return dx * dx + dy * dy < r * r && dz < PICKUP_HEIGHT && -dz < PICKUP_HEIGHT && HERO_HEALTH > 0;
+    return dx * dx + dy * dy < r * r && dz < PICKUP_HEIGHT && -dz < PICKUP_HEIGHT && g_hero.health.hp > 0;
 }
 
 /* --- the vendor's weapon demo ---------------------------------------------------------------------------------
@@ -824,9 +823,9 @@ typedef void (*ResetFn)(volatile void *, volatile void *, s32, s32);
 typedef s32 (*CollLineFn)(const f32 *, const f32 *, s32, void *, void *);
 
 #define VENDOR_CLASS        11
-#define HERO_ROT            ((volatile f32 *)(HERO_BASE + 0x90))  /* its turn, after the position (Hero_ResetToPosition) */
+#define HERO_ROT            ((volatile f32 *)(HERO + 0x90))  /* its turn, after the position (Hero_ResetToPosition) */
 #define HERO_STATE_IDLE     0
-#define HERO_MOBY           (*(void *volatile *)(HERO_BASE + 0x2080))
+#define HERO_MOBY           (*(void *volatile *)(HERO + 0x2080))
 #define STAGE_OFFSET_AT     0x80       /* start_vendor_exit_cutscene: addiu $a1, $gp, vendor_exit_cutscene_local_offset */
 #define ADDIU_A1_GP         0x27850000u
 #define STAGE_CHEST         1.0f        /* the lines start this high above the stage */
@@ -1150,8 +1149,8 @@ static struct {
  * save hook calls this first). */
 void rz_world_before_save(s32 L)
 {
-    if (borrow.active && GOLD_FLAGS[borrow.index] != 0 && !borrow.taken) {
-        GOLD_FLAGS[borrow.index] = borrow.saved;
+    if (borrow.active && gold_bolts_collected[borrow.index] != 0 && !borrow.taken) {
+        gold_bolts_collected[borrow.index] = borrow.saved;
         borrow.taken = 1;
         rz_play_collect(borrow.check, L);
     }
@@ -1225,7 +1224,7 @@ static s32 clank_touches(void *bolt)
     f32 dx = HERO_POS[0] - pos[0];
     f32 dy = HERO_POS[1] - pos[1];
     f32 dz = HERO_POS[2] - pos[2];
-    return HERO_MODE == HERO_CLANK && MOBY_STATE(bolt) == GOLD_RESTING && HERO_HEALTH > 0
+    return g_hero.vehicle_mode == HERO_CLANK && MOBY_STATE(bolt) == GOLD_RESTING && g_hero.health.hp > 0
            && dx * dx + dy * dy + dz * dz < GOLD_REACH * GOLD_REACH && dz < GOLD_HEIGHT && -dz < GOLD_HEIGHT;
 }
 
@@ -1249,11 +1248,11 @@ static void bolt_update(void *bolt, void (*update)(void *), s32 L)
         return;
     }
     borrow.index = L * GOLD_SPOTS + BORROWED_SPOT;
-    borrow.saved = GOLD_FLAGS[borrow.index];
+    borrow.saved = gold_bolts_collected[borrow.index];
     borrow.check = check;
     borrow.taken = 0;
     borrow.active = 1;
-    GOLD_FLAGS[borrow.index] = 0;
+    gold_bolts_collected[borrow.index] = 0;
     update(bolt);
     if (MOBY_STATE(bolt) >= GOLD_HOLDING) {
         MOBY_UPDATE_DIST(bolt) = UPDATE_ALWAYS;
@@ -1262,7 +1261,7 @@ static void bolt_update(void *bolt, void (*update)(void *), s32 L)
     ee_debug_rz_bolt[1] = MOBY_STATE(bolt);
     ee_debug_rz_bolt[3] = borrow.taken;
     rz_world_before_save(L);                /* a flag set without a save, should GoldBoltUpdate ever do that */
-    GOLD_FLAGS[borrow.index] = borrow.saved;
+    gold_bolts_collected[borrow.index] = borrow.saved;
     borrow.active = 0;
     if (borrow.taken) {
         if (MOBY_MISSION(host) != 0xFF) {

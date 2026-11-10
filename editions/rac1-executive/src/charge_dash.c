@@ -111,7 +111,6 @@ extern const u32 ee_charge_part_frames[19];   /* the particle engine's per-type 
 extern const u32 ee_charge_camera_site[19], ee_charge_collect[19], ee_charge_collect_list[19];
 extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (build/modseg/gen_anim_charge.c) */
 
-#define HERO            0x0013F450
 #define F32(o)          (*(volatile f32 *)(HERO + (o)))
 #define S32(o)          (*(volatile s32 *)(HERO + (o)))
 #define S16(o)          (*(volatile s16 *)(HERO + (o)))
@@ -137,15 +136,8 @@ extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (bu
 #define HERO_MODE       0x208C        /* control mode */
 #define HERO_2284       0x2284
 #define HERO_STICK      0x229C        /* stick magnitude, 0..1 */
-#define PAD_HELD        (*(volatile u32 *)(0x0013CA40 + 0x1A0))
-#define PAD_PRESSED     (*(volatile u32 *)(0x0013CA40 + 0x1A4))
-#define PAD_R1          0x8u          /* the game's R1 bit: R1 in Classic, R2 in Future (src/control_layout.c) */
-#define OWNED_ITEM_1C   (*(volatile u8 *)(0x0013D5C8 + 0x1C))
-#define WORN_BOOTS      (*(volatile s32 *)0x00141764)   /* D_00141760[1] */
+/* PAD_R1 (structs/pad.h) is the game's R1 bit: R1 in Classic, R2 in Future (src/control_layout.c) */
 #define ITEM_CHARGE_BOOTS 36
-#define FRAME_TIME      (*(volatile f32 *)0x0015EE6C)
-#define FRAME_TIME_SQ   (*(volatile f32 *)0x0015EE70)
-#define FRAME_SCALE_SQ  (*(volatile f32 *)0x0015EE64)
 
 #define STATE_LOOK      1
 #define STATE_STOP      3
@@ -287,7 +279,7 @@ s32 ee_charge_trigger_c(s32 slot, u32 ra)
     s32 L = ee_level_of_call(ra, ee_charge_trigger, 0);
     s32 state = S32(HERO_STATE);
     s32 mode;
-    if (WORN_BOOTS != ITEM_CHARGE_BOOTS) {
+    if (equipped_items[1] != ITEM_CHARGE_BOOTS) {
         return ((SlotItem)ee_charge_slot_item[L])(slot);
     }
     /* Not R&C1's hero + 0x22D8 test, which its Thruster-Pack block makes:
@@ -295,7 +287,7 @@ s32 ee_charge_trigger_c(s32 slot, u32 ra)
      * jumps, set on Veldin 1 before Clank), and the boots need no Clank:
      * it kept the dash from starting on Veldin 1 (owner's report). */
     if (state == STATE_THRUSTER || state == STATE_CHARGE || state == STATE_LOOK || state == STATE_1D || state == STATE_1E
-        || (S16(HERO_SURFACE) != 0 && OWNED_ITEM_1C != 0)) {
+        || (S16(HERO_SURFACE) != 0 && item_available[0x1C] != 0)) {
         return 0;
     }
     if (tap_window > 0) {
@@ -304,13 +296,13 @@ s32 ee_charge_trigger_c(s32 slot, u32 ra)
     mode = S32(HERO_MODE);
     if (tap_window != 0
         && ((u32)mode < 2 || mode == 0xC || ((mode == 2 || mode == 4) && S32(HERO_GROUNDED) != 0))
-        && (PAD_HELD & PAD_R1) && (PAD_PRESSED & PAD_R1)) {
+        && (g_controller_state.held & PAD_R1) && (g_controller_state.pressed & PAD_R1)) {
         if (set_state(L, STATE_CHARGE, 1)) {
             charge_enter(L);
             return 0;
         }
     }
-    if (PAD_PRESSED & PAD_R1) {
+    if (g_controller_state.pressed & PAD_R1) {
         tap_window = scale_frames(L, 30);
     }
     return 0;
@@ -319,7 +311,7 @@ s32 ee_charge_trigger_c(s32 slot, u32 ra)
 /* R&C2's state update (0x2C4BD8): 1 when the dash ended this frame. */
 static s32 charge_ends(s32 L)
 {
-    if (S16(HERO_SURFACE) != 0 || (!(PAD_HELD & PAD_R1) && S32(HERO_TIMER) >= scale_frames(L, 61))) {
+    if (S16(HERO_SURFACE) != 0 || (!(g_controller_state.held & PAD_R1) && S32(HERO_TIMER) >= scale_frames(L, 61))) {
         S32(HERO_HOLD_OFF) = scale_frames(L, 30);
         if (set_state(L, STATE_STOP, 0)) {
             LVL(L, set_hero_animation, SetAnim)(ANIM_SKID, 4, (f32)scale_frames(L, 11));
@@ -381,7 +373,7 @@ static void jets(s32 L, u8 *moby, s32 joint_list)
             for (r = 0; r < 3; r++) {
                 jet_local[k][r] = d[0] * row[4 * r] + d[1] * row[4 * r + 1] + d[2] * row[4 * r + 2];
             }
-            jet_push[k] = FRAME_TIME * ee_charge_jet_push;
+            jet_push[k] = g_frame_time * ee_charge_jet_push;
         }
     }
 }
@@ -396,12 +388,12 @@ static void jets_age(void)
     u8 *moby = *(u8 **)(HERO + HERO_MOBY);
     f32 *row = (f32 *)(moby + 0xC0);
     f32 *at = (f32 *)(moby + 0x10);
-    f32 keep = 1.0f - ee_charge_jet_damp * FRAME_TIME * 60.0f;
+    f32 keep = 1.0f - ee_charge_jet_damp * g_frame_time * 60.0f;
     s32 k, i, turn;
     if (jet_live == 0) {
         return;
     }
-    jet_spin += FRAME_TIME * 60.0f;
+    jet_spin += g_frame_time * 60.0f;
     turn = (s32)jet_spin;
     jet_spin -= turn;
     for (k = 0; k < JET_TRACKED && jet_live != 0; k++) {
@@ -498,7 +490,7 @@ static s32 charge_contact(s32 L, void *moby)
 /* R&C2's movement block (0x2BC338). */
 static void charge_move(s32 L)
 {
-    f32 ft = FRAME_TIME;
+    f32 ft = g_frame_time;
     f32 fs = ft * 60.0f;              /* 60 Hz frames per frame */
     f32 rate = 0.17f * fs;
     f32 target = -F32(HERO_STICK_X);
@@ -528,10 +520,10 @@ static void charge_move(s32 L)
     if (F32(HERO_STICK) > 0.2f) {
         F32(HERO_YAW) = wrap_angle(F32(HERO_YAW) + turn * fs);
     }
-    LVL(L, speed_step, SpeedStep)(FRAME_TIME_SQ * 100.0f, FRAME_TIME_SQ * 15.0f);
+    LVL(L, speed_step, SpeedStep)(g_frame_time_sq * 100.0f, g_frame_time_sq * 15.0f);
     LVL(L, set_planar_vel, SetPlanarVel)(99999.0f);
     LVL(L, Spring, Spring)((volatile f32 *)(HERO + HERO_POS + 8), (volatile f32 *)(HERO + HERO_SPRING),
-                                      F32(HERO_GROUND_Z) + 0.17f, FRAME_SCALE_SQ * 0.04f, FRAME_SCALE_SQ * 0.3f, ft * 7.5f);
+                           F32(HERO_GROUND_Z) + 0.17f, g_frame_scale_sq * 0.04f, g_frame_scale_sq * 0.3f, ft * 7.5f);
 
     /* What the boots run into: a 0.57 sphere three (60 Hz) frames ahead. */
     for (i = 0; i < 3; i++) {

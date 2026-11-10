@@ -30,11 +30,10 @@
  * not named, or names as something the edition has measured it not to be, keeps its address name. */
 #include "types.h"
 #include "names.h"
+#include "game.h"
 
 /* Save globals the executable keeps resident (ReRAC game_state.md, US + 0x100 for PAL).
  * The current level, 0x15EE84, is deliberately absent: see above. */
-#define g_bolts      (*(volatile s32 *)0x0015EE98)
-#define g_completes  (*(volatile s32 *)0x0015EF20)   /* times completed; > 0 in a challenge-mode run */
 
 /* The programs: the 19 levels, then the title screen's two, the boot
  * executable's own code after power-on and frontbin after quitting a level
@@ -124,7 +123,6 @@ void ee_layout_prompts(s32 level);
 
 /* The game's language (0 English, 2 French, 3 German, 4 Spanish, 5 Italian;
  * 1 is a slot no disc uses). */
-#define g_language   (*(volatile s32 *)0x0015EE88)
 #define LANGUAGE_ENGLISH 0
 
 /* An entry of the loaded text table (D_0015F780, the level's or, while the

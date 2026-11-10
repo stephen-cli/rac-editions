@@ -62,7 +62,7 @@ extern const s16 ee_helpdesk_strafe[2];             /* Classic's and Future's li
 #define HELP_COUNT      0x2C
 #define HELP_STARTED    0x30
 
-#define HELP_RECORDS    0x00141A68
+#define HELP_RECORDS    ((u32)help_records)
 #define HELP_RECORD     104
 #define RECORD_SIZE     8
 
@@ -122,7 +122,7 @@ static s32 request(s32 level)
     entry = &copy[count];
     entry->text = (u8 *)ee_msg_string_edition(EE_TEXT_STRAFE_HELP);
     entry->id = EE_TEXT_STRAFE_HELP;
-    if (g_language != LANGUAGE_ENGLISH) {
+    if (g_game_language != LANGUAGE_ENGLISH) {
         entry->voice = -1;
     } else if (GetControlLayout() == EE_LAYOUT_FUTURE) {
         entry->voice = ee_helpdesk_strafe[1];

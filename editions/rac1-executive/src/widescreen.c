@@ -82,11 +82,10 @@ static s32 game_mode_of(s32 L)
 #define WS_SETTING      (*(volatile u8 *)EE_SETTING_WIDESCREEN)
 /* The GS viewport record (core): width, height, half width, half height,
  * then the screen's left, top, right and bottom edges in 12.4 around 2048. */
-#define SCREEN          ((volatile s32 *)0x0013E600)
 /* The game's screen size, from the resolution table InitViewContext reads
  * (D_00151880 halfwords 0xA8/0xA9). */
-#define RES_W           (*(volatile s16 *)0x001519D0)
-#define RES_H           (*(volatile s16 *)0x001519D2)
+#define RES_W           display_resolution[0]
+#define RES_H           display_resolution[1]
 
 #define VIEW_FOV        0xB0       /* horizontal "projection scale" */
 #define VIEW_FOV_SRC    0xBC       /* fov.f[3]: the patched read's source for the vertical value */
@@ -102,7 +101,7 @@ static s32 game_mode_of(s32 L)
  * the game's own size (a render to a texture sets its own). */
 static s32 ws_on(void)
 {
-    return WS_SETTING != 0 && SCREEN[0] == RES_W && SCREEN[1] == RES_H;
+    return WS_SETTING != 0 && g_screen_extent[0] == RES_W && g_screen_extent[1] == RES_H;
 }
 
 /* The letterbox blend, 0 without bars to 1 with the bars fully in. */
@@ -121,7 +120,7 @@ static f32 cutscene_t(s32 L)
 /* The vertical zoom that makes the picture between full bars fill the screen. */
 static f32 cutscene_zoom(f32 t)
 {
-    f32 h = (f32)SCREEN[1];
+    f32 h = (f32)g_screen_extent[1];
     return 1.0f + t * (h / (h - 2.0f * LETTERBOX_MAX) - 1.0f);
 }
 
@@ -245,7 +244,7 @@ u32 ee_view_pre_c(s32 L)
     volatile f32 *fov = (volatile f32 *)(view_record(L) + VIEW_FOV);
     volatile f32 *src = (volatile f32 *)(view_record(L) + VIEW_FOV_SRC);
     f32 orig = view_original(*fov, L);
-    s32 full = SCREEN[0] == RES_W && SCREEN[1] == RES_H;
+    s32 full = g_screen_extent[0] == RES_W && g_screen_extent[1] == RES_H;
 
     *src = orig;
     *fov = orig;
@@ -281,7 +280,7 @@ DECLARE_LVL(BuildViewMatrices);   /* the frame's camera-and-view transform */
 
 static void refresh_view(s32 L)
 {
-    if ((WS_SETTING != 0) != view_applied && SCREEN[0] == RES_W && SCREEN[1] == RES_H) {
+    if ((WS_SETTING != 0) != view_applied && g_screen_extent[0] == RES_W && g_screen_extent[1] == RES_H) {
         LVL(L, UpdateViewContext, VoidFn)();
         LVL(L, BuildViewMatrices, VoidFn)();
     }
@@ -376,9 +375,9 @@ static void squeeze_word(volatile u32 *w)
 static void squeeze_scissor(volatile u32 *w)
 {
     u32 v = *w;
-    s32 hw = SCREEN[2];
+    s32 hw = g_screen_extent[2];
     s32 x0 = v & 0x7FF, x1 = (v >> 16) & 0x7FF;
-    if (x0 <= 0 && x1 >= SCREEN[0] - 1) {
+    if (x0 <= 0 && x1 >= g_screen_extent[0] - 1) {
         return;                                   /* the whole screen */
     }
     x0 = hw + ((x0 - hw) * 3) / 4 + ws_offset / 16;
@@ -401,7 +400,7 @@ static u32 tag_reg(u32 r0, u32 r1, s32 i)
 /* A GIF tag's vertices span the screen (a fade, a tint, a bar): leave it. */
 static s32 full_width(s32 minx, s32 maxx)
 {
-    return minx <= SCREEN[4] + 16 && maxx >= SCREEN[6] - 16;
+    return minx <= g_screen_extent[4] + 16 && maxx >= g_screen_extent[6] - 16;
 }
 
 static void measured(s32 minx, s32 maxx)
@@ -559,7 +558,7 @@ static s32 stretch_setup(volatile u32 *p, s32 qwc)
     if (ws_maxx < 0) {
         return 0;
     }
-    if (ws_maxx - ws_minx < SCREEN[0] * 16 / 2) {
+    if (ws_maxx - ws_minx < g_screen_extent[0] * 16 / 2) {
         return half_side((ws_minx + ws_maxx) / 2);
     }
     ws_stretch = 1;
@@ -568,7 +567,7 @@ static s32 stretch_setup(volatile u32 *p, s32 qwc)
 
 static s32 auto_offset(volatile u32 *p, s32 qwc)
 {
-    s32 third = SCREEN[0] * 16 / 3, cx;
+    s32 third = g_screen_extent[0] * 16 / 3, cx;
     ws_measuring = 1;
     ws_minx = 0x10000;
     ws_maxx = -1;
@@ -577,7 +576,7 @@ static s32 auto_offset(volatile u32 *p, s32 qwc)
     if (ws_maxx < 0) {
         return 0;
     }
-    cx = (ws_minx + ws_maxx) / 2 - SCREEN[4];
+    cx = (ws_minx + ws_maxx) / 2 - g_screen_extent[4];
     return cx < third ? -EDGE_OFFSET : cx > 2 * third ? EDGE_OFFSET : 0;
 }
 
@@ -726,7 +725,7 @@ static void hud_begin(s32 L)
             continue;
         }
         if (draw == (u32)ee_qs_draw) {
-            hud_moved[i] = side * (SCREEN[2] / 3) / 2;
+            hud_moved[i] = side * (g_screen_extent[2] / 3) / 2;
             ring_moved = hud_moved[i];
             slot[HUD_SLOT_X / 4] += hud_moved[i];
             continue;
@@ -976,7 +975,7 @@ void ee_ws_panel_project_c(f32 *first, f32 *opposite, s32 *w, s32 *h, s32 *x, s3
     }
     LVL(L, project_graphics_bounds, ProjectFn)(first, opposite, w, h, x, y);
     if (on) {
-        s32 hw = SCREEN[2];
+        s32 hw = g_screen_extent[2];
         *x = hw + ((*x - hw) * 4) / 3;
         *w = (*w * 4) / 3;
     }
@@ -1011,7 +1010,7 @@ void ee_ws_screens_project_c(void *a, void *b, f32 *w, f32 *h, f32 *x, f32 *y, u
     }
     LVL(L, project_graphics_bounds_float, ProjectFFn)(a, b, w, h, x, y);
     if (ws_on() && !view_suspended) {
-        f32 hw = (f32)SCREEN[2];
+        f32 hw = (f32)g_screen_extent[2];
         *x = hw + (*x - hw) * (4.0f / 3.0f);
         *w = *w * (4.0f / 3.0f);
     }
@@ -1083,8 +1082,8 @@ static void swap_view(s32 L, u32 *view, s32 *screen)
         view[k] = t;
     }
     for (k = 0; k < 8; k++) {
-        s32 t = SCREEN[k];
-        SCREEN[k] = screen[k];
+        s32 t = g_screen_extent[k];
+        g_screen_extent[k] = screen[k];
         screen[k] = t;
     }
 }
@@ -1100,7 +1099,7 @@ void ee_ws_panel_target_c(s32 a, s32 b, s32 flag, u32 ra, f32 f)
             main_view[k] = rec[k];
         }
         for (k = 0; k < 8; k++) {
-            main_screen[k] = SCREEN[k];
+            main_screen[k] = g_screen_extent[k];
         }
         view_suspended = 1;
         LVL(L, UpdateViewContext, VoidFn)();
@@ -1110,7 +1109,7 @@ void ee_ws_panel_target_c(s32 a, s32 b, s32 flag, u32 ra, f32 f)
             rec[k] = main_view[k];
         }
         for (k = 0; k < 8; k++) {
-            SCREEN[k] = main_screen[k];
+            g_screen_extent[k] = main_screen[k];
         }
     }
     LVL(L, configure_graphics_render_target_and_projection, TargetFn)(a, b, flag, f);
@@ -1379,7 +1378,7 @@ u32 ee_ws_bracket_begin_c(s32 site, u32 ra)
     case WS_SITE_RETICLE:
         L = ee_level_of_call(ra, LVL_TABLE(render_queued_rotated_sprites), RETICLE_SITE);
         target = LVL(L, func_001EE3B0, u32);
-        reticle_centre = SCREEN[4] + (s32)(((f32 *)ee_ws_saved_args)[16] * 16.0f);   /* the saved $f12 */
+        reticle_centre = g_screen_extent[4] + (s32)(((f32 *)ee_ws_saved_args)[16] * 16.0f);   /* the saved $f12 */
         break;
     case WS_SITE_VENDOR_HUD:
         L = ee_level_of_call(ra, LVL_TABLE(draw_vendor_screen), 0x400);
@@ -1433,7 +1432,7 @@ static void draw_pillars(s32 L, s32 pixels)
 {
     volatile u32 **cursor = cursor_of(L);
     volatile u32 *p = *cursor;
-    s32 left = SCREEN[4], right = SCREEN[6], top = SCREEN[5], bottom = SCREEN[7];
+    s32 left = g_screen_extent[4], right = g_screen_extent[6], top = g_screen_extent[5], bottom = g_screen_extent[7];
     s32 w = pixels << 4;
     s32 xs[4];
     s32 k;
@@ -1489,7 +1488,7 @@ void ee_ws_pillars_c(u32 ra)
 
     if (ws_on()) {
         framing(L, &content);
-        pillar = (s32)((f32)SCREEN[2] * (1.0f - content) + 0.5f);
+        pillar = (s32)((f32)g_screen_extent[2] * (1.0f - content) + 0.5f);
         if (pillar > 0) {
             draw_pillars(L, pillar);
         }
@@ -1522,7 +1521,7 @@ void ee_ws_pillars_c(u32 ra)
 DECLARE_LVL(setImageTag);     /* setImageTag(tags, frame, width, height) */
 DECLARE_LVL(func_0023E298);   /* the decoder's frame setup that calls it */
 
-#define MOVIE_PACKET     0x00151EF0
+#define MOVIE_PACKET     ((u32)fs_aa_resample_packet)
 #define MOVIE_QWC        0x25
 #define MOVIE_BARS_QWC   7
 #define MOVIE_STRIPS     5            /* the strips' GIF tag is quadword 4; their data starts at 5 */
@@ -1597,9 +1596,8 @@ void ee_ws_movie_tag_c(u32 tags, u32 frame, s32 width, s32 height, u32 ra)
 DECLARE_LVL(queue_framebuffer_upload);   /* the credits' picture: IMAGE copy into the draw buffer */
 typedef void (*PictureFn)(u32);
 #define CREDITS_PICTURE_SITE 0x24
-#define DRAW_BUFFER         (*(volatile u32 *)0x0015EF84)
-#define FRAME_ZPSM          (*(volatile u16 *)(0x00151880 + 0x16C))   /* the frame setup (framebuf.c FrameCfg) */
-#define FRAME_ZBP           (*(volatile u16 *)(0x00151880 + 0x16E))
+#define FRAME_ZPSM          (*(volatile u16 *)(fs_aa_buffer + 0x16C))   /* the frame setup (framebuf.c FrameCfg) */
+#define FRAME_ZBP           (*(volatile u16 *)(fs_aa_buffer + 0x16E))
 #define ZERO_QWC            1024                                       /* a 16 KB block of zeros */
 #define ZERO_PER_TAG        28                                         /* REFs per IMAGE GIF tag: 28672 quadwords */
 
@@ -1630,17 +1628,17 @@ void ee_ws_credits_picture_c(u32 source, u32 ra)
     zbp = FRAME_ZBP;
     zbuf = zbp | ((u32)(FRAME_ZPSM & 0xF) << 24);
     zblock = zbp * 32;                          /* 8 KB pages, 256-byte blocks */
-    saved = DRAW_BUFFER;
-    DRAW_BUFFER = zbp * 8192;
+    saved = draw_buffer_address;
+    draw_buffer_address = zbp * 8192;
     LVL(L, queue_framebuffer_upload, PictureFn)(source);   /* the picture into the Z memory */
-    DRAW_BUFFER = saved;
+    draw_buffer_address = saved;
 
     cursor = cursor_of(L);
-    left = SCREEN[4];
-    right = SCREEN[6];
-    top = SCREEN[5];
-    bottom = SCREEN[7];
-    h = SCREEN[1];
+    left = g_screen_extent[4];
+    right = g_screen_extent[6];
+    top = g_screen_extent[5];
+    bottom = g_screen_extent[7];
+    h = g_screen_extent[1];
 
     /* The picture, squeezed, and the bars. */
     tag = *cursor;

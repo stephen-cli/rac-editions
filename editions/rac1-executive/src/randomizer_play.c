@@ -7,10 +7,10 @@
  * raises its ammo, shows its "You got the ..." banner, puts it on the quick
  * select and in the hand), from characters, pickups and the Gadgetron vendor
  * alike; every infobot ends in unlock_planet (the planet's
- * byte in PLANETS, the galaxy list, the "Infobot for Planet ... acquired"
- * banner); a Gold Bolt sets its spot's byte in GOLD_FLAGS and saves
+ * byte in level_available, the galaxy list, the "Infobot for Planet ... acquired"
+ * banner); a Gold Bolt sets its spot's byte in gold_bolts_collected and saves
  * (gold_bolt_update); the Zoomerator, the Raritanium, the
- * Codebot and the two Nanotech upgrades set a byte of FLAGS. The item a check
+ * Codebot and the two Nanotech upgrades set a byte of gSpecialItems. The item a check
  * gives in retail names the check (src/randomizer.c: every item is given
  * once), a Gold Bolt spot its level and flag, an infobot the planet it
  * unlocks. tools/gen_randomizer.py finds every call of those functions in
@@ -27,8 +27,8 @@
  * her check with it, for good; a planet unlocked by another check would
  * delete the infobot that is a check of its own. So while a giver's update
  * runs (the moby update loop's call, and the level's load-time pass, where
- * the givers decide to stay or go), the bytes of INVENTORY, HAD, PLANETS and
- * the special items' FLAGS that name a check of the planet being played show
+ * the givers decide to stay or go), the bytes of item_available, items_acquired, level_available and
+ * the special items' gSpecialItems that name a check of the planet being played show
  * whether that check has been collected instead. A giver's own reward is
  * always a check of its planet; anything else it tests is a prerequisite and
  * keeps the truth: Skid's agent on Aridia trades the Sonic Summoner once the
@@ -84,8 +84,6 @@ typedef void (*DeleteFn)(void *);
 /* The early-O2 fixes (o2_early_fixes). */
 #define ORXON           10
 #define BLARG           6
-#define LEVEL_TRIGGERS  ((volatile u8 *)0x0014C150)  /* per level 16 bytes: a level trigger done (0xFF) */
-#define LEVEL_BITS      ((volatile u8 *)0x0014C290)  /* per level 256 bytes: the save bits by moby uid */
 
 /* tools/gen_randomizer.py: per level, the classes whose update gets the collected view, 0xFFFF last. */
 extern const u16 *const ee_rz_classes[LEVELS];
@@ -107,7 +105,6 @@ static s32 active_level = -1;           /* the level `active` was read for */
  * Mode's other perks (the doubled bolts, the cheat codes) stay its own. It
  * is set as each level loads, before any cutscene of the level runs, and
  * whenever the record is read again. */
-#define COMPLETES       (*(volatile s32 *)0x0015EF20)
 volatile s32 ee_cutscene_skip;
 static s32 fixes_level = -1;            /* the level whose early-O2 fixes have run on this visit */
 static s32 view_on;                     /* the collected view is in place, */
@@ -143,7 +140,7 @@ s32 rz_play_active(void)
 
 s32 rz_play_owned(s32 item_id)
 {
-    return view_on ? real_inventory[item_id] : INVENTORY[item_id];
+    return view_on ? real_inventory[item_id] : item_available[item_id];
 }
 
 /* --- the special items ----------------------------------------------------------------------------------------- */
@@ -188,8 +185,8 @@ static s32 item_of_flag(s32 flag)
  * 8 with both, as retail, which only sells the Ultra after the Premium. */
 static void set_health_maximum(void)
 {
-    MAX_HEALTH = 4 + (ee_rz_received_special(FLAG_PREMIUM) ? 1 : 0) + (ee_rz_received_special(FLAG_ULTRA) ? 3 : 0);
-    HERO_HEALTH = MAX_HEALTH;
+    hero_max_health = 4 + (ee_rz_received_special(FLAG_PREMIUM) ? 1 : 0) + (ee_rz_received_special(FLAG_ULTRA) ? 3 : 0);
+    g_hero.health.hp = hero_max_health;
 }
 
 /* --- the collected view ---------------------------------------------------------------------------------------- */
@@ -225,26 +222,26 @@ static void view_apply(s32 L)
     }
     view_level = L;
     for (i = 0; i < ITEMS; i++) {
-        real_inventory[i] = INVENTORY[i];
-        real_had[i] = HAD[i];
+        real_inventory[i] = item_available[i];
+        real_had[i] = items_acquired[i];
         check = check_of_item_id(i);
         if (in_view(check, L)) {
-            INVENTORY[i] = ee_rz_check_collected(check) ? 1 : 0;
-            HAD[i] = INVENTORY[i];
+            item_available[i] = ee_rz_check_collected(check) ? 1 : 0;
+            items_acquired[i] = item_available[i];
         }
     }
     for (i = 0; i < PLANET_COUNT; i++) {
-        real_planets[i] = PLANETS[i];
+        real_planets[i] = level_available[i];
         check = check_of_planet(i);
         if (in_view(check, L)) {
-            PLANETS[i] = ee_rz_check_collected(check) ? 1 : 0;
+            level_available[i] = ee_rz_check_collected(check) ? 1 : 0;
         }
     }
     for (i = 0; i < FLAG_BYTES; i++) {
-        real_flags[i] = FLAGS[i];
+        real_flags[i] = gSpecialItems[i];
         check = check_of_flag(i);
         if (in_view(check, L)) {
-            FLAGS[i] = ee_rz_check_collected(check) ? 1 : 0;
+            gSpecialItems[i] = ee_rz_check_collected(check) ? 1 : 0;
         }
     }
     view_on = 1;
@@ -258,7 +255,7 @@ static s32 flag_turned(void)
     s32 i, check;
     for (i = 0; i < FLAG_BYTES; i++) {
         check = check_of_flag(i);
-        if (in_view(check, view_level) && FLAGS[i] && !ee_rz_check_collected(check)) {
+        if (in_view(check, view_level) && gSpecialItems[i] && !ee_rz_check_collected(check)) {
             return 1;
         }
     }
@@ -277,34 +274,34 @@ static void view_restore(s32 L)
     view_on = 0;
     for (i = 0; i < ITEMS; i++) {
         if (!in_view(check_of_item_id(i), view_level)) {
-            real_inventory[i] = INVENTORY[i];
-            real_had[i] = HAD[i];
+            real_inventory[i] = item_available[i];
+            real_had[i] = items_acquired[i];
         }
-        INVENTORY[i] = real_inventory[i];
-        HAD[i] = real_had[i];
+        item_available[i] = real_inventory[i];
+        items_acquired[i] = real_had[i];
     }
     for (i = 0; i < PLANET_COUNT; i++) {
         if (!in_view(check_of_planet(i), view_level)) {
-            real_planets[i] = PLANETS[i];
+            real_planets[i] = level_available[i];
         }
-        PLANETS[i] = real_planets[i];
+        level_available[i] = real_planets[i];
     }
     for (i = 0; i < FLAG_BYTES; i++) {
         check = check_of_flag(i);
         if (!in_view(check, view_level)) {
-            real_flags[i] = FLAGS[i];
-            FLAGS[i] = real_flags[i];
-        } else if (FLAGS[i] && !ee_rz_check_collected(check)) {
+            real_flags[i] = gSpecialItems[i];
+            gSpecialItems[i] = real_flags[i];
+        } else if (gSpecialItems[i] && !ee_rz_check_collected(check)) {
             ee_rz_set_collected(check);
-            FLAGS[i] = real_flags[i];
+            gSpecialItems[i] = real_flags[i];
             if (i == FLAG_PREMIUM || i == FLAG_ULTRA) {
                 set_health_maximum();
                 nanotech_check = check;
             }
             receive(check, ee_rz_layout_item(check), L);
-            real_flags[i] = FLAGS[i];
+            real_flags[i] = gSpecialItems[i];
         } else {
-            FLAGS[i] = real_flags[i];
+            gSpecialItems[i] = real_flags[i];
         }
     }
 }
@@ -315,7 +312,6 @@ static void view_restore(s32 L)
  * Pilot's Helmet pickup on Gaspar (Moby1290Update, pilots_helmet_update) also writes the Pilot's Helmet there itself
  * after its GiveItem, whatever that gave, so after a giver's update the slot goes back to what the grant left
  * unless the helmet is really owned. */
-#define HEAD_GEAR       (*(volatile s32 *)0x00141510)
 #define PILOTS_HELMET_ID 7
 static s32 head_gear;                   /* the slot before the giver's update, or as the last grant left it */
 
@@ -332,7 +328,8 @@ static void receive(s32 check, s32 item, s32 L)
     pending_check = check;
     if (item >= RZ_INFOBOT_NOVALIS && item <= RZ_INFOBOT_VELDIN) {
         s32 planet = item - RZ_INFOBOT_NOVALIS + 1;
-        s32 silent = PLANETS[planet] || planet == CURRENT_LEVEL;    /* UnlockPlanet shows no banner for these */
+        /* UnlockPlanet shows no banner for these. */
+        s32 silent = level_available[planet] || planet == g_current_level_index;
         pending_item = item;
         LVL(L, unlock_planet, PlanetFn)(planet);
         pending_item = RZ_ITEM_NONE;
@@ -347,14 +344,14 @@ static void receive(s32 check, s32 item, s32 L)
          * loaded there) pays a Bolt Cache instead and still sets the bytes, so a build with the boots gives
          * them to the save when it loads it; the check is collected either way and never pays twice. */
         *(volatile u8 *)EE_CHEAT_CHARGE_BOOTS = 1;
-        CHEAT_SEEN = 1;
+        cheats_seen[EE_CHEAT_ENTRY] = 1;
         if (!EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
             ee_add_bolts(BOLT_CACHE, L);
         }
         rz_show_item_banner(check, item, L);
     } else if (flag >= 0) {
         ee_rz_set_received_special(flag);
-        FLAGS[flag] = 1;                    /* the Items page lists the upgrades by their flag */
+        gSpecialItems[flag] = 1;                    /* the Items page lists the upgrades by their flag */
         if (flag == FLAG_PREMIUM || flag == FLAG_ULTRA) {
             set_health_maximum();
         }
@@ -368,7 +365,7 @@ static void receive(s32 check, s32 item, s32 L)
             rz_show_item_banner(check, item, L);    /* GiveItem shows none for an item its level has no banner for */
         }
     }
-    head_gear = HEAD_GEAR;
+    head_gear = g_hero.pending_item[2];
     if (was_on) {
         view_apply(L);
     }
@@ -413,7 +410,7 @@ void ee_rz_give_item_c(s32 item_id, s32 flag, s32 L)
 /* UnlockPlanet(planet) in level L: an arrival (the level itself) and Novalis pass as retail. */
 void ee_rz_unlock_planet_c(s32 planet, s32 L)
 {
-    s32 is_check = active && planet != CURRENT_LEVEL && planet >= 2 && planet <= 18;
+    s32 is_check = active && planet != g_current_level_index && planet >= 2 && planet <= 18;
     s32 check = is_check ? check_of_planet(planet) : -1;
     if (check < 0) {
         LVL(L, unlock_planet, PlanetFn)(planet);
@@ -492,8 +489,8 @@ s32 ee_rz_save_c(s32 slot, s32 flags, s32 L)
         s32 spot;
         rz_world_before_save(L);            /* a live stand-in bolt's borrowed flag, before the spots are read */
         for (spot = 0; spot < GOLD_SPOTS; spot++) {
-            s32 check = rz_check_for_bolt(CURRENT_LEVEL, spot);
-            s32 taken = GOLD_FLAGS[CURRENT_LEVEL * GOLD_SPOTS + spot] != 0;
+            s32 check = rz_check_for_bolt(g_current_level_index, spot);
+            s32 taken = gold_bolts_collected[g_current_level_index * GOLD_SPOTS + spot] != 0;
             if (check >= 0 && taken && !ee_rz_check_collected(check)) {
                 rz_play_collect(check, L);
             }
@@ -579,14 +576,14 @@ static void o2_early_fixes(s32 L)
         return;
     }
     if (L == BLARG) {
-        LEVEL_TRIGGERS[BLARG * 16 + 1] = 0xFF;
+        saved_mission_state[BLARG * 16 + 1] = 0xFF;
     } else if (L == ORXON) {
-        LEVEL_TRIGGERS[ORXON * 16 + 1] = 0xFF;
-        LEVEL_TRIGGERS[ORXON * 16 + 4] = 0xFF;
-        LEVEL_BITS[ORXON * 256 + 30] |= 0x70;
-        LEVEL_BITS[ORXON * 256 + 35] |= 0x02;
-        LEVEL_BITS[ORXON * 256 + 102] |= 0x30;
-        LEVEL_BITS[ORXON * 256 + 103] |= 0x01;
+        saved_mission_state[ORXON * 16 + 1] = 0xFF;
+        saved_mission_state[ORXON * 16 + 4] = 0xFF;
+        level_moby_killed[ORXON * 256 + 30] |= 0x70;
+        level_moby_killed[ORXON * 256 + 35] |= 0x02;
+        level_moby_killed[ORXON * 256 + 102] |= 0x30;
+        level_moby_killed[ORXON * 256 + 103] |= 0x01;
         for (i = 0; i < 6; i++) {
             delete_mobys_with_uid(ORXON_REMOVED[i], L);
         }
@@ -673,7 +670,7 @@ void ee_rz_place_mobys_c(void *table, u32 value, s32 count, s32 L)
 static s32 moby_saved(void *moby, s32 L)
 {
     u32 uid = MOBY_UID(moby);
-    return (LEVEL_BITS[L * 256 + (uid >> 3)] >> (uid & 7)) & 1;
+    return (level_moby_killed[L * 256 + (uid >> 3)] >> (uid & 7)) & 1;
 }
 
 /* Before a moby's update in level L: 1 when it must not run (Umbris's scene controller at its end). */
@@ -683,7 +680,7 @@ static s32 umbris_end(void *moby, s32 L)
     if (!umbris_end_moved(L)) {
         return 0;
     }
-    boss_beaten = LEVEL_TRIGGERS[UMBRIS * 16 + SNAGGLEBEAST_TRIGGER] == 0xFF;
+    boss_beaten = saved_mission_state[UMBRIS * 16 + SNAGGLEBEAST_TRIGGER] == 0xFF;
     switch (MOBY_CLASS(moby)) {
     case UMBRIS_SCENES_CLASS:
         return MOBY_STATE(moby) == UMBRIS_SCENES_END;
@@ -785,7 +782,7 @@ static void read_record(s32 L)
 {
     active = ee_rz_active();
     active_level = L;
-    ee_cutscene_skip = COMPLETES != 0 || active;
+    ee_cutscene_skip = g_completes != 0 || active;
     ee_debug_rz_play[0] = (u32)active;
 }
 
@@ -865,15 +862,15 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
     }
     ee_debug_rz_play[1]++;
     granted = -1;
-    head_gear = HEAD_GEAR;
+    head_gear = g_hero.pending_item[2];
     view_apply(L);
     update(moby);
     view_restore(L);
-    if (HEAD_GEAR == PILOTS_HELMET_ID && !INVENTORY[PILOTS_HELMET_ID]) {
-        HEAD_GEAR = head_gear;
+    if (g_hero.pending_item[2] == PILOTS_HELMET_ID && !item_available[PILOTS_HELMET_ID]) {
+        g_hero.pending_item[2] = head_gear;
     }
     rz_world_after(moby, L);
-    if (helga_lift >= 0 && granted == rz_check_for_vanilla(RZ_SWINGSHOT) && !INVENTORY[SWINGSHOT_ID]) {
+    if (helga_lift >= 0 && granted == rz_check_for_vanilla(RZ_SWINGSHOT) && !item_available[SWINGSHOT_ID]) {
         start_helga_lift(helga_lift, L);
     }
     granted = -1;

@@ -57,7 +57,6 @@ extern const u32 ee_comet_jump_site[19];  /* the jal pad_pressed_within in the s
 DECLARE_LVL(pad_pressed_within);   /* pad_pressed_within(button, window, out) */
 DECLARE_LVL(scale_ticks);          /* scale_game_frames(n): the level's copy */
 
-#define HERO                 0x0013F450
 #define hero_state           (*(volatile s32 *)(HERO + 0x2084))
 #define hero_lock_target     (*(volatile s32 *)(HERO + 0xA9C))
 #define hero_anim_frame      (*(volatile f32 *)(HERO + 0xAA8))

@@ -40,13 +40,9 @@
  * game's own "cheat on" banner, like every cheat (owner's request). */
 #include "modseg.h"
 
-#define ITEM_OWNED(id)     (*(volatile u8 *)(0x0013D5C8 + (id)))   /* D_0013D5C8: owned items, by id */
 #define ITEM_CHARGE_BOOTS  36
 #define ITEM_CLANK         1           /* the back slot's "no pack" item */
 #define SLOT_BOOTS         1
-#define EQUIPPED(slot)       (*(volatile s32 *)(0x00141760 + 4 * (slot)))   /* D_00141760: the hero's equipped item per slot, saved */
-#define HERO_PENDING(slot)   (*(volatile s32 *)(0x0013F450 + 0x20B8 + 4 * (slot)))   /* hero.pending_item */
-#define HERO_SELECTED(slot)  (*(volatile s32 *)(0x0013F450 + 0x20D4 + 4 * (slot)))   /* hero.selected_item */
 
 /* Item id 36 is also the hero's "temporary item" sentinel (0x24): the item
  * switch (hero_switch_item in the NTSC decomp) moves a pending id into
@@ -111,9 +107,7 @@ static void panel_sequence(s32 L)
 }
 
 #define CHEAT_ON             (*(volatile u8 *)EE_CHEAT_CHARGE_BOOTS)           /* gCheats[8]: the toggle */
-#define CHEAT_SEEN           (*(volatile u8 *)(0x0015EEC0 + EE_CHEAT_ENTRY))   /* unlocked: listed on the Cheats page */
 #define ITEM_NONE            0x26        /* hero_switch_item's "no item": what it makes pending to take boots off */
-#define HERO_ITEM(slot)      (*(volatile s32 *)(0x0013F450 + 0x1090 + 0x50 * (slot) + 0x28))   /* hero.items[slot].item_id */
 /* The pause menu's own equipped item per slot (NTSC menu_system.equipped,
  * menu state + 0x30): what the Gadgets page marks as worn and equips from. */
 #define MENU_EQUIPPED(L, slot) (*(volatile s32 *)(LVL_DATA(L, menu_state, u8 *) + 0x30 + 4 * (slot)))
@@ -125,28 +119,29 @@ static void sync_ownership(s32 L)
 {
     /* A save from the one test build (2026-10-19) that made the boots item
      * 1, which is Clank; retail puts only 0, 28 or 29 in the boots slot. */
-    if (EQUIPPED(SLOT_BOOTS) == ITEM_CLANK) {
-        EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+    if (equipped_items[SLOT_BOOTS] == ITEM_CLANK) {
+        equipped_items[SLOT_BOOTS] = ITEM_CHARGE_BOOTS;
     }
     if (!CHEAT_ON) {
         /* Locked or switched off: not owned, not worn (saves from earlier
          * builds own and wear them). */
-        ITEM_OWNED(ITEM_CHARGE_BOOTS) = 0;
-        if (EQUIPPED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
-            EQUIPPED(SLOT_BOOTS) = 0;
+        item_available[ITEM_CHARGE_BOOTS] = 0;
+        if (equipped_items[SLOT_BOOTS] == ITEM_CHARGE_BOOTS) {
+            equipped_items[SLOT_BOOTS] = 0;
         }
         if (MENU_EQUIPPED(L, SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
             MENU_EQUIPPED(L, SLOT_BOOTS) = 0;
         }
-        if (HERO_ITEM(SLOT_BOOTS) == ITEM_CHARGE_BOOTS || HERO_SELECTED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS
-            || HERO_PENDING(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
-            HERO_PENDING(SLOT_BOOTS) = ITEM_NONE;
+        if (g_hero.items[SLOT_BOOTS].item_id == ITEM_CHARGE_BOOTS
+            || g_hero.selected_item[SLOT_BOOTS] == ITEM_CHARGE_BOOTS
+            || g_hero.pending_item[SLOT_BOOTS] == ITEM_CHARGE_BOOTS) {
+            g_hero.pending_item[SLOT_BOOTS] = ITEM_NONE;
         }
         return;
     }
-    ITEM_OWNED(ITEM_CHARGE_BOOTS) = 1;
-    if (HERO_PENDING(SLOT_BOOTS) == ITEM_CHARGE_BOOTS || HERO_SELECTED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS) {
-        EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+    item_available[ITEM_CHARGE_BOOTS] = 1;
+    if (g_hero.pending_item[SLOT_BOOTS] == ITEM_CHARGE_BOOTS || g_hero.selected_item[SLOT_BOOTS] == ITEM_CHARGE_BOOTS) {
+        equipped_items[SLOT_BOOTS] = ITEM_CHARGE_BOOTS;
     }
 }
 
@@ -167,7 +162,7 @@ extern const u32 ee_charge_cheat_table[19];
 
 void ee_charge_cheat_frame(s32 L)
 {
-    if (CHEAT_SEEN) {
+    if (cheats_seen[EE_CHEAT_ENTRY]) {
         *(volatile u8 *)(ee_charge_cheat_table[L] + 16 * EE_CHEAT_ENTRY) = 0;
     }
 }
@@ -186,7 +181,6 @@ void ee_charge_cheat_frame(s32 L)
  * frame, before the hero update in which a pickup equips. */
 extern const u32 ee_item36_at[19];
 extern const u32 ee_item36_words[19][2][19];
-#define HERO_CONTROL_MODE  (*(volatile s32 *)(0x0013F450 + 0x208C))
 #define CONTROL_HOVERBOARD 0x16
 #define SLOT_HAND          0
 
@@ -219,29 +213,30 @@ static s32 boots_parked;
 
 static s32 boots_worn(void)
 {
-    return HERO_ITEM(SLOT_BOOTS) == ITEM_CHARGE_BOOTS || HERO_SELECTED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS
-        || HERO_PENDING(SLOT_BOOTS) == ITEM_CHARGE_BOOTS;
+    return g_hero.items[SLOT_BOOTS].item_id == ITEM_CHARGE_BOOTS
+        || g_hero.selected_item[SLOT_BOOTS] == ITEM_CHARGE_BOOTS
+        || g_hero.pending_item[SLOT_BOOTS] == ITEM_CHARGE_BOOTS;
 }
 
 void ee_race_item_frame(s32 L)
 {
     volatile u32 *rec = (volatile u32 *)ee_item36_at[L];
-    s32 board = HERO_CONTROL_MODE == CONTROL_HOVERBOARD;
-    s32 hand = EQUIPPED(SLOT_HAND) == ITEM_CHARGE_BOOTS
-        || HERO_ITEM(SLOT_HAND) == ITEM_CHARGE_BOOTS || HERO_PENDING(SLOT_HAND) == ITEM_CHARGE_BOOTS
-        || HERO_SELECTED(SLOT_HAND) == ITEM_CHARGE_BOOTS;
+    s32 board = g_hero.state.control_mode == CONTROL_HOVERBOARD;
+    s32 hand = equipped_items[SLOT_HAND] == ITEM_CHARGE_BOOTS
+        || g_hero.items[SLOT_HAND].item_id == ITEM_CHARGE_BOOTS || g_hero.pending_item[SLOT_HAND] == ITEM_CHARGE_BOOTS
+        || g_hero.selected_item[SLOT_HAND] == ITEM_CHARGE_BOOTS;
     s32 race = board || hand;
     const u32 *want;
     s32 i;
     if (board && boots_worn()) {
-        HERO_PENDING(SLOT_BOOTS) = ITEM_NONE;
+        g_hero.pending_item[SLOT_BOOTS] = ITEM_NONE;
         boots_parked = 1;
         race = hand;
-    } else if (boots_parked && !board && !hand && HERO_CONTROL_MODE == CONTROL_NORMAL
-               && HERO_PENDING(SLOT_BOOTS) == 0 && rec[0] == ee_item36_words[L][1][0]) {
-        if (ITEM_OWNED(ITEM_CHARGE_BOOTS) && HERO_ITEM(SLOT_BOOTS) != ITEM_MAGNEBOOTS_ID
-            && HERO_ITEM(SLOT_BOOTS) != ITEM_GRINDBOOTS_ID) {
-            HERO_PENDING(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+    } else if (boots_parked && !board && !hand && g_hero.state.control_mode == CONTROL_NORMAL
+               && g_hero.pending_item[SLOT_BOOTS] == 0 && rec[0] == ee_item36_words[L][1][0]) {
+        if (item_available[ITEM_CHARGE_BOOTS] && g_hero.items[SLOT_BOOTS].item_id != ITEM_MAGNEBOOTS_ID
+            && g_hero.items[SLOT_BOOTS].item_id != ITEM_GRINDBOOTS_ID) {
+            g_hero.pending_item[SLOT_BOOTS] = ITEM_CHARGE_BOOTS;
         }
         boots_parked = 0;
     }
@@ -274,9 +269,9 @@ void ee_pause_entry_c(s32 arg, u32 ra)
         L = ee_level_of_call(ra, LVL_TABLE(func_L00_00299250), PAUSE_SITE_A);   /* never expected */
     }
     rec = (volatile u32 *)ee_item36_at[L];
-    if (EE_HAS(EE_FEATURE_CHARGE_BOOTS) && HERO_ITEM(SLOT_HAND) != ITEM_CHARGE_BOOTS
-        && HERO_PENDING(SLOT_HAND) != ITEM_CHARGE_BOOTS
-        && HERO_SELECTED(SLOT_HAND) != ITEM_CHARGE_BOOTS) {   /* never under a race Devastator in the hand */
+    if (EE_HAS(EE_FEATURE_CHARGE_BOOTS) && g_hero.items[SLOT_HAND].item_id != ITEM_CHARGE_BOOTS
+        && g_hero.pending_item[SLOT_HAND] != ITEM_CHARGE_BOOTS
+        && g_hero.selected_item[SLOT_HAND] != ITEM_CHARGE_BOOTS) {   /* never under a race Devastator in the hand */
         for (i = 0; i < 19; i++) {
             rec[i] = ee_item36_words[L][1][i];
         }
@@ -312,8 +307,8 @@ typedef void (*MakeSaveFn)(u8 *out);
 
 void ee_save_c(u8 *out, u32 ra, s32 L)
 {
-    s32 worn = EQUIPPED(SLOT_BOOTS) == ITEM_CHARGE_BOOTS;
-    u8 owned = ITEM_OWNED(ITEM_CHARGE_BOOTS);
+    s32 worn = equipped_items[SLOT_BOOTS] == ITEM_CHARGE_BOOTS;
+    u8 owned = item_available[ITEM_CHARGE_BOOTS];
     s32 qs_page;
     if (L < 0) {
         for (L = 0; L < 19; L++) {
@@ -329,15 +324,15 @@ void ee_save_c(u8 *out, u32 ra, s32 L)
     }
     qs_page = ee_qs_turn_to_page(0);
     if (worn) {
-        EQUIPPED(SLOT_BOOTS) = 0;
+        equipped_items[SLOT_BOOTS] = 0;
     }
-    ITEM_OWNED(ITEM_CHARGE_BOOTS) = 0;
+    item_available[ITEM_CHARGE_BOOTS] = 0;
     SAVE_WORN = worn;
     LVL(L, memcard_MakeWholeSave, MakeSaveFn)(out);
     SAVE_WORN = 0;
-    ITEM_OWNED(ITEM_CHARGE_BOOTS) = owned;
+    item_available[ITEM_CHARGE_BOOTS] = owned;
     if (worn) {
-        EQUIPPED(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+        equipped_items[SLOT_BOOTS] = ITEM_CHARGE_BOOTS;
     }
     ee_qs_turn_to_page(qs_page);
 }
@@ -351,11 +346,11 @@ static void rewear_saved_boots(void)
         SAVE_WORN = 0;
         return;
     }
-    if (HERO_CONTROL_MODE != CONTROL_NORMAL) {
+    if (g_hero.state.control_mode != CONTROL_NORMAL) {
         return;
     }
-    if (EQUIPPED(SLOT_BOOTS) == 0 && HERO_PENDING(SLOT_BOOTS) == 0) {
-        HERO_PENDING(SLOT_BOOTS) = ITEM_CHARGE_BOOTS;
+    if (equipped_items[SLOT_BOOTS] == 0 && g_hero.pending_item[SLOT_BOOTS] == 0) {
+        g_hero.pending_item[SLOT_BOOTS] = ITEM_CHARGE_BOOTS;
     }
     SAVE_WORN = 0;
 }
@@ -414,7 +409,7 @@ s32 ee_cheats_enter_c(s32 a0, s32 a1, s32 a2, s32 a3, s32 L)
     s32 result = ((CheatsBuilder)ee_charge_cheats_builder[L])(a0, a1, a2, a3);
     struct cheat_row *row = (struct cheat_row *)ee_charge_cheats_list[L];
     s32 n = 0;
-    if (!CHEAT_SEEN) {
+    if (!cheats_seen[EE_CHEAT_ENTRY]) {
         return result;
     }
     while (n < CHEAT_ROWS - 1 && row[n].text != 0) {

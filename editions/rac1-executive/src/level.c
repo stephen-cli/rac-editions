@@ -8,7 +8,6 @@
  * old program stops running when a save is loaded from the pause menu. */
 #include "modseg.h"
 
-#define g_level_variable (*(volatile s32 *)0x0015EE84)
 
 s32 ee_program_of_call(u32 ra, const u32 *funcs, u32 site)
 {
@@ -29,6 +28,6 @@ s32 ee_level_of_call(u32 ra, const u32 *funcs, u32 site)
     }
     /* Not one of the patched sites: never expected. Fall back to the game's
      * variable, clamped, rather than index past the table. */
-    L = g_level_variable;
+    L = g_current_level_index;
     return (L >= 0 && L < 19) ? L : 0;
 }

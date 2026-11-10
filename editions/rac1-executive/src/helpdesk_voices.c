@@ -104,7 +104,7 @@ void ee_helpdesk_voices(s32 level)
 {
     TextEntry *table = *LVL_DATA(level, text_table, TextEntry *volatile *);
     s32 count = *(volatile s32 *)(LVL_DATA(level, help_state, u8 *) + HELP_STATE_COUNT);
-    s32 future = GetControlLayout() == EE_LAYOUT_FUTURE && g_language == LANGUAGE_ENGLISH;
+    s32 future = GetControlLayout() == EE_LAYOUT_FUTURE && g_game_language == LANGUAGE_ENGLISH;
     s32 k;
     s32 n;
 

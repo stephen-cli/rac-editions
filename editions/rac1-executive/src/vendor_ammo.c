@@ -39,7 +39,6 @@ typedef void (*PlaceFn)(void *);
 #define ITEM_AMMO_PRICE_GOLD 0xA        /* u16 */
 #define ITEM_AMMO_MAX   0xE             /* u16 */
 
-#define AMMO_COUNTS     ((volatile s32 *)0x0013D530)   /* ammo held, an s32 per item id (NTSC weapon_ammo_counts) */
 
 void ee_vendor_ammo_open_c(void *moby, u32 ra)
 {
@@ -61,8 +60,8 @@ void ee_vendor_ammo_open_c(void *moby, u32 ra)
     if (price <= 0) {
         return;
     }
-    quantity = g_bolts / price;
-    room = *(const u16 *)(info + ITEM_AMMO_MAX) - AMMO_COUNTS[item];
+    quantity = gBolts / price;
+    room = *(const u16 *)(info + ITEM_AMMO_MAX) - weapon_ammo_counts[item];
     if (room < quantity) {
         quantity = room;
     }

@@ -92,18 +92,15 @@ typedef s32 (*PrepFn)(void *, s32, const void *);
  * machine's, and the write sequence seeks it. The machine's own save
  * writes the current level's page; the record's page (19) gets the same
  * sequence, started here, once the record changed and the machine is idle. */
-#define MC                  ((volatile u8 *)0x0013D390)
-#define MC_CARD             (*(volatile s32 *)(MC + 0xC8))          /* the card in use, -1 none */
-#define MC_SLOT_FILE(card)  (*(volatile s32 *)(MC + 0xC0 * (card) + 0x14))  /* its save's file, < 0 none */
-#define MC_PAGE             (*(volatile s32 *)(MC + 0xD0))          /* the level page the save writes */
-#define MC_STATE            (*(volatile s32 *)(MC + 0xDC))          /* >= 3: a sequence is running */
-#define MC_REQUEST          (*(volatile s32 *)(MC + 0xE4))          /* >= 0: a request waits (0xF: save) */
-#define MC_REQUEST_CARD     (*(volatile s32 *)(MC + 0xE8))
-#define MC_PENDING          (*(volatile s32 *)(MC + 0xFC))          /* the save mask: 0, no autosaves yet */
-#define MC_SAVE_GAME_BUF    ((void *)0x0014EFD0)
-#define MC_SAVE_LEVEL_BUF   ((void *)0x001507D0)
+#define MC_S32(offset)      (*(volatile s32 *)(memory_card_state + (offset)))
+#define MC_CARD             MC_S32(0xC8)                        /* the card in use, -1 none */
+#define MC_SLOT_FILE(card)  MC_S32(0xC0 * (card) + 0x14)        /* its save's file, < 0 none */
+#define MC_PAGE             MC_S32(0xD0)                        /* the level page the save writes */
+#define MC_STATE            MC_S32(0xDC)                        /* >= 3: a sequence is running */
+#define MC_REQUEST          MC_S32(0xE4)                        /* >= 0: a request waits (0xF: save) */
+#define MC_REQUEST_CARD     MC_S32(0xE8)
+#define MC_PENDING          MC_S32(0xFC)                        /* the save mask: 0, no autosaves yet */
 #define MC_REQUEST_SAVE     0xF
-#define GAME_FLAGS          (*(volatile u32 *)0x0015EFB4)
 #define GAME_FLAG_SAVING    0x200                                   /* memcard_Save sets it for slot 0 */
 #define HIDDEN_PAGE_INDEX 19            /* the level page no level owns: EE_PAGE19 */
 #define HIDDEN_PAGE_BLOCK_ID 0xBBA      /* the level save table's record of a level's moby state */
@@ -115,13 +112,7 @@ static s32 page_due_with_save;          /* it changed, to be written after the g
 volatile u32 ee_debug_rz_card[2];
 
 /* The game state a start past the tutorial sets (core data). */
-#define CURRENT_LEVEL   (*(volatile s32 *)0x0015EE84)    /* the level the boot sequence loads */
-#define BOLTS           (*(volatile s32 *)0x0015EE98)    /* gBolts */
-#define PLANETS         ((volatile u8 *)0x0013DE48)      /* unlocked, per planet */
-#define GALAXY_LIST     ((volatile s32 *)0x0013D618)     /* gGalaxyList: the galactic map's planets, in unlock order */
 #define PLANET_SLOTS    20
-#define HELPDESK_VOICE  (*(volatile u8 *)0x0015EF1C)     /* gHelpDeskVoice: 0 off */
-#define HELPDESK_TEXT   (*(volatile u8 *)0x0015EF1D)     /* gHelpDeskText: 0 off */
 
 extern void sce_cd_read_clock(void *clock);   /* sceCdReadClock into 8 bytes (core) */
 #define MENU_TICKS      (*(volatile s32 *)0x001D60C4)   /* D_001D5F70 + 0x154: the menus' ticks since the card idled */
@@ -271,9 +262,10 @@ void ee_page19_autosave(s32 L)
         return;
     }
     MC_PAGE = HIDDEN_PAGE_INDEX;
-    LVL(L, memcard_PrepData, PrepFn)(MC_SAVE_GAME_BUF, 0, LVL_DATA(L, save_game_table, const void *));
-    LVL(L, memcard_PrepData, PrepFn)(MC_SAVE_LEVEL_BUF, HIDDEN_PAGE_INDEX, LVL_DATA(L, save_level_table, const void *));
-    GAME_FLAGS |= GAME_FLAG_SAVING;
+    LVL(L, memcard_PrepData, PrepFn)(memcard_game_data_buffer, 0, LVL_DATA(L, save_game_table, const void *));
+    LVL(L, memcard_PrepData, PrepFn)(memcard_level_data_buffer, HIDDEN_PAGE_INDEX,
+                                     LVL_DATA(L, save_level_table, const void *));
+    mode_freeze_flags |= GAME_FLAG_SAVING;
     MC_REQUEST = MC_REQUEST_SAVE;
     MC_REQUEST_CARD = card;
     page_dirty = 0;
@@ -411,15 +403,15 @@ static void start_past_tutorial(const struct RzLayout *layout)
 {
     s32 planet = layout->start_planet;
     s32 i, unlocked = 0;
-    if (!PLANETS[planet]) {
+    if (!level_available[planet]) {
         for (i = 0; i < PLANET_SLOTS; i++) {
-            unlocked += PLANETS[i] != 0;
+            unlocked += level_available[i] != 0;
         }
-        PLANETS[planet] = 1;
-        GALAXY_LIST[unlocked] = planet;
+        level_available[planet] = 1;
+        gGalaxyList[unlocked] = planet;
     }
-    CURRENT_LEVEL = planet;
-    BOLTS = RZ_START_BOLTS;
+    g_current_level_index = planet;
+    gBolts = RZ_START_BOLTS;
 }
 
 /* A Randomizer game starts with the HelpDesk off, text and voice; the
@@ -428,8 +420,8 @@ static void start_past_tutorial(const struct RzLayout *layout)
  * (func_00227DB0) turns both off the same way. */
 static void helpdesk_off(void)
 {
-    HELPDESK_VOICE = 0;
-    HELPDESK_TEXT = 0;
+    gHelpDeskVoice = 0;
+    gHelpDeskText = 0;
 }
 
 void ee_rz_after_reset(s32 L)

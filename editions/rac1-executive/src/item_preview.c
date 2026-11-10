@@ -17,12 +17,11 @@
  * before. Returns the moby to draw, or 0 for nothing. */
 #include "modseg.h"
 
-#define ITEM_OWNED(id)  (*(volatile u8 *)(0x0013D5C8 + (id)))   /* D_0013D5C8: owned items, by id */
 
 u8 *ee_preview_shown(u8 *moby)
 {
     if (moby == 0) {
         return 0;
     }
-    return ITEM_OWNED(*(s32 *)(*(u8 **)(moby + 0x78) + 0xC)) ? moby : 0;
+    return item_available[*(s32 *)(*(u8 **)(moby + 0x78) + 0xC)] ? moby : 0;
 }

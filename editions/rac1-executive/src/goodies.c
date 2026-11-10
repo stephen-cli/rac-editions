@@ -97,16 +97,16 @@ extern void sce_gs_sync_v(s32);                                           /* the
 #define MC_OPEN_READ    1
 #define MC_OPEN_WRITE   2
 
-/* The card state machine's record (D_0013D390, core). */
-#define MC_PORT         (*(volatile s32 *)0x0013D390)
-#define MC_SLOT         (*(volatile s32 *)0x0013D394)
-#define MC_TYPE         (*(volatile s32 *)0x0013D398)    /* +8: 2 is a PS2 card */
-#define MC_COMMAND      ((s32 *)0x0013D450)              /* +0xC0, +0xC4: the pending command's result words */
-#define MC_RESULT       ((s32 *)0x0013D454)
-#define MC_BUSY         (*(volatile s32 *)0x0013D464)    /* +0xD4: a command is running */
-#define MC_STATE        (*(volatile s32 *)0x0013D46C)    /* +0xDC: 0-2 polling the card, 3 and up a sequence */
-#define MC_REQUEST      (*(volatile s32 *)0x0013D474)    /* +0xE4: a requested sequence, -1 none */
-#define MC_MAIN_FILE    ((const char *)0x0013D340)       /* "/BESCES-50916RATCHET/BESCES-50916RATCHET" */
+/* The card state machine's record (memory_card_state, core), by offset: OpenRAC has no layout for it yet. */
+#define MC_S32(offset)  (*(volatile s32 *)(memory_card_state + (offset)))
+#define MC_PORT         MC_S32(0x00)
+#define MC_SLOT         MC_S32(0x04)
+#define MC_TYPE         MC_S32(0x08)                     /* 2 is a PS2 card */
+#define MC_COMMAND      ((s32 *)(memory_card_state + 0xC0))   /* the pending command's result words */
+#define MC_RESULT       ((s32 *)(memory_card_state + 0xC4))
+#define MC_BUSY         MC_S32(0xD4)                     /* a command is running */
+#define MC_STATE        MC_S32(0xDC)                     /* 0-2 polling the card, 3 and up a sequence */
+#define MC_REQUEST      MC_S32(0xE4)                     /* a requested sequence, -1 none */
 #define MC_DIR_LENGTH   21                               /* "/BESCES-50916RATCHET/" */
 #define MC_SLOTS        5
 
@@ -148,8 +148,6 @@ extern void sce_gs_sync_v(s32);                                           /* the
 #define MENU_NEXT       (*(volatile u32 *)0x001D5F78)    /* + 8: the page to switch to */
 #define MENU_TICKS      (*(volatile s32 *)0x001D60C4)    /* + 0x154: updates since the card went idle; the pages wait for 11 */
 #define MENU_LOAD_KIND  (*(volatile s32 *)0x001D60C0)    /* + 0x150: what the freeze opens, 0 a new game, 1 a load (the lists' actions 4 and 5) */
-#define GAME_FLAGS      (*(volatile s32 *)0x0015EFB4)    /* D_0015EFB4: bit 2 a new game being started, bit 4 a load (the same actions) */
-#define PAD_PRESSED     (*(volatile u32 *)0x0013CBF4)    /* D_0013CA40 + 0x1B4: buttons newly down, no stick directions */
 #define PAGE_FOCUS      0x40
 #define PAGE_WORDS      (0x88 / 4)
 #define PAGE_BACK_WORD  (0x38 / 4)
@@ -215,11 +213,10 @@ typedef void (*PrintFn)(s32, s32, u64, const char *, s32);
 typedef void (*ScaledPrintFn)(u64, const char *, s32, u64, const void *, f32, f32, f32);
 typedef u64 (*EffectTexFn)(s32);
 typedef const char *(*MsgFn)(s32);
-#define MC_SLOT_LEVEL(slot) (*(volatile s32 *)(0x0013D390 + 0x20 + 0x1C * (slot)))  /* the card's summary of a slot: its level, -1 empty */
-#define MC_SLOT_TIME(slot)  (*(volatile s32 *)(0x0013D390 + 0x2C + 0x1C * (slot)))  /* its play time */
-#define MC_SUMMARY_STATE    (*(volatile s32 *)(0x0013D390 + 8))                      /* 2: the summaries are read */
+#define MC_SLOT_LEVEL(slot) MC_S32(0x20 + 0x1C * (slot))  /* the card's summary of a slot: its level, -1 empty */
+#define MC_SLOT_TIME(slot)  MC_S32(0x2C + 0x1C * (slot))  /* its play time */
+#define MC_SUMMARY_STATE    MC_S32(0x08) /* 2: the summaries are read */
 #define MENU_TICKS_OFFSET   0x154       /* MENU_TICKS in the menu record (the levels' is elsewhere: LVL_DATA menu_state) */
-#define PAL_MODE        (*(volatile s32 *)0x0015EE80)    /* 50 Hz: the slot list's rows are 0x24 apart after their 0x30, not 0x1B */
 #define WIDGET_WIDTH    (0x20 / 4)
 #define WIDGET_HEIGHT   (0x24 / 4)
 #define WIDGET_SLOT     (0x40 / 4)  /* a slot list's selected slot; the name box names the focused list's */
@@ -328,7 +325,7 @@ static s32 card_take(void)
         sce_mc_sync(0, MC_COMMAND, MC_RESULT);
         MC_BUSY = 0;
     }
-    return MC_MAIN_FILE[0] == '/';
+    return memcard_main_file[0] == '/';
 }
 
 /* The card is idle and a PS2 card, as the save pages require before they show a slot. */
@@ -378,7 +375,7 @@ static s32 record_flags(void)
 /* The edition's record from the main file: its flags. */
 static s32 read_record(void)
 {
-    if (!card_read(MC_MAIN_FILE, EDITION_OFFSET, 16)) {
+    if (!card_read(memcard_main_file, EDITION_OFFSET, 16)) {
         return 0;
     }
     return record_flags();
@@ -391,7 +388,7 @@ static s32 write_record(s32 flags)
     words[1] = EDITION_VERSION;
     words[2] = flags;
     words[3] = ee_save_checksum(card_buffer, 12);
-    return card_write(MC_MAIN_FILE, EDITION_OFFSET, 16);
+    return card_write(memcard_main_file, EDITION_OFFSET, 16);
 }
 
 /* The card scan: the edition's record from the main file, then each slot's
@@ -402,8 +399,8 @@ static s32 write_record(s32 flags)
  * its end at once (scan_run). */
 #define SCAN_MAIN       (-1)        /* scan.file: the main file, the edition's record */
 #define SCAN_DONE       MC_SLOTS    /* scan.file: no scan running */
-#define MC_CARD_RESULT  (*(volatile s32 *)0x0013D3AC)    /* +0x1C: its last sceMcGetInfo result, 0 the same card */
-#define MC_FREE         (*(volatile s32 *)0x0013D39C)    /* +0xC: the card's free space at that check */
+#define MC_CARD_RESULT  MC_S32(0x1C)                     /* its last sceMcGetInfo result, 0 the same card */
+#define MC_FREE         MC_S32(0x0C)                     /* the card's free space at that check */
 
 enum ScanStep {
     STEP_OPEN,
@@ -451,7 +448,7 @@ static const char *save_name(s32 slot)
     const char *file = "save0.bin";
     s32 i;
     for (i = 0; i < MC_DIR_LENGTH; i++) {
-        scan.name[i] = MC_MAIN_FILE[i];
+        scan.name[i] = memcard_main_file[i];
     }
     for (i = 0; file[i] != 0; i++) {
         scan.name[MC_DIR_LENGTH + i] = file[i];
@@ -467,7 +464,7 @@ static s32 scan_issue(void)
     switch (scan.step) {
     case STEP_OPEN:
         if (scan.file == SCAN_MAIN) {
-            return sce_mc_open(MC_PORT, MC_SLOT, MC_MAIN_FILE, MC_OPEN_READ);
+            return sce_mc_open(MC_PORT, MC_SLOT, memcard_main_file, MC_OPEN_READ);
         }
         return sce_mc_open(MC_PORT, MC_SLOT, save_name(scan.file), MC_OPEN_READ);
     case STEP_SEEK_EDITION:
@@ -644,7 +641,7 @@ static s32 record_job_issue(void)
 {
     switch (record_job.step) {
     case RECORD_OPEN:
-        return sce_mc_open(MC_PORT, MC_SLOT, MC_MAIN_FILE, MC_OPEN_WRITE);
+        return sce_mc_open(MC_PORT, MC_SLOT, memcard_main_file, MC_OPEN_WRITE);
     case RECORD_SEEK:
         return sce_mc_seek(record_job.fd, EDITION_OFFSET, 0);
     case RECORD_WRITE:
@@ -1537,7 +1534,6 @@ static const u16 seed_buttons[RZ_CODE_BUTTONS] = { 0x0040, 0x0020, 0x0080, 0x000
 static const u8 seed_glyphs[RZ_CODE_BUTTONS] = { 0x02, 0x03, 0x04, 0x14, 0x15, 0x16, 0x17, 0x1A, 0x1B, 0x1C, 0x1D };
 static const u8 seed_digit_of_button[RZ_CODE_BUTTONS] = { 4, 5, 6, 7, 9, 8, 10, 0, 1, 2, 3 };
 static const u8 seed_glyph_of_digit[RZ_CODE_BUTTONS] = { 0x1A, 0x1B, 0x1C, 0x1D, 0x02, 0x03, 0x04, 0x14, 0x16, 0x15, 0x17 };
-#define PAD_TRIANGLE 0x0010
 static char seed_text[RZ_CODE_LENGTH + 1];
 static u8 seed_digits[RZ_CODE_LENGTH];
 static s32 seed_length;
@@ -1665,7 +1661,7 @@ static void menu_sound(s32 kind, u32 moby)
  * (ee_seed_box_draw) until the next press, which starts a new code. */
 s32 ee_seed_box_update(struct MenuList *box)
 {
-    u32 pressed = PAD_PRESSED;
+    u32 pressed = g_controller_state.raw_pressed;
     s32 k;
     install_glyphs();
     if (MENU_CURRENT == 0 || *(u32 *)(MENU_CURRENT + PAGE_FOCUS) != (u32)box) {
@@ -1690,7 +1686,7 @@ s32 ee_seed_box_update(struct MenuList *box)
             /* as the list's action 4 (Pause_TextListUpdate) opens New Game */
             menu_sound(0, box->moby);
             MENU_LOAD_KIND = 0;
-            GAME_FLAGS = (GAME_FLAGS | 2) & ~4;
+            mode_freeze_flags = (mode_freeze_flags | 2) & ~4;
             LVL(title_program, mode_freeze_init, FreezeFn)(3, new_game_page, 0);
         } else {
             clear_seed_box();
@@ -1791,7 +1787,7 @@ s32 ee_rz_slots_update(void *widget)
  * scan of an earlier card left its badges over another card's EMPTY. */
 static void draw_badges(s32 program)
 {
-    s32 row = SLOT_ROW + (PAL_MODE ? 0x24 : 0x1B);
+    s32 row = SLOT_ROW + (pal_mode ? 0x24 : 0x1B);
     s32 i, y;
     for (i = 0, y = 4; i < MC_SLOTS; i++, y += row) {
         if (slots[i].rz.present && MC_SLOT_LEVEL(i) != -1) {
@@ -2186,7 +2182,7 @@ static s32 menu_updates_seen;
 /* The machine is between its card checks, with no command or request. */
 static s32 machine_idle(void)
 {
-    return !MC_BUSY && MC_STATE == 2 && MC_REQUEST < 0 && MC_MAIN_FILE[0] == '/';
+    return !MC_BUSY && MC_STATE == 2 && MC_REQUEST < 0 && memcard_main_file[0] == '/';
 }
 
 void ee_title_card_c(s32 L)

@@ -28,7 +28,7 @@
  * planet naming the item reads "???" too. */
 #include "randomizer_play.h"
 
-#define LANGUAGES       8               /* the game's language ids, g_language */
+#define LANGUAGES       8               /* the game's language ids, g_game_language */
 #define TEMPLATE_MARK   '@'             /* where the item's name goes in EE_TEXT_RZ_FOUND, _GOT and _WON */
 #define BANNER_MAX      160
 #define NAME_MAX        80
@@ -75,7 +75,7 @@ static s32 next_redacted;
 /* WORDS in the game's language, English if it has none. */
 static const char *word(const u16 words[LANGUAGES])
 {
-    s32 language = g_language;
+    s32 language = g_game_language;
     u16 at = language >= 0 && language < LANGUAGES ? words[language] : NO_WORD;
     if (at != NO_WORD) {
         return ee_rz_words + at;

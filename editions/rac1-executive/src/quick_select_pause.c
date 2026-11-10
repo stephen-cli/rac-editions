@@ -66,9 +66,6 @@ DECLARE_LVL_DATA(update_flags);     /* the gate struct; bits at +8 */
 DECLARE_LVL_DATA(hud_slots);        /* HUD slot table, 13 records of 0x90 (level-local) */
 
 #define QS_PAUSE_SETTING   (*(volatile u8 *)EE_SETTING_QS_PAUSE)
-#define PAD_HELD           (*(volatile u32 *)0x0013CC00)   /* D_0013CA40 + 0x1C0: buttons held, game layout */
-#define PAD_RAW            (*(volatile u32 *)0x0013CBF0)   /* D_0013CA40 + 0x1B0: this frame's raw buttons; next frame's + 0x1BC */
-#define PAD_TRIANGLE       0x10u
 #define GRACE_FRAMES       4       /* R&C2: the ring opens and the world stops after 4 held frames */
 #define TAP_FRAMES         20      /* R&C1 and R&C2: a release within 20 frames of the press is a tap */
 /* A slot's current update callback: HudUpdate calls record + 0x14 (set from HudShow's
@@ -125,14 +122,14 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
 
     gate = (volatile u32 *)(LVL_DATA(L, update_flags, u32) + 8);
     open = ee_qs_ring_open(L);         /* slot 3's update is the edition's wrapper of QuickSelectUpdate (q2) */
-    held = open && (PAD_HELD & PAD_TRIANGLE);
+    held = open && (g_controller_state.held_unmasked & PAD_TRIANGLE);
     if (held) {
         if (held_frames < 1000) {
             held_frames++;
         }
     } else {
         if (was_held && paused && held_frames <= TAP_FRAMES) {
-            PAD_RAW |= PAD_TRIANGLE;     /* replay the release the frozen hero missed */
+            g_controller_state.raw_held |= PAD_TRIANGLE;     /* replay the release the frozen hero missed */
         }
         held_frames = 0;
     }

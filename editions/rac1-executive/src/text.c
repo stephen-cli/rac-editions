@@ -25,7 +25,7 @@ extern const char *const ee_text[][8];
  * whose data this code never touches). */
 const char *ee_msg_string_edition(s32 id)
 {
-    s32 lang = g_language;
+    s32 lang = g_game_language;
     const char *s;
     if (id == EE_TEXT_CHARGE_BOOTS_INFO && GetControlLayout() == EE_LAYOUT_FUTURE) {
         id = EE_TEXT_CHARGE_BOOTS_INFO_FUTURE;      /* the dash's double tap is on R2 */

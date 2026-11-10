@@ -80,14 +80,8 @@
 
 #define MAX_MULTIPLIER  5
 
-#define D_CHALLENGE_FLAG  (*(volatile s32 *)0x0015EFA0)    /* set after the credits; the game treats it as Challenge Mode */
-#define HERO_STATE        (*(volatile s32 *)(0x0013F450 + 0x2084))  /* D_001414D4 */
-#define HERO_VEHICLE_MODE (*(volatile u8 *)(0x0013F450 + 0x20A4))   /* 0 Ratchet, 1 Clank, 2 Giant Clank, 3 a vehicle */
-#define HERO_HIT_POINTS   (*(volatile s32 *)(0x0013F450 + 0x22A8))
 #define STATE_EXTERNAL    0x32          /* the hero driven by something else: the ship, a turret, a script */
 #define VEHICLE_CLANK     1
-#define FARM_FRAMES       (*(volatile s32 *)0x0015EF28)     /* the limiter's active frames since a respawn's drop */
-#define FARM_BOLTS        (*(volatile s32 *)0x0015EF2C)     /* the limiter's bolts from respawns */
 
 #define MOBY_CLASS      0x24            /* the moby's class header */
 #define MOBY_MISSION    0xB0            /* its mission, 0xFF for none */
@@ -136,7 +130,7 @@ static s32 hud_level;                   /* the program whose HUD the swapped dra
 
 static s32 in_challenge_mode(void)
 {
-    return g_completes > 0 || D_CHALLENGE_FLAG != 0;
+    return g_completes > 0 || challenge_mode != 0;
 }
 
 static s32 current_multiplier(void)
@@ -161,7 +155,7 @@ static void set_multiplier(s32 multiplier, s32 kills)
 /* The sections where the multiplier stands still: hard to play without damage, or not Ratchet's own fight. */
 static s32 excluded_section(void)
 {
-    return HERO_STATE == STATE_EXTERNAL || HERO_VEHICLE_MODE > VEHICLE_CLANK;
+    return g_hero.state.current == STATE_EXTERNAL || g_hero.vehicle_mode > VEHICLE_CLANK;
 }
 
 static s32 is_creature(const u8 *moby)
@@ -231,10 +225,10 @@ static void add_death(s32 slot)
 static s32 limiter_penalty(s32 L, s32 amount)
 {
     s32 rate;
-    if (amount >= LIMITER_MAX || FARM_FRAMES == 0) {
+    if (amount >= LIMITER_MAX || active_play_frame_count == 0) {
         return 1000;
     }
-    rate = LVL(L, scale_ticks, TicksFn)(60) * 60 * FARM_BOLTS / FARM_FRAMES;
+    rate = LVL(L, scale_ticks, TicksFn)(60) * 60 * counted_bolts_total / active_play_frame_count;
     if (rate <= 300) {
         return 1000;
     }
@@ -297,7 +291,7 @@ void ee_bolt_drop_c(void *moby, s32 low, s32 high, s32 flags, s32 path, u32 ra)
     if (bonus > 0) {
         drop(moby, bonus, bonus, flags | DROP_NO_LIMITER, path);
         if (respawn) {
-            FARM_BOLTS += bonus;
+            counted_bolts_total += bonus;
         }
     }
     count_kill(L);
@@ -311,7 +305,6 @@ void ee_bolt_drop_c(void *moby, s32 low, s32 high, s32 flags, s32 path, u32 ra)
 #define BOLTS_SLOT      2               /* CollectBolt's queue_animation_update(2, 0x754E, ...) */
 #define BOLTS_ICON      0x754E
 #define BOLTS_MOST      9999999
-#define G_BOLTS         ((void *)0x0015EE98)
 
 static s32 bolts_draw(void *slot);
 
@@ -320,13 +313,13 @@ static void show_bolt_counter(s32 L)
 {
     LVL(L, queue_animation_update, QueueFn)(BOLTS_SLOT, BOLTS_ICON, LVL(L, initialize_bolt_counter_hud, u32),
                                             LVL(L, update_bolt_counter_hud_animation_and_visibility, u32),
-                                            LVL(L, draw_bolt_counter_hud_panel, u32), G_BOLTS, BOLTS_MOST);
+                                            LVL(L, draw_bolt_counter_hud_panel, u32), (void *)&gBolts, BOLTS_MOST);
 }
 
 /* COUNT bolts added, up to the counter's most, with the counter shown as a pickup shows it. */
 void ee_add_bolts(s32 count, s32 L)
 {
-    g_bolts = g_bolts + count > BOLTS_MOST ? BOLTS_MOST : g_bolts + count;
+    gBolts = gBolts + count > BOLTS_MOST ? BOLTS_MOST : gBolts + count;
     show_bolt_counter(L);
 }
 
@@ -347,8 +340,8 @@ static void swap_bolt_counter_draw(s32 L)
 /* Once a frame, from the HUD update hook (src/quick_select_pause.c). */
 void ee_bolt_multiplier_frame(s32 L)
 {
-    s32 hit_points = HERO_HIT_POINTS;
-    s32 vehicle_mode = HERO_VEHICLE_MODE;
+    s32 hit_points = g_hero.health.hp;
+    s32 vehicle_mode = g_hero.vehicle_mode;
     s32 excluded = excluded_section();
 
     if (L == last_level && vehicle_mode == last_vehicle_mode && !excluded && !last_excluded
@@ -368,7 +361,6 @@ void ee_bolt_multiplier_frame(s32 L)
 #define GP_TEXT_FRAMES  (-0x73F8)       /* D_L00_0015F908: frames to fade the text in */
 #define SLOT_X          0x50            /* the counter's right edge */
 #define SLOT_SHOWN      0x70            /* bytes: the panel's and the text's frames */
-#define FRAME_RATE_50HZ (*(volatile s32 *)0x0015EE80)       /* SetUpdateModeTiming's mode: the counter's top is 10, else 18 */
 
 /* Where "x5" sits: its right edge under the bolt icon's right edge, its top over the icon's lower third. */
 #define MULT_RIGHT      2
@@ -391,7 +383,7 @@ static s32 bolts_draw(void *slot)
     char text[4];
 
     /* retail hides the counter while the hero is driven by something else (HudBoltsDraw's own test) */
-    if (multiplier <= 1 || !in_challenge_mode() || HERO_STATE == STATE_EXTERNAL || s[SLOT_SHOWN] == 0) {
+    if (multiplier <= 1 || !in_challenge_mode() || g_hero.state.current == STATE_EXTERNAL || s[SLOT_SHOWN] == 0) {
         return width;
     }
     text_frames = gp_word(GP_TEXT_FRAMES);
@@ -403,7 +395,7 @@ static s32 bolts_draw(void *slot)
         return width;
     }
     x = *(s32 *)(s + SLOT_X) + MULT_RIGHT;
-    y = (FRAME_RATE_50HZ ? 10 : 18) + MULT_TOP;
+    y = (pal_mode ? 10 : 18) + MULT_TOP;
     text[0] = 'x';
     text[1] = (char)('0' + multiplier);
     text[2] = 0;

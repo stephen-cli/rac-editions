@@ -54,7 +54,7 @@ static const s16 SEVEN_ORBS[7][2] = {
 
 static s32 health_count(void)
 {
-    return HERO_MODE == 1 ? CLANK_HEALTH_MAX : MAX_HEALTH;
+    return g_hero.vehicle_mode == 1 ? g_hero.health.vehicle_mode_hp : hero_max_health;
 }
 
 static f32 clamp_unit(f32 value)
@@ -81,11 +81,12 @@ s32 ee_rz_health_draw_c(void *element, s32 L)
     const s16 *anim = *(const s16 *const *)(hud + ELEMENT_ANIM);
     s32 centre_x, top_y, full, phase, alpha, bar_alpha, end_frame, middle_frame, i;
     f32 shown, strength;
-    if (health_count() != 7 || HERO_MODE == VEHICLE || HERO_STATE == HERO_STATE_HIDDEN || fade[0] == 0) {
+    if (health_count() != 7 || g_hero.vehicle_mode == VEHICLE || g_hero.state.current == HERO_STATE_HIDDEN
+        || fade[0] == 0) {
         return LVL(L, draw_health_hud_panel, HealthFn)(element);
     }
     centre_x = *(s32 *)(hud + ELEMENT_X);
-    top_y = HUD_Y_BASE + (PAL_MODE ? 0xA : 0x12);
+    top_y = HUD_Y_BASE + (pal_mode ? 0xA : 0x12);
     full = *(s32 *)(hud + ELEMENT_HEALTH);
     shown = clamp_unit((f32)fade[0] / FADE_MAX);
     strength = clamp_unit((f32)fade[1] / FADE_MAX);

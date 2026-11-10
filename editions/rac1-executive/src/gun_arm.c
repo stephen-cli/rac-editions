@@ -38,7 +38,6 @@
 
 extern const u32 ee_gunarm_seq_1[], ee_gunarm_seq_2[];   /* R&C2's arm classes 1 and 2, sequence 0x14 (build/modseg/gen_anim_arm.c) */
 
-#define HERO            0x0013F450
 #define hero_moby       (*(u8 *volatile *)(HERO + 0x2080))
 #define arm_layer(i)    (*(u8 *volatile *)(HERO + 0xD00 + 4 * (i)))   /* the manager's layers: the right arm, the left */
 #define LAYER_CLASS     0x18          /* a layer's arm class */

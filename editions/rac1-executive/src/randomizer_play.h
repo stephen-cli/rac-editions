@@ -17,25 +17,9 @@
 
 #include "randomizer.h"
 
-/* --- the game's memory --------------------------------------------------------------------------------------- */
+/* --- the game's memory (src/game.h) -------------------------------------------------------------------------- */
 
-#define INVENTORY       ((volatile u8 *)0x0013D5C8)      /* owned, per item id 0-36 */
-#define HAD             ((volatile u8 *)0x0013D5F0)      /* "has had", per item id: GiveItem sets it; pickups and
-                                                          * some characters test it rather than INVENTORY */
-#define PLANETS         ((volatile u8 *)0x0013DE48)      /* unlocked, per planet 0-19 */
-#define FLAGS           ((volatile u8 *)0x0013D490)      /* the global flags: the special items' bytes */
-#define GOLD_FLAGS      ((volatile u8 *)0x0014BFC0)      /* a Gold Bolt spot taken, [level * 4 + spot] */
-#define PERSUADER_OWNED (*(volatile u8 *)0x0013D5EB)
-#define CURRENT_LEVEL   (*(volatile s32 *)0x0015EE84)
-#define MAX_HEALTH      (*(volatile s32 *)0x0015EEA0)    /* gMaxNanotech: 4, 5 with the Premium, 8 with the Ultra */
-#define PAL_MODE        (*(volatile s32 *)0x0015EE80)
-#define CHEAT_SEEN      (*(volatile u8 *)(0x0015EEC0 + EE_CHEAT_ENTRY))
-
-#define HERO_BASE       0x0013F450
-#define HERO_STATE      (*(volatile s32 *)(HERO_BASE + 0x2084))
-#define HERO_MODE       (*(volatile u8 *)(HERO_BASE + 0x20A4))   /* 1 Clank, 2 a vehicle */
-#define HERO_HEALTH     (*(volatile s32 *)(HERO_BASE + 0x22A8))
-#define CLANK_HEALTH_MAX (*(volatile s32 *)(HERO_BASE + 0x22AC))
+#define PERSUADER_OWNED item_available[0x23]
 
 #define ITEMS           37              /* the game's item ids, 0-36 (36: the edition's Charge Boots) */
 #define CHARGE_BOOTS_ID 36              /* src/goodies.c, tools/gen_items.py */
@@ -43,7 +27,7 @@
 #define TEXT_BOLT_CACHE 0x5426          /* "Bolt Cache": the Charge Boots' check in a build without them */
 #define BOLT_CACHE      2500            /* its bolts, the bonus vendor entry's price */
 
-/* The special items' bytes in FLAGS. */
+/* The special items' bytes in gSpecialItems. */
 #define FLAG_BYTES      8
 #define FLAG_ZOOMERATOR 0
 #define FLAG_RARITANIUM 1
