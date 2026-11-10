@@ -46,6 +46,7 @@
  * collected and received (src/randomizer_play.c): a bit per check, the
  * Gold Bolts received, the special items received; those change in place,
  * with the checksum redone, and the save carries them. */
+#include "modseg.h"
 #include "randomizer.h"
 
 #define RZ_MAGIC        0x5A524545u     /* "EERZ" */

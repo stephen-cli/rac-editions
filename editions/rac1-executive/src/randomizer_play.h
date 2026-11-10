@@ -15,6 +15,7 @@
 #ifndef RANDOMIZER_PLAY_H
 #define RANDOMIZER_PLAY_H
 
+#include "modseg.h"
 #include "randomizer.h"
 
 /* --- the game's memory (src/game.h) -------------------------------------------------------------------------- */

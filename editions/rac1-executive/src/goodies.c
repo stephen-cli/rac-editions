@@ -81,6 +81,7 @@
  * opens the same New Game with that seed; a code that fails its check, or
  * carries another logic version, is cleared and "Invalid seed code" shows
  * in red until the next press. */
+#include "modseg.h"
 #include "randomizer.h"
 
 typedef void (*VoidFn)(void);

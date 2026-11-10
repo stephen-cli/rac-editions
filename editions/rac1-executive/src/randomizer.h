@@ -1,7 +1,7 @@
 /* rz1: the randomizer's logic: what is shuffled, where it can go, and the
- * seed code (src/randomizer.c). Plain C over the typedefs in modseg.h and
+ * seed code (src/randomizer.c). Plain C over the fixed-width types and
  * nothing of the game's, so a host compiler runs it too
- * (tests/randomizer_test.c).
+ * (tests/randomizer_test.c, with tests/host/types.h for OpenRAC's types.h).
  *
  * The pool and the rules are Panda291's R&C1 Archipelago world (worlds/RAC1
  * in github.com/Panda291/Archipelago: data/Items.py, data/Locations.py,
@@ -17,7 +17,7 @@
 #ifndef RANDOMIZER_H
 #define RANDOMIZER_H
 
-#include "modseg.h"
+#include "types.h"
 
 /* The logic version in every seed code: bump it on any change to the
  * rules, the pool or the algorithm, so a shared code gives the same game. */

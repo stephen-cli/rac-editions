@@ -10,14 +10,14 @@ OUT=$HERE/build/tests
 mkdir -p "$OUT"
 SRC=("$HERE/src/randomizer.c" "$HERE/tests/randomizer_test.c")
 if command -v gcc >/dev/null 2>&1; then
-  gcc -std=c99 -O2 -Wall -Wextra -I"$HERE/src" "${SRC[@]}" -o "$OUT/randomizer_test"
+  gcc -std=c99 -O2 -Wall -Wextra -I"$HERE/src" -I"$HERE/tests/host" "${SRC[@]}" -o "$OUT/randomizer_test"
   "$OUT/randomizer_test" "$@"
 elif command -v wsl >/dev/null 2>&1; then
   to_wsl() { MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e wslpath -a "$(cygpath -w "$1")" | tr -d '\r'; }
   W_OUT=$(to_wsl "$OUT")
   W_SRC=()
   for s in "${SRC[@]}"; do W_SRC+=("$(to_wsl "$s")"); done
-  MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e gcc -std=c99 -O2 -Wall -Wextra -I"$(to_wsl "$HERE/src")" "${W_SRC[@]}" -o "$W_OUT/randomizer_test"
+  MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e gcc -std=c99 -O2 -Wall -Wextra -I"$(to_wsl "$HERE/src")" -I"$(to_wsl "$HERE/tests/host")" "${W_SRC[@]}" -o "$W_OUT/randomizer_test"
   MSYS_NO_PATHCONV=1 wsl -d Ubuntu -e "$W_OUT/randomizer_test" "$@"
 else
   echo "no gcc (install one, or WSL with gcc)" >&2
