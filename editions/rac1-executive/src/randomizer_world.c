@@ -55,12 +55,12 @@ DECLARE_LVL_DATA(class_unpacked);           /* LoadMobyClassResources's last dir
 DECLARE_LVL_DATA(class_decode_buffer);      /*   its decode buffer, */
 DECLARE_LVL_DATA(level_buffers);            /*   and the level's buffer table (tools/modseg.py) */
 DECLARE_LVL(func_00205270);                 /* LoadMobyClassResources(class, decode buffer) */
-typedef void (*DeleteFn)(void *);
-typedef void *(*CreateFn)(s32);
+typedef void (*DeleteFn)(Moby *);
+typedef Moby *(*CreateFn)(s32);
 typedef void (*MissionFn)(s32);
-typedef void (*BoundsFn)(void *);
+typedef void (*BoundsFn)(Moby *);
 typedef f32 (*AtanFn)(f32, f32);
-typedef void (*BlendFn)(void *, s32, s32, s32);
+typedef void (*BlendFn)(Moby *, s32, s32, s32);
 typedef void (*LoadFn)(s32, s32);
 
 #define LEVELS          19
@@ -322,9 +322,9 @@ static const struct ItemModel *model_of(s32 item, s32 L)
 
 struct StandIn {
     u16 key;                            /* host_key; 0 a free entry */
-    void *host;
-    u8 *model;
-    u8 *body;                           /* the Clank under a pack, 0 none */
+    Moby *host;
+    Moby *model;
+    Moby *body;                         /* the Clank under a pack, 0 none */
     u32 mark;                           /* the model's: STAND_IN_MARK, or BOLT_MARK for a live bolt */
     u16 class_id;
     u8 motion;
@@ -334,7 +334,7 @@ struct StandIn {
     const struct ItemModel *model_ref;  /* the model it shows */
 };
 static struct StandIn stand_ins[STAND_INS];
-static u8 *demo_vendor;                 /* the vendor moby of a weapon demo under way (start_weapon_demo), 0 none */
+static Moby *demo_vendor;               /* the vendor moby of a weapon demo under way (start_weapon_demo), 0 none */
 
 void rz_world_forget(void)
 {
@@ -346,32 +346,32 @@ void rz_world_forget(void)
     demo_vendor = 0;
 }
 
-static u32 mark_of(void *moby)
+static u32 mark_of(Moby *moby)
 {
-    u32 pvars = (u32)MOBY(moby)->pvars;
-    return (s8)MOBY(moby)->state >= 0 && pvars != 0 ? *(volatile u32 *)(pvars + STAND_IN_MARK_AT) : 0;
+    u32 pvars = (u32)moby->pvars;
+    return (s8)moby->state >= 0 && pvars != 0 ? *(volatile u32 *)(pvars + STAND_IN_MARK_AT) : 0;
 }
 
 /* A stand-in that never runs its class's update: a model or a Clank. */
-static s32 marked(void *moby)
+static s32 marked(Moby *moby)
 {
     u32 mark = mark_of(moby);
     return mark == STAND_IN_MARK || mark == BODY_MARK;
 }
 
-static s32 holds(u8 *m, void *host, u32 mark)
+static s32 holds(Moby *m, Moby *host, u32 mark)
 {
-    return mark_of(m) == mark && MOBY(m)->parent == host;
+    return mark_of(m) == mark && m->parent == host;
 }
 
 /* The live moby with MARK naming HOST as its spawner, wherever it is now in level L; 0 for none. */
-static u8 *find_by_host(void *host, u32 mark, s32 L)
+static Moby *find_by_host(Moby *host, u32 mark, s32 L)
 {
-    u32 moby;
-    for (moby = MOBYS_PLACED_END(L); moby < MOBYS_END(L) && MOBY(moby)->state != MOBY_FREE_TAIL;
-         moby += sizeof(Moby)) {
-        if (holds((u8 *)moby, host, mark)) {
-            return (u8 *)moby;
+    Moby *moby;
+    for (moby = MOBYS_PLACED_END(L); moby < MOBYS_END(L) && moby->state != MOBY_FREE_TAIL;
+         moby++) {
+        if (holds(moby, host, mark)) {
+            return moby;
         }
     }
     return 0;
@@ -402,7 +402,7 @@ static struct StandIn *entry_of(u16 key)
 
 /* M, a part of a stand-in marked MARK, now hosted by HOST in level L: 0 when the game has removed it; when the host
  * moved to HOST from OLD_HOST, the part is found by the old address and follows. */
-static u8 *follow(u8 *m, u32 mark, void *old_host, void *host, s32 L)
+static Moby *follow(Moby *m, u32 mark, Moby *old_host, Moby *host, s32 L)
 {
     if (m != 0 && holds(m, host, mark)) {
         return m;
@@ -411,14 +411,14 @@ static u8 *follow(u8 *m, u32 mark, void *old_host, void *host, s32 L)
     if (old_host != 0 && old_host != host) {
         m = find_by_host(old_host, mark, L);
         if (m != 0) {
-            MOBY(m)->parent = host;
+            m->parent = host;
         }
     }
     return m;
 }
 
 /* E's stand-in, now hosted by HOST in level L: 0 when there is none or the game has removed it. */
-static u8 *live(struct StandIn *e, void *host, s32 L)
+static Moby *live(struct StandIn *e, Moby *host, s32 L)
 {
     e->model = follow(e->model, e->mark, e->host, host, L);
     e->body = follow(e->body, BODY_MARK, e->host, host, L);
@@ -426,7 +426,7 @@ static u8 *live(struct StandIn *e, void *host, s32 L)
     return e->model;
 }
 
-static void drop(u16 key, void *host, s32 L)
+static void drop(u16 key, Moby *host, s32 L)
 {
     struct StandIn *e = entry_of(key);
     if (e == 0) {
@@ -445,16 +445,16 @@ static void drop(u16 key, void *host, s32 L)
  * classes of Ratchet's attachments (Clank, the packs, the Map-o-Matic, the Persuader, the Charge Boots) flags the
  * visibility list skips (+0x34 bit 2: no bounding sphere, no matrix, drawn nowhere) and, for some, no animation
  * (bit 0x40); the Gadgets page sets its own models' flags outright, and a stand-in clears both. */
-static u8 *make_part(s32 class_id, u32 mark, void *host, s32 L)
+static Moby *make_part(s32 class_id, u32 mark, Moby *host, s32 L)
 {
-    u8 *m = LVL(L, CreateMoby, CreateFn)(class_id);
+    Moby *m = LVL(L, CreateMoby, CreateFn)(class_id);
     if (m != 0) {
-        *(volatile u32 *)(MOBY(m)->pvars + STAND_IN_MARK_AT) = mark;
-        MOBY(m)->parent = host;
-        MOBY(m)->update_dist = MOBY(host)->update_dist;
-        MOBY(m)->draw_dist = MOBY(host)->draw_dist;
-        MOBY(m)->rot.z = MOBY(host)->rot.z;
-        MOBY(m)->flags &= ~(FLAG_UNLISTED | FLAG_STILL);
+        *(volatile u32 *)(m->pvars + STAND_IN_MARK_AT) = mark;
+        m->parent = host;
+        m->update_dist = host->update_dist;
+        m->draw_dist = host->draw_dist;
+        m->rot.z = host->rot.z;
+        m->flags &= ~(FLAG_UNLISTED | FLAG_STILL);
     }
     return m;
 }
@@ -469,26 +469,26 @@ DECLARE_LVL_DATA(vendor_holo_pose);
 
 /* M, ITEM's own model, turned to stand by its own turn, or as the vendor's hologram stands it (an item with an entry
  * there: the Hydrodisplacer has one, though the vendor never sells it). */
-static void pose(u8 *m, s32 item, const struct ItemModel *model, s32 L)
+static void pose(Moby *m, s32 item, const struct ItemModel *model, s32 L)
 {
     s32 id = rz_item_game_id(item);
     if (model->roll == 0.0f && model->tilt == 0.0f && id >= 0 && id < HOLO_POSE_ITEMS) {
         const f32 *rot = (const f32 *)(LVL_DATA(L, vendor_holo_pose, const u8 *) + HOLO_POSE_SIZE * id + HOLO_POSE_ROT);
-        MOBY(m)->rot.x = rot[0];
-        MOBY(m)->rot.y = rot[1];
+        m->rot.x = rot[0];
+        m->rot.y = rot[1];
     } else {
-        MOBY(m)->rot.x = model->roll;
-        MOBY(m)->rot.y = model->tilt;
+        m->rot.x = model->roll;
+        m->rot.y = model->tilt;
     }
 }
 
 /* Sequence SEQ playing on M, as the Gadgets page keeps one on its models (update_menu_preview_animation_pose): set
  * again whenever another has taken over, when the class has it. The moby update loop advances the animation of
  * every moby it lists, a stand-in too. */
-static void animate(u8 *m, s32 seq, s32 L)
+static void animate(Moby *m, s32 seq, s32 L)
 {
-    const MobyClass *pclass = MOBY(m)->pclass;
-    if (pclass != 0 && pclass->seq_count > seq && MOBY(m)->prev_seq != seq) {
+    const MobyClass *pclass = m->pclass;
+    if (pclass != 0 && pclass->seq_count > seq && m->prev_seq != seq) {
         LVL(L, MobyBlendAnimation, BlendFn)(m, seq, 0, 0);
     }
 }
@@ -505,19 +505,19 @@ static f32 wrap(f32 angle)
 
 /* The stand-in's turn this frame. Every angle stays within -pi..pi, as the game keeps them: a yaw grown past that
  * broke the moby's matrix, and it drew nowhere or as stray polygons over the menus. */
-static void move(u8 *m, s32 motion, void *host)
+static void move(Moby *m, s32 motion, Moby *host)
 {
     s32 axis;
     switch (motion) {
     case STILL:
-        if ((u16)MOBY(host)->oclass == INFOBOT_CLASS) {
+        if ((u16)host->oclass == INFOBOT_CLASS) {
             for (axis = 0; axis < 3; axis++) {
-                (&MOBY(m)->rot.x)[axis] = (&MOBY(host)->rot.x)[axis];    /* an infobot host turns as it flies */
+                (&m->rot.x)[axis] = (&host->rot.x)[axis];    /* an infobot host turns as it flies */
             }
         }
         break;
     case SPIN:
-        MOBY(m)->rot.z = wrap(MOBY(m)->rot.z + g_frame_time * (PI_F / 2.0f));
+        m->rot.z = wrap(m->rot.z + g_frame_time * (PI_F / 2.0f));
         break;
     }
 }
@@ -544,32 +544,32 @@ static void move(u8 *m, s32 motion, void *host)
                                          * with its host's, the bolt stopped updating during the hold-up, its
                                          * animation unfinished and Ratchet held in it; from the start, its first
                                          * update ran on the galactic map, far from Ratchet, and crashed there */
-static void carry_bolt(struct StandIn *e, void *host, s32 L)
+static void carry_bolt(struct StandIn *e, Moby *host, s32 L)
 {
-    u8 *m = live(e, host, L);
+    Moby *m = live(e, host, L);
     if (m == 0) {
         e->mark = BOLT_MARK;
         m = e->model = make_part(GOLD_CLASS, BOLT_MARK, host, L);
         if (m == 0) {
             return;
         }
-        *(volatile s32 *)(MOBY(m)->pvars + GOLD_ID) = BORROWED_SPOT;
-        *(volatile s32 *)(MOBY(m)->pvars + GOLD_CAMERA_FROM) = -1;
-        *(volatile s32 *)(MOBY(m)->pvars + GOLD_CAMERA_TO) = -1;
-        MOBY(m)->pos.x = MOBY(host)->pos.x;
-        MOBY(m)->pos.y = MOBY(host)->pos.y;
-        MOBY(m)->pos.z = MOBY(host)->pos.z + e->lift;
+        *(volatile s32 *)(m->pvars + GOLD_ID) = BORROWED_SPOT;
+        *(volatile s32 *)(m->pvars + GOLD_CAMERA_FROM) = -1;
+        *(volatile s32 *)(m->pvars + GOLD_CAMERA_TO) = -1;
+        m->pos.x = host->pos.x;
+        m->pos.y = host->pos.y;
+        m->pos.z = host->pos.z + e->lift;
         LVL(L, func_L00_00251E30, BoundsFn)(m);
         e->class_id = GOLD_CLASS;
     }
-    if ((s8)MOBY(m)->state == GOLD_RESTING) {
-        volatile f32 *home = (volatile f32 *)(MOBY(m)->pvars + GOLD_HOME);
-        home[0] = MOBY(host)->pos.x;
-        home[1] = MOBY(host)->pos.y;
-        home[2] = MOBY(host)->pos.z + e->lift;
+    if ((s8)m->state == GOLD_RESTING) {
+        volatile f32 *home = (volatile f32 *)(m->pvars + GOLD_HOME);
+        home[0] = host->pos.x;
+        home[1] = host->pos.y;
+        home[2] = host->pos.z + e->lift;
         home[3] = LVL(L, fast_atan2, AtanFn)(g_hero.motion.pos.f[0] - home[0], g_hero.motion.pos.f[1] - home[1]);
-        MOBY(m)->pos.x = home[0];
-        MOBY(m)->pos.y = home[1];
+        m->pos.x = home[0];
+        m->pos.y = home[1];
     }
 }
 
@@ -579,59 +579,59 @@ static void carry_bolt(struct StandIn *e, void *host, s32 L)
  * at its own place, turn and scale: the stand-in stands there, as the item it replaces would. A pickup's origin can
  * be on the floor under its model (Aridia's Trespasser: its middle 1.84 units up), a Gold Bolt's and an infobot's is
  * their middle. Read before the host is first drawn at scale 0; 0 for a host already hidden. */
-static f32 host_lift(void *host, s32 L)
+static f32 host_lift(Moby *host, s32 L)
 {
     volatile f32 *sphere = (volatile f32 *)host;
     f32 lift;
-    if (MOBY(host)->scale <= 0.0f) {
+    if (host->scale <= 0.0f) {
         return 0.0f;
     }
     LVL(L, func_L00_00251E30, BoundsFn)(host);
-    lift = sphere[2] / 1024.0f - MOBY(host)->pos.z;
+    lift = sphere[2] / 1024.0f - host->pos.z;
     return sphere[3] > 0.0f && lift < CENTRE_MAX && lift > -CENTRE_MAX ? lift : 0.0f;
 }
 
 /* PART placed where HOST's model has its middle (LIFT above its origin), turned as MODEL turns. */
-static void place(u8 *part, const u8 *model, void *host, f32 lift)
+static void place(Moby *part, const Moby *model, Moby *host, f32 lift)
 {
     s32 axis;
-    MOBY(part)->pos.x = MOBY(host)->pos.x;
-    MOBY(part)->pos.y = MOBY(host)->pos.y;
-    MOBY(part)->pos.z = MOBY(host)->pos.z + lift;
+    part->pos.x = host->pos.x;
+    part->pos.y = host->pos.y;
+    part->pos.z = host->pos.z + lift;
     for (axis = 0; axis < 3 && part != model; axis++) {
-        (&MOBY(part)->rot.x)[axis] = (&MOBY(model)->rot.x)[axis];
+        (&part->rot.x)[axis] = (&model->rot.x)[axis];
     }
 }
 
 /* M placed so that its middle is where HOST's model has its middle: its bounding sphere (+0x00, floats in 1/1024 units, which the moby update
  * loop refreshes from its last place) tells how far its middle is from its origin, a frame late as it turns. */
-static void centre(u8 *m, void *host, f32 lift)
+static void centre(Moby *m, Moby *host, f32 lift)
 {
     volatile f32 *sphere = (volatile f32 *)m;
     f32 offset[3];
     s32 axis;
     for (axis = 0; axis < 3; axis++) {
-        offset[axis] = sphere[3] > 0.0f ? sphere[axis] / 1024.0f - (&MOBY(m)->pos.x)[axis] : 0.0f;
+        offset[axis] = sphere[3] > 0.0f ? sphere[axis] / 1024.0f - (&m->pos.x)[axis] : 0.0f;
         if (offset[axis] > CENTRE_MAX || offset[axis] < -CENTRE_MAX) {
             offset[axis] = 0.0f;            /* a sphere not yet refreshed from this place */
         }
     }
     place(m, m, host, lift);
     for (axis = 0; axis < 3; axis++) {
-        (&MOBY(m)->pos.x)[axis] -= offset[axis];
+        (&m->pos.x)[axis] -= offset[axis];
     }
 }
 
 /* After the update of HOST (KEY), which shows ITEM: the stand-in, made when there is none, stands where the host's
  * own model would (host_lift) and moves as the item does, a pack with its Clank, and the host draws at scale 0; once the host is gone, so is
  * the stand-in. */
-static void carry(u16 key, void *host, s32 item, s32 L)
+static void carry(u16 key, Moby *host, s32 item, s32 L)
 {
     const struct ItemModel *model;
     struct StandIn *e;
-    u8 *m;
+    Moby *m;
     s32 class_id;
-    if ((s8)MOBY(host)->state < 0) {             /* collected, or deleted at its first update as collected before */
+    if ((s8)host->state < 0) {             /* collected, or deleted at its first update as collected before */
         drop(key, host, L);
         return;
     }
@@ -643,7 +643,7 @@ static void carry(u16 key, void *host, s32 item, s32 L)
         e->lift = host_lift(host, L);
         e->lift_known = 1;
     }
-    MOBY(host)->scale = 0.0f;
+    host->scale = 0.0f;
     if (item == RZ_GOLD_BOLT) {
         carry_bolt(e, host, L);
         return;
@@ -665,7 +665,7 @@ static void carry(u16 key, void *host, s32 item, s32 L)
         if (m == 0) {
             return;
         }
-        MOBY(m)->scale *= model->scale;
+        m->scale *= model->scale;
         if (model == &MODELS[item] && class_id == model->class_id) {    /* not the chicken, nor a debug class */
             pose(m, item, model, L);
         }
@@ -747,25 +747,25 @@ static s32 shuffled(s32 check, s32 own_item)
     return check >= 0 && !ee_rz_check_collected(check) && ee_rz_layout_item(check) != own_item;
 }
 
-static const struct PickupSite *pickup_site(void *moby, s32 L)
+static const struct PickupSite *pickup_site(Moby *moby, s32 L)
 {
     u32 i;
     for (i = 0; i < PICKUP_SITES; i++) {
-        if (PICKUPS[i].level == L && PICKUPS[i].class_id == (u16)MOBY(moby)->oclass) {
+        if (PICKUPS[i].level == L && PICKUPS[i].class_id == (u16)moby->oclass) {
             return &PICKUPS[i];
         }
     }
     return 0;
 }
 
-static s32 pickup_touched(void *moby, const struct PickupSite *site)
+static s32 pickup_touched(Moby *moby, const struct PickupSite *site)
 {
-    volatile f32 *pos = &MOBY(moby)->pos.x;
+    volatile f32 *pos = &moby->pos.x;
     f32 dx = g_hero.motion.pos.f[0] - pos[0];
     f32 dy = g_hero.motion.pos.f[1] - pos[1];
     f32 dz = g_hero.motion.pos.f[2] - pos[2];
     f32 r = site->radius + PICKUP_SLACK;
-    if (!site->stateless && (s8)MOBY(moby)->state != PICKUP_IDLE) {
+    if (!site->stateless && (s8)moby->state != PICKUP_IDLE) {
         return 0;
     }
     return dx * dx + dy * dy < r * r && dz < PICKUP_HEIGHT && -dz < PICKUP_HEIGHT && g_hero.health.hp > 0;
@@ -807,7 +807,7 @@ DECLARE_LVL(coll_line);              /* coll_line(from, to, flags, moby to ignor
 DECLARE_LVL_DATA(camera_yaw);        /* player_camera + 0x158; its position is at + 0x140 */
 DECLARE_LVL_DATA(vendor_state);      /* the vendor's record (D_L00_001CA7C0 in level 0) */
 DECLARE_LVL_DATA(vendor_demos);      /* per item id, its demo scene, -1 none */
-typedef void (*OpenFn)(void *);
+typedef void (*OpenFn)(Moby *);
 typedef void (*ResetFn)(volatile void *, volatile void *, s32, s32);
 typedef s32 (*CollLineFn)(const f32 *, const f32 *, s32, void *, void *);
 
@@ -959,7 +959,7 @@ static void stage_facing(const f32 *stage, f32 *out, s32 L)
 
 /* The vendor moby M placed and turned so start_vendor_exit_cutscene stages the demo at STAGE facing along FACING
  * (the stage faces back toward the moby: the moby faces the other way, and stands the offset behind the stage). */
-static void place_demo_vendor(u8 *m, const f32 *stage, const f32 *facing, s32 L)
+static void place_demo_vendor(Moby *m, const f32 *stage, const f32 *facing, s32 L)
 {
     const f32 *offset = stage_offset(L);
     f32 fx = -facing[0];                /* the moby's facing: its matrix's first row */
@@ -967,10 +967,10 @@ static void place_demo_vendor(u8 *m, const f32 *stage, const f32 *facing, s32 L)
     f32 ox = offset != 0 ? offset[0] : 0.0f;
     f32 oy = offset != 0 ? offset[1] : 0.0f;
     f32 oz = offset != 0 ? offset[2] : 0.0f;
-    MOBY(m)->pos.x = stage[0] - (ox * fx - oy * fy);
-    MOBY(m)->pos.y = stage[1] - (ox * fy + oy * fx);
-    MOBY(m)->pos.z = stage[2] - oz;
-    MOBY(m)->rot.z = LVL(L, fast_atan2, AtanFn)(fx, fy);
+    m->pos.x = stage[0] - (ox * fx - oy * fy);
+    m->pos.y = stage[1] - (ox * fy + oy * fx);
+    m->pos.z = stage[2] - oz;
+    m->rot.z = LVL(L, fast_atan2, AtanFn)(fx, fy);
 }
 
 /* The demo of ITEM, found at FIND in level L: 1 if it starts, 0 for an item without one (the RYNO has none). It is
@@ -980,7 +980,7 @@ static s32 start_weapon_demo(s32 item, const f32 *find, s32 L)
     s32 id = rz_item_game_id(item);
     u8 *vendor_record = LVL_DATA(L, vendor_state, u8 *);
     f32 stage[3], facing[2];
-    u8 *m;
+    Moby *m;
     s32 i, grounded;
     if (!vendor_item(item) || LVL_DATA(L, vendor_demos, s32 *)[id] < 0 || demo_vendor != 0
         || !class_in_memory(VENDOR_CLASS, L)) {
@@ -1000,7 +1000,7 @@ static s32 start_weapon_demo(s32 item, const f32 *find, s32 L)
     }
     stage_facing(stage, facing, L);
     place_demo_vendor(m, stage, facing, L);
-    MOBY(m)->scale = 0.0f;
+    m->scale = 0.0f;
     LVL(L, func_L00_00251E30, BoundsFn)(m);
     LVL(L, open_vendor_menu, OpenFn)(m);
     *(volatile s32 *)(vendor_record + VENDOR_MENU_STATE) = VENDOR_EXIT;
@@ -1015,7 +1015,7 @@ void rz_world_frame(s32 L)
 {
     if (demo_vendor != 0) {
         LVL(L, Hero_ResetToPosition, ResetFn)(demo_return[0], demo_return[1], HERO_STATE_IDLE, 1);
-        if ((u16)MOBY(demo_vendor)->oclass == VENDOR_CLASS && (s8)MOBY(demo_vendor)->state >= 0) {
+        if ((u16)demo_vendor->oclass == VENDOR_CLASS && (s8)demo_vendor->state >= 0) {
             LVL(L, DeleteMoby, DeleteFn)(demo_vendor);
         }
         demo_vendor = 0;
@@ -1072,11 +1072,11 @@ void rz_world_any_frame(s32 L)
 }
 
 /* HOST's place, into OUT. */
-static void host_place(const void *host, f32 *out)
+static void host_place(Moby *host, f32 *out)
 {
     s32 i;
     for (i = 0; i < 3; i++) {
-        out[i] = (&MOBY(host)->pos.x)[i];
+        out[i] = (&host->pos.x)[i];
     }
 }
 
@@ -1088,12 +1088,12 @@ static void found(s32 item, const f32 *find, s32 L)
 
 /* HOST's check taken at once: its mission trigger done (as a pickup's own touch does), the check collected with
  * its banner, the autosave, the host and its stand-in deleted; a weapon's demo then, staged where the host was. */
-static void take(void *host, u16 key, s32 check, s32 L)
+static void take(Moby *host, u16 key, s32 check, s32 L)
 {
     f32 find[3];
     host_place(host, find);
-    if (MOBY(host)->mission != 0xFF) {
-        LVL(L, func_L00_002512D8, MissionFn)(MOBY(host)->mission);
+    if (host->mission != 0xFF) {
+        LVL(L, func_L00_002512D8, MissionFn)(host->mission);
     }
     rz_play_collect(check, L);
     ee_rz_save_c(0, -1, L);
@@ -1103,19 +1103,19 @@ static void take(void *host, u16 key, s32 check, s32 L)
 }
 
 /* A world infobot's check: one of level L's own, unlocking the planet at its pvars; -1 for any other infobot. */
-static s32 infobot_check(void *moby, s32 L)
+static s32 infobot_check(Moby *moby, s32 L)
 {
-    s32 planet = *(volatile s32 *)(MOBY(moby)->pvars + INFOBOT_PLANET);
+    s32 planet = *(volatile s32 *)(moby->pvars + INFOBOT_PLANET);
     s32 check = planet >= 1 && planet <= 18 ? rz_check_for_vanilla(RZ_INFOBOT_NOVALIS + planet - 1) : -1;
     const struct RzCheck *row = rz_check(check);
     return row != 0 && row->planet == L ? check : -1;
 }
 
 /* The check of HOST, a pickup or a world infobot; -1 for none. */
-static s32 host_check(void *host, s32 L)
+static s32 host_check(Moby *host, s32 L)
 {
     const struct PickupSite *site;
-    if ((u16)MOBY(host)->oclass == INFOBOT_CLASS) {
+    if ((u16)host->oclass == INFOBOT_CLASS) {
         return infobot_check(host, L);
     }
     site = pickup_site(host, L);
@@ -1144,10 +1144,10 @@ void rz_world_before_save(s32 L)
 }
 
 /* The key HOST, a pickup or a world infobot, keeps its stand-in under. */
-static u16 host_key(void *host)
+static u16 host_key(Moby *host)
 {
-    if ((u16)MOBY(host)->oclass == INFOBOT_CLASS) {
-        return KEY_INFOBOT(*(volatile s32 *)(MOBY(host)->pvars + INFOBOT_PLANET));
+    if ((u16)host->oclass == INFOBOT_CLASS) {
+        return KEY_INFOBOT(*(volatile s32 *)(host->pvars + INFOBOT_PLANET));
     }
     return KEY_PICKUP;
 }
@@ -1170,32 +1170,32 @@ static u16 host_key(void *host)
 #define SHUTTLE_TRIGGER     0           /* the level trigger the shuttle sets */
 #define RILGAR_INFOBOT      (RZ_INFOBOT_NOVALIS + 5 - 1)
 
-static s32 shuttle_takes_infobot(void *shuttle, s32 L)
+static s32 shuttle_takes_infobot(Moby *shuttle, s32 L)
 {
     s32 check = rz_check_for_vanilla(RILGAR_INFOBOT);
-    u8 *infobot;
+    Moby *infobot;
     f32 dx, dy;
-    if (L != BLARG || (u16)MOBY(shuttle)->oclass != SHUTTLE_CLASS || (s8)MOBY(shuttle)->state != SHUTTLE_AT_INFOBOT
+    if (L != BLARG || (u16)shuttle->oclass != SHUTTLE_CLASS || (s8)shuttle->state != SHUTTLE_AT_INFOBOT
         || check < 0
         || (ee_rz_layout_item(check) == RILGAR_INFOBOT && !ee_rz_check_collected(check))) {
         return 0;
     }
-    infobot = (u8 *)MOBY_TABLE(L) + sizeof(Moby) * *(volatile s32 *)(MOBY(shuttle)->pvars + SHUTTLE_INFOBOT);
-    dx = g_hero.motion.pos.f[0] - MOBY(infobot)->pos.x;
-    dy = g_hero.motion.pos.f[1] - MOBY(infobot)->pos.y;
+    infobot = MOBY_TABLE(L) + *(volatile s32 *)(shuttle->pvars + SHUTTLE_INFOBOT);
+    dx = g_hero.motion.pos.f[0] - infobot->pos.x;
+    dy = g_hero.motion.pos.f[1] - infobot->pos.y;
     if (dx * dx + dy * dy >= SHUTTLE_REACH * SHUTTLE_REACH) {
         return 0;
     }
-    if ((s8)MOBY(infobot)->state >= 0 && (u16)MOBY(infobot)->oclass == INFOBOT_CLASS && !ee_rz_check_collected(check)) {
+    if ((s8)infobot->state >= 0 && (u16)infobot->oclass == INFOBOT_CLASS && !ee_rz_check_collected(check)) {
         take(infobot, host_key(infobot), check, L);
     } else {
-        if ((s8)MOBY(infobot)->state >= 0 && (u16)MOBY(infobot)->oclass == INFOBOT_CLASS) {
+        if ((s8)infobot->state >= 0 && (u16)infobot->oclass == INFOBOT_CLASS) {
             drop(host_key(infobot), infobot, L);
             LVL(L, DeleteMoby, DeleteFn)(infobot);
         }
         LVL(L, func_L00_002512D8, MissionFn)(SHUTTLE_TRIGGER);
     }
-    MOBY(shuttle)->state = SHUTTLE_IDLE;
+    shuttle->state = SHUTTLE_IDLE;
     return 1;
 }
 
@@ -1206,21 +1206,21 @@ static s32 shuttle_takes_infobot(void *shuttle, s32 L)
 #define GOLD_REACH      3.0f            /* GoldBoltUpdate's touch: within 3 units, */
 #define GOLD_HEIGHT     2.0f            /*   2 in height */
 
-static s32 clank_touches(void *bolt)
+static s32 clank_touches(Moby *bolt)
 {
-    volatile f32 *pos = &MOBY(bolt)->pos.x;
+    volatile f32 *pos = &bolt->pos.x;
     f32 dx = g_hero.motion.pos.f[0] - pos[0];
     f32 dy = g_hero.motion.pos.f[1] - pos[1];
     f32 dz = g_hero.motion.pos.f[2] - pos[2];
-    return g_hero.vehicle_mode == HERO_CLANK && (s8)MOBY(bolt)->state == GOLD_RESTING && g_hero.health.hp > 0
+    return g_hero.vehicle_mode == HERO_CLANK && (s8)bolt->state == GOLD_RESTING && g_hero.health.hp > 0
            && dx * dx + dy * dy + dz * dz < GOLD_REACH * GOLD_REACH && dz < GOLD_HEIGHT && -dz < GOLD_HEIGHT;
 }
 
 /* A live stand-in bolt's update, its flag borrowed; once its touch took it, the host goes too. Clank's touch takes
  * it at once, as a pickup holding another item is taken: Ratchet's hold-up is not his. */
-static void bolt_update(void *bolt, void (*update)(void *), s32 L)
+static void bolt_update(Moby *bolt, void (*update)(Moby *), s32 L)
 {
-    void *host = MOBY(bolt)->parent;
+    Moby *host = bolt->parent;
     s32 check;
     if (*(volatile s32 *)LVL_DATA(L, game_mode, u8 *) != MODE_PLAY) {
         return;
@@ -1242,18 +1242,18 @@ static void bolt_update(void *bolt, void (*update)(void *), s32 L)
     borrow.active = 1;
     gold_bolts_collected[borrow.index] = 0;
     update(bolt);
-    if ((s8)MOBY(bolt)->state >= GOLD_HOLDING) {
-        MOBY(bolt)->update_dist = UPDATE_ALWAYS;
+    if ((s8)bolt->state >= GOLD_HOLDING) {
+        bolt->update_dist = UPDATE_ALWAYS;
     }
     ee_debug_rz_bolt[0]++;
-    ee_debug_rz_bolt[1] = (s8)MOBY(bolt)->state;
+    ee_debug_rz_bolt[1] = (s8)bolt->state;
     ee_debug_rz_bolt[3] = borrow.taken;
     rz_world_before_save(L);                /* a flag set without a save, should GoldBoltUpdate ever do that */
     gold_bolts_collected[borrow.index] = borrow.saved;
     borrow.active = 0;
     if (borrow.taken) {
-        if (MOBY(host)->mission != 0xFF) {
-            LVL(L, func_L00_002512D8, MissionFn)(MOBY(host)->mission);
+        if (host->mission != 0xFF) {
+            LVL(L, func_L00_002512D8, MissionFn)(host->mission);
         }
         LVL(L, DeleteMoby, DeleteFn)(host);
     }
@@ -1273,7 +1273,7 @@ static s32 in_level(s32 L)
  * its class's update, a live stand-in bolt runs GoldBoltUpdate with a borrowed flag; a Gold Bolt spot holding
  * another item takes its touch quietly and carries its stand-in; a pickup holding another item is taken on its
  * touch, or, holding a Gold Bolt, stands still and hidden, its own touch test never run, while the bolt waits. */
-s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
+s32 rz_world_before(Moby *moby, void (*update)(Moby *), s32 L)
 {
     f32 find[3];
     s32 check;
@@ -1297,14 +1297,14 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
         bolt_update(moby, update, L);
         return 1;
     }
-    if ((u16)MOBY(moby)->oclass == GOLD_CLASS) {
-        s32 spot = *(volatile s32 *)MOBY(moby)->pvars;
+    if ((u16)moby->oclass == GOLD_CLASS) {
+        s32 spot = *(volatile s32 *)moby->pvars;
         check = spot >= 0 && spot < GOLD_SPOTS ? rz_check_for_bolt(L, spot) : -1;
         if (!shuffled(check, RZ_GOLD_BOLT)) {
             update(moby);
             return 1;
         }
-        *(volatile s32 *)(MOBY(moby)->pvars + GOLD_QUIET) = 1;
+        *(volatile s32 *)(moby->pvars + GOLD_QUIET) = 1;
         host_place(moby, find);                 /* before its update, which may delete it */
         update(moby);
         if (ee_rz_check_collected(check)) {     /* taken by this update: its autosave collected the check */
@@ -1334,7 +1334,7 @@ s32 rz_world_before(void *moby, void (*update)(void *), s32 L)
  * and the level wakes it later: Blarg Station has two Rilgar infobots, one locked in the warship's room and one at
  * the warship's shuttle, which wakes once Ratchet is back from the self-destruct. Both are their planet's check, kept
  * under the same key: a dormant one shows nothing, and leaves the stand-in to the other unless it carried it. */
-static void leave(u16 key, void *host, s32 L)
+static void leave(u16 key, Moby *host, s32 L)
 {
     s32 i;
     for (i = 0; i < STAND_INS; i++) {
@@ -1346,24 +1346,24 @@ static void leave(u16 key, void *host, s32 L)
 
 /* After the update of MOBY in level L: a pickup or a world infobot holding another item carries its stand-in, and
  * an infobot that turned to its message is taken instead; a dormant infobot shows none. */
-void rz_world_after(void *moby, s32 L)
+void rz_world_after(Moby *moby, s32 L)
 {
     const struct PickupSite *site;
     s32 check;
     if (!in_level(L)) {
         return;
     }
-    if ((u16)MOBY(moby)->oclass == INFOBOT_CLASS) {
-        s32 planet = *(volatile s32 *)(MOBY(moby)->pvars + INFOBOT_PLANET);
+    if ((u16)moby->oclass == INFOBOT_CLASS) {
+        s32 planet = *(volatile s32 *)(moby->pvars + INFOBOT_PLANET);
         check = infobot_check(moby, L);
         if (!shuffled(check, RZ_INFOBOT_NOVALIS + planet - 1)) {
             return;
         }
-        if ((s8)MOBY(moby)->state == INFOBOT_DORMANT) {
+        if ((s8)moby->state == INFOBOT_DORMANT) {
             leave(KEY_INFOBOT(planet), moby, L);
             return;
         }
-        if ((s8)MOBY(moby)->state == INFOBOT_TOUCHED) {
+        if ((s8)moby->state == INFOBOT_TOUCHED) {
             take(moby, KEY_INFOBOT(planet), check, L);
             return;
         }

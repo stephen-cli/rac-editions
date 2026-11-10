@@ -170,19 +170,20 @@ void ee_hud_update_hook_c(s32 arg, u32 ra)
 
 void ee_controls_panel(u32 moby)
 {
-    u32 cls = *(volatile u32 *)(moby + 0x24);
-    u32 seq, frame;
+    MobyClass *pclass = MOBY(moby)->pclass;
+    const AnimSeq *seq;
+    u32 frame;
     u16 at, n;
     s32 k, count;
 
-    if (cls == 0 || *(volatile u8 *)(cls + 0xC) <= PANEL_LIST_SEQ) {
+    if (pclass == 0 || pclass->seq_count <= PANEL_LIST_SEQ) {
         return;
     }
-    seq = *(volatile u32 *)(cls + 0x48 + 4 * PANEL_LIST_SEQ);
-    if (seq == 0 || (count = *(volatile u8 *)(seq + 0x10)) == 0) {
+    seq = pclass->seqs[PANEL_LIST_SEQ];
+    if (seq == 0 || (count = seq->nframes) == 0) {
         return;
     }
-    frame = *(volatile u32 *)(seq + 0x1C + 4 * (count - 1));
+    frame = (u32)seq->frames[count - 1];
     at = ((volatile u16 *)frame)[6];
     n = ((volatile u16 *)frame)[7];
     for (k = 0; k < n; k++) {

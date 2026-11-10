@@ -36,16 +36,16 @@
 #define FLAG_PREMIUM    4
 #define FLAG_ULTRA      5
 
-/* --- a level's mobys: MOBY(address) in src/game.h; save_id is the level instance's uid --------------------- */
+/* --- a level's mobys (Moby, structs/moby.h); save_id is the level instance's uid --------------------------- */
 
-/* The level's moby array, MOBY_SIZE apart: a record each level program has at its own address (tools/modseg.py),
+/* The level's moby array: a record each level program has at its own address (tools/modseg.py),
  * the table first, then the end of the mobys the level placed (spawned ones follow), and at + 0x10 the end of the
  * array. */
 DECLARE_LVL_DATA(mobys_placed_end);
 DECLARE_LVL_DATA(mobys_end);
-#define MOBYS_PLACED_END(L) (*LVL_DATA(L, mobys_placed_end, volatile u32 *))
-#define MOBY_TABLE(L)       (LVL_DATA(L, mobys_placed_end, volatile u32 *)[-1])
-#define MOBYS_END(L)        (*LVL_DATA(L, mobys_end, volatile u32 *))
+#define MOBYS_PLACED_END(L) (*LVL_DATA(L, mobys_placed_end, Moby *volatile *))
+#define MOBY_TABLE(L)       (LVL_DATA(L, mobys_placed_end, Moby *volatile *)[-1])
+#define MOBYS_END(L)        (*LVL_DATA(L, mobys_end, Moby *volatile *))
 
 /* --- the game's functions, as the hooks call them (each program has its own copy: LVL) ------------------------ */
 
@@ -108,8 +108,8 @@ s32 rz_play_hidden_check(const struct RzSource *source, s32 planet);   /* SOURCE
 
 /* randomizer_world.c */
 void rz_world_forget(void);                         /* a level's visit starts: no stand-ins yet */
-s32 rz_world_before(void *moby, void (*update)(void *), s32 L); /* 1: it ran MOBY's update, or none must run */
-void rz_world_after(void *moby, s32 L);             /* after MOBY's update */
+s32 rz_world_before(Moby *moby, void (*update)(Moby *), s32 L); /* 1: it ran MOBY's update, or none must run */
+void rz_world_after(Moby *moby, s32 L);             /* after MOBY's update */
 void rz_world_before_save(s32 L);                   /* memcard_Save is called: a live stand-in bolt's touch */
 void rz_world_frame(s32 L);                         /* each gameplay frame */
 void rz_world_any_frame(s32 L);                     /* each frame in any game mode: the map's release of copies */

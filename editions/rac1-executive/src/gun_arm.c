@@ -38,26 +38,23 @@
 
 extern const u32 ee_gunarm_seq_1[], ee_gunarm_seq_2[];   /* R&C2's arm classes 1 and 2, sequence 0x14 (build/modseg/gen_anim_arm.c) */
 
-#define hero_moby       ((u8 *)g_hero.moby)
 /* The arm manager's two layers, the right arm then the left: g_hero.unkD00 and unkD04. */
 #define arm_layer(i)    ((&g_hero.unkD00)[i])
 #define LAYER_CLASS     0x18          /* a layer's arm class */
-#define CLASS_SEQS      0x48
 #define BACKPEDAL_SLOT  140           /* the body backpedal in Ratchet's class (src/strafe.c) */
 #define ARM_SLOT        0x17          /* the arm classes' 24th sequence: R&C2 has one there, R&C1's table has room */
 #define ALIAS_SLOT      142           /* Ratchet's class: stands in for body sequence 0x17 (the class keeps 162 slots) */
 
 /* One sequence table entry: kept, or set if free; 0 if another sequence holds it. */
-static s32 claim(u8 *cls, s32 slot, u32 seq)
+static s32 claim(MobyClass *pclass, s32 slot, AnimSeq *seq)
 {
-    volatile u32 *seqs = (volatile u32 *)(cls + CLASS_SEQS);
-    if (seqs[slot] == seq) {
+    if (pclass->seqs[slot] == seq) {
         return 1;
     }
-    if (seqs[slot] != 0) {
+    if (pclass->seqs[slot] != 0) {
         return 0;
     }
-    seqs[slot] = seq;
+    pclass->seqs[slot] = seq;
     return 1;
 }
 
@@ -68,8 +65,8 @@ static s32 arms_ready(void)
     for (i = 0; i < 2; i++) {
         u8 *layer = arm_layer(i);
         if (layer) {
-            u8 *cls = *(u8 **)(layer + LAYER_CLASS);
-            if (!cls || !claim(cls, ARM_SLOT, (u32)(i ? ee_gunarm_seq_2 : ee_gunarm_seq_1))) {
+            MobyClass *pclass = *(MobyClass **)(layer + LAYER_CLASS);
+            if (!pclass || !claim(pclass, ARM_SLOT, SEQUENCE(i ? ee_gunarm_seq_2 : ee_gunarm_seq_1))) {
                 return 0;
             }
             any = 1;
@@ -80,11 +77,11 @@ static s32 arms_ready(void)
 
 static s32 alias_ready(void)
 {
-    u8 *cls = *(u8 **)(hero_moby + 0x24);
-    if (CLASS_SEQS + 4 * ALIAS_SLOT >= *(u32 *)cls) {
-        return 0;   /* the class's table ends before it (header word 0: its packet table) */
+    MobyClass *pclass = g_hero.moby->pclass;
+    if (!CLASS_HAS_SLOT(pclass, ALIAS_SLOT)) {
+        return 0;   /* the class's table ends before it */
     }
-    return claim(cls, ALIAS_SLOT, ((volatile u32 *)(cls + CLASS_SEQS))[ARM_SLOT]);
+    return claim(pclass, ALIAS_SLOT, pclass->seqs[ARM_SLOT]);
 }
 
 static s32 arm_sequence(s32 seq)

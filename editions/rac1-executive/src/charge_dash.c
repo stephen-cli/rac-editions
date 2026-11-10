@@ -220,15 +220,14 @@ static f32 length_sq(const Vec4 *v)
  * (each level loads its own). 0 when there is no room. */
 static s32 install_sequence(void)
 {
-    u8 *cls = (u8 *)g_hero.moby->pclass;
-    volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
-    if (seqs[CHARGE_SLOT] == (u32)ee_charge_seq) {
+    MobyClass *pclass = g_hero.moby->pclass;
+    if (pclass->seqs[CHARGE_SLOT] == SEQUENCE(ee_charge_seq)) {
         return 1;
     }
-    if (0x48 + 4 * CHARGE_SLOT >= *(u32 *)cls || seqs[CHARGE_SLOT] != 0) {
+    if (!CLASS_HAS_SLOT(pclass, CHARGE_SLOT) || pclass->seqs[CHARGE_SLOT] != 0) {
         return 0;
     }
-    seqs[CHARGE_SLOT] = (u32)ee_charge_seq;
+    pclass->seqs[CHARGE_SLOT] = SEQUENCE(ee_charge_seq);
     return 1;
 }
 
@@ -587,10 +586,9 @@ extern const u32 ee_backpedal_seq[];   /* src/strafe.c's sequence */
 
 static void keep_sequence(const Moby *moby, s32 slot, const u32 *seq)
 {
-    u8 *cls = (u8 *)moby->pclass;
-    volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
-    if ((moby->seq == slot || moby->prev_seq == slot) && 0x48 + 4 * slot < *(u32 *)cls && seqs[slot] == 0) {
-        seqs[slot] = (u32)seq;
+    MobyClass *pclass = moby->pclass;
+    if ((moby->seq == slot || moby->prev_seq == slot) && CLASS_HAS_SLOT(pclass, slot) && pclass->seqs[slot] == 0) {
+        pclass->seqs[slot] = SEQUENCE(seq);
     }
 }
 

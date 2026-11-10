@@ -65,8 +65,8 @@ typedef void (*GiveFn)(s32, s32);
 typedef void (*PlanetFn)(s32);
 typedef s32 (*SaveFn)(s32, s32);
 typedef s32 (*CountFn)(void);
-typedef void (*UpdateFn)(void *);
-typedef void (*DeleteFn)(void *);
+typedef void (*UpdateFn)(Moby *);
+typedef void (*DeleteFn)(Moby *);
 
 #define PLANET_COUNT    20
 #define LEVELS          19
@@ -546,10 +546,10 @@ s32 ee_rz_gold_count_c(s32 L)
 
 static void delete_mobys_with_uid(s32 uid, s32 L)
 {
-    u32 moby;
-    for (moby = MOBY_TABLE(L); moby < MOBYS_PLACED_END(L); moby += sizeof(Moby)) {
-        if ((s8)MOBY(moby)->state >= 0 && MOBY(moby)->save_id == uid) {
-            LVL(L, DeleteMoby, DeleteFn)((void *)moby);
+    Moby *moby;
+    for (moby = MOBY_TABLE(L); moby < MOBYS_PLACED_END(L); moby++) {
+        if ((s8)moby->state >= 0 && moby->save_id == uid) {
+            LVL(L, DeleteMoby, DeleteFn)(moby);
         }
     }
 }
@@ -561,10 +561,10 @@ static s32 o2_early(void)
 }
 
 /* Before a moby's update in level L: a shut lab door of Orxon's Clank section opens. */
-static void open_lab_door(void *moby, s32 L)
+static void open_lab_door(Moby *moby, s32 L)
 {
-    if (L == ORXON && (u16)MOBY(moby)->oclass == LAB_DOOR_CLASS && (s8)MOBY(moby)->state == DOOR_SHUT && o2_early()) {
-        MOBY(moby)->state = DOOR_RISING;
+    if (L == ORXON && (u16)moby->oclass == LAB_DOOR_CLASS && (s8)moby->state == DOOR_SHUT && o2_early()) {
+        moby->state = DOOR_RISING;
     }
 }
 
@@ -667,42 +667,42 @@ void ee_rz_place_mobys_c(void *table, u32 value, s32 count, s32 L)
 }
 
 /* Whether a moby's save bit in level L is set. */
-static s32 moby_saved(void *moby, s32 L)
+static s32 moby_saved(Moby *moby, s32 L)
 {
-    u32 uid = MOBY(moby)->save_id;
+    u32 uid = moby->save_id;
     return (level_moby_killed[L * 256 + (uid >> 3)] >> (uid & 7)) & 1;
 }
 
 /* Before a moby's update in level L: 1 when it must not run (Umbris's scene controller at its end). */
-static s32 umbris_end(void *moby, s32 L)
+static s32 umbris_end(Moby *moby, s32 L)
 {
     s32 boss_beaten;
     if (!umbris_end_moved(L)) {
         return 0;
     }
     boss_beaten = saved_mission_state[UMBRIS * 16 + SNAGGLEBEAST_TRIGGER] == 0xFF;
-    switch ((u16)MOBY(moby)->oclass) {
+    switch ((u16)moby->oclass) {
     case UMBRIS_SCENES_CLASS:
-        return (s8)MOBY(moby)->state == UMBRIS_SCENES_END;
+        return (s8)moby->state == UMBRIS_SCENES_END;
     case UMBRIS_LIFT_CLASS:
         if (boss_beaten) {
             LVL_DATA(L, mission_state, volatile u8 *)[SNAGGLEBEAST_TRIGGER] = 0xFF;
         }
         return 0;
     case UMBRIS_DOOR_CLASS:
-        *(volatile s32 *)(MOBY(moby)->pvars + UMBRIS_DOOR_FORCE) = 1;
+        *(volatile s32 *)(moby->pvars + UMBRIS_DOOR_FORCE) = 1;
         return 0;
     case UMBRIS_BRIDGE_CLASS:
         if (boss_beaten) {
-            *(volatile s32 *)(MOBY(moby)->pvars + UMBRIS_BRIDGE_TARGET) = -1;
+            *(volatile s32 *)(moby->pvars + UMBRIS_BRIDGE_TARGET) = -1;
         }
         return 0;
     case UMBRIS_PAD_CLASS:
-        if (boss_beaten && (s8)MOBY(moby)->state != 0 && !moby_saved(moby, L)) {
+        if (boss_beaten && (s8)moby->state != 0 && !moby_saved(moby, L)) {
             LVL(L, activate_teleporter_and_record_state, PadFn)(moby);
             LVL(L, show_teleporter_and_children, PadFn)(moby);
-            if ((s8)MOBY(moby)->state == PAD_OFF) {
-                MOBY(moby)->state = PAD_ON;
+            if ((s8)moby->state == PAD_OFF) {
+                moby->state = PAD_ON;
             }
         }
         return 0;
@@ -822,16 +822,16 @@ static s32 class_listed(s32 L, s32 class_id)
  * giving something else, the lift is started outright at the purchase too. */
 static void start_helga_lift(s32 lift_index, s32 L)
 {
-    u8 *lift = (u8 *)MOBY_TABLE(L) + sizeof(Moby) * lift_index;
-    if ((u16)MOBY(lift)->oclass == LIFT_CLASS) {
-        *(volatile s32 *)(MOBY(lift)->pvars + LIFT_AUTOSTART) = 1;
+    Moby *lift = MOBY_TABLE(L) + lift_index;
+    if ((u16)lift->oclass == LIFT_CLASS) {
+        *(volatile s32 *)(lift->pvars + LIFT_AUTOSTART) = 1;
     }
 }
 
 /* A moby's update, in level L: the moby update loop's call (MobyUpdateLoop + 0x58) and the level's load-time pass
  * (MobyLoadTimeUpdatePass + 0xC8), which runs every moby's update once before that loop's first run. The givers'
  * updates run under the collected view. */
-void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
+void ee_rz_moby_update_c(Moby *moby, UpdateFn update, s32 L)
 {
     s32 helga_lift = -1;
     if (L != active_level) {                /* an update before the level's init hook has run */
@@ -850,15 +850,15 @@ void ee_rz_moby_update_c(void *moby, UpdateFn update, s32 L)
             return;
         }
     }
-    if (!active || !class_listed(L, (u16)MOBY(moby)->oclass)) {
+    if (!active || !class_listed(L, (u16)moby->oclass)) {
         update(moby);
         if (active) {
             rz_world_after(moby, L);
         }
         return;
     }
-    if (L == KERWAN && (u16)MOBY(moby)->oclass == HELGA_CLASS) {
-        helga_lift = *(volatile s32 *)(MOBY(moby)->pvars + HELGA_LIFT);    /* read first: her update deletes her */
+    if (L == KERWAN && (u16)moby->oclass == HELGA_CLASS) {
+        helga_lift = *(volatile s32 *)(moby->pvars + HELGA_LIFT);    /* read first: her update deletes her */
     }
     ee_debug_rz_play[1]++;
     granted = -1;

@@ -19,6 +19,7 @@
 #include "structs/hero.h"
 #include "structs/pad.h"
 #include "structs/moby.h"
+#include "structs/records.h"
 
 /* Ratchet (or Clank, or Giant Clank: g_hero.vehicle_mode) and the first controller. */
 extern Hero g_hero;
@@ -29,6 +30,14 @@ extern volatile PadState g_controller_state;
  * moby's 0xFE and 0xFF are negative, and the class id as (u16), which loads it in one instruction where the
  * compiler sign-extends the volatile s16 with two more. */
 #define MOBY(address) ((volatile Moby *)(address))
+
+/* A class's sequence table (MobyClass.seqs, a pointer per sequence a moby of the class can play; seq_count of
+ * them are in use, and an empty slot holds 0). The header's first word, which MobyClass has no name for yet,
+ * is the address of the class's next block of data once the class is loaded (Ratchet's class: right after
+ * its 162 slots), so a slot at or past that address is not the table's. The edition's sequences are built as
+ * words (tools/gen_anim*.py) and enter a table as SEQUENCE(words). */
+#define CLASS_HAS_SLOT(pclass, slot)    ((u32)&(pclass)->seqs[slot] < *(const u32 *)(pclass))
+#define SEQUENCE(words)                 ((AnimSeq *)(words))
 
 /* The frame's timing: a frame's seconds and their square. pal_mode is nonzero at 50 Hz. */
 extern volatile f32 g_frame_time;

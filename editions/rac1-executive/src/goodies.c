@@ -849,8 +849,8 @@ static s32 goodies_unlocked(void)
 #define FRAME_QWC_OF(frame)     (((u16 *)(frame))[3])
 #define FRAME_RECORDS(frame)    ((s16 *)((u8 *)(frame) + 16 + ((u16 *)(frame))[6]))
 #define FRAME_COUNT(frame)      (((u16 *)(frame))[7])
-#define SEQ_FRAME_COUNT(seq)    (*(u8 *)((seq) + 0x10))
-#define SEQ_FRAME(seq, f)       (*(u32 *)((seq) + 0x1C + 4 * (f)))
+#define SEQ_FRAME_COUNT(seq)    (((AnimSeq *)(seq))->nframes)
+#define SEQ_FRAME(seq, f)       (*(u32 *)&((AnimSeq *)(seq))->frames[f])
 #define RECORD_JOINT(rec, k)    (((u8 *)&(rec)[4 * (k)])[6])
 
 static u32 *class_sequences;        /* the panels' class's sequence table */
@@ -1083,13 +1083,14 @@ static s32 install_sequences(void)
 {
     struct MenuPage *page = (struct MenuPage *)TITLE_PAGE;
     u32 panel = PANELS[PANEL_ROW];
-    u32 cls, middle;
+    const MobyClass *pclass;
+    u32 middle;
     s16 rest[3 * FRAME_RECORDS_MAX], *rec;
     s32 top, bottom, spacing, raise, records, k, j;
-    if (panel == 0 || (cls = *(u32 *)(panel + 0x24)) == 0 || *(u8 *)(cls + 0xC) <= SEQ_ROW) {
+    if (panel == 0 || (pclass = MOBY(panel)->pclass) == 0 || pclass->seq_count <= SEQ_ROW) {
         return 0;
     }
-    class_sequences = (u32 *)(cls + 0x48);
+    class_sequences = (u32 *)pclass->seqs;
     top = rest_z(class_sequences[page->moby_anims[ROW_FIRST_PANEL]]);
     bottom = rest_z(class_sequences[page->moby_anims[ROW_FIRST_PANEL + 2]]);
     spacing = (top - bottom) / 2;
@@ -1995,13 +1996,13 @@ static s32 pause_program = -1;
 static void pause_name_fit(s32 L)
 {
     u32 panel = *(volatile u32 *)exe_data(L, PANELS_ADDRESS + 4 * PANEL_ROW);
-    u32 cls;
+    const MobyClass *pclass;
     s32 stretched;
-    if (panel == 0 || (cls = *(u32 *)(panel + 0x24)) == 0 || *(u8 *)(cls + 0xC) <= SEQ_CONFIRM_NAME) {
+    if (panel == 0 || (pclass = MOBY(panel)->pclass) == 0 || pclass->seq_count <= SEQ_CONFIRM_NAME) {
         return;
     }
-    if (class_sequences != (u32 *)(cls + 0x48)) {
-        class_sequences = (u32 *)(cls + 0x48);
+    if (class_sequences != (u32 *)pclass->seqs) {
+        class_sequences = (u32 *)pclass->seqs;
         installed = 0;
     }
     stretched = installed == 2
@@ -2081,11 +2082,11 @@ static void patch_widgets(void)
 static void install_name_stretch(void)
 {
     u32 panel = PANELS[PANEL_ROW];
-    u32 cls;
-    if (panel == 0 || (cls = *(u32 *)(panel + 0x24)) == 0 || *(u8 *)(cls + 0xC) <= SEQ_ROW) {
+    const MobyClass *pclass;
+    if (panel == 0 || (pclass = MOBY(panel)->pclass) == 0 || pclass->seq_count <= SEQ_ROW) {
         return;
     }
-    class_sequences = (u32 *)(cls + 0x48);
+    class_sequences = (u32 *)pclass->seqs;
     raise_sequence(((struct MenuPage *)NEW_GAME_PAGE)->moby_anims[NAME_PANEL], 0, 0, 1);
     raise_sequence(SEQ_CONFIRM_NAME, 0, 0, -1);
 }

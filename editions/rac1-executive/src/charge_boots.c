@@ -59,8 +59,8 @@
  * 1.43 wide, the Head Items grid's (0x25) 2.04. tools/gen_items.py builds
  * ee_panel_seq, the Head Items sequence with its root moved down to the
  * boots box's height, and the page word is patched to PANEL_SLOT; this
- * installs the sequence in the class's table (class +0x48, a pointer per
- * slot; count byte at +0xC) as soon as the class is resident, found
+ * installs the sequence in the class's table (MobyClass.seqs, counted by
+ * seq_count) as soon as the class is resident, found
  * through the class tables (id -> slot -> data), or through a panel moby
  * while the menu is open. Installed once per level: a new level loads a
  * new class. */
@@ -72,18 +72,18 @@ DECLARE_LVL_DATA(class_resources);    /* class data pointer per slot */
 #define PANEL_SLOT   219
 #define PANEL_SEQS   219               /* the retail class's sequence count */
 
-static void install_panel_sequence(u8 *cls)
+static void install_panel_sequence(MobyClass *pclass)
 {
-    volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
-    if (cls == 0 || cls[0xC] < PANEL_SEQS || seqs[PANEL_SLOT] == (u32)ee_panel_seq) {
+    if (pclass == 0 || pclass->seq_count < PANEL_SEQS || pclass->seqs[PANEL_SLOT] == SEQUENCE(ee_panel_seq)) {
         return;
     }
-    if (0x48 + 4 * (PANEL_SLOT + 1) > *(u32 *)cls || (cls[0xC] > PANEL_SLOT && seqs[PANEL_SLOT] != 0)) {
-        return;         /* no room before the packet table, or the slot is in use */
+    if (!CLASS_HAS_SLOT(pclass, PANEL_SLOT)
+        || (pclass->seq_count > PANEL_SLOT && pclass->seqs[PANEL_SLOT] != 0)) {
+        return;         /* the table ends before the slot, or the slot is in use */
     }
-    seqs[PANEL_SLOT] = (u32)ee_panel_seq;
-    if (cls[0xC] <= PANEL_SLOT) {
-        cls[0xC] = PANEL_SLOT + 1;
+    pclass->seqs[PANEL_SLOT] = SEQUENCE(ee_panel_seq);
+    if (pclass->seq_count <= PANEL_SLOT) {
+        pclass->seq_count = PANEL_SLOT + 1;
     }
 }
 
@@ -95,12 +95,12 @@ static void panel_sequence(s32 L)
     u8 slot = slot_by_id[PANEL_CLASS];
     s32 i;
     if (slot != 0xFF && resources[slot] != 0) {
-        install_panel_sequence((u8 *)resources[slot]);
+        install_panel_sequence((MobyClass *)resources[slot]);
     }
     for (i = 0; i < 14; i++) {
         const Moby *panel = (const Moby *)panels[i];
         if (panel != 0 && (u16)panel->oclass == PANEL_CLASS) {
-            install_panel_sequence((u8 *)panel->pclass);
+            install_panel_sequence(panel->pclass);
             break;
         }
     }

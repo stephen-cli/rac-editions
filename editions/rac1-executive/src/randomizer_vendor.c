@@ -39,9 +39,9 @@ typedef void (*VectorFn)(void *, const void *, const void *);
 /* The vendor's record. */
 #define VENDOR_CAMERA   0x1C            /* its camera's record: the yaw at +0x48, the matrix at +0xC0 */
 #define VENDOR_DISPLAY  0x20            /* the display's mobys: */
-#define DISPLAY_PANEL   0x100           /*   the item on the panel, */
-#define DISPLAY_STAND   0x200           /*   its stand, */
-#define DISPLAY_HOLOGRAM 0x300          /*   the hologram over the vendor */
+#define DISPLAY_PANEL   1               /*   the item on the panel, */
+#define DISPLAY_STAND   2               /*   its stand, */
+#define DISPLAY_HOLOGRAM 3              /*   the hologram over the vendor */
 #define VENDOR_BOUGHT   0x48            /* the item just bought, for the weapon demo on leaving; -1 none */
 #define VENDOR_CURSOR   0x58            /* the entry the cursor is on */
 #define VENDOR_ENTRIES  0xD0            /* struct VendorEntry[VENDOR_ENTRIES_MAX] */
@@ -285,14 +285,14 @@ const char *ee_rz_vendor_slogan_c(s32 id, s32 L)
  * 2026-10-26), so its stand keeps retail's own class, at the speck's size. */
 static s32 entry_weapon_class;         /* the entry's weapon class, from the panel's call for the stand's */
 
-void ee_rz_vendor_model_c(void *moby, s32 class_id, s32 L)
+void ee_rz_vendor_model_c(Moby *moby, s32 class_id, s32 L)
 {
     if (rz_vendor_purchase_selected(L)) {
-        u8 *display = *(u8 **)(LVL_DATA(L, vendor_state, u8 *) + VENDOR_DISPLAY);
-        if ((u8 *)moby == display + DISPLAY_PANEL) {
+        const Moby *display = *(Moby **)(LVL_DATA(L, vendor_state, u8 *) + VENDOR_DISPLAY);
+        if (moby == &display[DISPLAY_PANEL]) {
             entry_weapon_class = class_id;
             class_id = CHICKEN_CLASS;
-        } else if ((u8 *)moby == display + DISPLAY_STAND) {
+        } else if (moby == &display[DISPLAY_STAND]) {
             if (entry_weapon_class > 0 && entry_weapon_class != DRONE_CLASS) {
                 class_id = entry_weapon_class;
             }
@@ -307,7 +307,7 @@ void ee_rz_vendor_model_c(void *moby, s32 class_id, s32 L)
  * that weapon's model (its origin is at the grip), lifted for the price line once, twice when the Persuader's
  * prices show too. The chicken's origin is at its feet, so it goes back to the base point: the item's offset,
  * turned into the world by the vendor camera's matrix, is taken off again. */
-static void undo_item_offset(u8 *panel, s32 item, const u8 *camera, s32 L)
+static void undo_item_offset(Moby *panel, s32 item, const u8 *camera, s32 L)
 {
     const f32 *offset = (const f32 *)(LVL_DATA(L, vendor_pose, const u8 *) + ITEM_POSE_SIZE * item);
     f32 back[4] __attribute__((aligned(16)));
@@ -318,31 +318,30 @@ static void undo_item_offset(u8 *panel, s32 item, const u8 *camera, s32 L)
     back[2] = -(offset[2] + price_lift);
     back[3] = 0.0f;
     LVL(L, matrix_mul_vec3, VectorFn)(world, back, camera + CAMERA_MATRIX);
-    MOBY(panel)->pos.x += world[0];
-    MOBY(panel)->pos.y += world[1];
-    MOBY(panel)->pos.z += world[2];
+    panel->pos.x += world[0];
+    panel->pos.y += world[1];
+    panel->pos.z += world[2];
 }
 
 /* The display's placement of a model in Vendor_InitItemDisplay, once its pose is set from the item's tables (which
  * tilt a weapon for the panel): the panel's chicken stands upright facing the camera, smaller and a little lower;
  * the weapon in the stand's slot shrinks to a speck. */
-void ee_rz_vendor_place_c(void *moby, s32 L)
+void ee_rz_vendor_place_c(Moby *moby, s32 L)
 {
     if (rz_vendor_purchase_selected(L)) {
         u8 *vendor = LVL_DATA(L, vendor_state, u8 *);
-        u8 *display = *(u8 **)(vendor + VENDOR_DISPLAY);
+        const Moby *display = *(Moby **)(vendor + VENDOR_DISPLAY);
         u8 *camera = *(u8 **)(vendor + VENDOR_CAMERA);
-        u8 *model = (u8 *)moby;
-        if (model == display + DISPLAY_PANEL) {
+        if (moby == &display[DISPLAY_PANEL]) {
             s32 item = entries(vendor)[*(s32 *)(vendor + VENDOR_CURSOR)].item;
-            undo_item_offset(model, item, camera, L);
-            MOBY(model)->rot.x = 0.0f;
-            MOBY(model)->rot.y = 0.0f;
-            MOBY(model)->rot.z = *(volatile f32 *)(camera + CAMERA_YAW);
-            MOBY(model)->scale *= CHICKEN_SCALE;
-            MOBY(model)->pos.z -= CHICKEN_LOWER;
-        } else if (model == display + DISPLAY_STAND) {
-            MOBY(model)->scale *= WEAPON_SPECK;
+            undo_item_offset(moby, item, camera, L);
+            moby->rot.x = 0.0f;
+            moby->rot.y = 0.0f;
+            moby->rot.z = *(volatile f32 *)(camera + CAMERA_YAW);
+            moby->scale *= CHICKEN_SCALE;
+            moby->pos.z -= CHICKEN_LOWER;
+        } else if (moby == &display[DISPLAY_STAND]) {
+            moby->scale *= WEAPON_SPECK;
         }
     }
     LVL(L, func_L00_00251E30, PlaceFn)(moby);
@@ -351,11 +350,11 @@ void ee_rz_vendor_place_c(void *moby, s32 L)
 /* The hologram's placement each frame in VendorMenuUpdate, right after its pose is copied from the item's table:
  * the tilt that table gives a weapon (x and y) laid the chicken on its back; it stands upright and keeps the spin
  * (z). The pose is rewritten every frame, so nothing builds up. */
-void ee_rz_vendor_holo_c(void *moby, s32 L)
+void ee_rz_vendor_holo_c(Moby *moby, s32 L)
 {
     if (rz_vendor_purchase_selected(L)) {
-        MOBY(moby)->rot.x = 0.0f;
-        MOBY(moby)->rot.y = 0.0f;
+        moby->rot.x = 0.0f;
+        moby->rot.y = 0.0f;
     }
     LVL(L, func_L00_00251E30, PlaceFn)(moby);
 }

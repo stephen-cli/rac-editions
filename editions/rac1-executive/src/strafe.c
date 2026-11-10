@@ -165,7 +165,6 @@ extern const u32 ee_jump_press_0[19], ee_jump_press_1[19], ee_jump_press_2[19], 
 DECLARE_LVL_DATA(camera_yaw);   /* camera record + 0x158, per level */
 
 #define PAD0            ((u32)&g_controller_state)
-#define hero_moby       ((u8 *)g_hero.moby)
 /* The flip's fields: its direction class (a field OpenRAC has not named), then g_hero.air_target_speed, the
  * take-off speed (the drift term), and g_hero.high_jump_drift_speed, the horizontal speed along the take-off
  * heading. g_hero.motion.momentum is what STOP and IDLE add to the velocity each frame, decaying. */
@@ -660,15 +659,14 @@ found:
  * hero's class: installed once per class (a new level loads a new class). */
 static void install_backpedal(void)
 {
-    u8 *cls = *(u8 **)(hero_moby + 0x24);
-    volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
-    if (seqs[BACKPEDAL_SLOT] == (u32)ee_backpedal_seq) {
+    MobyClass *pclass = g_hero.moby->pclass;
+    if (pclass->seqs[BACKPEDAL_SLOT] == SEQUENCE(ee_backpedal_seq)) {
         return;
     }
-    if (0x48 + 4 * BACKPEDAL_SLOT >= *(u32 *)cls || seqs[BACKPEDAL_SLOT] != 0) {
-        return;     /* no room before the packet table, or the slot is in use: keep the run cycle */
+    if (!CLASS_HAS_SLOT(pclass, BACKPEDAL_SLOT) || pclass->seqs[BACKPEDAL_SLOT] != 0) {
+        return;     /* the table ends before the slot, or the slot is in use: keep the run cycle */
     }
-    seqs[BACKPEDAL_SLOT] = (u32)ee_backpedal_seq;
+    pclass->seqs[BACKPEDAL_SLOT] = SEQUENCE(ee_backpedal_seq);
 }
 
 /* R&C2's backpedal (0x2C2560) while strafing back: the backward step at
@@ -676,16 +674,16 @@ static void install_backpedal(void)
  * is not wanted or could not be installed. */
 static s32 play_backpedal(s32 L)
 {
-    u8 *moby = hero_moby;
+    const Moby *moby = g_hero.moby;
     f32 speed;
     if (!backpedalling()) {
         return 0;
     }
     install_backpedal();
-    if (*(volatile u32 *)(*(u8 **)(moby + 0x24) + 0x48 + 4 * BACKPEDAL_SLOT) != (u32)ee_backpedal_seq) {
+    if (moby->pclass->seqs[BACKPEDAL_SLOT] != SEQUENCE(ee_backpedal_seq)) {
         return 0;
     }
-    if (moby[0x53] != BACKPEDAL_SLOT) {
+    if (moby->prev_seq != BACKPEDAL_SLOT) {
         LVL(L, set_hero_animation, SetAnim)(BACKPEDAL_SLOT, 0, 11.0f);
     }
     speed = g_hero.ground_speed * 25.0f;
@@ -709,7 +707,7 @@ void ee_run_anim_c(u32 ra)
         TRACE_END();
         return;
     }
-    if (hero_moby[0x53] == BACKPEDAL_SLOT) {
+    if (g_hero.moby->prev_seq == BACKPEDAL_SLOT) {
         LVL(L, set_hero_animation, SetAnim)(g_hero.state.step + 3, 0, 7.0f);
     }
     ((Void)ee_run_anim_fn[L])();
@@ -732,7 +730,7 @@ static void wade_anim(s32 L)
     if (play_backpedal(L)) {
         return;
     }
-    if (hero_moby[0x53] == BACKPEDAL_SLOT) {
+    if (g_hero.moby->prev_seq == BACKPEDAL_SLOT) {
         LVL(L, set_hero_animation, SetAnim)(ANIM_WADE, 0, 7.0f);
     }
 }
