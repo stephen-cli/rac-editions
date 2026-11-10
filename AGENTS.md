@@ -24,6 +24,34 @@ These rules apply to any AI agent working in rac-editions, along with the
   update the docs and comments that name it in the same change. Dated
   records keep the names they had at the time.
 
+- **Built from the decompilation, not patched into a binary.** OpenRAC
+  decompiles the whole game, so an edition is the game's C with the
+  edition's modules added, compiled and linked. Edition code names the
+  game's functions, data and structures as OpenRAC does (its `names.h` and
+  `structs/` headers), never by address or offset; the linker places code
+  and data; a feature is its own `.c` and `.h`, called from the game's code
+  where it belongs. Assets are packed by build scripts.
+- **Make room rather than borrow it.** Memory the edition needs is
+  allocated by its link, and saved data has a place the edition defines.
+  Gaps the game happens to leave (linker remnants, unused RAM, spare bytes
+  of a retail record) are not a place for new code or data.
+- **Retail's speed is kept.** The game is tightly optimized, and a change
+  costs no frame time it does not need. Prefer the forms the game's own
+  code compiles to: a global read by name is one instruction shorter than
+  the same read through an address literal.
+- **The compiler is the judge.** Typed C that compiles and links is the
+  first check, before any emulator run. A refactor that changes no
+  behaviour builds a byte-identical mod segment; check it against the
+  build before the change.
+
+The Executive Edition predates the finished decompilation and still
+reaches the game through the mechanisms these rules replace: a mod segment
+at a fixed base, call-site patches in the level programs
+(`tools/overlay_patch.py`), per-level address tables (`LVL()`), raw offsets
+into the game's records, and settings in spare bytes of retail save blocks.
+Each is debt to retire. Add no new use of one without saying so in the
+change.
+
 ## Writing: commit messages, docs and code comments
 
 Write about the edition and the game, not about the work session.
