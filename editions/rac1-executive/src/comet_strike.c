@@ -57,10 +57,8 @@ extern const u32 ee_comet_jump_site[19];  /* the jal pad_pressed_within in the s
 DECLARE_LVL(pad_pressed_within);   /* pad_pressed_within(button, window, out) */
 DECLARE_LVL(scale_ticks);          /* scale_game_frames(n): the level's copy */
 
-#define hero_state           (*(volatile s32 *)(HERO + 0x2084))
-#define hero_lock_target     (*(volatile s32 *)(HERO + 0xA9C))
-#define hero_anim_frame      (*(volatile f32 *)(HERO + 0xAA8))
-#define hero_stick           (*(volatile f32 *)(HERO + 0x229C))   /* left stick magnitude, 0..1 */
+/* R&C2's rule reads this word as the lock-on target; OpenRAC's Hero has it among the animation fields. */
+#define hero_lock_target     g_hero.anim_changing
 
 #define STATE_RUN            2
 #define STATE_COMET_STRIKE   0x15
@@ -79,8 +77,8 @@ void ee_comet_speed_step_c(f32 accel, f32 decel, u32 ra)
 
     ((SpeedStep)ee_speed_step[L])(accel, decel);
 
-    if (hero_state == STATE_COMET_STRIKE && hero_lock_target == 0
-        && hero_anim_frame > RELEASE_FRAME && hero_stick > RUN_STICK) {
+    if (g_hero.state.current == STATE_COMET_STRIKE && hero_lock_target == 0
+        && g_hero.anim_frame > RELEASE_FRAME && g_hero.stick_magnitude > RUN_STICK) {
         ((SetState)ee_hero_set_state[L])(STATE_RUN, 1);
     }
 }
@@ -89,7 +87,7 @@ s32 ee_comet_jump_window_c(u32 button, s32 window, s32 *out, u32 ra)
 {
     s32 L = ee_level_of_call(ra, ee_comet_jump_site, 0);
 
-    if (hero_state == STATE_COMET_STRIKE) {
+    if (g_hero.state.current == STATE_COMET_STRIKE) {
         window = LVL(L, scale_ticks, ScaleFrames)(JUMP_WINDOW);
     }
     return LVL(L, pad_pressed_within, PadPressedWithin)(button, window, out);

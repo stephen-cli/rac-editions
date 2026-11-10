@@ -158,13 +158,6 @@ DECLARE_LVL_DATA(ease_table);             /* the hero's per-joint ease table, pe
 extern const u32 ee_twist_0[19], ee_twist_1[19], ee_twist_2[19], ee_twist_3[19], ee_twist_4[19], ee_twist_5[19], ee_twist_fn[19];
 extern const u32 ee_runanim_site[19], ee_run_anim_fn[19], ee_flip_appr_0[19], ee_flip_appr_1[19], ee_approach_fn[19];
 extern const u32 ee_stop_site[19], ee_stop_site_low[19];
-#define hero_target_speed (*(volatile f32 *)(HERO + 0x190))
-#define hero_speed_164  (*(volatile f32 *)(HERO + 0x164))
-#define hero_vel_x      (*(volatile f32 *)(HERO + 0xE0))
-#define hero_vel_y      (*(volatile f32 *)(HERO + 0xE4))
-#define hero_slide_x    (*(volatile f32 *)(HERO + 0x150))   /* motion.unk150: the momentum STOP and IDLE add to the velocity each frame, decaying */
-#define hero_slide_y    (*(volatile f32 *)(HERO + 0x154))
-#define hero_slide_z    (*(volatile f32 *)(HERO + 0x158))
 extern const u32 ee_run_turn_a[19], ee_run_turn_b[19], ee_run_pivot[19], ee_run_planar_a[19], ee_run_planar_b[19];
 extern const u32 ee_turn_to[19], ee_pivot_turn[19], ee_set_planar_vel[19], ee_hero_set_state[19];
 extern const u32 ee_jump_turn_site[19], ee_jump_planar_site[19], ee_air_turn_site[19], ee_jump_press_fn[19];
@@ -172,21 +165,11 @@ extern const u32 ee_jump_press_0[19], ee_jump_press_1[19], ee_jump_press_2[19], 
 DECLARE_LVL_DATA(camera_yaw);   /* camera record + 0x158, per level */
 
 #define PAD0            ((u32)&g_controller_state)
-#define hero_state      (*(volatile s32 *)(HERO + 0x2084))
-#define hero_move_yaw   (*(volatile f32 *)(HERO + 0x180))
-#define hero_stick      (*(volatile f32 *)(HERO + 0x229C))   /* left stick magnitude, 0..1 */
-#define hero_stick_x    (*(volatile f32 *)(HERO + 0x1D20))   /* left stick vector, every frame (stick_target's input) */
-#define hero_stick_y    (*(volatile f32 *)(HERO + 0x1D24))
-#define hero_facing     (*(volatile f32 *)(HERO + 0x98))
-#define hero_speed_xy   (*(volatile f32 *)(HERO + 0x160))
-#define hero_ground_speed (*(volatile f32 *)(HERO + 0x194))
-#define hero_state_step (*(volatile s32 *)(HERO + 0x2088))
-#define hero_moby       (*(volatile u8 **)(HERO + 0x2080))
-#define hero_anim_speed (*(volatile f32 *)(HERO + 0xA90))
-#define hero_flip_class (*(volatile s32 *)(HERO + 0x450))
-#define hero_flip_speed0 (*(volatile f32 *)(HERO + 0x454))   /* take-off speed: the drift term */
-#define hero_flip_speed (*(volatile f32 *)(HERO + 0x458))    /* horizontal speed along the take-off heading */
-#define hero_vehicle    (*(volatile u8 *)(HERO + 0x20A4))    /* who is played: 0 Ratchet, 1 Clank, 2 Giant Clank (NTSC hero.vehicle_mode) */
+#define hero_moby       ((u8 *)g_hero.moby)
+/* The flip's fields: its direction class (a field OpenRAC has not named), then g_hero.air_target_speed, the
+ * take-off speed (the drift term), and g_hero.high_jump_drift_speed, the horizontal speed along the take-off
+ * heading. g_hero.motion.momentum is what STOP and IDLE add to the velocity each frame, decaying. */
+#define hero_flip_class g_hero.unk450
 #define VEHICLE_CLANK       1
 #define VEHICLE_GIANT_CLANK 2
 #define OPT_MIRROR_ANIM gCheats[5]
@@ -253,11 +236,11 @@ static s32 strafe_grace;      /* frames since a trigger was released, counting d
 #define STRAFE_GRACE 6        /* letting go of the trigger and the stick together still ends as a strafe */
 extern const u32 ee_backpedal_seq[];   /* R&C2's backward step in R&C1's layout (build/modseg/gen_anim.c) */
 
-/* Ratchet under or on the water (NTSC hero_state.h): the swim states, and
+/* Ratchet under or on the water (NTSC g_hero.state.current.h): the swim states, and
  * drowning and the surface hurt, which return to them. */
 static s32 swimming(void)
 {
-    s32 state = hero_state;
+    s32 state = g_hero.state.current;
     if (state >= STATE_SWIM_FIRST && state <= STATE_SWIM_LAST) {
         return 1;
     }
@@ -279,7 +262,7 @@ static s32 swimming(void)
  * the strafe twist, and the backward step when wading back (wade_anim). */
 static s32 is_run_state(void)
 {
-    return hero_state == STATE_RUN || hero_state == STATE_WADE;
+    return g_hero.state.current == STATE_RUN || g_hero.state.current == STATE_WADE;
 }
 
 /* After the game's pad parse (pad.c: process_pad_input(pad, report, length)):
@@ -368,7 +351,7 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
      * still saw the held trigger and dropped the auto-turn. In the water
      * the triggers are cleared below and do nothing at all. (Wading is not
      * swimming: it strafes, see is_run_state.) */
-    if (hero_vehicle == VEHICLE_CLANK || hero_vehicle == VEHICLE_GIANT_CLANK || swimming()) {
+    if (g_hero.vehicle_mode == VEHICLE_CLANK || g_hero.vehicle_mode == VEHICLE_GIANT_CLANK || swimming()) {
         ee_strafe_held = 0;
         strafe_grace = 0;
     } else {
@@ -379,10 +362,10 @@ void ee_pad_parse_c(void *pad, u8 *report, s32 length, u32 ra)
     } else if (strafe_grace) {
         strafe_grace--;
     }
-    if (hero_state != STATE_HIGH_JUMP) {
+    if (g_hero.state.current != STATE_HIGH_JUMP) {
         strafe_flip = 0;
     }
-    if (hero_state == STATE_HOVER) {
+    if (g_hero.state.current == STATE_HOVER) {
         TRACE_END();
         return;
     }
@@ -410,8 +393,8 @@ static s32 level_of_two(u32 ra, const u32 *a, const u32 *b)
  * heading is kept for the planar velocity. */
 static void strafe_turn_with(s32 L, s32 mode, f32 accel, f32 max_speed, f32 rate)
 {
-    strafe_heading = hero_move_yaw;
-    hero_move_yaw = CAMERA_YAW(L);
+    strafe_heading = g_hero.motion.move_yaw;
+    g_hero.motion.move_yaw = CAMERA_YAW(L);
     ((TurnTo)ee_turn_to[L])(mode, accel, max_speed, rate);
     strafe_active = 1;
 }
@@ -452,7 +435,7 @@ void ee_strafe_pivot_c(u32 ra)
 static void strafe_planar(s32 L, f32 yaw)
 {
     if (strafe_active) {
-        hero_move_yaw = strafe_heading;
+        g_hero.motion.move_yaw = strafe_heading;
         ((SetPlanarVel)ee_set_planar_vel[L])(strafe_heading);
     } else {
         ((SetPlanarVel)ee_set_planar_vel[L])(yaw);
@@ -496,10 +479,10 @@ void ee_air_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
     s32 trace_ = (TRACE(8), 0);
     s32 L = ee_level_of_call(ra, ee_air_turn_site, 0);
     if (ee_strafe_held) {
-        f32 keep = hero_move_yaw;
-        hero_move_yaw = CAMERA_YAW(L);
+        f32 keep = g_hero.motion.move_yaw;
+        g_hero.motion.move_yaw = CAMERA_YAW(L);
         ((TurnTo)ee_turn_to[L])(mode, accel, max_speed, rate);
-        hero_move_yaw = keep;
+        g_hero.motion.move_yaw = keep;
     } else {
         ((TurnTo)ee_turn_to[L])(mode, accel, max_speed, rate);
     }
@@ -510,7 +493,7 @@ void ee_air_turn_c(s32 mode, u32 ra, f32 accel, f32 max_speed, f32 rate)
  * holds the camera yaw in the move heading, else the move heading. */
 static f32 stick_heading(void)
 {
-    return (strafe_active && is_run_state()) ? strafe_heading : hero_move_yaw;
+    return (strafe_active && is_run_state()) ? strafe_heading : g_hero.motion.move_yaw;
 }
 
 /* R&C2's strafe stick classes: 2 forward, 3 back, 0 left, 1 right, 45
@@ -526,8 +509,8 @@ static f32 stick_heading(void)
  * freeze at their take-off heading, so it held only in RUN. */
 static s32 strafe_class(void)
 {
-    f32 fwd = -hero_stick_y;
-    f32 left = -hero_stick_x;
+    f32 fwd = -g_hero.stick_y;
+    f32 left = -g_hero.stick_x;
     f32 af = fwd < 0.0f ? -fwd : fwd;
     f32 al = left < 0.0f ? -left : left;
     if (al > af) {
@@ -538,7 +521,7 @@ static s32 strafe_class(void)
 
 static s32 backpedalling(void)
 {
-    return ee_strafe_held && hero_stick > 0.15f && strafe_class() == 3;
+    return ee_strafe_held && g_hero.stick_magnitude > 0.15f && strafe_class() == 3;
 }
 
 /* R&C2's strafe flip rule (0x2C2498): strafing with the stick past 0.9 in
@@ -546,7 +529,7 @@ static s32 backpedalling(void)
 static s32 strafe_flip_class(void)
 {
     s32 cls;
-    if (!ee_strafe_held || hero_stick <= FLIP_STICK) {
+    if (!ee_strafe_held || g_hero.stick_magnitude <= FLIP_STICK) {
         return -1;
     }
     cls = strafe_class();
@@ -565,8 +548,8 @@ static s32 enter_strafe_flip(s32 L, s32 cls)
     }
     LVL(L, set_hero_animation, SetAnim)(id, 0, (f32)scale_frames(L, 5));
     strafe_flip = 1;
-    hero_flip_speed = g_frame_time * 5.0f;
-    hero_flip_speed0 = 0.0f;
+    g_hero.high_jump_drift_speed = g_frame_time * 5.0f;
+    g_hero.air_target_speed = 0.0f;
     return r;
 }
 
@@ -619,13 +602,13 @@ void ee_flip_approach_c(f32 target, f32 step, f32 *var, u32 ra)
 {
     s32 trace_ = (TRACE(7), 0);
     s32 L = level_of_two(ra, ee_flip_appr_0, ee_flip_appr_1);
-    if (strafe_flip && hero_state == STATE_HIGH_JUMP) {
-        f32 t = hero_stick * g_frame_time * 5.0f;
+    if (strafe_flip && g_hero.state.current == STATE_HIGH_JUMP) {
+        f32 t = g_hero.stick_magnitude * g_frame_time * 5.0f;
         if (t < g_frame_time * 2.0f) {
             t = g_frame_time * 2.0f;
         }
         ((Approach)ee_approach_fn[L])(t, g_frame_time_sq * 37.0f, var);
-        hero_ground_speed = hero_speed_164;
+        g_hero.ground_speed = g_hero.motion.flat_speed;
     } else {
         ((Approach)ee_approach_fn[L])(target, step, var);
     }
@@ -651,12 +634,13 @@ void ee_twist_c(u32 ra)
     }
     L = ee_level_of_call(ra, ee_twist_0, 0);
 found:
-    if (hero_state == STATE_WADE) {
+    if (g_hero.state.current == STATE_WADE) {
         wade_anim(L);
     }
-    if (ee_strafe_held && hero_stick > 0.15f && hero_state != STATE_HIGH_JUMP && !backpedalling()) {
+    if (ee_strafe_held && g_hero.stick_magnitude > 0.15f && g_hero.state.current != STATE_HIGH_JUMP
+        && !backpedalling()) {
         volatile f32 *t = EASE(L);
-        f32 a = sub_rot(L, stick_heading(), hero_facing);
+        f32 a = sub_rot(L, stick_heading(), g_hero.motion.rot.f[2]);
         t[0x158 / 4] = 0.27f;
         t[0xA4 / 4] = 0.037f;
         t[0x154 / 4] = 0.025f;
@@ -702,14 +686,14 @@ static s32 play_backpedal(s32 L)
     if (moby[0x53] != BACKPEDAL_SLOT) {
         LVL(L, set_hero_animation, SetAnim)(BACKPEDAL_SLOT, 0, 11.0f);
     }
-    speed = hero_ground_speed * 25.0f;
+    speed = g_hero.ground_speed * 25.0f;
     if (speed < 0.7f) {
         speed = 0.7f;
     }
     if (speed > 2.2f) {
         speed = 2.2f;
     }
-    hero_anim_speed = speed;
+    g_hero.anim_speed = speed;
     return 1;
 }
 
@@ -724,7 +708,7 @@ void ee_run_anim_c(u32 ra)
         return;
     }
     if (hero_moby[0x53] == BACKPEDAL_SLOT) {
-        LVL(L, set_hero_animation, SetAnim)(hero_state_step + 3, 0, 7.0f);
+        LVL(L, set_hero_animation, SetAnim)(g_hero.state.step + 3, 0, 7.0f);
     }
     ((Void)ee_run_anim_fn[L])();
     TRACE_END();
@@ -785,15 +769,15 @@ s32 ee_stop_c(s32 state, s32 with_animation, u32 ra)
     if (state == STATE_STOP && (ee_strafe_held || strafe_grace)) {
         r = ((SetState)ee_hero_set_state[L])(STATE_STOP, 0);
         if (r) {
-            hero_ground_speed = 0.0f;
-            hero_target_speed = 0.0f;
-            hero_speed_xy = 0.0f;
-            hero_speed_164 = 0.0f;
-            hero_vel_x = 0.0f;
-            hero_vel_y = 0.0f;
-            hero_slide_x = 0.0f;
-            hero_slide_y = 0.0f;
-            hero_slide_z = 0.0f;
+            g_hero.ground_speed = 0.0f;
+            g_hero.target_speed = 0.0f;
+            g_hero.motion.speed_xy = 0.0f;
+            g_hero.motion.flat_speed = 0.0f;
+            g_hero.motion.velocity.f[0] = 0.0f;
+            g_hero.motion.velocity.f[1] = 0.0f;
+            g_hero.motion.momentum.f[0] = 0.0f;
+            g_hero.motion.momentum.f[1] = 0.0f;
+            g_hero.motion.momentum.f[2] = 0.0f;
             LVL(L, set_hero_animation, SetAnim)(ANIM_STOP_SHORT, 7, (f32)scale_frames(L, 9));
         }
         TRACE_END();

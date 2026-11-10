@@ -111,31 +111,10 @@ extern const u32 ee_charge_part_frames[19];   /* the particle engine's per-type 
 extern const u32 ee_charge_camera_site[19], ee_charge_collect[19], ee_charge_collect_list[19];
 extern const u32 ee_charge_seq[];   /* R&C2's sequence 0x8B in R&C1's layout (build/modseg/gen_anim_charge.c) */
 
-#define F32(o)          (*(volatile f32 *)(HERO + (o)))
-#define S32(o)          (*(volatile s32 *)(HERO + (o)))
-#define S16(o)          (*(volatile s16 *)(HERO + (o)))
-#define U8(o)           (*(volatile u8 *)(HERO + (o)))
-#define HERO_POS        0x80
-#define HERO_YAW        0x98
-#define HERO_CENTRE     0xD0          /* body centre: pos + 0.7 up */
-#define HERO_VEL        0xE0
-#define HERO_DISP       0x100         /* this frame's displacement */
-#define HERO_TARGET     0x190         /* target_speed */
-#define HERO_TIMER      0x198         /* state_timer */
-#define HERO_HOLD_OFF   0x1C4         /* STOP's jump/crouch tests wait for 0 */
-#define HERO_WALL_HIT   0x257
-#define HERO_GROUND_Z   0x2D8
-#define HERO_GROUNDED   0x300         /* grounded_frames */
-#define HERO_SPRING     0x304         /* the hover spring's velocity (the Thruster-Pack's too) */
-#define HERO_SURFACE    0x308         /* s16; R&C2 + 0x348 ends the dash */
-#define HERO_ANIM_SPEED 0xA90
-#define HERO_FIDGET     0xFF8         /* rand_timer.range */
-#define HERO_STICK_X    0x1D20
-#define HERO_MOBY       0x2080
-#define HERO_STATE      0x2084
-#define HERO_MODE       0x208C        /* control mode */
-#define HERO_2284       0x2284
-#define HERO_STICK      0x229C        /* stick magnitude, 0..1 */
+/* The hero's fields are OpenRAC's (structs/hero.h). What the dash relies on in them: g_hero.motion.body_center is
+ * the position + 0.7 up; move_lock_timer is what STOP's jump and crouch tests wait out; ground_spring_velocity is
+ * the hover spring's (the Thruster-Pack's too); rand_timer.range is the fidget timer's span. */
+#define hero_surface    g_hero.unk308       /* nonzero ends the dash, as R&C2's + 0x348 does */
 /* PAD_R1 (structs/pad.h) is the game's R1 bit: R1 in Classic, R2 in Future (src/control_layout.c) */
 #define ITEM_CHARGE_BOOTS 36
 
@@ -232,16 +211,16 @@ static f32 wrap_angle(f32 a)
     return a;
 }
 
-static f32 length_sq(u32 o)
+static f32 length_sq(const Vec4 *v)
 {
-    return F32(o) * F32(o) + F32(o + 4) * F32(o + 4) + F32(o + 8) * F32(o + 8);
+    return v->f[0] * v->f[0] + v->f[1] * v->f[1] + v->f[2] * v->f[2];
 }
 
 /* The dash's sequence in a free slot of the hero's class, once per class
  * (each level loads its own). 0 when there is no room. */
 static s32 install_sequence(void)
 {
-    u8 *cls = *(u8 **)(*(u8 **)(HERO + HERO_MOBY) + 0x24);
+    u8 *cls = *(u8 **)((u8 *)g_hero.moby + 0x24);
     volatile u32 *seqs = (volatile u32 *)(cls + 0x48);
     if (seqs[CHARGE_SLOT] == (u32)ee_charge_seq) {
         return 1;
@@ -257,16 +236,16 @@ static s32 install_sequence(void)
 static void charge_enter(s32 L)
 {
     s32 i;
-    S32(HERO_MODE) = MODE_CHARGE;
-    S32(HERO_FIDGET) = 0x68;
-    S32(HERO_2284) = 0;
-    for (i = 0; i < 16; i += 4) {
-        F32(HERO_VEL + i) = F32(HERO_DISP + i);
+    g_hero.state.control_mode = MODE_CHARGE;
+    g_hero.rand_timer.range = 0x68;
+    g_hero.unk2284 = 0;
+    for (i = 0; i < 4; i++) {
+        g_hero.motion.velocity.f[i] = g_hero.motion.displacement.f[i];
     }
-    F32(HERO_SPRING) = 0.0f;
+    g_hero.ground_spring_velocity = 0.0f;
     steer = 0.0f;
     tap_window = 0;
-    F32(HERO_ANIM_SPEED) = 1.0f;
+    g_hero.anim_speed = 1.0f;
     if (install_sequence()) {
         LVL(L, set_hero_animation, SetAnim)(CHARGE_SLOT, 0, -2.0f);
     }
@@ -277,7 +256,7 @@ static void charge_enter(s32 L)
 s32 ee_charge_trigger_c(s32 slot, u32 ra)
 {
     s32 L = ee_level_of_call(ra, ee_charge_trigger, 0);
-    s32 state = S32(HERO_STATE);
+    s32 state = g_hero.state.current;
     s32 mode;
     if (equipped_items[1] != ITEM_CHARGE_BOOTS) {
         return ((SlotItem)ee_charge_slot_item[L])(slot);
@@ -287,15 +266,15 @@ s32 ee_charge_trigger_c(s32 slot, u32 ra)
      * jumps, set on Veldin 1 before Clank), and the boots need no Clank:
      * it kept the dash from starting on Veldin 1 (owner's report). */
     if (state == STATE_THRUSTER || state == STATE_CHARGE || state == STATE_LOOK || state == STATE_1D || state == STATE_1E
-        || (S16(HERO_SURFACE) != 0 && item_available[0x1C] != 0)) {
+        || (hero_surface != 0 && item_available[0x1C] != 0)) {
         return 0;
     }
     if (tap_window > 0) {
         tap_window--;
     }
-    mode = S32(HERO_MODE);
+    mode = g_hero.state.control_mode;
     if (tap_window != 0
-        && ((u32)mode < 2 || mode == 0xC || ((mode == 2 || mode == 4) && S32(HERO_GROUNDED) != 0))
+        && ((u32)mode < 2 || mode == 0xC || ((mode == 2 || mode == 4) && g_hero.grounded_frames != 0))
         && (g_controller_state.held & PAD_R1) && (g_controller_state.pressed & PAD_R1)) {
         if (set_state(L, STATE_CHARGE, 1)) {
             charge_enter(L);
@@ -311,14 +290,15 @@ s32 ee_charge_trigger_c(s32 slot, u32 ra)
 /* R&C2's state update (0x2C4BD8): 1 when the dash ended this frame. */
 static s32 charge_ends(s32 L)
 {
-    if (S16(HERO_SURFACE) != 0 || (!(g_controller_state.held & PAD_R1) && S32(HERO_TIMER) >= scale_frames(L, 61))) {
-        S32(HERO_HOLD_OFF) = scale_frames(L, 30);
+    if (hero_surface != 0 || (!(g_controller_state.held & PAD_R1) && g_hero.state_timer >= scale_frames(L, 61))) {
+        g_hero.move_lock_timer = scale_frames(L, 30);
         if (set_state(L, STATE_STOP, 0)) {
             LVL(L, set_hero_animation, SetAnim)(ANIM_SKID, 4, (f32)scale_frames(L, 11));
         }
         return 1;
     }
-    if (U8(HERO_WALL_HIT) && length_sq(HERO_DISP) < length_sq(HERO_VEL) * (0.75f * 0.75f)) {
+    if (g_hero.wall_hit
+        && length_sq(&g_hero.motion.displacement) < length_sq(&g_hero.motion.velocity) * (0.75f * 0.75f)) {
         set_state(L, STATE_WALL_BONK, 1);
         return 1;
     }
@@ -385,7 +365,7 @@ static void jets(s32 L, u8 *moby, s32 joint_list)
  * record's own step is his last one and type 27's update adds it. */
 static void jets_age(void)
 {
-    u8 *moby = *(u8 **)(HERO + HERO_MOBY);
+    u8 *moby = (u8 *)g_hero.moby;
     f32 *row = (f32 *)(moby + 0xC0);
     f32 *at = (f32 *)(moby + 0x10);
     f32 keep = 1.0f - ee_charge_jet_damp * g_frame_time * 60.0f;
@@ -419,7 +399,7 @@ static void jets_age(void)
         l[0] -= jet_push[k];
         for (i = 0; i < 3; i++) {
             ((f32 *)(part + 0x10))[i] = at[i] + l[0] * row[i] + l[1] * row[4 + i] + l[2] * row[8 + i];
-            ((f32 *)(part + 0x20))[i] = F32(HERO_DISP + 4 * i);
+            ((f32 *)(part + 0x20))[i] = g_hero.motion.displacement.f[i];
         }
         part[8] += turn;
         jet_rgb[k] = lerp_rgb(j->birth, j->death, age, life);
@@ -493,15 +473,15 @@ static void charge_move(s32 L)
     f32 ft = g_frame_time;
     f32 fs = ft * 60.0f;              /* 60 Hz frames per frame */
     f32 rate = 0.17f * fs;
-    f32 target = -F32(HERO_STICK_X);
+    f32 target = -g_hero.stick_x;
     f32 turn, lean;
-    void *moby = *(void **)(HERO + HERO_MOBY);
+    void *moby = (void *)g_hero.moby;
     volatile f32 *ease = (volatile f32 *)LVL_DATA(L, ease_table, u32);
     s32 i;
 
     LVL(L, func_L00_002175D0, LoopSound)(4, moby, SOUND_JET);
     LVL(L, stick_target, StickTarget)(1.0f, 0);
-    F32(HERO_TARGET) = ft * 11.5f;
+    g_hero.target_speed = ft * 11.5f;
     if (steer < target) {
         steer = steer + rate > target ? target : steer + rate;
     } else {
@@ -512,23 +492,23 @@ static void charge_move(s32 L)
     } else if (steer < -1.0f) {
         steer = -1.0f;
     }
-    turn = steer * 0.0203622f * F32(HERO_STICK);      /* per 60 Hz frame */
-    if (S32(HERO_TIMER) < scale_frames(L, 60)) {
+    turn = steer * 0.0203622f * g_hero.stick_magnitude;      /* per 60 Hz frame */
+    if (g_hero.state_timer < scale_frames(L, 60)) {
         turn *= 0.1f;
-        F32(HERO_TARGET) = ft * 30.0f;
+        g_hero.target_speed = ft * 30.0f;
     }
-    if (F32(HERO_STICK) > 0.2f) {
-        F32(HERO_YAW) = wrap_angle(F32(HERO_YAW) + turn * fs);
+    if (g_hero.stick_magnitude > 0.2f) {
+        g_hero.motion.rot.f[2] = wrap_angle(g_hero.motion.rot.f[2] + turn * fs);
     }
     LVL(L, speed_step, SpeedStep)(g_frame_time_sq * 100.0f, g_frame_time_sq * 15.0f);
     LVL(L, set_planar_vel, SetPlanarVel)(99999.0f);
-    LVL(L, Spring, Spring)((volatile f32 *)(HERO + HERO_POS + 8), (volatile f32 *)(HERO + HERO_SPRING),
-                           F32(HERO_GROUND_Z) + 0.17f, g_frame_scale_sq * 0.04f, g_frame_scale_sq * 0.3f, ft * 7.5f);
+    LVL(L, Spring, Spring)(&g_hero.motion.pos.f[2], &g_hero.ground_spring_velocity,
+                           g_hero.ground_z.f + 0.17f, g_frame_scale_sq * 0.04f, g_frame_scale_sq * 0.3f, ft * 7.5f);
 
     /* What the boots run into: a 0.57 sphere three (60 Hz) frames ahead. */
     for (i = 0; i < 3; i++) {
-        probe[i] = F32(HERO_CENTRE + 4 * i) + F32(HERO_DISP + 4 * i) * (3.0f / fs);
-        push[i] = F32(HERO_DISP + 4 * i) * (7.0f / fs);
+        probe[i] = g_hero.motion.body_center.f[i] + g_hero.motion.displacement.f[i] * (3.0f / fs);
+        push[i] = g_hero.motion.displacement.f[i] * (7.0f / fs);
     }
     probe[3] = push[3] = 0.0f;
     if (charge_contact(L, moby)) {
@@ -562,7 +542,7 @@ static void charge_move(s32 L)
 void ee_charge_move_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, ee_charge_move_site, 0);
-    if (S32(HERO_STATE) == STATE_CHARGE && !charge_ends(L)) {
+    if (g_hero.state.current == STATE_CHARGE && !charge_ends(L)) {
         charge_move(L);
     }
     jets_age();
@@ -575,8 +555,8 @@ s32 ee_charge_camera_c(f32 radius, void *pos, s32 mask, void *self, void *hit, u
 {
     s32 L = ee_level_of_call(ra, ee_charge_camera_site, 0);
     s32 found = ((CollectInSphere)ee_charge_collect[L])(radius, pos, mask, self, hit);
-    if (S32(HERO_STATE) == STATE_CHARGE) {
-        u8 *moby = *(u8 **)(HERO + HERO_MOBY);
+    if (g_hero.state.current == STATE_CHARGE) {
+        u8 *moby = (u8 *)g_hero.moby;
         LVL(L, follow_camera_set_lateral_spring, CamSpring)(0.04f, 0.2f);
         LVL(L, set_follow_camera_angle_blend_from_direction, CamTurn)(moby + 0xC0, PI / 4.0f, 0.0f);
         LVL(L, Cam_SetDistanceGoal, CamDistance)(0, 3.0f, 0.003f);
@@ -617,7 +597,7 @@ static void keep_sequence(u8 *moby, s32 slot, const u32 *seq)
 void ee_frame_start_c(u32 ra)
 {
     s32 L = ee_level_of_call(ra, LVL_TABLE(func_L00_00299250), EE_SITE_FRAME_START);
-    u8 *moby = *(u8 **)(HERO + HERO_MOBY);
+    u8 *moby = (u8 *)g_hero.moby;
     if (moby != 0 && EE_HAS(EE_FEATURE_CHARGE_BOOTS)) {
         keep_sequence(moby, CHARGE_SLOT, ee_charge_seq);
     }

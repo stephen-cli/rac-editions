@@ -7,8 +7,9 @@
  * Resident means below 0x15F000: the core's data, at one address whatever program runs. A level program's own
  * data moves with the level and goes through LVL_DATA() (src/modseg.h).
  *
- * The data is declared volatile, so every use reads or writes memory and no value is carried in a register
- * across one of the game's own calls.
+ * The hero is declared as the game's own code declares it, so the compiler shares one address across a
+ * function's reads and keeps a value it has just read. The rest is declared volatile: every use reads or writes
+ * memory.
  *
  * Where OpenRAC has no name for a symbol, or one that says something other than what the data is, the symbol
  * keeps its address name and the edition's name for it is a macro beside it, as names.h does it. */
@@ -19,10 +20,8 @@
 #include "structs/pad.h"
 
 /* Ratchet (or Clank, or Giant Clank: g_hero.vehicle_mode) and the first controller. */
-extern volatile Hero g_hero;
+extern Hero g_hero;
 extern volatile PadState g_controller_state;
-/* The hero's address, for a field by offset: the reads not yet moved to Hero's fields. */
-#define HERO ((u32)&g_hero)
 
 /* The frame's timing: a frame's seconds and their square. pal_mode is nonzero at 50 Hz. */
 extern volatile f32 g_frame_time;

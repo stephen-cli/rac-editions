@@ -86,7 +86,6 @@ typedef void (*LoadFn)(s32, s32);
 #define MOBY_PREV_SEQ(m) (*(volatile u8 *)((u8 *)(m) + 0x53))
 #define CLASS_SEQ_COUNT 0xC             /* the class header's number of sequences */
 #define MOBY_FREE_TAIL  0xFF            /* the state of the first slot of the array's free tail */
-#define HERO_POS        ((volatile f32 *)(HERO + 0x80))
 #define PI_F            3.1415927f
 #define MODE_PLAY       0
 #define MODE_CINEMATIC  2               /* an in-level cutscene */
@@ -578,7 +577,7 @@ static void carry_bolt(struct StandIn *e, void *host, s32 L)
         home[0] = *(volatile f32 *)((u8 *)host + MOBY_POS);
         home[1] = *(volatile f32 *)((u8 *)host + MOBY_POS + 4);
         home[2] = *(volatile f32 *)((u8 *)host + MOBY_POS_Z) + e->lift;
-        home[3] = LVL(L, fast_atan2, AtanFn)(HERO_POS[0] - home[0], HERO_POS[1] - home[1]);
+        home[3] = LVL(L, fast_atan2, AtanFn)(g_hero.motion.pos.f[0] - home[0], g_hero.motion.pos.f[1] - home[1]);
         *(volatile f32 *)(m + MOBY_POS) = home[0];
         *(volatile f32 *)(m + MOBY_POS + 4) = home[1];
     }
@@ -772,9 +771,9 @@ static const struct PickupSite *pickup_site(void *moby, s32 L)
 static s32 pickup_touched(void *moby, const struct PickupSite *site)
 {
     volatile f32 *pos = (volatile f32 *)((u8 *)moby + MOBY_POS);
-    f32 dx = HERO_POS[0] - pos[0];
-    f32 dy = HERO_POS[1] - pos[1];
-    f32 dz = HERO_POS[2] - pos[2];
+    f32 dx = g_hero.motion.pos.f[0] - pos[0];
+    f32 dy = g_hero.motion.pos.f[1] - pos[1];
+    f32 dz = g_hero.motion.pos.f[2] - pos[2];
     f32 r = site->radius + PICKUP_SLACK;
     if (!site->stateless && MOBY_STATE(moby) != PICKUP_IDLE) {
         return 0;
@@ -823,9 +822,7 @@ typedef void (*ResetFn)(volatile void *, volatile void *, s32, s32);
 typedef s32 (*CollLineFn)(const f32 *, const f32 *, s32, void *, void *);
 
 #define VENDOR_CLASS        11
-#define HERO_ROT            ((volatile f32 *)(HERO + 0x90))  /* its turn, after the position (Hero_ResetToPosition) */
 #define HERO_STATE_IDLE     0
-#define HERO_MOBY           (*(void *volatile *)(HERO + 0x2080))
 #define STAGE_OFFSET_AT     0x80       /* start_vendor_exit_cutscene: addiu $a1, $gp, vendor_exit_cutscene_local_offset */
 #define ADDIU_A1_GP         0x27850000u
 #define STAGE_CHEST         1.0f        /* the lines start this high above the stage */
@@ -888,7 +885,7 @@ static s32 stage_blocked(const f32 *stage, f32 dx, f32 dy, s32 L)
         to[1] = stage[1] + point[0] * dy + point[1] * dx;
         to[2] = stage[2] + point[2];
         to[3] = 0.0f;
-        if (LVL(L, coll_line, CollLineFn)(from, to, 0, HERO_MOBY, 0)) {
+        if (LVL(L, coll_line, CollLineFn)(from, to, 0, (void *)g_hero.moby, 0)) {
             blocked++;
         }
     }
@@ -900,12 +897,12 @@ static s32 hero_on_ground(s32 L)
 {
     f32 from[4] __attribute__((aligned(16)));
     f32 to[4] __attribute__((aligned(16)));
-    from[0] = to[0] = HERO_POS[0];
-    from[1] = to[1] = HERO_POS[1];
-    from[2] = HERO_POS[2] + 0.2f;
-    to[2] = HERO_POS[2] - STAGE_GROUND;
+    from[0] = to[0] = g_hero.motion.pos.f[0];
+    from[1] = to[1] = g_hero.motion.pos.f[1];
+    from[2] = g_hero.motion.pos.f[2] + 0.2f;
+    to[2] = g_hero.motion.pos.f[2] - STAGE_GROUND;
     from[3] = to[3] = 0.0f;
-    return LVL(L, coll_line, CollLineFn)(from, to, 0, HERO_MOBY, 0) != 0;
+    return LVL(L, coll_line, CollLineFn)(from, to, 0, (void *)g_hero.moby, 0) != 0;
 }
 
 static f32 square_root(f32 x)
@@ -1008,8 +1005,8 @@ static s32 start_weapon_demo(s32 item, const f32 *find, s32 L)
         stage[i] = find[i];
     }
     for (i = 0; i < 4; i++) {
-        demo_return[0][i] = grounded || i == 3 ? HERO_POS[i] : stage[i];
-        demo_return[1][i] = HERO_ROT[i];
+        demo_return[0][i] = grounded || i == 3 ? g_hero.motion.pos.f[i] : stage[i];
+        demo_return[1][i] = g_hero.motion.rot.f[i];
     }
     stage_facing(stage, facing, L);
     place_demo_vendor(m, stage, facing, L);
@@ -1193,8 +1190,8 @@ static s32 shuttle_takes_infobot(void *shuttle, s32 L)
         return 0;
     }
     infobot = (u8 *)MOBY_TABLE(L) + MOBY_SIZE * *(volatile s32 *)(MOBY_PVARS(shuttle) + SHUTTLE_INFOBOT);
-    dx = HERO_POS[0] - *(volatile f32 *)(infobot + MOBY_POS);
-    dy = HERO_POS[1] - *(volatile f32 *)(infobot + MOBY_POS + 4);
+    dx = g_hero.motion.pos.f[0] - *(volatile f32 *)(infobot + MOBY_POS);
+    dy = g_hero.motion.pos.f[1] - *(volatile f32 *)(infobot + MOBY_POS + 4);
     if (dx * dx + dy * dy >= SHUTTLE_REACH * SHUTTLE_REACH) {
         return 0;
     }
@@ -1221,9 +1218,9 @@ static s32 shuttle_takes_infobot(void *shuttle, s32 L)
 static s32 clank_touches(void *bolt)
 {
     volatile f32 *pos = (volatile f32 *)((u8 *)bolt + MOBY_POS);
-    f32 dx = HERO_POS[0] - pos[0];
-    f32 dy = HERO_POS[1] - pos[1];
-    f32 dz = HERO_POS[2] - pos[2];
+    f32 dx = g_hero.motion.pos.f[0] - pos[0];
+    f32 dy = g_hero.motion.pos.f[1] - pos[1];
+    f32 dz = g_hero.motion.pos.f[2] - pos[2];
     return g_hero.vehicle_mode == HERO_CLANK && MOBY_STATE(bolt) == GOLD_RESTING && g_hero.health.hp > 0
            && dx * dx + dy * dy + dz * dz < GOLD_REACH * GOLD_REACH && dz < GOLD_HEIGHT && -dz < GOLD_HEIGHT;
 }

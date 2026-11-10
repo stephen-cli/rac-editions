@@ -38,8 +38,9 @@
 
 extern const u32 ee_gunarm_seq_1[], ee_gunarm_seq_2[];   /* R&C2's arm classes 1 and 2, sequence 0x14 (build/modseg/gen_anim_arm.c) */
 
-#define hero_moby       (*(u8 *volatile *)(HERO + 0x2080))
-#define arm_layer(i)    (*(u8 *volatile *)(HERO + 0xD00 + 4 * (i)))   /* the manager's layers: the right arm, the left */
+#define hero_moby       ((u8 *)g_hero.moby)
+/* The arm manager's two layers, the right arm then the left: g_hero.unkD00 and unkD04. */
+#define arm_layer(i)    ((&g_hero.unkD00)[i])
 #define LAYER_CLASS     0x18          /* a layer's arm class */
 #define CLASS_SEQS      0x48
 #define BACKPEDAL_SLOT  140           /* the body backpedal in Ratchet's class (src/strafe.c) */

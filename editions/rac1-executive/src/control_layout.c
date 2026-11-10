@@ -65,7 +65,6 @@ DECLARE_LVL_DATA(game_mode);
 
 #define LAYOUT_SETTING  (*(volatile u8 *)EE_SETTING_CONTROL_LAYOUT)
 
-#define hero_vehicle        (*(volatile u8 *)(HERO + 0x20A4))   /* 0 Ratchet, 1 Clank, 2 Giant Clank */
 #define CONTROL_HOVERBOARD  0x16
 #define VEHICLE_GIANT_CLANK 2
 #define GAME_MODE_PLAY      0
@@ -108,7 +107,7 @@ s32 ee_layout_in_play(s32 level)
     if (GetControlLayout() != EE_LAYOUT_FUTURE) {
         return 0;
     }
-    if (!ee_in_play(level) || hero_vehicle == VEHICLE_GIANT_CLANK) {
+    if (!ee_in_play(level) || g_hero.vehicle_mode == VEHICLE_GIANT_CLANK) {
         return 0;
     }
     return 1;
