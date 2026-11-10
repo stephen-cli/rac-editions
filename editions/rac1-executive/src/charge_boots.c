@@ -65,7 +65,8 @@
  * while the menu is open. Installed once per level: a new level loads a
  * new class. */
 extern const u32 ee_panel_seq[];
-DECLARE_LVL_DATA(menu_state);         /* the pause menu state; the 14 panel mobys at +0x1B0 */
+DECLARE_LVL_DATA(menu_state);         /* the level's menu system (OpenRAC's MenuSystem) */
+#define MENU_PANELS     0x1B0         /* its 14 panel mobys (panel_slots), that far after it as in the executable */
 DECLARE_LVL_DATA(class_slot_by_id);   /* u8 per class id */
 DECLARE_LVL_DATA(class_resources);    /* class data pointer per slot */
 #define PANEL_CLASS  0x472
@@ -91,14 +92,14 @@ static void panel_sequence(s32 L)
 {
     u8 *slot_by_id = LVL_DATA(L, class_slot_by_id, u8 *);
     u32 *resources = LVL_DATA(L, class_resources, u32 *);
-    u32 *panels = (u32 *)(LVL_DATA(L, menu_state, u8 *) + 0x1B0);
+    Moby **panels = (Moby **)(LVL_DATA(L, menu_state, u8 *) + MENU_PANELS);
     u8 slot = slot_by_id[PANEL_CLASS];
     s32 i;
     if (slot != 0xFF && resources[slot] != 0) {
         install_panel_sequence((MobyClass *)resources[slot]);
     }
     for (i = 0; i < 14; i++) {
-        const Moby *panel = (const Moby *)panels[i];
+        const Moby *panel = panels[i];
         if (panel != 0 && (u16)panel->oclass == PANEL_CLASS) {
             install_panel_sequence(panel->pclass);
             break;
@@ -108,9 +109,8 @@ static void panel_sequence(s32 L)
 
 #define CHEAT_ON             (*(volatile u8 *)EE_CHEAT_CHARGE_BOOTS)           /* gCheats[8]: the toggle */
 #define ITEM_NONE            0x26        /* hero_switch_item's "no item": what it makes pending to take boots off */
-/* The pause menu's own equipped item per slot (NTSC menu_system.equipped,
- * menu state + 0x30): what the Gadgets page marks as worn and equips from. */
-#define MENU_EQUIPPED(L, slot) (*(volatile s32 *)(LVL_DATA(L, menu_state, u8 *) + 0x30 + 4 * (slot)))
+/* The pause menu's own equipped item per slot: what the Gadgets page marks as worn and equips from. */
+#define MENU_EQUIPPED(L, slot) (LVL_DATA(L, menu_state, MenuSystem *)->equipped[slot])
 
 /* The boots follow the cheat's toggle. Called every gameplay frame and, so
  * that the Gadgets page shows the change at once, every frame the Cheats

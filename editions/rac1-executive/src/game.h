@@ -20,6 +20,7 @@
 #include "structs/pad.h"
 #include "structs/moby.h"
 #include "structs/records.h"
+#include "structs/menu.h"
 
 /* Ratchet (or Clank, or Giant Clank: g_hero.vehicle_mode) and the first controller. */
 extern Hero g_hero;

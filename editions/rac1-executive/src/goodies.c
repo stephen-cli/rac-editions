@@ -123,13 +123,11 @@ extern void sce_gs_sync_v(s32);                                           /* the
 
 /* The start menu, in both title screen programs' data (at the executable's
  * addresses; tools/gen_frontend.py checks it). */
-#define TITLE_PAGE      0x001D4948
-#define TITLE_NEW_GAME  0x001D4A18  /* then Load Game, then Options */
-#define TITLE_OPTIONS   0x001D4AB8
-#define TITLE_LIST_STRIDE 0x50
-#define TITLE_PLACEHOLDER 0x001CE678 /* the start menu's screens 0 and 1: an empty list, no update or draw */
-#define PANELS_ADDRESS  0x001D6120                       /* the 14 panel mobys */
-#define PANELS          ((Moby *volatile *)PANELS_ADDRESS)
+#define TITLE_PAGE      ((MenuPage *)0x001D4948)
+#define TITLE_NEW_GAME  ((MenuScreen *)0x001D4A18)  /* then Load Game, then Options */
+#define TITLE_OPTIONS   ((MenuScreen *)0x001D4AB8)
+#define TITLE_ROW(k)    ((MenuScreen *)((u32)TITLE_NEW_GAME + (k) * SCREEN_BYTES))
+#define TITLE_PLACEHOLDER ((MenuScreen *)0x001CE678)  /* the start menu's screens 0, 1: an empty list */
 #define PANEL_ROW       0           /* the Goodies row's screen and panel */
 #define PANEL_ROW_PARKED 0          /* the start menu's sequence for panel 0: parked */
 #define ROW_FIRST_PANEL 2           /* New Game, Load Game, Options: panels 2-4 */
@@ -143,34 +141,33 @@ extern void sce_gs_sync_v(s32);                                           /* the
 #define ACTION_OPEN     3           /* Pause_TextListUpdate: open the page in param */
 #define ACTION_FREEZE   4           /* the same through the game-mode freeze, as New Game does (mode_freeze_init(3, page)) */
 
-/* The pages behind the row, built from the title screen's own (both
- * programs keep them at these addresses; tools/gen_frontend.py checks). */
-#define MENU_CURRENT    (*(volatile u32 *)0x001D5F74)    /* D_001D5F70 + 4: the page shown */
-#define MENU_NEXT       (*(volatile u32 *)0x001D5F78)    /* + 8: the page to switch to */
-#define MENU_TICKS      (*(volatile s32 *)0x001D60C4)    /* + 0x154: updates since the card went idle; the pages wait for 11 */
-#define MENU_LOAD_KIND  (*(volatile s32 *)0x001D60C0)    /* + 0x150: what the freeze opens, 0 a new game, 1 a load (the lists' actions 4 and 5) */
-#define PAGE_FOCUS      0x40
-#define PAGE_WORDS      (0x88 / 4)
-#define PAGE_BACK_WORD  (0x38 / 4)
-#define PAGE_FOCUS_WORD (0x40 / 4)
-#define PAGE_SCREEN_WORD(n) ((0x44 + 4 * (n)) / 4)
-#define WIDGET_WORDS    (0x50 / 4)
-#define WIDGET_DRAW     1           /* a widget's words: update, draw, enter, leave */
-#define OPTIONS_PAGE    0x001D4B08  /* title box, three-row list, "Select / Exit" box */
-#define OPTIONS_TITLE   0x001D0C58  /* a title box: its text id at + 0x34 */
-#define OPTIONS_LIST    0x001D4BE8
-#define SELECT_PROMPT   0x001CFE90  /* "\x10 Select", "\x12 Exit" */
-#define VIDEO_PAGE      0x001D4E38  /* title box, a wider list box, "Select / Exit" box */
-#define VIDEO_TITLE     0x001D4EC0
-#define EXIT_PROMPT     0x001CE7B8  /* "\x12 Exit" alone */
-#define NEW_GAME_PAGE   0x001D5008
-#define NEW_GAME_SLOTS  0x001D50E8  /* its slot list (SaveSlotMenu_Update, Pause_DrawSaveSlots): screen 1, the focus */
-#define LOAD_GAME_SLOTS 0x001D1BB0  /* Load Game's (Pause_LoadSlotInput, Pause_DrawSaveSlots) */
-#define NAME_BOX        0x001D1B08  /* both pages' screen 3: the selected save's planet named in two lines */
+/* The title programs' menu system (OpenRAC's menu_system) and its 14 panel mobys (panel_slots), as OpenRAC's
+ * records (structs/menu.h); both programs keep them, and the pages and boxes above, at the executable's
+ * addresses (tools/gen_frontend.py checks). Of the menu system the edition reads the page shown (current), the
+ * page to switch to (next), Pause_Update's count (update_count), the updates since the card went idle (ticks:
+ * the pages wait for 11) and what the freeze opens (unk150: 0 a new game, 1 a load, the lists' actions 4 and
+ * 5). */
+#define TITLE_MENU      ((MenuSystem *)0x001D5F70)
+#define TITLE_PANELS    ((Moby **)0x001D6120)
+/* The pages behind the row are built from the title screen's own. A box there is a record of 0x50 bytes, the
+ * part of MenuScreen its kinds use, and the start menu's rows sit that far apart. */
+#define SCREEN_BYTES    0x50
+#define SCREEN_WORDS    (SCREEN_BYTES / 4)
+#define PAGE_WORDS      ((s32)(sizeof(MenuPage) / 4))
+#define OPTIONS_PAGE    ((MenuPage *)0x001D4B08)  /* title box, three-row list, "Select / Exit" box */
+#define OPTIONS_TITLE   ((MenuScreen *)0x001D0C58)  /* a title box (data.label) */
+#define OPTIONS_LIST    ((MenuScreen *)0x001D4BE8)
+#define SELECT_PROMPT   ((MenuScreen *)0x001CFE90)  /* "\x10 Select", "\x12 Exit" */
+#define VIDEO_PAGE      ((MenuPage *)0x001D4E38)  /* title box, a wider list box, "Select / Exit" box */
+#define VIDEO_TITLE     ((MenuScreen *)0x001D4EC0)
+#define EXIT_PROMPT     ((MenuScreen *)0x001CE7B8)  /* "\x12 Exit" alone */
+#define NEW_GAME_PAGE   ((MenuPage *)0x001D5008)
+#define NEW_GAME_SLOTS  ((MenuScreen *)0x001D50E8)  /* its slot list: screen 1, the focus */
+#define LOAD_GAME_SLOTS ((MenuScreen *)0x001D1BB0)  /* Load Game's (Pause_LoadSlotInput, Pause_DrawSaveSlots) */
+#define NAME_BOX        ((MenuScreen *)0x001D1B08)  /* both pages' screen 3: the selected save's planet */
 #define NAME_PANEL      3
-#define CONFIRM_PAGE    0x001D51B8  /* New Game's "overwrite?" question; its back (+0x38) returns to the slot list */
+#define CONFIRM_PAGE    ((MenuPage *)0x001D51B8)  /* New Game's "overwrite?"; its back is the slot list's page */
 #define SEQ_CONFIRM_NAME 0x84       /* the confirm page's sequence for the name panel */
-#define LIST_ENTER      2           /* a list's enter callback (word 2): Options' sets its rows, so the copies have none */
 #define SEED_FLAGS      0x42        /* list flags: one colour (2), left-aligned text (0x40) */
 #define TEXT_EXIT       0x4EE0      /* "\x12 Exit", the prompt boxes' row */
 #define SEED_BOX_PX     240         /* the Reuse Seed box's width: nine symbols from the list draw's x 4 */
@@ -206,7 +203,7 @@ DECLARE_LVL(msg_string);         /* msg_string(id) */
 /* mode_freeze_init(mode, page, arg): the game-mode freeze a list's action 4 opens a page through. */
 DECLARE_LVL(mode_freeze_init);
 typedef void (*FreezeFn)(s32, void *, s32);
-typedef s32 (*WidgetFn)(void *);
+typedef s32 (*ScreenFn)(MenuScreen *);
 typedef s32 (*IconFn)(s32, s32);
 typedef void (*SpriteFn)(s32, s32, s32, s32, s32, s32);
 typedef void (*PagingFn)(s32);
@@ -217,10 +214,6 @@ typedef const char *(*MsgFn)(s32);
 #define MC_SLOT_LEVEL(slot) MC_S32(0x20 + 0x1C * (slot))  /* the card's summary of a slot: its level, -1 empty */
 #define MC_SLOT_TIME(slot)  MC_S32(0x2C + 0x1C * (slot))  /* its play time */
 #define MC_SUMMARY_STATE    MC_S32(0x08) /* 2: the summaries are read */
-#define MENU_TICKS_OFFSET   0x154       /* MENU_TICKS in the menu record (the levels' is elsewhere: LVL_DATA menu_state) */
-#define WIDGET_WIDTH    (0x20 / 4)
-#define WIDGET_HEIGHT   (0x24 / 4)
-#define WIDGET_SLOT     (0x40 / 4)  /* a slot list's selected slot; the name box names the focused list's */
 #define BADGE_X         0x4E        /* where Pause_DrawSaveSlots puts the Challenge Mode R */
 #define BADGE_SIZE      16
 #define SLOT_ROW        0x30
@@ -233,42 +226,6 @@ typedef const char *(*MsgFn)(s32);
 #define FONT_NORMAL_TEX 1           /* GetEffectTex's normal font */
 #define STRETCH_NUM     3           /* the name box's bottom corners move down by 3/4 of its half height: one more line */
 #define STRETCH_DEN     4
-
-struct MenuPage {
-    s32 moby_anims[14];
-    u32 back;
-    s32 state;
-    u32 focus;
-    u32 screens[14];
-};
-
-struct MenuItem {
-    s16 text;
-    s16 action;
-    s32 param;
-    s16 subtext;
-    s16 fade_timer;
-};
-
-struct MenuList {
-    u32 update;
-    u32 draw;
-    u32 enter;
-    u32 leave;
-    s32 unk10;
-    u32 moby;
-    s32 x;
-    s32 y;
-    s32 width;
-    s32 height;
-    s32 pad28[2];
-    s32 flags;
-    struct MenuItem *items;
-    u32 up;
-    u32 down;
-    s32 selected;
-    s32 scroll;
-};
 
 /* A slot as last read from the card. */
 struct SlotScan {
@@ -294,8 +251,8 @@ static s32 rz_saves;                /* Randomizer saves on the card as last scan
 static s32 scan_summary[2 * MC_SLOTS];  /* the card's summary of the slots (level, time) at that scan */
 static s32 title_program;           /* the title screen program running the pages (19, 20) */
 
-static struct MenuItem goodies_items[2] = { { TEXT_GOODIES, ACTION_OPEN, 0, 0, 0 }, { 0, 0, 0, 0, 0 } };
-static struct MenuList goodies_list;
+static struct MenuTextItem goodies_items[2] = { { TEXT_GOODIES, ACTION_OPEN, { 0 }, 0, 0 }, { 0, 0, { 0 }, 0, 0 } };
+static MenuScreen goodies_list;
 static u32 seq_store[SEQ_COPIES][16] __attribute__((aligned(16)));     /* 0x1C header + 8 frame pointers, 16-aligned */
 static u32 frame_store[SEQ_COPIES][SEQ_FRAMES][4 * (1 + FRAME_QWC)] __attribute__((aligned(16)));
 
@@ -332,7 +289,7 @@ static s32 card_take(void)
 /* The card is idle and a PS2 card, as the save pages require before they show a slot. */
 static s32 card_ready(void)
 {
-    return MC_STATE < 3 && MC_REQUEST < 0 && MENU_TICKS >= 11 && MC_TYPE == 2;
+    return MC_STATE < 3 && MC_REQUEST < 0 && TITLE_MENU->ticks >= 11 && MC_TYPE == 2;
 }
 
 /* SIZE bytes at OFFSET of the file NAME into card_buffer; 0 if any step fails. */
@@ -1081,8 +1038,8 @@ static s32 sequence_from(s32 id, u32 base, const s16 *rest, s32 records, s32 tap
  * sequence is not as expected. */
 static s32 install_sequences(void)
 {
-    struct MenuPage *page = (struct MenuPage *)TITLE_PAGE;
-    const Moby *panel = PANELS[PANEL_ROW];
+    const MenuPage *page = TITLE_PAGE;
+    const Moby *panel = TITLE_PANELS[PANEL_ROW];
     const MobyClass *pclass;
     u32 middle;
     s16 rest[3 * FRAME_RECORDS_MAX], *rec;
@@ -1110,8 +1067,7 @@ static s32 install_sequences(void)
         return 0;
     }
     for (k = 0; k < 3; k++) {
-        struct MenuList *row = (struct MenuList *)(TITLE_NEW_GAME + k * TITLE_LIST_STRIDE);
-        struct MenuPage *opens = (struct MenuPage *)row->items[0].param;
+        const MenuPage *opens = (const MenuPage *)TITLE_ROW(k)->data.list.items[0].param.value;
         s32 title = opened_panel0[k];
         if (!raise_sequence(page->moby_anims[ROW_FIRST_PANEL + k], raise, 0, 0)) {
             return 0;
@@ -1181,7 +1137,7 @@ static void layout_records(u32 frame, Layout layout, s16 *out)
  * (growing). 0 if the template is not as expected. */
 static s32 morph_sequence(s32 id, Layout from, Layout to)
 {
-    u32 template = retail_sequence(((struct MenuPage *)VIDEO_PAGE)->moby_anims[ROW_FIRST_PANEL + 2]);
+    u32 template = retail_sequence(VIDEO_PAGE->moby_anims[ROW_FIRST_PANEL + 2]);
     u32 *seq = seq_store[installed];
     f32 *sphere = (f32 *)seq;
     Layout t0, tf;
@@ -1285,10 +1241,10 @@ static void set_half_width(Layout layout, s32 half)
  * is not as expected. */
 static s32 install_randomizer_sequences(void)
 {
-    struct MenuPage *title = (struct MenuPage *)TITLE_PAGE;
-    struct MenuPage *options = (struct MenuPage *)OPTIONS_PAGE;
-    struct MenuPage *video = (struct MenuPage *)VIDEO_PAGE;
-    struct MenuPage *new_game = (struct MenuPage *)NEW_GAME_PAGE;
+    const MenuPage *title = TITLE_PAGE;
+    const MenuPage *options = OPTIONS_PAGE;
+    const MenuPage *video = VIDEO_PAGE;
+    const MenuPage *new_game = NEW_GAME_PAGE;
     Layout rows[3], goodies[3], randomizer[3], reuse[3];
     s16 rest[3 * JOINTS];
     s32 j, k, axis;
@@ -1338,27 +1294,29 @@ static s32 install_randomizer_sequences(void)
 /* The pages: copies of the title screen's own page records and boxes, made
  * when the start menu opens (the boxes' functions differ between the boot
  * executable and frontbin). */
-static u32 goodies_page[PAGE_WORDS];
-static u32 randomizer_page[PAGE_WORDS];
-static u32 reuse_page[PAGE_WORDS];
-static u32 new_game_page[PAGE_WORDS];
-static u32 rz_options_page[PAGE_WORDS];
-static u32 goodies_title[WIDGET_WORDS];
-static u32 randomizer_title[WIDGET_WORDS];
-static u32 reuse_title[WIDGET_WORDS];
-static u32 rz_options_title[WIDGET_WORDS];
-static u32 rz_slots[WIDGET_WORDS];      /* the Randomizer New Game's slot list: retail's, its update and draw wrapped */
-static u32 rz_options_toggle[WIDGET_WORDS];    /* the Video Options page's toggle list, over start_entries */
-static struct MenuList goodies_menu;
-static struct MenuList randomizer_menu;
-static struct MenuList seed_box;
-static struct MenuList reuse_prompt;    /* "Exit" while entering, "Confirm" and "Exit" once nine are in */
-static struct MenuItem goodies_menu_items[2];
-static struct MenuItem randomizer_items[4];
+static MenuPage goodies_page;
+static MenuPage randomizer_page;
+static MenuPage reuse_page;
+static MenuPage new_game_page;
+static MenuPage rz_options_page;
+static MenuScreen goodies_title;
+static MenuScreen randomizer_title;
+static MenuScreen reuse_title;
+static MenuScreen rz_options_title;
+static MenuScreen rz_slots;             /* the Randomizer New Game's slot list: retail's, its update and draw wrapped */
+static MenuScreen rz_options_toggle;    /* the Video Options page's toggle list, over start_entries */
+static MenuScreen goodies_menu;
+static MenuScreen randomizer_menu;
+static MenuScreen seed_box;
+static MenuScreen reuse_prompt;         /* "Exit" while entering, "Confirm" and "Exit" once nine are in */
+static struct MenuTextItem goodies_menu_items[2];
+static struct MenuTextItem randomizer_items[4];
 
 /* A toggle list's row (ToggleList_PadInput): its label, the byte it flips,
  * the text shown while the byte is nonzero and while it is 0, and flags (1:
- * the Video page's mode switch). A row with label 0 ends the list. */
+ * the Video page's mode switch). A row with label 0 ends the list. OpenRAC's
+ * MenuOption is the same record with the two texts not named yet; the list
+ * holds its rows and its selected row in MenuScreen.data.options. */
 struct ToggleEntry {
     s32 label;
     u8 *byte;
@@ -1366,123 +1324,130 @@ struct ToggleEntry {
     s32 off_text;
     s32 flags;
 };
-#define TOGGLE_ENTRIES_WORD (0x34 / 4)  /* a toggle list's rows */
-#define TOGGLE_CURSOR_WORD  (0x38 / 4)  /* its selected row */
 static u8 start_shown = 1;
 static const s32 start_texts[RZ_START_MODES] = { EE_TEXT_START_NOVALIS, EE_TEXT_START_VELDIN, EE_TEXT_START_RANDOM };
 static struct ToggleEntry start_entries[2] = {
     { EE_TEXT_START_PLANET, &start_shown, EE_TEXT_START_NOVALIS, EE_TEXT_START_NOVALIS, 0 },
     { 0, 0, 0, 0, 0 },
 };
-static u32 retail_toggle_update;        /* ToggleList_PadInput, this program's */
-static struct MenuItem seed_items[2] = { { EE_TEXT_SEED_INPUT, ACTION_OPEN, 0, 0, 0 }, { 0, 0, 0, 0, 0 } };
-static struct MenuItem reuse_prompt_items[3];
-static u32 retail_seed_box_draw;        /* DrawMenuItemList, this program's */
-static u32 retail_slots_update;         /* SaveSlotMenu_Update, this program's */
-static u32 retail_slots_draw;           /* Pause_DrawSaveSlots */
-static u32 retail_name_draw;            /* the name box's draw, DrawSaveLevelName */
-static u32 retail_list_update;          /* Pause_TextListUpdate */
+static ScreenFn retail_toggle_update;   /* ToggleList_PadInput, this program's */
+static struct MenuTextItem seed_items[2] = { { EE_TEXT_SEED_INPUT, ACTION_OPEN, { 0 }, 0, 0 }, { 0, 0, { 0 }, 0, 0 } };
+static struct MenuTextItem reuse_prompt_items[3];
+static ScreenFn retail_seed_box_draw;   /* DrawMenuItemList, this program's */
+static ScreenFn retail_slots_update;    /* SaveSlotMenu_Update, this program's */
+static ScreenFn retail_slots_draw;      /* Pause_DrawSaveSlots */
+static ScreenFn retail_name_draw;       /* the name box's draw, DrawSaveLevelName */
+static ScreenFn retail_list_update;     /* Pause_TextListUpdate */
 
-static void copy_words(u32 *dst, u32 src, s32 count)
+static void copy_words(void *dst, const void *src, s32 count)
 {
     s32 k;
     for (k = 0; k < count; k++) {
-        dst[k] = ((u32 *)src)[k];
+        ((u32 *)dst)[k] = ((const u32 *)src)[k];
     }
 }
 
-static void set_item(struct MenuItem *item, s32 text, s32 action, u32 param)
+/* A box like SOURCE: its 0x50 bytes. */
+static void copy_screen(MenuScreen *screen, const MenuScreen *source)
+{
+    copy_words(screen, source, SCREEN_WORDS);
+}
+
+static void set_item(struct MenuTextItem *item, s32 text, s32 action, MenuPage *opens)
 {
     item->text = text;
     item->action = action;
-    item->param = param;
+    item->param.value = (s32)opens;
     item->subtext = 0;
     item->fade_timer = 0;
 }
 
-/* A one-column list like the Options page's, with ITEMS. */
-static void make_list(struct MenuList *list, struct MenuItem *items)
+/* A one-column list like the Options page's, with ITEMS. Options' enter callback sets its rows, so the copy
+ * has none. */
+static void make_list(MenuScreen *list, struct MenuTextItem *items)
 {
-    copy_words((u32 *)list, OPTIONS_LIST, sizeof(*list) / 4);
-    ((u32 *)list)[LIST_ENTER] = 0;
+    copy_screen(list, OPTIONS_LIST);
+    list->enter = 0;
     list->moby = 0;
-    list->items = items;
-    list->selected = 0;
-    list->scroll = 0;
+    list->data.list.items = items;
+    list->data.list.selected = 0;
+    list->data.list.scroll = 0;
+}
+
+/* A title box like SOURCE, showing TEXT. */
+static void make_title(MenuScreen *title, const MenuScreen *source, s32 text)
+{
+    copy_screen(title, source);
+    title->data.label.text_id = text;
 }
 
 /* A page like SOURCE with these boxes in screens 2-4, BACK its back page. */
-static void make_page(u32 *page, u32 source, u32 back, u32 title, u32 box, u32 prompt)
+static void make_page(MenuPage *page, const MenuPage *source, MenuPage *back, MenuScreen *title, MenuScreen *box,
+                      MenuScreen *prompt)
 {
-    struct MenuPage *p = (struct MenuPage *)page;
     copy_words(page, source, PAGE_WORDS);
-    p->back = back;
-    p->focus = box;
-    p->screens[ROW_FIRST_PANEL] = title;
-    p->screens[ROW_FIRST_PANEL + 1] = box;
-    p->screens[ROW_FIRST_PANEL + 2] = prompt;
-    page[0x80 / 4] = 0;             /* no focus change pending */
+    page->back = back;
+    page->focus = box;
+    page->screens[ROW_FIRST_PANEL] = title;
+    page->screens[ROW_FIRST_PANEL + 1] = box;
+    page->screens[ROW_FIRST_PANEL + 2] = prompt;
+    page->pending_focus = 0;
 }
 
-s32 ee_seed_box_update(struct MenuList *box);
-s32 ee_seed_box_draw(struct MenuList *box);
+s32 ee_seed_box_update(MenuScreen *box);
+s32 ee_seed_box_draw(MenuScreen *box);
 static void seed_prompt(s32 complete);
-s32 ee_rz_slots_update(void *widget);
-s32 ee_rz_slots_draw(void *widget);
-s32 ee_rz_name_draw(void *widget);
-s32 ee_rz_menu_update(void *list);
-s32 ee_rz_options_update(void *widget);
+s32 ee_rz_slots_update(MenuScreen *list);
+s32 ee_rz_slots_draw(MenuScreen *list);
+s32 ee_rz_name_draw(MenuScreen *box);
+s32 ee_rz_menu_update(MenuScreen *list);
+s32 ee_rz_options_update(MenuScreen *list);
 
 static void build_pages(void)
 {
-    struct MenuPage *page;
-    struct MenuPage *video = (struct MenuPage *)VIDEO_PAGE;
+    MenuPage *page;
+    const MenuPage *video = VIDEO_PAGE;
     s32 j;
-    copy_words(goodies_title, OPTIONS_TITLE, WIDGET_WORDS);
-    goodies_title[0x34 / 4] = TEXT_GOODIES;
-    copy_words(randomizer_title, OPTIONS_TITLE, WIDGET_WORDS);
-    randomizer_title[0x34 / 4] = EE_TEXT_RANDOMIZER;
-    copy_words(reuse_title, VIDEO_TITLE, WIDGET_WORDS);
-    reuse_title[0x34 / 4] = EE_TEXT_REUSE_SEED;
-    copy_words(rz_options_title, VIDEO_TITLE, WIDGET_WORDS);
-    rz_options_title[0x34 / 4] = EE_TEXT_RZ_OPTIONS;
+    make_title(&goodies_title, OPTIONS_TITLE, TEXT_GOODIES);
+    make_title(&randomizer_title, OPTIONS_TITLE, EE_TEXT_RANDOMIZER);
+    make_title(&reuse_title, VIDEO_TITLE, EE_TEXT_REUSE_SEED);
+    make_title(&rz_options_title, VIDEO_TITLE, EE_TEXT_RZ_OPTIONS);
 
-    set_item(&goodies_menu_items[0], EE_TEXT_RANDOMIZER, ACTION_OPEN, (u32)randomizer_page);
+    set_item(&goodies_menu_items[0], EE_TEXT_RANDOMIZER, ACTION_OPEN, &randomizer_page);
     set_item(&goodies_menu_items[1], 0, 0, 0);
-    set_item(&randomizer_items[0], TEXT_NEW_GAME, ACTION_FREEZE, (u32)new_game_page);
-    set_item(&randomizer_items[1], EE_TEXT_REUSE_SEED, ACTION_OPEN, (u32)reuse_page);
-    set_item(&randomizer_items[2], TEXT_OPTIONS, ACTION_OPEN, (u32)rz_options_page);
+    set_item(&randomizer_items[0], TEXT_NEW_GAME, ACTION_FREEZE, &new_game_page);
+    set_item(&randomizer_items[1], EE_TEXT_REUSE_SEED, ACTION_OPEN, &reuse_page);
+    set_item(&randomizer_items[2], TEXT_OPTIONS, ACTION_OPEN, &rz_options_page);
     set_item(&randomizer_items[3], 0, 0, 0);
     make_list(&goodies_menu, goodies_menu_items);
     make_list(&randomizer_menu, randomizer_items);
     retail_list_update = randomizer_menu.update;
-    randomizer_menu.update = (u32)ee_rz_menu_update;    /* forgets a Reuse Seed code: New Game from here is fresh */
+    randomizer_menu.update = ee_rz_menu_update;         /* forgets a Reuse Seed code: New Game from here is fresh */
     make_list(&seed_box, seed_items);
-    seed_box.update = (u32)ee_seed_box_update;
+    seed_box.update = ee_seed_box_update;
     retail_seed_box_draw = seed_box.draw;
-    seed_box.draw = (u32)ee_seed_box_draw;
-    seed_box.flags = SEED_FLAGS;
-    copy_words((u32 *)&reuse_prompt, SELECT_PROMPT, sizeof(reuse_prompt) / 4);   /* the struct holds the words a list uses, not all 0x50 */
-    reuse_prompt.items = reuse_prompt_items;
+    seed_box.draw = ee_seed_box_draw;
+    seed_box.data.list.flags = SEED_FLAGS;
+    copy_screen(&reuse_prompt, SELECT_PROMPT);
+    reuse_prompt.data.list.items = reuse_prompt_items;
     seed_prompt(0);
 
-    make_page(goodies_page, OPTIONS_PAGE, TITLE_PAGE, (u32)goodies_title, (u32)&goodies_menu, SELECT_PROMPT);
-    page = (struct MenuPage *)goodies_page;
+    make_page(&goodies_page, OPTIONS_PAGE, TITLE_PAGE, &goodies_title, &goodies_menu, SELECT_PROMPT);
+    page = &goodies_page;
     page->moby_anims[PANEL_ROW] = SEQ_ROW;              /* the Goodies row slides out as the page opens */
     for (j = 0; j < 3; j++) {
         page->moby_anims[ROW_FIRST_PANEL + j] = goodies_ids[j];
     }
 
-    make_page(randomizer_page, OPTIONS_PAGE, (u32)goodies_page, (u32)randomizer_title, (u32)&randomizer_menu,
-              SELECT_PROMPT);
-    page = (struct MenuPage *)randomizer_page;
+    make_page(&randomizer_page, OPTIONS_PAGE, &goodies_page, &randomizer_title, &randomizer_menu, SELECT_PROMPT);
+    page = &randomizer_page;
     page->moby_anims[PANEL_ROW] = PANEL_ROW_PARKED;
     for (j = 0; j < 3; j++) {
         page->moby_anims[ROW_FIRST_PANEL + j] = randomizer_ids[j];
     }
 
-    make_page(reuse_page, VIDEO_PAGE, (u32)randomizer_page, (u32)reuse_title, (u32)&seed_box, (u32)&reuse_prompt);
-    page = (struct MenuPage *)reuse_page;
+    make_page(&reuse_page, VIDEO_PAGE, &randomizer_page, &reuse_title, &seed_box, &reuse_prompt);
+    page = &reuse_page;
     for (j = 0; j < 3; j++) {
         page->moby_anims[ROW_FIRST_PANEL + j] = reuse_ids[j];
     }
@@ -1491,33 +1456,33 @@ static void build_pages(void)
      * Starting Planet's row in a copy of its toggle list; the Randomizer
      * page's boxes are the Options page's, so the Video page's own
      * sequences take them there and back */
-    copy_words(rz_options_toggle, video->focus, WIDGET_WORDS);
-    retail_toggle_update = rz_options_toggle[0];
-    rz_options_toggle[0] = (u32)ee_rz_options_update;
-    rz_options_toggle[LIST_ENTER] = 0;
-    rz_options_toggle[TOGGLE_ENTRIES_WORD] = (u32)start_entries;
-    rz_options_toggle[TOGGLE_CURSOR_WORD] = 0;
+    copy_screen(&rz_options_toggle, video->focus);
+    retail_toggle_update = rz_options_toggle.update;
+    rz_options_toggle.update = ee_rz_options_update;
+    rz_options_toggle.enter = 0;
+    rz_options_toggle.data.options.list = (struct MenuOption *)start_entries;
+    rz_options_toggle.data.options.selection = 0;
     start_entries[0].on_text = start_texts[start_setting];
-    make_page(rz_options_page, VIDEO_PAGE, (u32)randomizer_page, (u32)rz_options_title, (u32)rz_options_toggle,
+    make_page(&rz_options_page, VIDEO_PAGE, &randomizer_page, &rz_options_title, &rz_options_toggle,
               video->screens[ROW_FIRST_PANEL + 2]);
 
     /* retail's New Game page with the slot list copied: its update arms a
      * Randomizer game (ee_rz_slots_update), its draw adds the badges */
-    copy_words(rz_slots, NEW_GAME_SLOTS, WIDGET_WORDS);
-    rz_slots[0] = (u32)ee_rz_slots_update;
-    rz_slots[WIDGET_DRAW] = (u32)ee_rz_slots_draw;
-    copy_words(new_game_page, NEW_GAME_PAGE, PAGE_WORDS);
-    page = (struct MenuPage *)new_game_page;
-    page->back = (u32)randomizer_page;
-    page->focus = (u32)rz_slots;
-    page->screens[1] = (u32)rz_slots;
+    copy_screen(&rz_slots, NEW_GAME_SLOTS);
+    rz_slots.update = ee_rz_slots_update;
+    rz_slots.draw = ee_rz_slots_draw;
+    page = &new_game_page;
+    copy_words(page, NEW_GAME_PAGE, PAGE_WORDS);
+    page->back = &randomizer_page;
+    page->focus = &rz_slots;
+    page->screens[1] = &rz_slots;
     page->moby_anims[PANEL_ROW] = SEQ_NEW_GAME_TITLE;
     for (j = 0; j < 3; j++) {
         page->moby_anims[ROW_FIRST_PANEL + j] = new_game_ids[j];
     }
-    new_game_page[0x80 / 4] = 0;
+    page->pending_focus = 0;
 
-    goodies_items[0].param = (u32)goodies_page;
+    goodies_items[0].param.value = (s32)&goodies_page;
 }
 
 /* --- Reuse Seed's input box ------------------------------------------------ */
@@ -1564,18 +1529,19 @@ extern void flush_cache(s32);   /* FlushCache (core) */
 static const u32 font_metrics[3] = { 0x001DF3D0, 0x001DF770, 0x001DFB10 };   /* normal, small, large */
 
 /* The executable's data (the menus' pages and widgets, the fonts' metrics, the panel table) is relinked into
- * each level program as one block, so a title-screen address has the same offset from the menu record
+ * each level program as one block, so a title-screen address has the same offset from the menu system
  * (LEVEL_DATA menu_state) there; the title's two programs keep it in place. */
-#define TITLE_MENU_STATE 0x001D5F70
 #define LEVEL_PROGRAMS   19
 
 static u32 exe_data(s32 L, u32 title_address)
 {
     if (L < LEVEL_PROGRAMS) {
-        return (u32)LVL_DATA(L, menu_state, u8 *) + (title_address - TITLE_MENU_STATE);
+        return (u32)LVL_DATA(L, menu_state, u8 *) + (title_address - (u32)TITLE_MENU);
     }
     return title_address;
 }
+
+#define EXE_SCREEN(L, screen)   ((MenuScreen *)exe_data(L, (u32)(screen)))
 
 /* The glyphs' metrics (cell u, v, and advance) into program L's three font metrics tables, once. */
 static void install_glyph_metrics(s32 L)
@@ -1648,7 +1614,7 @@ static void clear_seed_box(void)
     seed_prompt(0);
 }
 
-static void menu_sound(s32 kind, u32 moby)
+static void menu_sound(s32 kind, s32 moby)
 {
     if (LVL_TABLE(Moby_PlaySound)[title_program] != 0) {
         LVL(title_program, Moby_PlaySound, MenuSoundFn)(kind, 0x11, moby);
@@ -1661,17 +1627,17 @@ static void menu_sound(s32 kind, u32 moby)
  * one that passes opens the Randomizer's New Game with its seed; one that
  * fails empties the box and shows "Invalid seed code" in red
  * (ee_seed_box_draw) until the next press, which starts a new code. */
-s32 ee_seed_box_update(struct MenuList *box)
+s32 ee_seed_box_update(MenuScreen *box)
 {
     u32 pressed = g_controller_state.raw_pressed;
     s32 k;
     install_glyphs();
-    if (MENU_CURRENT == 0 || *(u32 *)(MENU_CURRENT + PAGE_FOCUS) != (u32)box) {
+    if (TITLE_MENU->current == 0 || TITLE_MENU->current->focus != box) {
         return 0;
     }
     if (pressed & PAD_TRIANGLE) {
         clear_seed_box();
-        MENU_NEXT = ((struct MenuPage *)MENU_CURRENT)->back;
+        TITLE_MENU->next = TITLE_MENU->current->back;
         return 0;
     }
     if (seed_length == RZ_CODE_LENGTH) {
@@ -1687,9 +1653,9 @@ s32 ee_seed_box_update(struct MenuList *box)
                                  : start_setting == RZ_START_VELDIN ? RZ_START_VELDIN : RZ_START_NOVALIS, 1);
             /* as the list's action 4 (Pause_TextListUpdate) opens New Game */
             menu_sound(0, box->moby);
-            MENU_LOAD_KIND = 0;
+            TITLE_MENU->unk150 = 0;
             mode_freeze_flags = (mode_freeze_flags | 2) & ~4;
-            LVL(title_program, mode_freeze_init, FreezeFn)(3, new_game_page, 0);
+            LVL(title_program, mode_freeze_init, FreezeFn)(3, &new_game_page, 0);
         } else {
             clear_seed_box();
             seed_error = 1;
@@ -1716,9 +1682,9 @@ s32 ee_seed_box_update(struct MenuList *box)
 /* The box's draw: the list's own (the symbols entered, left-aligned at x 4
  * in the normal font, in the row's middle), then, after a refused code,
  * "Invalid seed code" centred in red where the symbols would be. */
-s32 ee_seed_box_draw(struct MenuList *box)
+s32 ee_seed_box_draw(MenuScreen *box)
 {
-    s32 r = ((WidgetFn)retail_seed_box_draw)(box);
+    s32 r = retail_seed_box_draw(box);
     if (seed_error) {
         s32 y = box->height / 2 - FONT_HEIGHT / 2 - 1;
         LVL(title_program, SetupGifPaging, PagingFn)(0);
@@ -1733,11 +1699,11 @@ s32 ee_seed_box_draw(struct MenuList *box)
 
 /* The Randomizer page's list: a New Game chosen here starts from a fresh
  * seed, where the Starting Planet says. */
-s32 ee_rz_menu_update(void *list)
+s32 ee_rz_menu_update(MenuScreen *list)
 {
     ee_rz_set_seed(0, start_setting, 0);
     ee_rz_arm(0);
-    return ((WidgetFn)retail_list_update)(list);
+    return retail_list_update(list);
 }
 
 /* The Starting Planet's row: retail's toggle (ToggleList_PadInput,
@@ -1747,12 +1713,12 @@ s32 ee_rz_menu_update(void *list)
  * the page puts a changed setting in the edition's record on the card, in
  * the background (record_job); with no card, or no save directory yet, it
  * stays for the session. */
-s32 ee_rz_options_update(void *widget)
+s32 ee_rz_options_update(MenuScreen *list)
 {
     static u8 save_tried;               /* once per change: a card without the save directory refuses every time */
     s32 r;
     start_shown = 1;
-    r = ((WidgetFn)retail_toggle_update)(widget);
+    r = retail_toggle_update(list);
     if (!start_shown) {
         start_setting = (u8)((start_setting + 1) % RZ_START_MODES);
         start_unsaved = 1;              /* kept over the next scan's value until it is on the card */
@@ -1761,7 +1727,7 @@ s32 ee_rz_options_update(void *widget)
     }
     start_entries[0].on_text = start_texts[start_setting];
     if (start_unsaved && !save_tried && record_job.step == RECORD_IDLE
-        && MENU_NEXT == ((struct MenuPage *)rz_options_page)->back) {
+        && TITLE_MENU->next == rz_options_page.back) {
         save_tried = 1;
         record_job_start((card_flags & ~EDITION_START_MASK) | (start_setting << EDITION_START_SHIFT));
     }
@@ -1770,13 +1736,13 @@ s32 ee_rz_options_update(void *widget)
 
 /* The Randomizer New Game's slot list: retail's update, with a Randomizer
  * game armed while it runs, and the overwrite question sent back here. */
-s32 ee_rz_slots_update(void *widget)
+s32 ee_rz_slots_update(MenuScreen *list)
 {
     s32 r;
     ee_rz_arm(1);
-    r = ((WidgetFn)retail_slots_update)(widget);
-    if (MENU_NEXT == CONFIRM_PAGE) {
-        ((u32 *)CONFIRM_PAGE)[PAGE_BACK_WORD] = (u32)new_game_page;
+    r = retail_slots_update(list);
+    if (TITLE_MENU->next == CONFIRM_PAGE) {
+        CONFIRM_PAGE->back = &new_game_page;
     }
     return r;
 }
@@ -1807,14 +1773,14 @@ static void draw_badges(s32 program)
  * scan's: another card put in while the page is open, which the page reads
  * again and shows. The machine must have checked the card twice (card_ok),
  * as for the background scan: libmc reads no card it has yet to accept. */
-s32 ee_rz_slots_draw(void *widget)
+s32 ee_rz_slots_draw(MenuScreen *list)
 {
     s32 r;
-    if (MENU_CURRENT == NEW_GAME_PAGE) {
+    if (TITLE_MENU->current == NEW_GAME_PAGE) {
         ee_rz_arm(0);
-        ((u32 *)CONFIRM_PAGE)[PAGE_BACK_WORD] = NEW_GAME_PAGE;
+        CONFIRM_PAGE->back = NEW_GAME_PAGE;
     }
-    r = ((WidgetFn)retail_slots_draw)(widget);
+    r = retail_slots_draw(list);
     if (card_ready() && card_ok() && scan.file == SCAN_DONE && summary_changed() && card_take()) {
         scan_start(title_program);
         scan_run();
@@ -1842,7 +1808,7 @@ volatile u32 ee_debug_rz_pause[4];      /* PINE: draws, draws with the card idle
  * last scan's. 0 while the card is not idle. */
 static s32 pause_rescan(s32 L)
 {
-    s32 ticks = *(volatile s32 *)(LVL_DATA(L, menu_state, u8 *) + MENU_TICKS_OFFSET);
+    s32 ticks = LVL_DATA(L, menu_state, MenuSystem *)->ticks;
     if (MC_STATE >= 3 || MC_REQUEST >= 0 || ticks < 11 || MC_TYPE != 2 || MC_SUMMARY_STATE != 2) {
         return 0;
     }
@@ -1902,12 +1868,12 @@ static s32 text_width(const char *text, const volatile u8 *metrics)
  * box is 322 pixels wide and the line about 280; a translation that would
  * not fit is drawn smaller through the scaled font print
  * (Font_DrawString). */
-static void draw_seed_line(const u32 *words, const struct RzSlot *rz, s32 L)
+static void draw_seed_line(const MenuScreen *box, const struct RzSlot *rz, s32 L)
 {
     const volatile u8 *metrics = (const volatile u8 *)exe_data(L, font_metrics[0]);
     const char *label = LVL(L, msg_string, MsgFn)(EE_TEXT_SEED);
     char line[RZ_CODE_LENGTH + 1];
-    s32 width = (s32)words[WIDGET_WIDTH];
+    s32 width = box->width;
     s32 label_w = text_width(label, metrics);
     s32 total = label_w + SEED_GAP + RZ_CODE_LENGTH * GLYPH_ADVANCE;
     f32 scale = total + 2 * TEXT_MARGIN <= width ? 1.0f : (f32)(width - 2 * TEXT_MARGIN) / (f32)total;
@@ -1915,7 +1881,7 @@ static void draw_seed_line(const u32 *words, const struct RzSlot *rz, s32 L)
     f32 y = (f32)(NAME_FIRST_Y + 2 * NAME_LINE);
     u64 tex;
     ee_debug_rz[0] = (u32)width;
-    ee_debug_rz[1] = words[WIDGET_HEIGHT];
+    ee_debug_rz[1] = (u32)box->height;
     ee_debug_rz[2] = (u32)total;
     ee_debug_rz[3] = (u32)(s32)(scale * 1000.0f);      /* through s32: the compiler has no float-to-unsigned helper here */
     seed_line(rz, line);
@@ -1927,24 +1893,24 @@ static void draw_seed_line(const u32 *words, const struct RzSlot *rz, s32 L)
     LVL(L, DoGifPaging, VoidFn)();
 }
 
-/* The slot the focused slot list is on, clamped to the five. */
-static s32 focused_slot(u32 menu_record)
+/* The slot the focused slot list is on, clamped to the five; the name box names that slot's save. */
+static s32 focused_slot(const MenuSystem *menu)
 {
-    u32 page = *(volatile u32 *)(menu_record + 4);
-    u32 *list = page != 0 ? (u32 *)*(volatile u32 *)(page + PAGE_FOCUS) : 0;
-    s32 slot = list != 0 ? (s32)list[WIDGET_SLOT] : 0;
+    const MenuPage *page = menu->current;
+    const MenuScreen *list = page != 0 ? page->focus : 0;
+    s32 slot = list != 0 ? list->data.save.slot : 0;
     return slot < 0 ? 0 : slot >= MC_SLOTS ? MC_SLOTS - 1 : slot;
 }
 
-s32 ee_rz_name_draw(void *widget)
+s32 ee_rz_name_draw(MenuScreen *box)
 {
-    s32 slot = focused_slot(TITLE_MENU_STATE);
+    s32 slot = focused_slot(TITLE_MENU);
     const struct RzSlot *rz = &slots[slot].rz;
     s32 r;
     install_glyphs();
-    r = ((WidgetFn)retail_name_draw)(widget);
+    r = retail_name_draw(box);
     if (rz_saves && rz->present && card_ready() && MC_SLOT_LEVEL(slot) != -1) {
-        draw_seed_line((const u32 *)widget, rz, title_program);
+        draw_seed_line(box, rz, title_program);
     }
     return r;
 }
@@ -1955,16 +1921,16 @@ s32 ee_rz_name_draw(void *widget)
  * the slot list's draw (ee_rz_slots_end_c), which comes before this one in the page. */
 DECLARE_LVL(func_00223E40);   /* DrawSaveLevelName(widget) */
 
-s32 ee_rz_pause_name_c(void *widget, s32 L)
+s32 ee_rz_pause_name_c(MenuScreen *box, s32 L)
 {
-    u32 menu_record = (u32)LVL_DATA(L, menu_state, u8 *);
-    s32 ticks = *(volatile s32 *)(menu_record + MENU_TICKS_OFFSET);
-    s32 slot = focused_slot(menu_record);
+    const MenuSystem *menu = LVL_DATA(L, menu_state, MenuSystem *);
+    s32 ticks = menu->ticks;
+    s32 slot = focused_slot(menu);
     const struct RzSlot *rz = &slots[slot].rz;
-    s32 r = LVL(L, func_00223E40, WidgetFn)(widget);
+    s32 r = LVL(L, func_00223E40, ScreenFn)(box);
     if (rz_saves && rz->present && MC_STATE < 3 && MC_REQUEST < 0 && ticks >= 11 && MC_TYPE == 2
         && MC_SLOT_LEVEL(slot) != -1) {
-        draw_seed_line((const u32 *)widget, rz, L);
+        draw_seed_line(box, rz, L);
     }
     return r;
 }
@@ -1976,10 +1942,10 @@ s32 ee_rz_pause_name_c(void *widget, s32 L)
  * play as sequence PAUSE_NAME_SEQ, is stretched down a line as the title screen's is. The title's sequence
  * copies belong to its program and are forgotten here; the title installs its own again when it opens. */
 #define PAUSE_NAME_SEQ  0x7F            /* both pause pages' moby_anims[NAME_PANEL] */
-#define PAUSE_FIRST_ROW 0x001CE938      /* the pause menu's front page's (D_001CE808) first row: Weapons */
+#define PAUSE_FIRST_ROW ((MenuScreen *)0x001CE938)  /* the pause menu's front page's (D_001CE808) first row: Weapons */
 extern const u32 ee_rz_name_draw_table[LEVEL_PROGRAMS];   /* the stubs, by level (src/rz_hooks.s) */
 extern const u32 ee_rz_pause_row_draw_table[LEVEL_PROGRAMS];
-static u32 retail_row_draw[LEVEL_PROGRAMS];                    /* DrawMenuItemList, each level program's */
+static ScreenFn retail_row_draw[LEVEL_PROGRAMS];               /* DrawMenuItemList, each level program's */
 static s32 pause_program = -1;
 
 /* The pause pages' name panel: stretched a line while the last card scan found a Randomizer save, retail's height
@@ -1995,7 +1961,7 @@ static s32 pause_program = -1;
  * again if they are wanted. */
 static void pause_name_fit(s32 L)
 {
-    const Moby *panel = *(Moby *volatile *)exe_data(L, PANELS_ADDRESS + 4 * PANEL_ROW);
+    const Moby *panel = *(Moby **)exe_data(L, (u32)&TITLE_PANELS[PANEL_ROW]);
     const MobyClass *pclass;
     s32 stretched;
     if (panel == 0 || (pclass = panel->pclass) == 0 || pclass->seq_count <= SEQ_CONFIRM_NAME) {
@@ -2020,30 +1986,28 @@ static void pause_name_fit(s32 L)
 }
 
 /* The front page's first row's draw in level L (src/rz_hooks.s stubs): the name panel fit, then retail's. */
-s32 ee_rz_pause_row_c(void *widget, s32 L)
+s32 ee_rz_pause_row_c(MenuScreen *row, s32 L)
 {
     pause_name_fit(L);
-    return ((WidgetFn)retail_row_draw[L])(widget);
+    return retail_row_draw[L](row);
 }
 
 void ee_rz_pause_open(s32 L)
 {
-    u32 *name_box;
-    u32 *row;
+    MenuScreen *row;
     if (L >= LEVEL_PROGRAMS) {
         return;
     }
-    row = (u32 *)exe_data(L, PAUSE_FIRST_ROW);
-    if (row[WIDGET_DRAW] != ee_rz_pause_row_draw_table[L]) {
-        retail_row_draw[L] = row[WIDGET_DRAW];
-        row[WIDGET_DRAW] = ee_rz_pause_row_draw_table[L];
+    row = EXE_SCREEN(L, PAUSE_FIRST_ROW);
+    if (row->draw != (ScreenFn)ee_rz_pause_row_draw_table[L]) {
+        retail_row_draw[L] = row->draw;
+        row->draw = (ScreenFn)ee_rz_pause_row_draw_table[L];
     }
     if (L != pause_program) {
         pause_program = L;
         installed = 0;
     }
-    name_box = (u32 *)exe_data(L, NAME_BOX);
-    name_box[WIDGET_DRAW] = ee_rz_name_draw_table[L];
+    EXE_SCREEN(L, NAME_BOX)->draw = (ScreenFn)ee_rz_name_draw_table[L];
     install_glyph_metrics(L);
     pause_name_fit(L);
 }
@@ -2054,20 +2018,17 @@ void ee_rz_pause_open(s32 L)
  * armed. A title program loaded afresh has retail's words again. */
 static void patch_widgets(void)
 {
-    u32 *new_game = (u32 *)NEW_GAME_SLOTS;
-    u32 *load_game = (u32 *)LOAD_GAME_SLOTS;
-    u32 *name = (u32 *)NAME_BOX;
-    if (new_game[WIDGET_DRAW] != (u32)ee_rz_slots_draw) {
-        retail_slots_draw = new_game[WIDGET_DRAW];
+    if (NEW_GAME_SLOTS->draw != ee_rz_slots_draw) {
+        retail_slots_draw = NEW_GAME_SLOTS->draw;
     }
-    if (name[WIDGET_DRAW] != (u32)ee_rz_name_draw) {
-        retail_name_draw = name[WIDGET_DRAW];
+    if (NAME_BOX->draw != ee_rz_name_draw) {
+        retail_name_draw = NAME_BOX->draw;
     }
-    retail_slots_update = new_game[0];
-    new_game[WIDGET_DRAW] = (u32)ee_rz_slots_draw;
-    load_game[WIDGET_DRAW] = (u32)ee_rz_slots_draw;
-    name[WIDGET_DRAW] = (u32)ee_rz_name_draw;
-    ((u32 *)CONFIRM_PAGE)[PAGE_BACK_WORD] = NEW_GAME_PAGE;
+    retail_slots_update = NEW_GAME_SLOTS->update;
+    NEW_GAME_SLOTS->draw = ee_rz_slots_draw;
+    LOAD_GAME_SLOTS->draw = ee_rz_slots_draw;
+    NAME_BOX->draw = ee_rz_name_draw;
+    CONFIRM_PAGE->back = NEW_GAME_PAGE;
     ee_rz_arm(0);
     ee_rz_set_seed(0, start_setting, 0);
     clear_seed_box();
@@ -2081,13 +2042,13 @@ static void patch_widgets(void)
  * prompt box; not stretched, the name box came back a line short. */
 static void install_name_stretch(void)
 {
-    const Moby *panel = PANELS[PANEL_ROW];
+    const Moby *panel = TITLE_PANELS[PANEL_ROW];
     const MobyClass *pclass;
     if (panel == 0 || (pclass = panel->pclass) == 0 || pclass->seq_count <= SEQ_ROW) {
         return;
     }
     class_sequences = (u32 *)pclass->seqs;
-    raise_sequence(((struct MenuPage *)NEW_GAME_PAGE)->moby_anims[NAME_PANEL], 0, 0, 1);
+    raise_sequence(NEW_GAME_PAGE->moby_anims[NAME_PANEL], 0, 0, 1);
     raise_sequence(SEQ_CONFIRM_NAME, 0, 0, -1);
 }
 
@@ -2098,13 +2059,12 @@ static void install_name_stretch(void)
  * in 16:9 on the title screen. */
 static void title_rows(s32 with_goodies)
 {
-    struct MenuPage *page = (struct MenuPage *)TITLE_PAGE;
-    struct MenuList *new_game = (struct MenuList *)TITLE_NEW_GAME;
-    struct MenuList *options = (struct MenuList *)TITLE_OPTIONS;
+    MenuPage *page = TITLE_PAGE;
+    MenuScreen *new_game = TITLE_NEW_GAME;
+    MenuScreen *options = TITLE_OPTIONS;
     s32 k;
     for (k = 0; k < 3; k++) {
-        struct MenuList *row = (struct MenuList *)(TITLE_NEW_GAME + k * TITLE_LIST_STRIDE);
-        struct MenuPage *opens = (struct MenuPage *)row->items[0].param;
+        MenuPage *opens = (MenuPage *)TITLE_ROW(k)->data.list.items[0].param.value;
         if (opens->moby_anims[PANEL_ROW] != SEQ_ROW) {
             opened_panel0[k] = opens->moby_anims[PANEL_ROW];
         }
@@ -2115,25 +2075,23 @@ static void title_rows(s32 with_goodies)
     }
     page->moby_anims[PANEL_ROW] = PANEL_ROW_PARKED;
     page->screens[PANEL_ROW] = TITLE_PLACEHOLDER;
-    options->down = TITLE_NEW_GAME;
-    new_game->up = TITLE_OPTIONS;
+    options->data.list.down = new_game;
+    new_game->data.list.up = options;
     if (!with_goodies) {
         return;
     }
-    for (k = 0; k < (s32)(sizeof(goodies_list) / 4); k++) {     /* this program's list functions and flags */
-        ((u32 *)&goodies_list)[k] = ((u32 *)options)[k];
-    }
+    copy_screen(&goodies_list, options);    /* this program's list functions and flags */
     goodies_list.moby = 0;
-    goodies_list.items = goodies_items;
-    goodies_list.up = TITLE_OPTIONS;
-    goodies_list.down = TITLE_NEW_GAME;
-    goodies_list.selected = 0;
-    goodies_list.scroll = 0;
+    goodies_list.data.list.items = goodies_items;
+    goodies_list.data.list.up = options;
+    goodies_list.data.list.down = new_game;
+    goodies_list.data.list.selected = 0;
+    goodies_list.data.list.scroll = 0;
     goodies_items[0].fade_timer = 0;
     page->moby_anims[PANEL_ROW] = SEQ_ROW;
-    page->screens[PANEL_ROW] = (u32)&goodies_list;
-    options->down = (u32)&goodies_list;
-    new_game->up = (u32)&goodies_list;
+    page->screens[PANEL_ROW] = &goodies_list;
+    options->data.list.down = &goodies_list;
+    new_game->data.list.up = &goodies_list;
 }
 
 /* Pause_Update's call of Pause_Open in the title screen's program L (19, 20;
@@ -2178,7 +2136,6 @@ void ee_title_menu_open_c(s32 L)
  * did not finish is finished when the start menu opens (goodies_unlocked).
  * A record write (record_job) steps in the same turns, menu open or not. */
 DECLARE_LVL(memcard_update_state);
-#define MENU_UPDATES    (*(volatile s32 *)0x001D6080)    /* D_001D5F70 + 0x110: Pause_Update's count, held at 0x7D00 */
 static s32 menu_updates_seen;
 
 /* The machine is between its card checks, with no command or request. */
@@ -2189,8 +2146,8 @@ static s32 machine_idle(void)
 
 void ee_title_card_c(s32 L)
 {
-    s32 menu_open = MENU_UPDATES != menu_updates_seen;
-    menu_updates_seen = MENU_UPDATES;
+    s32 menu_open = TITLE_MENU->update_count != menu_updates_seen;
+    menu_updates_seen = TITLE_MENU->update_count;
     title_program = L;
     ee_debug_card[0]++;
     if (scan.in_flight && !scan_poll(0)) {

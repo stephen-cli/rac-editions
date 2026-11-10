@@ -95,11 +95,9 @@ typedef void (*RectFn)(s32, s32, s32, s32, u64, s32);
 #define VOLUME_MAX      0x400
 #define VOLUME_STEP     3
 
-/* The widget: +0x14 the moby its sounds play at, +0x20/+0x24 its size, +0x40 the row. */
-#define W_OWNER(w)      (*(u32 *)((w) + 0x14))
-#define W_WIDTH(w)      (*(s32 *)((w) + 0x20))
-#define W_HEIGHT(w)     (*(s32 *)((w) + 0x24))
-#define W_ROW(w)        (*(s32 *)((w) + 0x40))
+/* The Sound page's box is OpenRAC's MenuScreen: its moby (the menu's sounds play at it), its width and height.
+ * It keeps its row where a text list keeps its selection (+0x40); MenuScreen has no member for this box yet. */
+#define SOUND_ROW(box)  ((box)->data.list.selected)
 
 enum { ROW_SFX, ROW_MUSIC, ROW_MOVIE, ROW_STEREO, ROWS };
 
@@ -169,25 +167,25 @@ static const char *text(s32 L, s32 id)
 
 /* Pause_SoundOptionsInput with the Movie volume row. 1 closes the menu,
  * -1 closes the page, 0 stays. */
-s32 ee_sound_input_c(u8 *w, s32 L)
+s32 ee_sound_input_c(MenuScreen *box, s32 L)
 {
-    u8 *ms = LVL_DATA(L, menu_state, u8 *);
-    u8 *page = *(u8 **)(ms + 4);
+    MenuSystem *menu = LVL_DATA(L, menu_state, MenuSystem *);
+    const MenuPage *page = menu->current;
     u32 pressed = g_controller_state.pressed_unmasked;
     u32 held = g_controller_state.held_unmasked;
-    s32 *row = &W_ROW(w);
+    s32 *row = &SOUND_ROW(box);
     s32 previous, sfx, music, d;
 
-    if ((pressed & BTN_CLOSE) && *(s32 *)(ms + 0x124) == 0) {
+    if ((pressed & BTN_CLOSE) && menu->close_locked == 0) {
         return 1;
     }
     if (pressed & BTN_TRIANGLE) {
-        u8 *back = *(u8 **)(page + 0x38);
+        MenuPage *back = page->back;
         if (back != 0) {
-            *(u8 **)(ms + 8) = back;
+            menu->next = back;
             return 0;
         }
-        if (*(s32 *)(ms + 0x124) == 0) {
+        if (menu->close_locked == 0) {
             return -1;
         }
     }
@@ -198,8 +196,8 @@ s32 ee_sound_input_c(u8 *w, s32 L)
     if (pressed & BTN_DOWN) {
         *row = (*row + 1) % ROWS;
     }
-    if (*row != previous || *(s32 *)(page + 0x80) != 0) {
-        LVL(L, Moby_PlaySound, SoundFn)(1, 0x11, W_OWNER(w));
+    if (*row != previous || page->pending_focus != 0) {
+        LVL(L, Moby_PlaySound, SoundFn)(1, 0x11, box->moby);
     }
 
     sfx = sound_volume;
@@ -234,7 +232,7 @@ s32 ee_sound_input_c(u8 *w, s32 L)
             playback_mode = !playback_mode;
         }
         snd_SetPlaybackMode(!playback_mode);
-        LVL(L, Moby_PlaySound, SoundFn)(0, 0x11, W_OWNER(w));
+        LVL(L, Moby_PlaySound, SoundFn)(0, 0x11, box->moby);
     }
     return 0;
 }
@@ -242,10 +240,10 @@ s32 ee_sound_input_c(u8 *w, s32 L)
 /* DrawSoundMenu with the Movie volume row: rows at fifths of the panel's
  * height instead of quarters, each a right-aligned label and, for the
  * volumes, a slider bar right of the centre; the selected label is yellow. */
-s32 ee_sound_draw_c(u8 *w, s32 L)
+s32 ee_sound_draw_c(MenuScreen *box, s32 L)
 {
-    s32 width = W_WIDTH(w);
-    s32 height = W_HEIGHT(w);
+    s32 width = box->width;
+    s32 height = box->height;
     s32 cx = width >> 1;
     s32 r;
 
@@ -253,7 +251,7 @@ s32 ee_sound_draw_c(u8 *w, s32 L)
     for (r = 0; r < ROWS; r++) {
         static const u16 labels[ROWS] = { TEXT_SFX, TEXT_MUSIC, EE_TEXT_MOVIE_VOLUME, TEXT_STEREO };
         s32 y = height * (r + 1) / (ROWS + 1);
-        u64 colour = W_ROW(w) == r ? COLOUR_SELECTED : COLOUR_ROW;
+        u64 colour = SOUND_ROW(box) == r ? COLOUR_SELECTED : COLOUR_ROW;
         LVL(L, font_print_right, FontFn)(cx - 8, y - 8, colour, text(L, labels[r]), -1);
         if (r == ROW_STEREO) {
             LVL(L, FontPrintLarge, FontFn)(cx + 8, y - 8, COLOUR_ROW,

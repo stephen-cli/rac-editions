@@ -254,12 +254,12 @@ void ee_qs_draw_c(void *slot, u32 ra)
     LVL(L, FontPrintLarge, FontFn)(x + R1_GLYPH_X, y + BOX_CY - 8, colour, glyph_r1, -1);
 }
 
-/* The pause page's ring widget, update: Square flips the page. S is the
- * widget state: +0x14 its moby (for the sound), +0x30 the eight slots,
- * +0x50 the highlighted one. Entered through the level's stub. */
-s32 ee_qs_pause_update_c(u8 *s, s32 L)
+/* The pause page's ring, update: Square flips the page. RING is its box
+ * (MenuScreen.data.slots: the eight slots' items and the highlighted slot;
+ * its moby is where the sound plays). Entered through the level's stub. */
+s32 ee_qs_pause_update_c(MenuScreen *ring, s32 L)
 {
-    volatile u32 *slots = (volatile u32 *)(s + 0x30);
+    s32 *slots = ring->data.slots.items;
     s32 i;
     validate();
     if (g_controller_state.pressed_unmasked & BTN_SQUARE) {
@@ -270,20 +270,19 @@ s32 ee_qs_pause_update_c(u8 *s, s32 L)
         for (i = 0; i < SLOTS; i++) {
             slots[i] = quick_select_items[i];
         }
-        LVL(L, Moby_PlaySound, SoundFn)(1, 0x11, *(u32 *)(s + 0x14));   /* the slot-step blip */
+        LVL(L, Moby_PlaySound, SoundFn)(1, 0x11, ring->moby);    /* the slot-step blip */
     }
-    return LVL(L, update_menu_item_slots, PauseFn)(s);
+    return LVL(L, update_menu_item_slots, PauseFn)(ring);
 }
 
-/* Its draw: "Page N" in the ring's centre (+0x20/+0x24 are the widget's size). */
-s32 ee_qs_pause_draw_c(u8 *s, s32 L)
+/* Its draw: "Page N" in the ring's centre. */
+s32 ee_qs_pause_draw_c(MenuScreen *ring, s32 L)
 {
-    s32 r = LVL(L, draw_pause_ring, PauseFn)(s);
+    s32 r = LVL(L, draw_pause_ring, PauseFn)(ring);
     const char *text = LVL(L, msg_string, MsgFn)(EE_TEXT_QS_PAGE + (QS_PAGE < PAGES ? QS_PAGE : 0));
     if (text) {
         LVL(L, SetupGifPaging, GifFn)(0);
-        LVL(L, FontPrintCenter, FontFn)(*(s32 *)(s + 0x20) / 2, *(s32 *)(s + 0x24) / 2 - 8, 0x80000000u | PROMPT_COLOUR,
-                                      text, -1);
+        LVL(L, FontPrintCenter, FontFn)(ring->width / 2, ring->height / 2 - 8, 0x80000000u | PROMPT_COLOUR, text, -1);
         ((VoidFn)LVL_TABLE(DoGifPaging)[L])();
     }
     return r;
